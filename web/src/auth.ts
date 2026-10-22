@@ -5,10 +5,12 @@ import { loginRequest, logoutRequest, meRequest, setCSRF } from './api'
 export const auth = reactive<{
   user: User | null
   baseUrl: string
+  caldavUrl: string
   ready: boolean
 }>({
   user: null,
   baseUrl: '',
+  caldavUrl: '',
   ready: false,
 })
 
@@ -17,6 +19,7 @@ export async function bootstrapAuth() {
     const data = await meRequest()
     auth.user = data.user as User
     auth.baseUrl = data.baseUrl
+    auth.caldavUrl = (data as { caldavUrl?: string }).caldavUrl || ''
     setCSRF(data.csrf)
   } catch {
     auth.user = null
@@ -29,6 +32,7 @@ export async function login(username: string, password: string) {
   const data = await loginRequest(username, password)
   auth.user = data.user as User
   auth.baseUrl = data.baseUrl
+  auth.caldavUrl = (data as { caldavUrl?: string }).caldavUrl || ''
   setCSRF(data.csrf)
 }
 

@@ -56,6 +56,7 @@ export interface MeData {
   user: User
   csrf: string
   baseUrl: string
+  caldavUrl?: string
 }
 
 export interface UserDetailData {

@@ -60,6 +60,16 @@
                 复制
               </a-button>
             </div>
+            <div class="copy-row">
+              <div class="copy-field">
+                <span class="copy-label">CalDAV 客户端地址</span>
+                <code>{{ caldavBase }}/calendars/{{ auth.user?.username }}/</code>
+              </div>
+              <a-button size="small" @click="copy(`${caldavBase}/calendars/${auth.user?.username}/`)">
+                <template #icon><IconCopy /></template>
+                复制
+              </a-button>
+            </div>
             <p class="endpoint-note">
               手机端 CalDAV 同步地址请使用部署时的公网 HTTPS 地址。管理入口仅用于网页管理。
             </p>
@@ -100,12 +110,13 @@
             </a-button>
           </div>
           <a-table
-            v-if="data.users.length"
+            v-if="!isMobile && data.users.length"
             :data="data.users"
             :columns="columns"
             :pagination="false"
             row-key="id"
             :bordered="false"
+            style="width: 100%"
           >
             <template #user="{ record }">
               <div class="user-cell">
@@ -117,7 +128,7 @@
               </div>
             </template>
             <template #role="{ record }">
-              <a-tag v-if="record.isAdmin" color="arcoblue">管理员</a-tag>
+              <a-tag v-if="record.isAdmin" color="green">管理员</a-tag>
               <a-tag v-else>成员</a-tag>
             </template>
             <template #created="{ record }">
@@ -127,7 +138,31 @@
               <a-link @click="router.push(`/users/${record.id}`)">详情</a-link>
             </template>
           </a-table>
-          <a-empty v-else description="还没有用户" />
+
+          <div v-if="isMobile && data.users.length" class="mobile-list">
+            <article v-for="user in data.users" :key="user.id" class="mobile-card">
+              <div class="mobile-card-head">
+                <div class="user-cell">
+                  <span class="avatar">{{ initials(user.username) }}</span>
+                  <div>
+                    <strong>{{ user.username }}</strong>
+                    <small>{{ user.displayName || user.email || '未设置资料' }}</small>
+                  </div>
+                </div>
+                <a-tag v-if="user.isAdmin" color="green">管理员</a-tag>
+                <a-tag v-else>成员</a-tag>
+              </div>
+              <div class="mobile-card-meta">
+                <span>日历 {{ user.calendars || 0 }}</span>
+                <span>事件 {{ user.objects || 0 }}</span>
+              </div>
+              <div class="mobile-card-actions">
+                <a-button size="small" @click="router.push(`/users/${user.id}`)">查看详情</a-button>
+              </div>
+            </article>
+          </div>
+
+          <a-empty v-if="!data.users.length" description="还没有用户" />
         </a-card>
       </template>
     </a-spin>
@@ -139,6 +174,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { Message } from '@arco-design/web-vue'
+import type { TableColumnData } from '@arco-design/web-vue'
 import {
   IconCalendar,
   IconCheckCircle,
@@ -149,22 +185,27 @@ import {
 } from '@arco-design/web-vue/es/icon'
 import AdminLayout from '../layouts/AdminLayout.vue'
 import { api } from '../api'
-import { copyText, initials } from '../auth'
+import { useIsMobile } from '../useMobile'
+import { auth, copyText, initials } from '../auth'
 import type { DashboardData } from '../types'
 
 const router = useRouter()
 const loading = ref(true)
 const data = ref<DashboardData | null>(null)
 const origin = computed(() => window.location.origin)
+const caldavBase = computed(() => auth.caldavUrl || origin.value)
 
-const columns = [
+const isMobile = useIsMobile()
+const columns = computed<TableColumnData[]>(() => [
   { title: '用户', dataIndex: 'username', slotName: 'user' },
-  { title: '角色', slotName: 'role', width: 100 },
-  { title: '日历', dataIndex: 'calendars', width: 90 },
-  { title: '事件', dataIndex: 'objects', width: 90 },
-  { title: '创建时间', slotName: 'created', width: 130 },
-  { title: '', slotName: 'actions', width: 80, align: 'right' },
-]
+  { title: '角色', slotName: 'role', width: 80 },
+  { title: '日历', dataIndex: 'calendars', width: 60 },
+  ...(isMobile.value ? [] : [
+    { title: '事件', dataIndex: 'objects', width: 60 },
+    { title: '创建时间', slotName: 'created', width: 120 },
+  ]),
+  { title: '', slotName: 'actions', width: 70, align: 'right' },
+])
 
 async function load() {
   loading.value = true

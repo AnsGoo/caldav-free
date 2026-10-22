@@ -28,6 +28,7 @@ func main() {
 		adminPass   = flag.String("admin-pass", envOr("CALDAV_ADMIN_PASSWORD", ""), "bootstrap admin password (generated when empty)")
 		adminEmail  = flag.String("admin-email", envOr("CALDAV_ADMIN_EMAIL", ""), "bootstrap admin email")
 		externalURL = flag.String("external-url", envOr("CALDAV_EXTERNAL_URL", ""), "public base URL, e.g. https://dav.example.com")
+		caldavURL   = flag.String("caldav-url", envOr("CALDAV_PUBLIC_URL", ""), "CalDAV URL shown in the admin UI (defaults to the request origin)")
 		tlsCert     = flag.String("tls-cert", "", "TLS certificate file (enables HTTPS)")
 		tlsKey      = flag.String("tls-key", "", "TLS private key file")
 		debug       = flag.Bool("debug", false, "enable debug logging")
@@ -67,6 +68,7 @@ func main() {
 		logger.Error("failed to initialize admin UI", "error", err)
 		os.Exit(1)
 	}
+	webServer.CalDAVURL = strings.TrimRight(*caldavURL, "/")
 
 	mux := http.NewServeMux()
 	// CalDAV endpoints. Method-specific patterns keep the admin UI on GET /.

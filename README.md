@@ -25,12 +25,13 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 
 ### 管理后台
 
+- Vue 3 + Vite+ + Arco Design Vue 单页应用，Go `embed` 进单个二进制
 - 用户创建、资料修改、密码重置、管理员权限、删除
 - 日历创建、颜色、排序、时区、描述、组件类型、删除
 - 事件列表、创建（含重复规则与全天事件）、原始 ICS 编辑、查看源码、删除
 - 控制台统计、客户端接入地址一键复制
-- 无前端构建步骤：Go `embed` + 服务端模板 + 原生 CSS/JS
-- CSRF 防护、HttpOnly/SameSite 会话、CSP、登录限速
+- JSON API + HttpOnly/SameSite 会话、CSRF、CSP、登录限速
+- 响应式布局，手机浏览器可直接管理
 
 ## 快速开始
 
@@ -64,10 +65,23 @@ go run ./cmd/caldav-free \
 
 ### 编译
 
+前端使用 Vue 3 + Vite+ + Arco Design Vue，构建产物输出到 `internal/web/dist`，再由 Go `embed` 打包：
+
 ```bash
+make web-deps       # 首次安装前端依赖
+make web-build      # 构建 internal/web/dist
 make build          # 产出 bin/caldav-free
 make test           # 运行全部测试
 make run            # 本地启动
+```
+
+> `go build` 需要 `internal/web/dist` 存在；仓库已包含一次构建产物。修改前端后请先执行 `make web-build`。
+
+前端开发模式：
+
+```bash
+cd web
+npm run dev         # Vite+ dev server，/api 代理到 127.0.0.1:5232
 ```
 
 静态二进制（无 CGO）：
@@ -104,6 +118,7 @@ docker run -d --name caldav \
 | `-admin-pass` | `CALDAV_ADMIN_PASSWORD` | 随机生成 | 首次启动管理员密码（至少 8 位） |
 | `-admin-email` | `CALDAV_ADMIN_EMAIL` | 空 | 管理员邮箱（用于 calendar-user-address-set） |
 | `-external-url` | `CALDAV_EXTERNAL_URL` | 自动推导 | 对外访问地址，用于管理后台展示 |
+| `-caldav-url` | `CALDAV_PUBLIC_URL` | 自动推导 | 管理后台展示的 CalDAV 公网地址（例如手机隧道地址） |
 | `-tls-cert` | — | 空 | TLS 证书；与 `-tls-key` 同时提供时启用 HTTPS |
 | `-tls-key` | — | 空 | TLS 私钥 |
 | `-debug` | — | false | 调试日志 |
@@ -152,7 +167,8 @@ docker run -d --name caldav \
 | `/calendars/{user}/` | 日历集合（calendar home） |
 | `/calendars/{user}/{calendar}/` | 日历集合；支持 GET 聚合 ICS |
 | `/calendars/{user}/{calendar}/{name}.ics` | 日历对象资源 |
-| `/admin` | 管理后台（仅管理员） |
+| `/admin` | Vue 管理后台（仅管理员） |
+| `/api/admin/*` | 管理后台 JSON API（会话 + CSRF） |
 | `/healthz` | 健康检查 |
 
 支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
@@ -366,7 +382,8 @@ go vet ./...
 - calendar-query、calendar-multiget、sync-collection（初始/增量/删除）、free-busy
 - 时区属性、组件限制、extended MKCOL、管理员跨用户访问、改密后缓存失效
 - GORM 数据层事务与同步日志
-- 管理后台登录、CSRF、用户/日历/事件 CRUD
+- 管理后台登录、CSRF、用户/日历/事件 CRUD（JSON API）
+- Vue SPA 路由回退与静态资源嵌入
 
 ## 安全说明
 

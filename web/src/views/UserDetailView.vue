@@ -22,7 +22,7 @@
                 <p class="eyebrow">Profile</p>
                 <h2>账号资料</h2>
               </div>
-              <a-tag v-if="detail.user.isAdmin" color="arcoblue">管理员</a-tag>
+              <a-tag v-if="detail.user.isAdmin" color="green">管理员</a-tag>
               <a-tag v-else>成员</a-tag>
             </div>
 

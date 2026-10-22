@@ -10,7 +10,8 @@ Group=caldav
 ExecStart=/opt/caldav-free/caldav-free \
   -addr 127.0.0.1:5232 \
   -data /var/lib/caldav-free \
-  -external-url https://caldav-free.byteportrait.com
+  -external-url https://caldav-free.byteportrait.com \
+  -caldav-url https://directive-originally-facility-excess.trycloudflare.com
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true

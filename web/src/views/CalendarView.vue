@@ -49,12 +49,13 @@
               </div>
 
               <a-table
-                v-if="detail.events.length"
+                v-if="!isMobile && detail.events.length"
                 :data="detail.events"
                 :columns="eventColumns"
                 :pagination="false"
                 row-key="href"
                 :bordered="false"
+                style="width: 100%"
               >
                 <template #event="{ record }">
                   <div class="event-cell">
@@ -63,14 +64,14 @@
                   </div>
                 </template>
                 <template #start="{ record }">
-                  {{ record.allDay ? formatDay(record.start) : formatDateTime(record.start) }}
+                  <span class="nowrap">{{ record.allDay ? formatDay(record.start) : formatDateTime(record.start) }}</span>
                 </template>
                 <template #end="{ record }">
-                  {{ record.allDay ? formatDay(record.end) : formatDateTime(record.end) }}
+                  <span class="nowrap">{{ record.allDay ? formatDay(record.end) : formatDateTime(record.end) }}</span>
                 </template>
                 <template #type="{ record }">
                   <a-space>
-                    <a-tag v-if="record.recurring" color="arcoblue">重复</a-tag>
+                    <a-tag v-if="record.recurring" color="green">重复</a-tag>
                     <a-tag v-else>单次</a-tag>
                     <a-tag v-if="record.allDay">全天</a-tag>
                   </a-space>
@@ -82,7 +83,29 @@
                   </a-space>
                 </template>
               </a-table>
-              <a-empty v-else description="还没有事件，创建第一条日程" />
+
+              <div v-if="isMobile && detail.events.length" class="mobile-list">
+                <article v-for="event in detail.events" :key="event.href" class="mobile-card">
+                  <div class="mobile-card-head">
+                    <div class="event-cell">
+                      <strong>{{ event.summary }}</strong>
+                      <small>{{ event.location || event.componentType }}</small>
+                    </div>
+                    <a-tag v-if="event.recurring" color="green">重复</a-tag>
+                    <a-tag v-else-if="event.allDay">全天</a-tag>
+                  </div>
+                  <div class="mobile-card-meta">
+                    <span>{{ event.allDay ? formatDay(event.start) : formatDateTime(event.start) }}</span>
+                    <span v-if="!event.allDay && event.end">→ {{ formatDateTime(event.end) }}</span>
+                  </div>
+                  <div class="mobile-card-actions">
+                    <a-button size="small" @click="editEvent(event)">编辑</a-button>
+                    <a-button size="small" status="danger" @click="removeEvent(event)">删除</a-button>
+                  </div>
+                </article>
+              </div>
+
+              <a-empty v-if="!detail.events.length" description="还没有事件，创建第一条日程" />
             </a-card>
 
             <a-card :bordered="false" class="panel">
@@ -221,17 +244,19 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { Message, Modal } from '@arco-design/web-vue'
+import type { TableColumnData } from '@arco-design/web-vue'
 import { IconCopy, IconLeft, IconPlus, IconRefresh } from '@arco-design/web-vue/es/icon'
 import AdminLayout from '../layouts/AdminLayout.vue'
 import { api } from '../api'
-import { copyText } from '../auth'
+import { useIsMobile } from '../useMobile'
+import { auth, copyText } from '../auth'
 import type { CalendarDetailData, EventItem } from '../types'
 
 const route = useRoute()
 const router = useRouter()
 const loading = ref(true)
 const detail = ref<CalendarDetailData | null>(null)
-const origin = computed(() => window.location.origin)
+const origin = computed(() => auth.caldavUrl || window.location.origin)
 
 const savingSettings = ref(false)
 const creatingEvent = ref(false)
@@ -265,13 +290,16 @@ const settings = reactive({
   components: [] as string[],
 })
 
-const eventColumns = [
+const isMobile = useIsMobile()
+const eventColumns = computed<TableColumnData[]>(() => [
   { title: '事件', dataIndex: 'summary', slotName: 'event' },
-  { title: '开始', slotName: 'start', width: 150 },
-  { title: '结束', slotName: 'end', width: 150 },
-  { title: '类型', slotName: 'type', width: 140 },
-  { title: '', slotName: 'actions', width: 120, align: 'right' },
-]
+  { title: '开始', slotName: 'start', width: 130 },
+  ...(isMobile.value ? [] : [
+    { title: '结束', slotName: 'end', width: 130 },
+    { title: '类型', slotName: 'type', width: 100 },
+  ]),
+  { title: '', slotName: 'actions', width: 90, align: 'right' },
+])
 
 async function load() {
   loading.value = true

@@ -6,3 +6,5 @@ bin
 *.db-shm
 *.db-wal
 README.md
+web/node_modules
+internal/web/dist

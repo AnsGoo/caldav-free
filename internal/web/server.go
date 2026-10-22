@@ -51,6 +51,8 @@ type Server struct {
 	sessions    *sessionStore
 	limiter     *loginLimiter
 	externalURL string
+	// CalDAVURL is the public CalDAV base URL shown to administrators.
+	CalDAVURL string
 }
 
 // New creates the admin web server. externalURL may be empty to derive URLs

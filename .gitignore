@@ -1,6 +1,7 @@
 /data/
 /bin/
 /caldav-free
+/web/node_modules/
 *.db
 *.db-shm
 *.db-wal

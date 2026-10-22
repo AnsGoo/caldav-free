@@ -22,12 +22,13 @@
 
       <a-spin :loading="loading">
         <a-table
-          v-if="users.length"
+          v-if="!isMobile && users.length"
           :data="users"
           :columns="columns"
           :pagination="false"
           row-key="id"
           :bordered="false"
+          style="width: 100%"
         >
           <template #user="{ record }">
             <div class="user-cell">
@@ -39,7 +40,7 @@
             </div>
           </template>
           <template #role="{ record }">
-            <a-tag v-if="record.isAdmin" color="arcoblue">管理员</a-tag>
+            <a-tag v-if="record.isAdmin" color="green">管理员</a-tag>
             <a-tag v-else>成员</a-tag>
           </template>
           <template #created="{ record }">
@@ -60,7 +61,40 @@
             </a-space>
           </template>
         </a-table>
-        <a-empty v-else description="还没有用户，先创建一个账号" />
+
+        <div v-if="isMobile && users.length" class="mobile-list">
+          <article v-for="user in users" :key="user.id" class="mobile-card">
+            <div class="mobile-card-head">
+              <div class="user-cell">
+                <span class="avatar">{{ initials(user.username) }}</span>
+                <div>
+                  <strong>{{ user.username }}</strong>
+                  <small>{{ user.displayName || user.email || '未设置资料' }}</small>
+                </div>
+              </div>
+              <a-tag v-if="user.isAdmin" color="green">管理员</a-tag>
+              <a-tag v-else>成员</a-tag>
+            </div>
+            <div class="mobile-card-meta">
+              <span>日历 {{ user.calendars || 0 }}</span>
+              <span>事件 {{ user.objects || 0 }}</span>
+              <span>创建于 {{ formatDate(user.createdAt) }}</span>
+            </div>
+            <div class="mobile-card-actions">
+              <a-button size="small" @click="router.push(`/users/${user.id}`)">管理</a-button>
+              <a-button
+                v-if="user.id !== auth.user?.id"
+                size="small"
+                status="danger"
+                @click="removeUser(user)"
+              >
+                删除
+              </a-button>
+            </div>
+          </article>
+        </div>
+
+        <a-empty v-if="!users.length" description="还没有用户，先创建一个账号" />
       </a-spin>
     </a-card>
 
@@ -96,13 +130,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import dayjs from 'dayjs'
 import { Message, Modal } from '@arco-design/web-vue'
+import type { TableColumnData } from '@arco-design/web-vue'
 import { IconPlus, IconRefresh } from '@arco-design/web-vue/es/icon'
 import AdminLayout from '../layouts/AdminLayout.vue'
 import { api } from '../api'
+import { useIsMobile } from '../useMobile'
 import { auth, initials } from '../auth'
 import type { User } from '../types'
 
@@ -119,14 +155,17 @@ const createForm = reactive({
   isAdmin: false,
 })
 
-const columns = [
+const isMobile = useIsMobile()
+const columns = computed<TableColumnData[]>(() => [
   { title: '用户', dataIndex: 'username', slotName: 'user' },
-  { title: '角色', slotName: 'role', width: 100 },
-  { title: '日历', dataIndex: 'calendars', width: 80 },
-  { title: '事件', dataIndex: 'objects', width: 80 },
-  { title: '创建时间', slotName: 'created', width: 130 },
-  { title: '', slotName: 'actions', width: 140, align: 'right' },
-]
+  { title: '角色', slotName: 'role', width: 80 },
+  { title: '日历', dataIndex: 'calendars', width: 60 },
+  ...(isMobile.value ? [] : [
+    { title: '事件', dataIndex: 'objects', width: 60 },
+    { title: '创建时间', slotName: 'created', width: 120 },
+  ]),
+  { title: '', slotName: 'actions', width: 110, align: 'right' },
+])
 
 async function load() {
   loading.value = true

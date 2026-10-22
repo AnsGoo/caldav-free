@@ -270,17 +270,19 @@ func (s *Server) apiLogin(w http.ResponseWriter, r *http.Request) {
 	id, sess := s.sessions.create(u.ID)
 	s.apiSetSessionCookie(w, r, id)
 	writeAPIJSON(w, http.StatusOK, map[string]any{
-		"user":    userDTO(u),
-		"csrf":    sess.CSRF,
-		"baseUrl": s.baseURL(r),
+		"user":      userDTO(u),
+		"csrf":      sess.CSRF,
+		"baseUrl":   s.baseURL(r),
+		"caldavUrl": s.CalDAVURL,
 	})
 }
 
 func (s *Server) apiMe(w http.ResponseWriter, r *http.Request, u *store.User, sess *session) {
 	writeAPIJSON(w, http.StatusOK, map[string]any{
-		"user":    userDTO(u),
-		"csrf":    sess.CSRF,
-		"baseUrl": s.baseURL(r),
+		"user":      userDTO(u),
+		"csrf":      sess.CSRF,
+		"baseUrl":   s.baseURL(r),
+		"caldavUrl": s.CalDAVURL,
 	})
 }
 
@@ -330,6 +332,7 @@ func (s *Server) apiDashboard(w http.ResponseWriter, r *http.Request, current *s
 		"stats":        stats,
 		"users":        rows,
 		"baseUrl":      base,
+		"caldavUrl":    s.CalDAVURL,
 		"principalUrl": base + principalPath(current.Username),
 		"calendarHome": base + "/calendars/" + current.Username + "/",
 	})

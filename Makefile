@@ -1,11 +1,18 @@
 BINARY := bin/caldav-free
 
-.PHONY: build test vet fmt run clean docker tls
+.PHONY: build test vet fmt run clean docker tls web-deps web-build
 
-build:
+web-deps:
+	cd web && npm ci
+
+web-build:
+	cd web && if [ ! -d node_modules ]; then npm ci; fi
+	cd web && npm run build
+
+build: web-build
 	go build -trimpath -o $(BINARY) ./cmd/caldav-free
 
-test:
+test: web-build
 	go test ./...
 
 vet:

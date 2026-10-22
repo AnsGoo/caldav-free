@@ -160,6 +160,7 @@ const smartItems = computed(() => [
   { view: 'next7', label: '最近 7 天', icon: 'next7', count: props.counts.next7 },
   { view: 'inbox', label: '收集箱', icon: 'inbox', count: props.counts.inbox },
   { view: 'completed', label: '已完成', icon: 'check', count: props.counts.completed },
+  { view: 'trash', label: '垃圾桶', icon: 'trash', count: props.counts.trash },
 ])
 
 async function toggleAdd() {

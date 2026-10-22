@@ -105,8 +105,11 @@ export interface TaskItem {
   priority: number
   due?: string
   allDay: boolean
+  recurrence: string
+  reminderOffset: number
   completed: boolean
   completedAt?: string
+  deletedAt?: string
   tags: string[]
   checklist: ChecklistItem[]
   order: number
@@ -129,6 +132,7 @@ export interface TaskCounts {
   next7: number
   inbox: number
   completed: number
+  trash: number
 }
 
 export interface TaskWorkspaceData {

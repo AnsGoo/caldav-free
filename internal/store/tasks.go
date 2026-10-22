@@ -27,20 +27,23 @@ type TaskList struct {
 // checklists; Deleted is a soft-delete flag so recently removed tasks can be
 // inspected before a future purge.
 type Task struct {
-	ID          int64      `gorm:"primaryKey"`
-	UserID      int64      `gorm:"not null;index:idx_task_user_completed,priority:1;index:idx_task_user_due,priority:1"`
-	ListID      int64      `gorm:"not null;index:idx_task_list_completed,priority:1"`
-	ParentID    int64      `gorm:"not null;default:0;index:idx_task_parent"`
-	Title       string     `gorm:"size:500;not null"`
-	Notes       string     `gorm:"type:text;not null;default:''"`
-	Priority    int        `gorm:"not null;default:0"`
-	DueAt       *time.Time `gorm:"index:idx_task_user_due,priority:2"`
-	AllDay      bool       `gorm:"not null;default:false"`
-	Completed   bool       `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
-	CompletedAt *time.Time
-	Tags        StringList `gorm:"not null"`
-	Checklist   string     `gorm:"type:text;not null;default:''"`
-	Order       int        `gorm:"column:order_index;not null;default:0"`
+	ID         int64      `gorm:"primaryKey"`
+	UserID     int64      `gorm:"not null;index:idx_task_user_completed,priority:1;index:idx_task_user_due,priority:1"`
+	ListID     int64      `gorm:"not null;index:idx_task_list_completed,priority:1"`
+	ParentID   int64      `gorm:"not null;default:0;index:idx_task_parent"`
+	Title      string     `gorm:"size:500;not null"`
+	Notes      string     `gorm:"type:text;not null;default:''"`
+	Priority   int        `gorm:"not null;default:0"`
+	DueAt      *time.Time `gorm:"index:idx_task_user_due,priority:2"`
+	AllDay     bool       `gorm:"not null;default:false"`
+	Recurrence string     `gorm:"size:255;not null;default:''"`
+	// ReminderOffset is minutes before the due time; -1 means no reminder.
+	ReminderOffset int  `gorm:"not null;default:-1"`
+	Completed      bool `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
+	CompletedAt    *time.Time
+	Tags           StringList `gorm:"not null"`
+	Checklist      string     `gorm:"type:text;not null;default:''"`
+	Order          int        `gorm:"column:order_index;not null;default:0"`
 	// VTODO fields link a task to its CalDAV object. SyncPending is set on
 	// local changes and cleared once the VTODO has been written.
 	VTODOUID    string `gorm:"column:vtodo_uid;size:255;not null;default:'';index:idx_task_vtodo_uid"`
@@ -68,6 +71,7 @@ type TaskCounts struct {
 	Next7     int64 `json:"next7"`
 	Inbox     int64 `json:"inbox"`
 	Completed int64 `json:"completed"`
+	Trash     int64 `json:"trash"`
 }
 
 // EnsureInbox returns the user's inbox list, creating it when missing.
@@ -223,6 +227,11 @@ func taskTodayStart(now time.Time) time.Time {
 }
 
 func (s *Store) taskQuery(ctx context.Context, userID int64, filter TaskFilter, completed bool) *gorm.DB {
+	if filter.View == "trash" {
+		return s.db.WithContext(ctx).Model(&Task{}).
+			Where("user_id = ? AND deleted = ?", userID, true).
+			Order("deleted_at DESC, id DESC")
+	}
 	query := s.db.WithContext(ctx).Model(&Task{}).
 		Where("user_id = ? AND deleted = ? AND completed = ?", userID, false, completed)
 	todayStart := taskTodayStart(time.Now())
@@ -247,6 +256,14 @@ func (s *Store) ListTasks(ctx context.Context, userID int64, filter TaskFilter) 
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 200
+	}
+	if filter.View == "trash" {
+		var deleted []*Task
+		err := s.taskQuery(ctx, userID, filter, false).Limit(limit).Find(&deleted).Error
+		if err != nil {
+			return nil, fmt.Errorf("list deleted tasks: %w", err)
+		}
+		return deleted, nil
 	}
 	var open []*Task
 	if filter.View != "completed" {
@@ -305,6 +322,11 @@ func (s *Store) TaskCounts(ctx context.Context, userID int64) (TaskCounts, error
 		Count(&counts.Completed).Error; err != nil {
 		return counts, err
 	}
+	if err := s.db.WithContext(ctx).Model(&Task{}).
+		Where("user_id = ? AND deleted = ?", userID, true).
+		Count(&counts.Trash).Error; err != nil {
+		return counts, err
+	}
 	return counts, nil
 }
 
@@ -348,6 +370,16 @@ func (s *Store) CreateTask(ctx context.Context, task *Task) (*Task, error) {
 		task.CompletedAt = &now
 	}
 	task.SyncPending = true
+	if task.ReminderOffset < -1 || task.ReminderOffset > 10080 {
+		return nil, errors.New("invalid reminder offset")
+	}
+	if task.Order == 0 {
+		var maxOrder int
+		_ = s.db.WithContext(ctx).Model(&Task{}).
+			Where("user_id = ? AND list_id = ? AND deleted = ?", task.UserID, task.ListID, false).
+			Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
+		task.Order = maxOrder + 1
+	}
 	normalizeTaskTimes(task)
 	if err := s.db.WithContext(ctx).Create(task).Error; err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
@@ -363,6 +395,9 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	if task.Priority < 0 || task.Priority > 3 {
 		return errors.New("invalid priority")
 	}
+	if task.ReminderOffset < -1 || task.ReminderOffset > 10080 {
+		return errors.New("invalid reminder offset")
+	}
 	if _, err := s.GetTaskList(ctx, task.UserID, task.ListID); err != nil {
 		return err
 	}
@@ -376,17 +411,19 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	task.SyncPending = true
 	normalizeTaskTimes(task)
 	updates := map[string]any{
-		"list_id":      task.ListID,
-		"title":        task.Title,
-		"notes":        task.Notes,
-		"priority":     task.Priority,
-		"due_at":       task.DueAt,
-		"all_day":      task.AllDay,
-		"completed":    task.Completed,
-		"completed_at": task.CompletedAt,
-		"tags":         task.Tags,
-		"checklist":    task.Checklist,
-		"order_index":  task.Order,
+		"list_id":         task.ListID,
+		"title":           task.Title,
+		"notes":           task.Notes,
+		"priority":        task.Priority,
+		"due_at":          task.DueAt,
+		"recurrence":      task.Recurrence,
+		"reminder_offset": task.ReminderOffset,
+		"all_day":         task.AllDay,
+		"completed":       task.Completed,
+		"completed_at":    task.CompletedAt,
+		"tags":            task.Tags,
+		"checklist":       task.Checklist,
+		"order_index":     task.Order,
 	}
 	err := s.db.WithContext(ctx).Model(&Task{}).
 		Where("id = ? AND user_id = ? AND deleted = ?", task.ID, task.UserID, false).
@@ -515,4 +552,114 @@ func (s *Store) ListDeletedObjects(ctx context.Context, calendarID int64) ([]*Ob
 		return nil, fmt.Errorf("list deleted objects: %w", err)
 	}
 	return objects, nil
+}
+
+// ListDeletedTasks returns the user's trash, newest deletion first.
+func (s *Store) ListDeletedTasks(ctx context.Context, userID int64, limit int) ([]*Task, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 200
+	}
+	var tasks []*Task
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND deleted = ?", userID, true).
+		Order("deleted_at DESC, id DESC").
+		Limit(limit).Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("list deleted tasks: %w", err)
+	}
+	return tasks, nil
+}
+
+// RestoreTask moves a trashed task back into a live list. The CalDAV identity
+// is cleared so the reconciler creates a fresh VTODO instead of resurrecting
+// the tombstoned one.
+func (s *Store) RestoreTask(ctx context.Context, userID, id int64) (*Task, error) {
+	var task Task
+	err := s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ? AND deleted = ?", id, userID, true).
+		First(&task).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get trashed task: %w", err)
+	}
+	listID := task.ListID
+	if _, err := s.GetTaskList(ctx, userID, listID); err != nil {
+		inbox, inboxErr := s.EnsureInbox(ctx, userID)
+		if inboxErr != nil {
+			return nil, inboxErr
+		}
+		listID = inbox.ID
+	}
+	err = s.db.WithContext(ctx).Model(&Task{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]any{
+			"deleted":      false,
+			"deleted_at":   nil,
+			"list_id":      listID,
+			"vtodo_uid":    "",
+			"vtodo_href":   "",
+			"vtodo_etag":   "",
+			"sync_pending": true,
+			"completed":    false,
+			"completed_at": nil,
+			"modified_at":  time.Now().UTC(),
+		}).Error
+	if err != nil {
+		return nil, fmt.Errorf("restore task: %w", err)
+	}
+	return s.GetTask(ctx, userID, id)
+}
+
+// PurgeTask permanently removes a single trashed task.
+func (s *Store) PurgeTask(ctx context.Context, userID, id int64) error {
+	res := s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ? AND deleted = ?", id, userID, true).
+		Delete(&Task{})
+	if res.Error != nil {
+		return fmt.Errorf("purge task: %w", res.Error)
+	}
+	return nil
+}
+
+// PurgeDeletedTasks permanently removes every trashed task.
+func (s *Store) PurgeDeletedTasks(ctx context.Context, userID int64) (int64, error) {
+	res := s.db.WithContext(ctx).
+		Where("user_id = ? AND deleted = ?", userID, true).
+		Delete(&Task{})
+	if res.Error != nil {
+		return 0, fmt.Errorf("empty trash: %w", res.Error)
+	}
+	return res.RowsAffected, nil
+}
+
+// ListReminderTasks returns open tasks that carry a reminder and a due date.
+func (s *Store) ListReminderTasks(ctx context.Context, userID int64, limit int) ([]*Task, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 200
+	}
+	var tasks []*Task
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND deleted = ? AND completed = ? AND reminder_offset >= 0 AND due_at IS NOT NULL", userID, false, false).
+		Order("due_at ASC").
+		Limit(limit).Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("list reminder tasks: %w", err)
+	}
+	return tasks, nil
+}
+
+// SetTaskOrder stores manual ordering for the supplied tasks.
+func (s *Store) SetTaskOrder(ctx context.Context, userID int64, ids []int64) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for index, id := range ids {
+			if err := tx.Model(&Task{}).
+				Where("id = ? AND user_id = ? AND deleted = ?", id, userID, false).
+				Update("order_index", index+1).Error; err != nil {
+				return fmt.Errorf("set task order: %w", err)
+			}
+		}
+		return nil
+	})
 }

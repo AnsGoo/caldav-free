@@ -47,6 +47,14 @@
           <TaskIcon name="flag" :size="14" />
           {{ priorityMeta?.short }}优先级
         </span>
+        <span v-if="draft.recurrence" class="tw-pill">
+          <TaskIcon name="repeat" :size="14" />
+          {{ recurrenceLabel(draft.recurrence) }}
+        </span>
+        <span v-if="draft.reminderOffset >= 0" class="tw-pill">
+          <TaskIcon name="bell" :size="14" />
+          {{ reminderLabel(draft.reminderOffset) }}
+        </span>
         <span v-if="draft.tags.length" class="tw-pill">
           <TaskIcon name="tag" :size="14" />
           {{ draft.tags.length }} 个标签
@@ -111,6 +119,35 @@
       </section>
 
       <section class="tw-detail-section">
+        <header class="tw-detail-section-head"><span>重复与提醒</span></header>
+        <div class="tw-field-grid">
+          <label class="tw-field">
+            <span>重复</span>
+            <select v-model="recurrenceChoice" class="tw-field-select" @change="onRecurrenceChoice">
+              <option v-for="option in RECURRENCE_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+          <label class="tw-field">
+            <span>提醒</span>
+            <select v-model.number="draft.reminderOffset" class="tw-field-select" @change="save">
+              <option v-for="option in REMINDER_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
+          </label>
+        </div>
+        <input
+          v-if="recurrenceChoice === 'custom'"
+          v-model="customRule"
+          class="tw-field-input"
+          placeholder="FREQ=WEEKLY;BYDAY=MO,WE"
+          @change="onCustomRule"
+          @keydown.enter.prevent="onCustomRule"
+        />
+        <p class="tw-field-hint">
+          重复任务完成后会自动滚到下一次。提醒会写入 CalDAV VALARM；页面打开时可同时使用浏览器通知。
+        </p>
+      </section>
+
+      <section class="tw-detail-section">
         <header class="tw-detail-section-head"><span>标签</span></header>
         <div class="tw-detail-tags">
           <span v-for="tag in draft.tags" :key="tag" class="tw-detail-tag" @click="removeTag(tag)">
@@ -168,7 +205,7 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { ChecklistItem, TaskItem, TaskList } from '../../types'
-import { PRIORITIES, addDays, dayKey, formatDue, startOfToday, toDateInput } from '../../tasks-utils'
+import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
 import { updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
@@ -189,6 +226,8 @@ interface Draft {
   dueTime: string
   allDay: boolean
   completed: boolean
+  recurrence: string
+  reminderOffset: number
   tags: string[]
   checklist: ChecklistItem[]
 }
@@ -202,6 +241,8 @@ const draft = reactive<Draft>({
   dueTime: '',
   allDay: false,
   completed: false,
+  recurrence: '',
+  reminderOffset: -1,
   tags: [],
   checklist: [],
 })
@@ -209,10 +250,13 @@ const draft = reactive<Draft>({
 const titleEl = ref<HTMLTextAreaElement | null>(null)
 const dateOpen = ref(false)
 const tagInput = ref('')
+const recurrenceChoice = ref('')
+const customRule = ref('')
 const saving = ref(false)
 const saved = ref(false)
 let hydrating = true
 let saveTimer: ReturnType<typeof setTimeout> | undefined
+let lastSaved = ''
 
 const currentList = computed(() => props.lists.find((list) => list.id === draft.listId))
 const priorityMeta = computed(() => PRIORITIES.find((item) => item.value === draft.priority))
@@ -227,6 +271,11 @@ function hydrate() {
   draft.priority = props.task.priority
   draft.completed = props.task.completed
   draft.allDay = props.task.allDay
+  draft.recurrence = props.task.recurrence || ''
+  draft.reminderOffset = props.task.reminderOffset ?? -1
+  const preset = RECURRENCE_OPTIONS.some((option) => option.value === props.task.recurrence && option.value !== 'custom')
+  recurrenceChoice.value = props.task.recurrence ? (preset ? props.task.recurrence : 'custom') : ''
+  customRule.value = preset ? '' : props.task.recurrence || ''
   draft.tags = [...props.task.tags]
   draft.checklist = props.task.checklist.map((item) => ({ ...item }))
   const input = toDateInput(props.task)
@@ -241,7 +290,24 @@ function hydrate() {
   saved.value = false
   nextTick(() => {
     growTitle()
+    lastSaved = snapshotDraft()
     hydrating = false
+  })
+}
+
+function snapshotDraft() {
+  return JSON.stringify({
+    title: draft.title.trim(),
+    notes: draft.notes,
+    listId: draft.listId,
+    priority: draft.priority,
+    due: duePayload(),
+    allDay: draft.allDay,
+    completed: draft.completed,
+    recurrence: draft.recurrence,
+    reminderOffset: draft.reminderOffset,
+    tags: draft.tags,
+    checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
   })
 }
 
@@ -303,18 +369,32 @@ async function save() {
   if (!title) return
   saving.value = true
   saved.value = false
+  const completing = draft.completed && !props.task.completed
+  const payload = {
+    title,
+    notes: draft.notes,
+    listId: draft.listId,
+    priority: draft.priority,
+    due: duePayload(),
+    allDay: draft.allDay,
+    completed: draft.completed,
+    recurrence: draft.recurrence,
+    reminderOffset: draft.reminderOffset,
+    tags: draft.tags,
+    checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
+  }
   try {
-    const { task } = await updateTask(props.task.id, {
-      title,
-      notes: draft.notes,
-      listId: draft.listId,
-      priority: draft.priority,
-      due: duePayload(),
-      allDay: draft.allDay,
-      completed: draft.completed,
-      tags: draft.tags,
-      checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
-    })
+    const { task } = await updateTask(props.task.id, payload)
+    lastSaved = JSON.stringify({ ...payload, title, checklist: payload.checklist })
+    if (completing && !task.completed && task.recurrence) {
+      draft.completed = false
+      const input = toDateInput(task)
+      const [datePart, timePart] = input.split('T')
+      draft.dueDate = datePart || ''
+      draft.dueTime = task.allDay ? '09:00' : timePart || '09:00'
+      draft.allDay = task.allDay
+      Message.info(`已完成本次，下次 ${formatDue(task)}`)
+    }
     emit('changed', task)
     saved.value = true
   } catch (error) {
@@ -390,6 +470,20 @@ function removeTag(tag: string) {
   void save()
 }
 
+function onRecurrenceChoice() {
+  if (recurrenceChoice.value === 'custom') {
+    draft.recurrence = customRule.value.trim()
+  } else {
+    draft.recurrence = recurrenceChoice.value
+  }
+  void save()
+}
+
+function onCustomRule() {
+  draft.recurrence = customRule.value.trim()
+  void save()
+}
+
 function setPriority(priority: number) {
   draft.priority = priority
   void save()
@@ -412,6 +506,6 @@ watch(
 
 onBeforeUnmount(() => {
   if (saveTimer) clearTimeout(saveTimer)
-  void save()
+  if (snapshotDraft() !== lastSaved) void save()
 })
 </script>

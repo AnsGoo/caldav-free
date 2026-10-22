@@ -1,7 +1,7 @@
 import { api } from './api'
 import type { ChecklistItem, TaskItem, TaskList, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'list'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'list'
 
 export function browserTimezone() {
   try {
@@ -30,6 +30,8 @@ export interface TaskDraft {
   completed?: boolean
   tags?: string[]
   checklist?: ChecklistItem[]
+  recurrence?: string
+  reminderOffset?: number
   timezone?: string
 }
 
@@ -67,4 +69,36 @@ export function updateTaskList(id: number, patch: { name?: string; color?: strin
 
 export function deleteTaskList(id: number) {
   return api<void>(`/task-lists/${id}`, { method: 'DELETE' })
+}
+
+export function fetchTaskReminders() {
+  return api<{ tasks: TaskItem[] }>('/tasks/reminders')
+}
+
+export function restoreTask(id: number) {
+  return api<{ task: TaskItem }>(`/tasks/${id}/restore`, { method: 'POST' })
+}
+
+export function purgeTask(id: number) {
+  return api<void>(`/tasks/${id}/purge`, { method: 'DELETE' })
+}
+
+export function emptyTaskTrash() {
+  return api<void>('/tasks/trash', { method: 'DELETE' })
+}
+
+export type BatchAction = 'complete' | 'uncomplete' | 'move' | 'delete'
+
+export function batchTasks(ids: number[], action: BatchAction, listId?: number) {
+  return api<{ updated: number }>('/tasks/batch', {
+    method: 'POST',
+    body: JSON.stringify({ ids, action, listId }),
+  })
+}
+
+export function reorderTasks(ids: number[]) {
+  return api<void>('/tasks/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  })
 }

@@ -30,37 +30,42 @@ type apiTaskList struct {
 }
 
 type apiTask struct {
-	ID          int64              `json:"id"`
-	ParentID    int64              `json:"parentId,omitempty"`
-	ListID      int64              `json:"listId"`
-	ListName    string             `json:"listName"`
-	ListColor   string             `json:"listColor"`
-	Title       string             `json:"title"`
-	Notes       string             `json:"notes"`
-	Priority    int                `json:"priority"`
-	Due         string             `json:"due,omitempty"`
-	AllDay      bool               `json:"allDay"`
-	Completed   bool               `json:"completed"`
-	CompletedAt string             `json:"completedAt,omitempty"`
-	Tags        []string           `json:"tags"`
-	Checklist   []apiChecklistItem `json:"checklist"`
-	Order       int                `json:"order"`
-	CreatedAt   string             `json:"createdAt"`
-	ModifiedAt  string             `json:"modifiedAt"`
+	ID             int64              `json:"id"`
+	ParentID       int64              `json:"parentId,omitempty"`
+	ListID         int64              `json:"listId"`
+	ListName       string             `json:"listName"`
+	ListColor      string             `json:"listColor"`
+	Title          string             `json:"title"`
+	Notes          string             `json:"notes"`
+	Priority       int                `json:"priority"`
+	Due            string             `json:"due,omitempty"`
+	AllDay         bool               `json:"allDay"`
+	Completed      bool               `json:"completed"`
+	CompletedAt    string             `json:"completedAt,omitempty"`
+	Recurrence     string             `json:"recurrence"`
+	ReminderOffset int                `json:"reminderOffset"`
+	DeletedAt      string             `json:"deletedAt,omitempty"`
+	Tags           []string           `json:"tags"`
+	Checklist      []apiChecklistItem `json:"checklist"`
+	Order          int                `json:"order"`
+	CreatedAt      string             `json:"createdAt"`
+	ModifiedAt     string             `json:"modifiedAt"`
 }
 
 type taskPatch struct {
-	Text      *string             `json:"text"`
-	Title     *string             `json:"title"`
-	ListID    *int64              `json:"listId"`
-	Notes     *string             `json:"notes"`
-	Priority  *int                `json:"priority"`
-	Due       *string             `json:"due"`
-	AllDay    *bool               `json:"allDay"`
-	Completed *bool               `json:"completed"`
-	Tags      *[]string           `json:"tags"`
-	Checklist *[]apiChecklistItem `json:"checklist"`
-	Timezone  string              `json:"timezone"`
+	Text           *string             `json:"text"`
+	Title          *string             `json:"title"`
+	ListID         *int64              `json:"listId"`
+	Notes          *string             `json:"notes"`
+	Priority       *int                `json:"priority"`
+	Due            *string             `json:"due"`
+	AllDay         *bool               `json:"allDay"`
+	Completed      *bool               `json:"completed"`
+	Tags           *[]string           `json:"tags"`
+	Checklist      *[]apiChecklistItem `json:"checklist"`
+	Recurrence     *string             `json:"recurrence"`
+	ReminderOffset *int                `json:"reminderOffset"`
+	Timezone       string              `json:"timezone"`
 }
 
 func decodeChecklist(raw string) []apiChecklistItem {
@@ -110,19 +115,21 @@ func encodeChecklist(items []apiChecklistItem) string {
 
 func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 	dto := apiTask{
-		ID:         task.ID,
-		ParentID:   task.ParentID,
-		ListID:     task.ListID,
-		Title:      task.Title,
-		Notes:      task.Notes,
-		Priority:   task.Priority,
-		AllDay:     task.AllDay,
-		Completed:  task.Completed,
-		Tags:       append([]string(nil), task.Tags...),
-		Checklist:  decodeChecklist(task.Checklist),
-		Order:      task.Order,
-		CreatedAt:  task.CreatedAt.Format(time.RFC3339),
-		ModifiedAt: task.ModifiedAt.Format(time.RFC3339),
+		ID:             task.ID,
+		ParentID:       task.ParentID,
+		ListID:         task.ListID,
+		Title:          task.Title,
+		Notes:          task.Notes,
+		Priority:       task.Priority,
+		AllDay:         task.AllDay,
+		Completed:      task.Completed,
+		Recurrence:     task.Recurrence,
+		ReminderOffset: task.ReminderOffset,
+		Tags:           append([]string(nil), task.Tags...),
+		Checklist:      decodeChecklist(task.Checklist),
+		Order:          task.Order,
+		CreatedAt:      task.CreatedAt.Format(time.RFC3339),
+		ModifiedAt:     task.ModifiedAt.Format(time.RFC3339),
 	}
 	if dto.Tags == nil {
 		dto.Tags = []string{}
@@ -132,6 +139,9 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 	}
 	if task.CompletedAt != nil {
 		dto.CompletedAt = task.CompletedAt.Format(time.RFC3339)
+	}
+	if task.DeletedAt != nil {
+		dto.DeletedAt = task.DeletedAt.Format(time.RFC3339)
 	}
 	if list != nil {
 		dto.ListName = list.Name
@@ -215,7 +225,7 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	if view == "inbox" {
 		listID = inbox.ID
 	}
-	if view == "today" || view == "next7" || view == "completed" {
+	if view == "today" || view == "next7" || view == "completed" || view == "trash" {
 		listID = 0
 	}
 	filter := store.TaskFilter{
@@ -291,7 +301,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		s.apiServerError(w, err)
 		return
 	}
-	task := &store.Task{UserID: current.ID, ListID: inbox.ID}
+	task := &store.Task{UserID: current.ID, ListID: inbox.ID, ReminderOffset: -1}
 	title := ""
 	if body.Title != nil {
 		title = strings.TrimSpace(*body.Title)
@@ -308,6 +318,17 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if body.Priority != nil {
 		task.Priority = *body.Priority
+	}
+	if body.Recurrence != nil {
+		rule := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(*body.Recurrence), "RRULE:"))
+		if rule != "" && !taskparse.ValidRule(rule) {
+			writeAPIError(w, http.StatusBadRequest, "无效的重复规则")
+			return
+		}
+		task.Recurrence = rule
+	}
+	if body.ReminderOffset != nil {
+		task.ReminderOffset = *body.ReminderOffset
 	}
 	if body.Tags != nil {
 		task.Tags = normalizeTaskTags(*body.Tags)
@@ -394,6 +415,17 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.Priority != nil {
 		task.Priority = *body.Priority
 	}
+	if body.Recurrence != nil {
+		rule := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(*body.Recurrence), "RRULE:"))
+		if rule != "" && !taskparse.ValidRule(rule) {
+			writeAPIError(w, http.StatusBadRequest, "无效的重复规则")
+			return
+		}
+		task.Recurrence = rule
+	}
+	if body.ReminderOffset != nil {
+		task.ReminderOffset = *body.ReminderOffset
+	}
 	if body.Tags != nil {
 		task.Tags = normalizeTaskTags(*body.Tags)
 	}
@@ -417,14 +449,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 	}
 	if body.Completed != nil {
-		completed := *body.Completed
-		updated, err := s.store.SetTaskCompleted(ctx, current.ID, id, completed)
-		if err != nil {
-			s.apiServerError(w, err)
-			return
-		}
-		task.Completed = updated.Completed
-		task.CompletedAt = updated.CompletedAt
+		applyTaskCompletion(task, *body.Completed)
 	}
 	if body.Text != nil && strings.TrimSpace(*body.Text) != "" {
 		parsed := taskparse.Parse(*body.Text, time.Now(), taskLocation(body.Timezone))
@@ -567,6 +592,172 @@ func (s *Server) apiDeleteTaskList(w http.ResponseWriter, r *http.Request, curre
 	}
 	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
 		s.logger.Warn("sync task workspace", "user", current.Username, "error", err)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// applyTaskCompletion completes a task. Recurring tasks with a due date are
+// advanced to the next occurrence instead of being archived; the boolean
+// result reports whether the task was advanced.
+func applyTaskCompletion(task *store.Task, completed bool) bool {
+	if completed && task.Recurrence != "" && task.DueAt != nil {
+		if next, ok := taskparse.NextOccurrence(task.Recurrence, *task.DueAt); ok {
+			task.DueAt = &next
+			task.Completed = false
+			task.CompletedAt = nil
+			return true
+		}
+	}
+	task.Completed = completed
+	if !completed {
+		task.CompletedAt = nil
+	}
+	return false
+}
+
+func (s *Server) apiTaskReminders(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	ctx := r.Context()
+	tasks, err := s.store.ListReminderTasks(ctx, current.ID, 200)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	lists, err := s.store.ListTaskLists(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	byID := make(map[int64]*store.TaskList, len(lists))
+	for _, list := range lists {
+		byID[list.ID] = list
+	}
+	rows := make([]apiTask, 0, len(tasks))
+	for _, task := range tasks {
+		rows = append(rows, apiTaskDTO(task, byID[task.ListID]))
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"tasks": rows})
+}
+
+func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		IDs    []int64 `json:"ids"`
+		Action string  `json:"action"`
+		ListID int64   `json:"listId"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if len(body.IDs) == 0 || len(body.IDs) > 200 {
+		writeAPIError(w, http.StatusBadRequest, "请选择 1-200 个任务")
+		return
+	}
+	if body.Action != "complete" && body.Action != "uncomplete" && body.Action != "move" && body.Action != "delete" {
+		writeAPIError(w, http.StatusBadRequest, "无效的批量操作")
+		return
+	}
+	if body.Action == "move" {
+		if _, err := s.store.GetTaskList(r.Context(), current.ID, body.ListID); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "目标清单不存在")
+			return
+		}
+	}
+	ctx := r.Context()
+	seen := make(map[int64]bool, len(body.IDs))
+	updated := 0
+	for _, id := range body.IDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		task, err := s.store.GetTask(ctx, current.ID, id)
+		if err != nil {
+			continue
+		}
+		switch body.Action {
+		case "delete":
+			if err := s.taskSync.DeleteTask(ctx, current.ID, task); err != nil {
+				s.logger.Warn("delete task caldav object", "task", id, "error", err)
+				continue
+			}
+			if err := s.store.DeleteTask(ctx, current.ID, id); err != nil {
+				continue
+			}
+			updated++
+			continue
+		case "complete", "uncomplete":
+			applyTaskCompletion(task, body.Action == "complete")
+		case "move":
+			task.ListID = body.ListID
+		}
+		if err := s.store.UpdateTask(ctx, task); err != nil {
+			continue
+		}
+		if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
+			s.logger.Warn("push task to caldav", "task", id, "error", err)
+		}
+		updated++
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"updated": updated})
+}
+
+func (s *Server) apiReorderTasks(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if len(body.IDs) > 500 {
+		writeAPIError(w, http.StatusBadRequest, "一次最多排序 500 个任务")
+		return
+	}
+	if err := s.store.SetTaskOrder(r.Context(), current.ID, body.IDs); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) apiRestoreTask(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "任务不存在")
+		return
+	}
+	ctx := r.Context()
+	task, err := s.store.RestoreTask(ctx, current.ID, id)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "任务不存在")
+			return
+		}
+		s.apiServerError(w, err)
+		return
+	}
+	if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
+		s.logger.Warn("push restored task", "task", id, "error", err)
+	}
+	list, _ := s.store.GetTaskList(ctx, current.ID, task.ListID)
+	writeAPIJSON(w, http.StatusOK, map[string]any{"task": apiTaskDTO(task, list)})
+}
+
+func (s *Server) apiPurgeTask(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "任务不存在")
+		return
+	}
+	if err := s.store.PurgeTask(r.Context(), current.ID, id); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) apiEmptyTrash(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	if _, err := s.store.PurgeDeletedTasks(r.Context(), current.ID); err != nil {
+		s.apiServerError(w, err)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

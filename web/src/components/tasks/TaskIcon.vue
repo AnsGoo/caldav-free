@@ -95,6 +95,28 @@
     <template v-else-if="name === 'flag'">
       <path d="M6 20.5V4.5h9.5l-1.5 3.8 1.5 3.7H6" />
     </template>
+    <template v-else-if="name === 'repeat'">
+      <path d="M17 2.5v4.5h-4.5" />
+      <path d="M7 21.5V17h4.5" />
+      <path d="M4.8 8.5A7.5 7.5 0 0 1 17 6.6" />
+      <path d="M19.2 15.5A7.5 7.5 0 0 1 7 17.4" />
+    </template>
+    <template v-else-if="name === 'bell'">
+      <path d="M18 9.5a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6Z" />
+      <path d="M10 19.5a2.2 2.2 0 0 0 4 0" />
+    </template>
+    <template v-else-if="name === 'restore'">
+      <path d="M4 10.5a8 8 0 1 1 2.1 8" />
+      <path d="M4 4.5v6h6" />
+    </template>
+    <template v-else-if="name === 'sort'">
+      <path d="M5 7h14M5 12h9M5 17h5" />
+      <path d="m17 14 3 3-3 3" />
+    </template>
+    <template v-else-if="name === 'select'">
+      <rect x="4" y="4" width="16" height="16" rx="3" />
+      <path d="m8 12.2 2.8 2.8 5.4-6" />
+    </template>
     <template v-else-if="name === 'drag'">
       <circle cx="9" cy="7" r="1.2" fill="currentColor" stroke="none" />
       <circle cx="15" cy="7" r="1.2" fill="currentColor" stroke="none" />

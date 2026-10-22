@@ -22,6 +22,14 @@
         </button>
       </nav>
       <div class="tw-rail-foot">
+        <button
+          class="tw-rail-button"
+          :class="{ active: remindersEnabled }"
+          :title="remindersEnabled ? '关闭浏览器提醒' : '开启浏览器提醒（需保持页面打开）'"
+          @click="toggleReminders"
+        >
+          <TaskIcon name="bell" :size="20" />
+        </button>
         <button class="tw-rail-button" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
           <TaskIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="20" />
         </button>
@@ -61,10 +69,10 @@
         <div class="tw-heading">
           <span class="tw-heading-icon"><TaskIcon :name="headingIcon" :size="19" /></span>
           <h1>{{ heading }}</h1>
-          <span v-if="openInView" class="tw-heading-count">{{ openInView }}</span>
+          <span v-if="headingCount" class="tw-heading-count">{{ headingCount }}</span>
         </div>
         <div class="tw-toolbar-actions">
-          <div class="tw-mode-switch" role="group" aria-label="视图模式">
+          <div v-if="view !== 'trash'" class="tw-mode-switch" role="group" aria-label="视图模式">
             <button :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
@@ -75,6 +83,24 @@
               <TaskIcon name="calendar" :size="16" />
             </button>
           </div>
+          <button
+            v-if="view !== 'trash' && view !== 'completed'"
+            class="tw-icon-button"
+            :class="{ active: manualSort }"
+            :title="manualSort ? '关闭手动排序' : '手动排序（拖拽调整顺序）'"
+            @click="toggleManualSort"
+          >
+            <TaskIcon name="sort" :size="18" />
+          </button>
+          <button
+            v-if="view !== 'trash'"
+            class="tw-icon-button"
+            :class="{ active: selectionMode }"
+            :title="selectionMode ? '退出多选' : '多选任务'"
+            @click="toggleSelection"
+          >
+            <TaskIcon name="select" :size="18" />
+          </button>
           <button class="tw-icon-button" title="搜索" @click="toggleSearch">
             <TaskIcon name="search" :size="18" />
           </button>
@@ -97,7 +123,7 @@
 
       <div class="tw-scroll">
         <div class="tw-content">
-          <div v-if="mode !== 'calendar'" class="tw-quick-add">
+          <div v-if="mode !== 'calendar' && view !== 'trash'" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
             <input
               ref="quickInputEl"
@@ -112,7 +138,7 @@
             </button>
           </div>
 
-          <div v-if="hint && mode !== 'calendar'" class="tw-quick-hint">
+          <div v-if="hint && mode !== 'calendar' && view !== 'trash'" class="tw-quick-hint">
             <span v-if="hint.date" class="tw-hint-chip">{{ hint.date }}</span>
             <span v-if="hint.time" class="tw-hint-chip">{{ hint.time }}</span>
             <span v-for="tag in hint.tags" :key="tag" class="tw-hint-chip">#{{ tag }}</span>
@@ -124,9 +150,41 @@
             <a-spin />
           </div>
 
+          <template v-else-if="view === 'trash'">
+            <div class="tw-trash-bar">
+              <span>{{ tasks.length }} 个已删除任务</span>
+              <button v-if="tasks.length" class="tw-danger-link" @click="confirmEmptyTrash">
+                <TaskIcon name="trash" :size="14" />
+                清空垃圾桶
+              </button>
+            </div>
+            <div class="tw-group-body">
+              <TaskRow
+                v-for="task in tasks"
+                :key="task.id"
+                :task="task"
+                :selected="false"
+                :show-list="true"
+                trash-mode
+                @restore="restoreOne"
+                @purge="confirmPurgeTask"
+              />
+            </div>
+            <div v-if="!tasks.length" class="tw-empty">
+              <div class="tw-empty-art">
+                <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden="true">
+                  <path d="M28 30h40l-3 50H31l-3-50Z" fill="none" stroke="currentColor" stroke-width="2" />
+                  <path d="M22 30h52M40 30v-6h16v6M42 42v24M54 42v24" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                </svg>
+              </div>
+              <h2>垃圾桶是空的</h2>
+              <p>删除的任务会先放在这里，可以随时恢复。</p>
+            </div>
+          </template>
+
           <template v-else-if="mode === 'list'">
             <section v-for="group in groups" :key="group.key" class="tw-group">
-              <header class="tw-group-head" @click="toggleGroup(group.key)">
+              <header v-if="group.key !== 'manual'" class="tw-group-head" @click="toggleGroup(group.key)">
                 <span class="tw-group-caret" :class="{ collapsed: collapsed.has(group.key) }">
                   <TaskIcon name="chevron" :size="13" />
                 </span>
@@ -141,15 +199,24 @@
                 </button>
               </header>
               <div v-show="!collapsed.has(group.key)" class="tw-group-body">
+                <p v-if="group.key === 'manual' && manualSort" class="tw-sort-hint">拖动任务调整顺序</p>
                 <TaskRow
                   v-for="task in group.tasks"
                   :key="task.id"
                   :task="task"
-                  :selected="selectedId === task.id"
+                  :selected="selectionMode ? selectedIds.has(task.id) : selectedId === task.id"
+                  :selectable="selectionMode"
                   :show-list="!activeListId"
+                  :draggable="manualSort && !selectionMode && !task.completed"
+                  :drag-target="dragOverId === task.id"
                   @toggle="toggleTask"
                   @open="openTask"
                   @remove="confirmRemoveTask"
+                  @select="toggleSelect"
+                  @dragstart="onRowDragStart(task, $event)"
+                  @dragover.prevent="onRowDragOver(task)"
+                  @drop.prevent="onRowDrop(task)"
+                  @dragend="onRowDragEnd"
                 />
               </div>
             </section>
@@ -239,6 +306,44 @@
       @remove="confirmRemoveTask"
     />
 
+    <div v-if="selectionMode" class="tw-batch-bar">
+      <span class="tw-batch-count">已选 {{ selectedIds.size }} 项</span>
+      <div class="tw-batch-actions">
+        <button :disabled="!selectedIds.size" @click="batchComplete">完成</button>
+        <button :disabled="!selectedIds.size" @click="openMoveDialog">移动到</button>
+        <button class="tw-batch-danger" :disabled="!selectedIds.size" @click="confirmBatchDelete">删除</button>
+        <button @click="clearSelection">取消</button>
+      </div>
+    </div>
+
+    <div v-if="moveDialogOpen" class="tw-dialog-scrim" @click.self="moveDialogOpen = false">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="移动到清单">
+        <header class="tw-dialog-head">
+          <h2>移动到清单</h2>
+          <button class="tw-icon-button" title="关闭" @click="moveDialogOpen = false">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body tw-move-list">
+          <button
+            v-for="list in lists"
+            :key="list.id"
+            class="tw-move-option"
+            :class="{ active: moveTargetId === list.id }"
+            @click="moveTargetId = list.id"
+          >
+            <span class="tw-list-dot" :style="{ background: list.color || '#4772fa' }" />
+            <span>{{ list.name }}</span>
+            <TaskIcon v-if="moveTargetId === list.id" name="check" :size="14" />
+          </button>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="moveDialogOpen = false">取消</button>
+          <button class="tw-dialog-ok" :disabled="!moveTargetId || batchBusy" @click="batchMove">移动</button>
+        </footer>
+      </div>
+    </div>
+
     <div v-if="editVisible" class="tw-dialog-scrim" @click.self="editVisible = false">
       <div class="tw-dialog" role="dialog" aria-modal="true" aria-label="编辑清单" @keydown.esc="editVisible = false">
         <header class="tw-dialog-head">
@@ -309,7 +414,22 @@ import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
 import type { TaskCounts, TaskItem, TaskList, TaskWorkspaceData } from '../types'
-import { createTask, createTaskList, deleteTask, deleteTaskList, fetchTaskWorkspace, updateTask, updateTaskList, type TaskView } from '../tasks-api'
+import {
+  batchTasks,
+  createTask,
+  createTaskList,
+  deleteTask,
+  deleteTaskList,
+  emptyTaskTrash,
+  fetchTaskReminders,
+  fetchTaskWorkspace,
+  purgeTask,
+  reorderTasks,
+  restoreTask,
+  updateTask,
+  updateTaskList,
+  type TaskView,
+} from '../tasks-api'
 import {
   LIST_COLORS,
   PRIORITIES,
@@ -318,6 +438,7 @@ import {
   groupTasks,
   isOverdue,
   quickHint,
+  reminderInstant,
   startOfToday,
 } from '../tasks-utils'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
@@ -334,7 +455,7 @@ const router = useRouter()
 const lists = ref<TaskList[]>([])
 const tasks = ref<TaskItem[]>([])
 const tags = ref<string[]>([])
-const counts = reactive<TaskCounts>({ all: 0, today: 0, next7: 0, inbox: 0, completed: 0 })
+const counts = reactive<TaskCounts>({ all: 0, today: 0, next7: 0, inbox: 0, completed: 0, trash: 0 })
 const inboxId = ref(0)
 
 const view = ref<TaskView>('all')
@@ -354,6 +475,18 @@ const cursor = ref(new Date())
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
+const manualSort = ref(false)
+const selectionMode = ref(false)
+const selectedIds = ref(new Set<number>())
+const dragTaskId = ref(0)
+const dragOverId = ref(0)
+const moveDialogOpen = ref(false)
+const moveTargetId = ref(0)
+const batchBusy = ref(false)
+const remindersEnabled = ref(false)
+const reminderTasks = ref<TaskItem[]>([])
+const NOTIFY_KEY = 'caldav-task-notified'
+let reminderTimer: ReturnType<typeof setInterval> | undefined
 
 const quickInputEl = ref<HTMLInputElement | null>(null)
 const searchInputEl = ref<HTMLInputElement | null>(null)
@@ -380,6 +513,7 @@ const smartLabels: Record<string, string> = {
   next7: '最近 7 天',
   inbox: '收集箱',
   completed: '已完成',
+  trash: '垃圾桶',
   list: '清单',
 }
 
@@ -397,6 +531,7 @@ const headingIcon = computed(() => {
   if (view.value === 'next7') return 'next7'
   if (view.value === 'inbox') return 'inbox'
   if (view.value === 'completed') return 'check'
+  if (view.value === 'trash') return 'trash'
   return 'list'
 })
 
@@ -406,7 +541,24 @@ const filteredTasks = computed(() => {
 })
 
 const openInView = computed(() => filteredTasks.value.filter((task) => !task.completed).length)
-const groups = computed(() => groupTasks(filteredTasks.value, view.value))
+const headingCount = computed(() => (view.value === 'trash' ? tasks.value.length : openInView.value))
+const manualOpenTasks = computed(() =>
+  filteredTasks.value
+    .filter((task) => !task.completed)
+    .slice()
+    .sort((a, b) => a.order - b.order || a.id - b.id),
+)
+const groups = computed(() => {
+  if (view.value === 'trash') return []
+  if (manualSort.value && view.value !== 'completed') {
+    const out = []
+    if (manualOpenTasks.value.length) out.push({ key: 'manual', label: '', tasks: manualOpenTasks.value, tone: undefined })
+    const done = filteredTasks.value.filter((task) => task.completed)
+    if (done.length) out.push({ key: 'done', label: '已完成', tasks: done, tone: 'done' as const })
+    return out
+  }
+  return groupTasks(filteredTasks.value, view.value)
+})
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedId.value))
 
 const quickTargetList = computed(() => {
@@ -447,6 +599,10 @@ async function loadWorkspace(silent = false) {
     tags.value = data.tags
     inboxId.value = data.inbox
     Object.assign(counts, data.counts)
+    if (view.value === 'trash' && mode.value !== 'list') mode.value = 'list'
+    if (selectedId.value && !data.tasks.some((task) => task.id === selectedId.value)) {
+      selectedId.value = 0
+    }
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '加载任务失败')
   } finally {
@@ -478,6 +634,11 @@ function selectView(nextView: string) {
   activeTag.value = ''
   selectedId.value = 0
   sidebarOpen.value = false
+  clearSelection()
+  if (view.value === 'trash') {
+    mode.value = 'list'
+    manualSort.value = false
+  }
   syncURL()
 }
 
@@ -487,6 +648,7 @@ function selectList(id: number) {
   activeTag.value = ''
   selectedId.value = 0
   sidebarOpen.value = false
+  clearSelection()
   syncURL()
 }
 
@@ -496,6 +658,8 @@ function selectTag(tag: string) {
 }
 
 function switchMode(next: Mode) {
+  if (view.value === 'trash') return
+  clearSelection()
   mode.value = next
   if (next === 'calendar') {
     cursor.value = new Date()
@@ -516,6 +680,11 @@ function toggleGroup(key: string) {
 }
 
 function openTask(task: TaskItem) {
+  if (selectionMode.value) {
+    toggleSelect(task)
+    return
+  }
+  if (view.value === 'trash') return
   selectedId.value = task.id
   syncURL()
 }
@@ -526,7 +695,11 @@ async function toggleTask(task: TaskItem) {
   try {
     const { task: updated } = await updateTask(task.id, { completed: target })
     replaceTask(updated)
+    if (target && !updated.completed && updated.recurrence) {
+      Message.info(`已完成本次，下次 ${formatDue(updated)}`)
+    }
     scheduleRefresh()
+    void checkReminders()
   } catch (error) {
     task.completed = !target
     Message.error(error instanceof Error ? error.message : '更新任务失败')
@@ -765,6 +938,7 @@ function onKeydown(event: KeyboardEvent) {
   const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
   if (typing) return
   if (event.key === 'n' || event.key === 'N') {
+    if (view.value === 'trash') return
     event.preventDefault()
     if (mode.value === 'calendar') mode.value = 'list'
     requestAnimationFrame(() => quickInputEl.value?.focus())
@@ -772,6 +946,241 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     selectedId.value = 0
   }
+}
+
+function toggleManualSort() {
+  manualSort.value = !manualSort.value
+  if (manualSort.value) clearSelection()
+  try {
+    localStorage.setItem('caldav-task-sort', manualSort.value ? 'manual' : 'default')
+  } catch {
+    /* ignore */
+  }
+}
+
+function toggleSelection() {
+  selectionMode.value = !selectionMode.value
+  selectedIds.value = new Set()
+  if (selectionMode.value) {
+    manualSort.value = false
+    selectedId.value = 0
+  }
+}
+
+function toggleSelect(task: TaskItem) {
+  const next = new Set(selectedIds.value)
+  if (next.has(task.id)) next.delete(task.id)
+  else next.add(task.id)
+  selectedIds.value = next
+}
+
+function clearSelection() {
+  selectionMode.value = false
+  selectedIds.value = new Set()
+}
+
+async function runBatch(action: 'complete' | 'uncomplete' | 'move' | 'delete', listId?: number) {
+  const ids = [...selectedIds.value]
+  if (!ids.length) return
+  batchBusy.value = true
+  try {
+    const { updated } = await batchTasks(ids, action, listId)
+    Message.success(`已处理 ${updated} 个任务`)
+    clearSelection()
+    moveDialogOpen.value = false
+    await loadWorkspace(true)
+    void checkReminders()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '批量操作失败')
+  } finally {
+    batchBusy.value = false
+  }
+}
+
+function batchComplete() {
+  void runBatch('complete')
+}
+
+function openMoveDialog() {
+  moveTargetId.value = activeListId.value || inboxId.value
+  moveDialogOpen.value = true
+}
+
+function batchMove() {
+  if (!moveTargetId.value) return
+  void runBatch('move', moveTargetId.value)
+}
+
+function confirmBatchDelete() {
+  askConfirm('删除所选任务', `确定把选中的 ${selectedIds.value.size} 个任务移到垃圾桶吗？`, async () => {
+    await runBatch('delete')
+  })
+}
+
+function restoreOne(task: TaskItem) {
+  void (async () => {
+    try {
+      await restoreTask(task.id)
+      Message.success('任务已恢复')
+      await loadWorkspace(true)
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : '恢复失败')
+    }
+  })()
+}
+
+function confirmPurgeTask(task: TaskItem) {
+  askConfirm('彻底删除任务', `「${task.title}」将被永久删除，无法恢复。`, async () => {
+    await purgeTask(task.id)
+    await loadWorkspace(true)
+  })
+}
+
+function confirmEmptyTrash() {
+  askConfirm('清空垃圾桶', '垃圾桶中的所有任务都会被永久删除，无法恢复。', async () => {
+    await emptyTaskTrash()
+    Message.success('垃圾桶已清空')
+    await loadWorkspace(true)
+  })
+}
+
+function onRowDragStart(task: TaskItem, event: DragEvent) {
+  if (!manualSort.value || selectionMode.value) return
+  dragTaskId.value = task.id
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(task.id))
+  }
+}
+
+function onRowDragOver(task: TaskItem) {
+  if (!dragTaskId.value || task.completed || task.id === dragTaskId.value) return
+  dragOverId.value = task.id
+}
+
+function onRowDragEnd() {
+  dragTaskId.value = 0
+  dragOverId.value = 0
+}
+
+function onRowDrop(target: TaskItem) {
+  const source = dragTaskId.value
+  dragTaskId.value = 0
+  dragOverId.value = 0
+  if (!source || target.completed || source === target.id) return
+  const list = manualOpenTasks.value.slice()
+  const from = list.findIndex((task) => task.id === source)
+  const to = list.findIndex((task) => task.id === target.id)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  list.forEach((task, index) => {
+    task.order = index + 1
+  })
+  void reorderTasks(list.map((task) => task.id)).catch((error) => {
+    Message.error(error instanceof Error ? error.message : '排序保存失败')
+  })
+}
+
+function notificationSupported() {
+  return typeof window !== 'undefined' && 'Notification' in window
+}
+
+function readNotified(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(NOTIFY_KEY)
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {}
+  } catch {
+    return {}
+  }
+}
+
+async function checkReminders() {
+  if (!remindersEnabled.value || !notificationSupported()) return
+  try {
+    const { tasks: candidates } = await fetchTaskReminders()
+    reminderTasks.value = candidates
+    const now = Date.now()
+    const notified = readNotified()
+    const next: Record<string, number> = {}
+    for (const [key, at] of Object.entries(notified)) {
+      if (now - at < 7 * 86400000) next[key] = at
+    }
+    for (const task of candidates) {
+      const at = reminderInstant(task)
+      if (!at) continue
+      const key = `${task.id}:${task.due}:${task.reminderOffset}`
+      if (next[key]) continue
+      const diff = now - at.getTime()
+      if (diff >= 0 && diff < 5 * 60000) {
+        next[key] = now
+        const body = task.due ? `${task.title} · ${formatDue(task)}` : task.title
+        try {
+          if (Notification.permission === 'granted') {
+            new Notification('任务提醒', { body, tag: `task-${task.id}` })
+          } else {
+            Message.info(`任务提醒：${body}`)
+          }
+        } catch {
+          Message.info(`任务提醒：${body}`)
+        }
+      }
+    }
+    localStorage.setItem(NOTIFY_KEY, JSON.stringify(next))
+  } catch {
+    /* reminder polling is best-effort */
+  }
+}
+
+function stopReminderTimer() {
+  if (reminderTimer) {
+    clearInterval(reminderTimer)
+    reminderTimer = undefined
+  }
+}
+
+function startReminderTimer() {
+  stopReminderTimer()
+  reminderTimer = setInterval(() => {
+    void checkReminders()
+  }, 30000)
+}
+
+async function toggleReminders() {
+  if (remindersEnabled.value) {
+    remindersEnabled.value = false
+    stopReminderTimer()
+    try {
+      localStorage.setItem('caldav-task-reminders', 'off')
+    } catch {
+      /* ignore */
+    }
+    Message.info('已关闭浏览器提醒')
+    return
+  }
+  if (!notificationSupported()) {
+    Message.warning('当前浏览器不支持桌面通知')
+    return
+  }
+  if (!window.isSecureContext) {
+    Message.warning('浏览器提醒需要 HTTPS 或 localhost 访问')
+    return
+  }
+  let permission = Notification.permission
+  if (permission === 'default') permission = await Notification.requestPermission()
+  if (permission !== 'granted') {
+    Message.warning('未获得通知权限，请在浏览器设置中允许通知')
+    return
+  }
+  remindersEnabled.value = true
+  try {
+    localStorage.setItem('caldav-task-reminders', 'on')
+  } catch {
+    /* ignore */
+  }
+  await checkReminders()
+  startReminderTimer()
+  Message.success('已开启浏览器提醒，页面保持打开时生效')
 }
 
 function hydrateFromRoute() {
@@ -783,6 +1192,7 @@ function hydrateFromRoute() {
   else if (view.value === 'list') view.value = 'all'
   const nextMode = typeof q.mode === 'string' ? q.mode : 'list'
   mode.value = (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
+  if (view.value === 'trash') mode.value = 'list' 
   const taskId = typeof q.task === 'string' ? Number(q.task) : 0
   if (taskId) selectedId.value = taskId
   if (typeof q.q === 'string') {
@@ -799,10 +1209,18 @@ onMounted(async () => {
     else theme.value = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
     const collapsedRaw = localStorage.getItem('caldav-task-collapsed')
     if (collapsedRaw) collapsed.value = new Set(JSON.parse(collapsedRaw) as string[])
+    manualSort.value = localStorage.getItem('caldav-task-sort') === 'manual'
+    if (localStorage.getItem('caldav-task-reminders') === 'on' && notificationSupported() && Notification.permission === 'granted') {
+      remindersEnabled.value = true
+    }
   } catch {
     /* ignore */
   }
   hydrateFromRoute()
+  if (remindersEnabled.value) {
+    await checkReminders()
+    startReminderTimer()
+  }
   await loadWorkspace()
   initialized = true
   window.addEventListener('keydown', onKeydown)
@@ -812,6 +1230,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   if (searchTimer) clearTimeout(searchTimer)
   if (refreshTimer) clearTimeout(refreshTimer)
+  stopReminderTimer()
 })
 
 watch([view, activeListId, query], () => {

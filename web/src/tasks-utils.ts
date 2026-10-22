@@ -175,3 +175,50 @@ export function fromDateInput(value: string, allDay: boolean) {
   if (allDay) return `${value}T00:00:00`
   return value.length === 16 ? `${value}:00` : value
 }
+
+export const RECURRENCE_OPTIONS = [
+  { value: '', label: '不重复' },
+  { value: 'FREQ=DAILY', label: '每天' },
+  { value: 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR', label: '工作日' },
+  { value: 'FREQ=WEEKLY', label: '每周' },
+  { value: 'FREQ=MONTHLY', label: '每月' },
+  { value: 'FREQ=YEARLY', label: '每年' },
+  { value: 'custom', label: '自定义…' },
+]
+
+export const REMINDER_OPTIONS = [
+  { value: -1, label: '不提醒' },
+  { value: 0, label: '准时提醒' },
+  { value: 5, label: '提前 5 分钟' },
+  { value: 15, label: '提前 15 分钟' },
+  { value: 60, label: '提前 1 小时' },
+  { value: 1440, label: '提前 1 天' },
+]
+
+export function recurrenceLabel(rule: string) {
+  if (!rule) return ''
+  return RECURRENCE_OPTIONS.find((option) => option.value === rule)?.label || '自定义'
+}
+
+export function reminderLabel(offset: number) {
+  return REMINDER_OPTIONS.find((option) => option.value === offset)?.label || '提醒'
+}
+
+export function reminderInstant(task: Pick<TaskItem, 'due' | 'allDay' | 'reminderOffset'>) {
+  if (!task.due || task.reminderOffset < 0) return null
+  const due = new Date(task.due)
+  if (task.allDay) due.setHours(9, 0, 0, 0)
+  return new Date(due.getTime() - task.reminderOffset * 60000)
+}
+
+export function formatDeleted(value?: string) {
+  if (!value) return ''
+  const deleted = new Date(value).getTime()
+  const diff = Date.now() - deleted
+  if (diff < 60000) return '刚刚删除'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前删除`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前删除`
+  if (diff < 7 * 86400000) return `${Math.floor(diff / 86400000)} 天前删除`
+  const date = new Date(value)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} 删除`
+}

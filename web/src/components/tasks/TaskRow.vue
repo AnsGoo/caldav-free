@@ -1,10 +1,21 @@
 <template>
   <article
     class="tw-row"
-    :class="{ selected, done: task.completed, overdue: overdue }"
-    @click="$emit('open', task)"
+    :class="{ selected, done: task.completed, overdue, 'is-trash': trashMode, 'drag-target': dragTarget }"
+    :draggable="draggable"
+    @click="handleClick"
   >
     <button
+      v-if="selectable"
+      class="tw-select-check"
+      :class="{ checked: selected }"
+      :aria-label="selected ? '取消选择' : '选择任务'"
+      @click.stop="$emit('select', task)"
+    >
+      <TaskIcon v-if="selected" name="check" :size="11" />
+    </button>
+    <button
+      v-else-if="!trashMode"
       class="tw-check"
       :class="{ checked: task.completed }"
       :aria-label="task.completed ? '标记为未完成' : '标记为完成'"
@@ -14,13 +25,17 @@
         <path d="m4.5 10.2 3.6 3.7 7.4-8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
+    <span v-else class="tw-trash-mark"><TaskIcon name="trash" :size="15" /></span>
 
-    <span v-if="task.priority" class="tw-priority-dot" :style="{ background: priorityColor }" />
+    <span v-if="task.priority && !trashMode" class="tw-priority-dot" :style="{ background: priorityColor }" />
 
     <div class="tw-row-body">
       <div class="tw-row-title">
         <span class="tw-title-text">{{ task.title }}</span>
         <span v-for="tag in task.tags.slice(0, 3)" :key="tag" class="tw-mini-tag">#{{ tag }}</span>
+        <span v-if="task.recurrence && !trashMode" class="tw-row-flag" :title="recurrenceLabel(task.recurrence)">
+          <TaskIcon name="repeat" :size="12" />
+        </span>
       </div>
       <div v-if="hasDetails" class="tw-row-detail">
         <span v-if="task.checklist.length" class="tw-row-sub">
@@ -31,6 +46,9 @@
           {{ notesPreview }}
         </span>
       </div>
+      <div v-if="trashMode" class="tw-row-detail">
+        <span class="tw-row-sub">{{ formatDeleted(task.deletedAt) }}</span>
+      </div>
     </div>
 
     <div class="tw-row-meta">
@@ -38,10 +56,21 @@
         <i :style="{ background: task.listColor || '#4772fa' }" />
         {{ task.listName }}
       </span>
-      <span v-if="dueLabel" class="tw-row-due">{{ dueLabel }}</span>
+      <span v-if="task.reminderOffset >= 0 && !trashMode" class="tw-row-bell" :title="reminderLabel(task.reminderOffset)">
+        <TaskIcon name="bell" :size="12" />
+      </span>
+      <span v-if="dueLabel && !trashMode" class="tw-row-due">{{ dueLabel }}</span>
     </div>
 
-    <button class="tw-row-remove" title="删除任务" @click.stop="$emit('remove', task)">
+    <div v-if="trashMode" class="tw-trash-actions">
+      <button class="tw-icon-button" title="恢复任务" @click.stop="$emit('restore', task)">
+        <TaskIcon name="restore" :size="15" />
+      </button>
+      <button class="tw-icon-button" title="彻底删除" @click.stop="$emit('purge', task)">
+        <TaskIcon name="trash" :size="15" />
+      </button>
+    </div>
+    <button v-else-if="!selectable" class="tw-row-remove" title="删除任务" @click.stop="$emit('remove', task)">
       <TaskIcon name="trash" :size="15" />
     </button>
   </article>
@@ -50,14 +79,26 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { TaskItem } from '../../types'
-import { PRIORITIES, formatDue, isOverdue } from '../../tasks-utils'
+import { PRIORITIES, formatDeleted, formatDue, isOverdue, recurrenceLabel, reminderLabel } from '../../tasks-utils'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ task: TaskItem; selected: boolean; showList?: boolean }>()
-defineEmits<{
+const props = defineProps<{
+  task: TaskItem
+  selected: boolean
+  showList?: boolean
+  selectable?: boolean
+  trashMode?: boolean
+  draggable?: boolean
+  dragTarget?: boolean
+}>()
+
+const emit = defineEmits<{
   (event: 'toggle', task: TaskItem): void
   (event: 'open', task: TaskItem): void
   (event: 'remove', task: TaskItem): void
+  (event: 'select', task: TaskItem): void
+  (event: 'restore', task: TaskItem): void
+  (event: 'purge', task: TaskItem): void
 }>()
 
 const overdue = computed(() => isOverdue(props.task))
@@ -69,4 +110,13 @@ const notesPreview = computed(() => {
   return text.length > 32 ? `${text.slice(0, 32)}…` : text
 })
 const hasDetails = computed(() => props.task.checklist.length > 0 || props.task.notes.trim().length > 0)
+
+function handleClick() {
+  if (props.trashMode) return
+  if (props.selectable) {
+    emit('select', props.task)
+    return
+  }
+  emit('open', props.task)
+}
 </script>

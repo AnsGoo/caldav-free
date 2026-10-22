@@ -194,3 +194,76 @@ func TestTaskCompletionAndDelete(t *testing.T) {
 		t.Fatalf("purge = %d (%v)", removed, err)
 	}
 }
+
+func TestTaskTrashLifecycle(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	inbox, _ := s.EnsureInbox(ctx, userID)
+	work, err := s.CreateTaskList(ctx, userID, "临时清单", "#ff0000")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: work.ID, Title: "待恢复"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteTask(ctx, userID, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	deleted, err := s.ListDeletedTasks(ctx, userID, 20)
+	if err != nil || len(deleted) != 1 || deleted[0].DeletedAt == nil {
+		t.Fatalf("deleted = %+v (%v)", deleted, err)
+	}
+	if err := s.DeleteTaskList(ctx, userID, work.ID); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := s.RestoreTask(ctx, userID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.Deleted || restored.Completed || restored.VTODOETag != "" {
+		t.Fatalf("unexpected restored task: %+v", restored)
+	}
+	if restored.ListID != inbox.ID {
+		t.Fatalf("restored into missing list: %d", restored.ListID)
+	}
+	if err := s.DeleteTask(ctx, userID, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.PurgeTask(ctx, userID, task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetTask(ctx, userID, task.ID); err != ErrNotFound {
+		t.Fatalf("purged task readable: %v", err)
+	}
+	if count, err := s.TaskCounts(ctx, userID); err != nil || count.Trash != 0 {
+		t.Fatalf("trash count = %d (%v)", count.Trash, err)
+	}
+}
+
+func TestTaskManualOrder(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	inbox, _ := s.EnsureInbox(ctx, userID)
+	var ids []int64
+	for _, title := range []string{"一", "二", "三"} {
+		task, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: inbox.ID, Title: title})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, task.ID)
+	}
+	if err := s.SetTaskOrder(ctx, userID, []int64{ids[2], ids[0], ids[1]}); err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := s.ListTasks(ctx, userID, TaskFilter{View: "inbox", ListID: inbox.ID})
+	if err != nil || len(tasks) != 3 {
+		t.Fatalf("tasks = %d (%v)", len(tasks), err)
+	}
+	want := []int64{ids[2], ids[0], ids[1]}
+	for index, id := range want {
+		if tasks[index].ID != id {
+			t.Fatalf("order[%d] = %d, want %d", index, tasks[index].ID, id)
+		}
+	}
+}

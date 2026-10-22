@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"caldav-free/internal/ical"
 	"caldav-free/internal/store"
@@ -13,14 +14,17 @@ import (
 
 type taskResponse struct {
 	Task struct {
-		ID        int64    `json:"id"`
-		ListID    int64    `json:"listId"`
-		Title     string   `json:"title"`
-		Priority  int      `json:"priority"`
-		Due       string   `json:"due"`
-		AllDay    bool     `json:"allDay"`
-		Tags      []string `json:"tags"`
-		Completed bool     `json:"completed"`
+		ID             int64    `json:"id"`
+		ListID         int64    `json:"listId"`
+		Title          string   `json:"title"`
+		Priority       int      `json:"priority"`
+		Due            string   `json:"due"`
+		AllDay         bool     `json:"allDay"`
+		Tags           []string `json:"tags"`
+		Completed      bool     `json:"completed"`
+		Recurrence     string   `json:"recurrence"`
+		ReminderOffset int      `json:"reminderOffset"`
+		Order          int      `json:"order"`
 	} `json:"task"`
 }
 
@@ -36,6 +40,7 @@ type workspaceResponse struct {
 		Title     string `json:"title"`
 		Completed bool   `json:"completed"`
 		ListName  string `json:"listName"`
+		Order     int    `json:"order"`
 	} `json:"tasks"`
 	Counts struct {
 		All       int64 `json:"all"`
@@ -43,6 +48,7 @@ type workspaceResponse struct {
 		Next7     int64 `json:"next7"`
 		Inbox     int64 `json:"inbox"`
 		Completed int64 `json:"completed"`
+		Trash     int64 `json:"trash"`
 	} `json:"counts"`
 	Tags  []string `json:"tags"`
 	Inbox int64    `json:"inbox"`
@@ -265,5 +271,148 @@ func TestTaskAPICalDAVSync(t *testing.T) {
 	}
 	if _, err := env.store.GetObject(ctx, cal.ID, stored.VTODOHref); err != store.ErrNotFound {
 		t.Fatalf("object still present after delete: %v", err)
+	}
+}
+
+func TestTaskAPIRecurrenceReminderAndTrash(t *testing.T) {
+	env := newAPIEnv(t)
+	ctx := context.Background()
+
+	// A recurring task advances instead of completing.
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "每日站会", "due": time.Date(2026, 10, 26, 9, 0, 0, 0, time.UTC).Format(time.RFC3339),
+		"recurrence": "FREQ=DAILY", "reminderOffset": 15,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create recurring = %d: %s", status, body)
+	}
+	created := decode[taskResponse](t, body)
+	if created.Task.Recurrence != "FREQ=DAILY" || created.Task.ReminderOffset != 15 {
+		t.Fatalf("recurrence/reminder not stored: %+v", created.Task)
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(created.Task.ID), map[string]any{"completed": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("complete recurring = %d: %s", status, body)
+	}
+	advanced := decode[taskResponse](t, body)
+	if advanced.Task.Completed {
+		t.Fatal("recurring task should stay open")
+	}
+	if advanced.Task.Due != time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC).Format(time.RFC3339) {
+		t.Fatalf("due not advanced: %s", advanced.Task.Due)
+	}
+
+	// The reminder endpoint returns it.
+	status, body = env.request(t, "GET", "/api/admin/tasks/reminders", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("reminders = %d: %s", status, body)
+	}
+	reminders := decode[struct {
+		Tasks []struct {
+			ID       int64 `json:"id"`
+			Reminder int   `json:"reminderOffset"`
+		} `json:"tasks"`
+	}](t, body)
+	if len(reminders.Tasks) != 1 || reminders.Tasks[0].Reminder != 15 {
+		t.Fatalf("unexpected reminders: %+v", reminders)
+	}
+
+	// Complete a normal task, delete it, restore it, then purge it.
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{"title": "扔掉再捡回来"}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create = %d: %s", status, body)
+	}
+	normal := decode[taskResponse](t, body)
+	status, _ = env.request(t, "DELETE", "/api/admin/tasks/"+itoa(normal.Task.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete = %d", status)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=trash", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("trash = %d: %s", status, body)
+	}
+	trash := decode[workspaceResponse](t, body)
+	if trash.Counts.Trash != 1 || len(trash.Tasks) != 1 {
+		t.Fatalf("unexpected trash: %+v", trash)
+	}
+	status, body = env.request(t, "POST", "/api/admin/tasks/"+itoa(normal.Task.ID)+"/restore", nil, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("restore = %d: %s", status, body)
+	}
+	restored := decode[taskResponse](t, body)
+	if restored.Task.ID != normal.Task.ID {
+		t.Fatalf("restored wrong task: %+v", restored)
+	}
+	stored, err := env.store.GetTask(ctx, env.userID, normal.Task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.VTODOUID == "" {
+		t.Fatal("restored task was not re-pushed")
+	}
+	status, _ = env.request(t, "DELETE", "/api/admin/tasks/"+itoa(normal.Task.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete again = %d", status)
+	}
+	status, _ = env.request(t, "DELETE", "/api/admin/tasks/"+itoa(normal.Task.ID)+"/purge", nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("purge = %d", status)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=trash", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("trash = %d: %s", status, body)
+	}
+	if trash = decode[workspaceResponse](t, body); trash.Counts.Trash != 0 {
+		t.Fatalf("trash not purged: %+v", trash)
+	}
+}
+
+func TestTaskAPIBatchAndReorder(t *testing.T) {
+	env := newAPIEnv(t)
+	var ids []int64
+	for _, title := range []string{"第一", "第二", "第三"} {
+		status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{"title": title}, env.csrf)
+		if status != http.StatusCreated {
+			t.Fatalf("create = %d: %s", status, body)
+		}
+		ids = append(ids, decode[taskResponse](t, body).Task.ID)
+	}
+	status, body := env.request(t, "POST", "/api/admin/tasks/batch", map[string]any{
+		"ids": ids[:2], "action": "complete",
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("batch complete = %d: %s", status, body)
+	}
+	if result := decode[struct {
+		Updated int `json:"updated"`
+	}](t, body); result.Updated != 2 {
+		t.Fatalf("updated = %d", result.Updated)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks/batch", map[string]any{
+		"ids": ids[:2], "action": "delete",
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("batch delete = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=trash", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("trash = %d: %s", status, body)
+	}
+	if trash := decode[workspaceResponse](t, body); trash.Counts.Trash != 2 {
+		t.Fatalf("trash count = %d", trash.Counts.Trash)
+	}
+
+	status, _ = env.request(t, "POST", "/api/admin/tasks/reorder", map[string]any{"ids": []int64{ids[2]}}, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("reorder = %d", status)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=all", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("workspace = %d: %s", status, body)
+	}
+	workspace := decode[workspaceResponse](t, body)
+	if len(workspace.Tasks) != 1 || workspace.Tasks[0].Order != 1 {
+		t.Fatalf("unexpected order: %+v", workspace.Tasks)
 	}
 }

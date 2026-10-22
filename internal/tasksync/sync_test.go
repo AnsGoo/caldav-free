@@ -37,7 +37,8 @@ func TestPushCreatesVTODO(t *testing.T) {
 	task, err := st.CreateTask(ctx, &store.Task{
 		UserID: userID, ListID: inbox.ID, Title: "写周报", Notes: "汇总进度",
 		DueAt: &due, Priority: 3, Tags: store.StringList{"工作"},
-		Checklist: `[{"id":"a","title":"整理数据","done":false}]`,
+		Checklist:  `[{"id":"a","title":"整理数据","done":false}]`,
+		Recurrence: "FREQ=WEEKLY", ReminderOffset: 15,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +58,7 @@ func TestPushCreatesVTODO(t *testing.T) {
 		t.Fatal(err)
 	}
 	body := string(obj.Data)
-	for _, want := range []string{"BEGIN:VTODO", "SUMMARY:写周报", "DESCRIPTION:汇总进度", "PRIORITY:1", "CATEGORIES:工作", "X-CALDDAV-CHECKLIST:", "X-CALDDAV-LIST:收集箱"} {
+	for _, want := range []string{"BEGIN:VTODO", "SUMMARY:写周报", "DESCRIPTION:汇总进度", "PRIORITY:1", "CATEGORIES:工作", "X-CALDDAV-CHECKLIST:", "X-CALDDAV-LIST:收集箱", "RRULE:FREQ=WEEKLY", "BEGIN:VALARM", "TRIGGER:-PT15M", "DTSTART:20261025T140000Z"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("VTODO missing %q:\n%s", want, body)
 		}
@@ -215,5 +216,68 @@ func TestSyncPushesPendingTask(t *testing.T) {
 	}
 	if reloaded.VTODOUID == "" || reloaded.VTODOETag == "" || reloaded.SyncPending {
 		t.Fatalf("pending task not pushed: %+v", reloaded)
+	}
+}
+
+func TestSyncImportsRecurrenceAndReminder(t *testing.T) {
+	st, syncer, userID, _ := newSyncEnv(t)
+	ctx := context.Background()
+	cal, err := syncer.EnsureTaskCalendar(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := ical.NewComponent("VCALENDAR")
+	root.AddProp("VERSION", "2.0", nil)
+	root.AddProp("PRODID", "-//test//EN", nil)
+	todo := ical.NewComponent("VTODO")
+	todo.AddProp("UID", "recurring@example.test", nil)
+	todo.AddProp("SUMMARY", "每周复盘", nil)
+	todo.AddProp("DUE", "20261030T090000Z", nil)
+	todo.AddProp("RRULE", "FREQ=WEEKLY;BYDAY=FR", nil)
+	todo.AddProp("STATUS", "NEEDS-ACTION", nil)
+	alarm := ical.NewComponent("VALARM")
+	alarm.AddProp("ACTION", "DISPLAY", nil)
+	alarm.AddProp("TRIGGER", "-PT30M", nil)
+	todo.AddChild(alarm)
+	root.AddChild(todo)
+	data := []byte(root.Encode())
+	obj := &store.Object{
+		CalendarID: cal.ID, Href: "recurring.ics", UID: "recurring@example.test",
+		ETag: computeETag(data), ContentType: "text/calendar; charset=utf-8", Data: data,
+		ComponentType: "VTODO", Size: int64(len(data)),
+	}
+	if _, _, _, err := st.PutObject(ctx, obj); err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.Sync(ctx, userID); err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := st.ListAllTasks(ctx, userID, 10)
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("tasks = %+v (%v)", tasks, err)
+	}
+	if tasks[0].Recurrence != "FREQ=WEEKLY;BYDAY=FR" || tasks[0].ReminderOffset != 30 {
+		t.Fatalf("recurrence/reminder not imported: %+v", tasks[0])
+	}
+
+	// Removing the RRULE and VALARM clears the fields on import.
+	edited := strings.Replace(string(obj.Data), "RRULE:FREQ=WEEKLY;BYDAY=FR\r\n", "", 1)
+	edited = strings.Replace(edited, "BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER:-PT30M\r\nEND:VALARM\r\n", "", 1)
+	editedObj := *obj
+	editedObj.Data = []byte(edited)
+	editedObj.ETag = computeETag(editedObj.Data)
+	editedObj.Size = int64(len(editedObj.Data))
+	if _, _, _, err := st.PutObject(ctx, &editedObj); err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.Sync(ctx, userID); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := st.GetTask(ctx, userID, tasks[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Recurrence != "" || reloaded.ReminderOffset != -1 {
+		t.Fatalf("recurrence/reminder not cleared: %+v", reloaded)
 	}
 }

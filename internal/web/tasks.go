@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -21,12 +22,27 @@ type apiChecklistItem struct {
 }
 
 type apiTaskList struct {
-	ID      int64  `json:"id"`
-	Name    string `json:"name"`
-	Color   string `json:"color"`
-	Order   int    `json:"order"`
-	IsInbox bool   `json:"isInbox"`
-	Count   int64  `json:"count"`
+	ID       int64  `json:"id"`
+	FolderID int64  `json:"folderId"`
+	Name     string `json:"name"`
+	Color    string `json:"color"`
+	Order    int    `json:"order"`
+	IsInbox  bool   `json:"isInbox"`
+	Count    int64  `json:"count"`
+}
+
+type apiTaskFolder struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Order int    `json:"order"`
+}
+
+type apiSavedFilter struct {
+	ID         int64                      `json:"id"`
+	Name       string                     `json:"name"`
+	Color      string                     `json:"color"`
+	Conditions store.TaskFilterConditions `json:"conditions"`
+	Order      int                        `json:"order"`
 }
 
 type apiTask struct {
@@ -152,13 +168,26 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 
 func apiTaskListDTO(list *store.TaskList, count int64) apiTaskList {
 	return apiTaskList{
-		ID:      list.ID,
-		Name:    list.Name,
-		Color:   list.Color,
-		Order:   list.Order,
-		IsInbox: list.IsInbox,
-		Count:   count,
+		ID:       list.ID,
+		FolderID: list.FolderID,
+		Name:     list.Name,
+		Color:    list.Color,
+		Order:    list.Order,
+		IsInbox:  list.IsInbox,
+		Count:    count,
 	}
+}
+
+func apiTaskFolderDTO(folder *store.TaskFolder) apiTaskFolder {
+	return apiTaskFolder{ID: folder.ID, Name: folder.Name, Order: folder.Order}
+}
+
+func apiSavedFilterDTO(filter *store.SavedFilter) apiSavedFilter {
+	dto := apiSavedFilter{ID: filter.ID, Name: filter.Name, Color: filter.Color, Order: filter.Order}
+	if filter.Conditions != "" {
+		_ = json.Unmarshal([]byte(filter.Conditions), &dto.Conditions)
+	}
+	return dto
 }
 
 // taskLocation resolves the caller's timezone for quick-add parsing.
@@ -221,6 +250,7 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	if view == "" {
 		view = "all"
 	}
+	filterID, _ := strconv.ParseInt(r.URL.Query().Get("filterId"), 10, 64)
 	listID, _ := strconv.ParseInt(r.URL.Query().Get("listId"), 10, 64)
 	if view == "inbox" {
 		listID = inbox.ID
@@ -228,15 +258,36 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	if view == "today" || view == "next7" || view == "completed" || view == "trash" {
 		listID = 0
 	}
-	filter := store.TaskFilter{
-		View:   view,
-		ListID: listID,
-		Query:  strings.TrimSpace(r.URL.Query().Get("q")),
-	}
-	tasks, err := s.store.ListTasks(ctx, current.ID, filter)
-	if err != nil {
-		s.apiServerError(w, err)
-		return
+	var tasks []*store.Task
+	if filterID > 0 {
+		saved, err := s.store.GetSavedFilter(ctx, current.ID, filterID)
+		if err != nil {
+			writeAPIError(w, http.StatusNotFound, "过滤器不存在")
+			return
+		}
+		conditions := store.TaskFilterConditions{}
+		if saved.Conditions != "" {
+			if err := json.Unmarshal([]byte(saved.Conditions), &conditions); err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "过滤器条件损坏")
+				return
+			}
+		}
+		tasks, err = s.store.ListFilteredTasks(ctx, current.ID, conditions, 300)
+		if err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+	} else {
+		filter := store.TaskFilter{
+			View:   view,
+			ListID: listID,
+			Query:  strings.TrimSpace(r.URL.Query().Get("q")),
+		}
+		tasks, err = s.store.ListTasks(ctx, current.ID, filter)
+		if err != nil {
+			s.apiServerError(w, err)
+			return
+		}
 	}
 	counts, err := s.store.TaskCounts(ctx, current.ID)
 	if err != nil {
@@ -261,12 +312,38 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 		rows = append(rows, apiTaskDTO(task, byID[task.ListID]))
 	}
 
+	folders, err := s.store.ListTaskFolders(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	folderRows := make([]apiTaskFolder, 0, len(folders))
+	for _, folder := range folders {
+		folderRows = append(folderRows, apiTaskFolderDTO(folder))
+	}
+	filters, err := s.store.ListSavedFilters(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	filterRows := make([]apiSavedFilter, 0, len(filters))
+	for _, filter := range filters {
+		filterRows = append(filterRows, apiSavedFilterDTO(filter))
+	}
+	tagCounts, err := s.store.TaskTagCounts(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{
-		"lists":  listRows,
-		"tasks":  rows,
-		"counts": counts,
-		"tags":   s.taskTags(ctx, current.ID),
-		"inbox":  inbox.ID,
+		"lists":     listRows,
+		"folders":   folderRows,
+		"filters":   filterRows,
+		"tasks":     rows,
+		"counts":    counts,
+		"tags":      s.taskTags(ctx, current.ID),
+		"tagCounts": tagCounts,
+		"inbox":     inbox.ID,
 	})
 }
 
@@ -510,8 +587,9 @@ func (s *Server) apiDeleteTask(w http.ResponseWriter, r *http.Request, current *
 
 func (s *Server) apiCreateTaskList(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body struct {
-		Name  string `json:"name"`
-		Color string `json:"color"`
+		Name     string `json:"name"`
+		Color    string `json:"color"`
+		FolderID int64  `json:"folderId"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -519,7 +597,20 @@ func (s *Server) apiCreateTaskList(w http.ResponseWriter, r *http.Request, curre
 	if strings.TrimSpace(body.Color) == "" {
 		body.Color = "#4772fa"
 	}
+	if body.FolderID > 0 {
+		if _, err := s.store.GetTaskFolder(r.Context(), current.ID, body.FolderID); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
+	}
 	list, err := s.store.CreateTaskList(r.Context(), current.ID, body.Name, body.Color)
+	if err == nil && body.FolderID > 0 {
+		if folderErr := s.store.SetTaskListFolder(r.Context(), current.ID, list.ID, body.FolderID); folderErr != nil {
+			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
+		list.FolderID = body.FolderID
+	}
 	if err != nil {
 		if err == store.ErrConflict {
 			writeAPIError(w, http.StatusConflict, "同名清单已存在")
@@ -543,9 +634,10 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 		return
 	}
 	var body struct {
-		Name  string `json:"name"`
-		Color string `json:"color"`
-		Order *int   `json:"order"`
+		Name     string `json:"name"`
+		Color    string `json:"color"`
+		Order    *int   `json:"order"`
+		FolderID *int64 `json:"folderId"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -555,6 +647,12 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 	}
 	if strings.TrimSpace(body.Color) == "" {
 		body.Color = existing.Color
+	}
+	if body.FolderID != nil && *body.FolderID > 0 {
+		if _, err := s.store.GetTaskFolder(r.Context(), current.ID, *body.FolderID); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
 	}
 	order := existing.Order
 	if body.Order != nil {
@@ -567,6 +665,12 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 		}
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if body.FolderID != nil {
+		if err := s.store.SetTaskListFolder(r.Context(), current.ID, id, *body.FolderID); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
 	}
 	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
 		s.logger.Warn("sync task workspace", "user", current.Username, "error", err)
@@ -589,6 +693,9 @@ func (s *Server) apiDeleteTaskList(w http.ResponseWriter, r *http.Request, curre
 		}
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if err := s.pruneFilterLists(r.Context(), current.ID, id); err != nil {
+		s.logger.Warn("update filters after list delete", "error", err)
 	}
 	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
 		s.logger.Warn("sync task workspace", "user", current.Username, "error", err)
@@ -756,6 +863,384 @@ func (s *Server) apiPurgeTask(w http.ResponseWriter, r *http.Request, current *s
 
 func (s *Server) apiEmptyTrash(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	if _, err := s.store.PurgeDeletedTasks(r.Context(), current.ID); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------- folders
+
+func (s *Server) apiCreateTaskFolder(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Name string `json:"name"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	folder, err := s.store.CreateTaskFolder(r.Context(), current.ID, body.Name)
+	if err != nil {
+		if err == store.ErrConflict {
+			writeAPIError(w, http.StatusConflict, "同名文件夹已存在")
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusCreated, map[string]any{"folder": apiTaskFolderDTO(folder)})
+}
+
+func (s *Server) apiUpdateTaskFolder(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "文件夹不存在")
+		return
+	}
+	existing, err := s.store.GetTaskFolder(r.Context(), current.ID, id)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "文件夹不存在")
+		return
+	}
+	var body struct {
+		Name  string `json:"name"`
+		Order *int   `json:"order"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Name) == "" {
+		body.Name = existing.Name
+	}
+	order := existing.Order
+	if body.Order != nil {
+		order = *body.Order
+	}
+	if err := s.store.UpdateTaskFolder(r.Context(), current.ID, id, body.Name, order); err != nil {
+		if err == store.ErrConflict {
+			writeAPIError(w, http.StatusConflict, "同名文件夹已存在")
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updated, _ := s.store.GetTaskFolder(r.Context(), current.ID, id)
+	writeAPIJSON(w, http.StatusOK, map[string]any{"folder": apiTaskFolderDTO(updated)})
+}
+
+func (s *Server) apiDeleteTaskFolder(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "文件夹不存在")
+		return
+	}
+	if err := s.store.DeleteTaskFolder(r.Context(), current.ID, id); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---------------------------------------------------------------- tags
+
+func (s *Server) apiTaskTags(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	tags, err := s.store.TaskTagCounts(r.Context(), current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"tags": tags})
+}
+
+// pruneFilterLists removes a deleted list from saved filter conditions.
+func (s *Server) pruneFilterLists(ctx context.Context, userID, listID int64) error {
+	filters, err := s.store.ListSavedFilters(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, filter := range filters {
+		conditions := store.TaskFilterConditions{}
+		if filter.Conditions != "" {
+			if err := json.Unmarshal([]byte(filter.Conditions), &conditions); err != nil {
+				continue
+			}
+		}
+		changed := false
+		ids := make([]int64, 0, len(conditions.ListIDs))
+		for _, id := range conditions.ListIDs {
+			if id == listID {
+				changed = true
+				continue
+			}
+			ids = append(ids, id)
+		}
+		if !changed {
+			continue
+		}
+		conditions.ListIDs = ids
+		encoded, err := json.Marshal(conditions)
+		if err != nil {
+			return err
+		}
+		if err := s.store.UpdateSavedFilter(ctx, userID, filter.ID, filter.Name, filter.Color, string(encoded), filter.Order); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// retagSavedFilters keeps saved filter conditions consistent after a tag is
+// renamed or removed.
+func (s *Server) retagSavedFilters(ctx context.Context, userID int64, from, to string) error {
+	filters, err := s.store.ListSavedFilters(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, filter := range filters {
+		conditions := store.TaskFilterConditions{}
+		if filter.Conditions != "" {
+			if err := json.Unmarshal([]byte(filter.Conditions), &conditions); err != nil {
+				continue
+			}
+		}
+		changed := false
+		tags := make([]string, 0, len(conditions.Tags))
+		for _, tag := range conditions.Tags {
+			if tag == from {
+				changed = true
+				if to == "" {
+					continue
+				}
+				tag = to
+			}
+			if !containsString(tags, tag) {
+				tags = append(tags, tag)
+			}
+		}
+		if !changed {
+			continue
+		}
+		conditions.Tags = tags
+		encoded, err := json.Marshal(conditions)
+		if err != nil {
+			return err
+		}
+		if err := s.store.UpdateSavedFilter(ctx, userID, filter.ID, filter.Name, filter.Color, string(encoded), filter.Order); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Server) apiRenameTaskTag(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if err := s.store.RenameTaskTag(r.Context(), current.ID, body.From, body.To); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.retagSavedFilters(r.Context(), current.ID, body.From, body.To); err != nil {
+		s.logger.Warn("update filters after tag rename", "error", err)
+	}
+	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
+		s.logger.Warn("sync after tag rename", "user", current.Username, "error", err)
+	}
+	s.apiTaskTags(w, r, current, nil)
+}
+
+func (s *Server) apiDeleteTaskTag(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Tag string `json:"tag"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if err := s.store.DeleteTaskTag(r.Context(), current.ID, body.Tag); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.retagSavedFilters(r.Context(), current.ID, body.Tag, ""); err != nil {
+		s.logger.Warn("update filters after tag delete", "error", err)
+	}
+	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
+		s.logger.Warn("sync after tag delete", "user", current.Username, "error", err)
+	}
+	s.apiTaskTags(w, r, current, nil)
+}
+
+// ---------------------------------------------------------------- saved filters
+
+func normalizeFilterConditions(cond store.TaskFilterConditions) (store.TaskFilterConditions, error) {
+	if len(cond.ListIDs) > 50 || len(cond.Tags) > 20 || len(cond.Priorities) > 3 {
+		return cond, fmt.Errorf("过滤器条件过多")
+	}
+	switch cond.Status {
+	case "", "open", "completed", "all":
+	default:
+		return cond, fmt.Errorf("无效的状态条件")
+	}
+	if cond.Status == "" {
+		cond.Status = "open"
+	}
+	switch cond.Date {
+	case "", "any", "today", "next7", "overdue", "none":
+	default:
+		return cond, fmt.Errorf("无效的日期条件")
+	}
+	if cond.Date == "" {
+		cond.Date = "any"
+	}
+	if cond.TagMode != "all" {
+		cond.TagMode = "any"
+	}
+	tags := make([]string, 0, len(cond.Tags))
+	seen := map[string]bool{}
+	for _, raw := range cond.Tags {
+		tag := strings.TrimSpace(strings.TrimPrefix(raw, "#"))
+		if tag == "" || seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		tags = append(tags, tag)
+	}
+	cond.Tags = tags
+	priorities := make([]int, 0, len(cond.Priorities))
+	seenPriority := map[int]bool{}
+	for _, priority := range cond.Priorities {
+		if priority < 1 || priority > 3 || seenPriority[priority] {
+			continue
+		}
+		seenPriority[priority] = true
+		priorities = append(priorities, priority)
+	}
+	cond.Priorities = priorities
+	lists := make([]int64, 0, len(cond.ListIDs))
+	seenList := map[int64]bool{}
+	for _, id := range cond.ListIDs {
+		if id <= 0 || seenList[id] {
+			continue
+		}
+		seenList[id] = true
+		lists = append(lists, id)
+	}
+	cond.ListIDs = lists
+	cond.Keyword = strings.TrimSpace(cond.Keyword)
+	if len([]rune(cond.Keyword)) > 100 {
+		return cond, fmt.Errorf("关键词过长")
+	}
+	return cond, nil
+}
+
+func filterConditionsJSON(cond store.TaskFilterConditions) (string, error) {
+	normalized, err := normalizeFilterConditions(cond)
+	if err != nil {
+		return "", err
+	}
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return "", err
+	}
+	return string(encoded), nil
+}
+
+func (s *Server) apiSavedFilters(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	filters, err := s.store.ListSavedFilters(r.Context(), current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	rows := make([]apiSavedFilter, 0, len(filters))
+	for _, filter := range filters {
+		rows = append(rows, apiSavedFilterDTO(filter))
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"filters": rows})
+}
+
+func (s *Server) apiCreateSavedFilter(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Name       string                     `json:"name"`
+		Color      string                     `json:"color"`
+		Conditions store.TaskFilterConditions `json:"conditions"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	conditions, err := filterConditionsJSON(body.Conditions)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	filter, err := s.store.CreateSavedFilter(r.Context(), current.ID, body.Name, body.Color, conditions)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusCreated, map[string]any{"filter": apiSavedFilterDTO(filter)})
+}
+
+func (s *Server) apiUpdateSavedFilter(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "过滤器不存在")
+		return
+	}
+	existing, err := s.store.GetSavedFilter(r.Context(), current.ID, id)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "过滤器不存在")
+		return
+	}
+	var body struct {
+		Name       string                     `json:"name"`
+		Color      string                     `json:"color"`
+		Conditions store.TaskFilterConditions `json:"conditions"`
+		Order      *int                       `json:"order"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Name) == "" {
+		body.Name = existing.Name
+	}
+	if body.Color == "" {
+		body.Color = existing.Color
+	}
+	conditions, err := filterConditionsJSON(body.Conditions)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	order := existing.Order
+	if body.Order != nil {
+		order = *body.Order
+	}
+	if err := s.store.UpdateSavedFilter(r.Context(), current.ID, id, body.Name, body.Color, conditions, order); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updated, _ := s.store.GetSavedFilter(r.Context(), current.ID, id)
+	writeAPIJSON(w, http.StatusOK, map[string]any{"filter": apiSavedFilterDTO(updated)})
+}
+
+func (s *Server) apiDeleteSavedFilter(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "过滤器不存在")
+		return
+	}
+	if err := s.store.DeleteSavedFilter(r.Context(), current.ID, id); err != nil {
 		s.apiServerError(w, err)
 		return
 	}

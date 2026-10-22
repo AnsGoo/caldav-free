@@ -95,6 +95,12 @@
     <template v-else-if="name === 'flag'">
       <path d="M6 20.5V4.5h9.5l-1.5 3.8 1.5 3.7H6" />
     </template>
+    <template v-else-if="name === 'folder'">
+      <path d="M3.5 6.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-11Z" />
+    </template>
+    <template v-else-if="name === 'filter'">
+      <path d="M3.5 5.5h17l-6.5 7v5l-4 2v-7l-6.5-7Z" />
+    </template>
     <template v-else-if="name === 'repeat'">
       <path d="M17 2.5v4.5h-4.5" />
       <path d="M7 21.5V17h4.5" />

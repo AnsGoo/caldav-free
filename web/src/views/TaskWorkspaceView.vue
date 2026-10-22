@@ -41,20 +41,31 @@
 
     <TaskSidebar
       :lists="lists"
+      :folders="folders"
+      :filters="filters"
+      :tag-counts="tagCounts"
       :counts="counts"
       :view="view"
       :active-list-id="activeListId"
-      :tags="tags"
+      :active-filter-id="activeFilterId"
       :active-tag="activeTag"
       :user-name="auth.user?.username || ''"
       :display-name="auth.user?.displayName || ''"
       :open="sidebarOpen"
       @select-view="selectView"
       @select-list="selectList"
+      @select-filter="selectFilter"
       @create-list="createList"
       @edit-list="openEditList"
       @delete-list="confirmDeleteList"
+      @create-folder="openCreateFolder"
+      @edit-folder="openEditFolder"
+      @delete-folder="confirmDeleteFolder"
+      @create-filter="openCreateFilter"
+      @edit-filter="openEditFilter"
+      @delete-filter="confirmDeleteFilter"
       @select-tag="selectTag"
+      @manage-tags="openTagManager"
       @close="sidebarOpen = false"
       @logout="handleLogout"
     />
@@ -344,6 +355,177 @@
       </div>
     </div>
 
+    <div v-if="folderVisible" class="tw-dialog-scrim" @click.self="folderVisible = false">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" @keydown.esc="folderVisible = false">
+        <header class="tw-dialog-head">
+          <h2>{{ folderForm.id ? '编辑文件夹' : '新建文件夹' }}</h2>
+          <button class="tw-icon-button" title="关闭" @click="folderVisible = false">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body">
+          <label class="tw-modal-label">
+            名称
+            <input
+              v-model="folderForm.name"
+              class="tw-dialog-input"
+              maxlength="40"
+              placeholder="例如：工作项目"
+              @keydown.enter="saveFolder"
+            />
+          </label>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="folderVisible = false">取消</button>
+          <button class="tw-dialog-ok" :disabled="folderBusy" @click="saveFolder">{{ folderBusy ? '保存中…' : '保存' }}</button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="filterVisible" class="tw-dialog-scrim" @click.self="filterVisible = false">
+      <div class="tw-dialog tw-dialog-filter" role="dialog" aria-modal="true" @keydown.esc="filterVisible = false">
+        <header class="tw-dialog-head">
+          <h2>{{ filterForm.id ? '编辑过滤器' : '新建过滤器' }}</h2>
+          <button class="tw-icon-button" title="关闭" @click="filterVisible = false">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body tw-filter-form">
+          <label class="tw-modal-label">
+            名称
+            <input v-model="filterForm.name" class="tw-dialog-input" maxlength="60" placeholder="例如：本周高优工作" />
+          </label>
+          <div class="tw-filter-grid">
+            <label class="tw-modal-label">
+              关键词
+              <input v-model="filterForm.conditions.keyword" class="tw-dialog-input" maxlength="100" placeholder="标题或备注" />
+            </label>
+            <label class="tw-modal-label">
+              状态
+              <select v-model="filterForm.conditions.status" class="tw-field-select">
+                <option value="open">未完成</option>
+                <option value="completed">已完成</option>
+                <option value="all">全部</option>
+              </select>
+            </label>
+            <label class="tw-modal-label">
+              日期
+              <select v-model="filterForm.conditions.date" class="tw-field-select">
+                <option value="any">不限</option>
+                <option value="today">今天</option>
+                <option value="next7">最近 7 天</option>
+                <option value="overdue">已逾期</option>
+                <option value="none">无日期</option>
+              </select>
+            </label>
+            <label class="tw-modal-label">
+              标签匹配
+              <select v-model="filterForm.conditions.tagMode" class="tw-field-select">
+                <option value="any">任一标签</option>
+                <option value="all">全部标签</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="tw-filter-block">
+            <span>清单</span>
+            <div class="tw-filter-chips">
+              <button
+                v-for="list in lists"
+                :key="list.id"
+                class="tw-filter-chip"
+                :class="{ active: filterForm.conditions.listIds.includes(list.id) }"
+                @click="toggleFilterValue('listIds', list.id)"
+              >
+                <i :style="{ background: list.color || '#4772fa' }" />
+                {{ list.name }}
+              </button>
+            </div>
+          </div>
+
+          <div class="tw-filter-block">
+            <span>优先级</span>
+            <div class="tw-filter-chips">
+              <button
+                v-for="priority in PRIORITIES"
+                :key="priority.value"
+                class="tw-filter-chip"
+                :class="{ active: filterForm.conditions.priorities.includes(priority.value) }"
+                @click="toggleFilterValue('priorities', priority.value)"
+              >
+                <i :style="{ background: priority.color }" />
+                {{ priority.short }}优先级
+              </button>
+            </div>
+          </div>
+
+          <div class="tw-filter-block">
+            <span>标签</span>
+            <div v-if="tagCounts.length" class="tw-filter-chips">
+              <button
+                v-for="tag in tagCounts"
+                :key="tag.name"
+                class="tw-filter-chip"
+                :class="{ active: filterForm.conditions.tags.includes(tag.name) }"
+                @click="toggleFilterTag(tag.name)"
+              >
+                #{{ tag.name }}
+              </button>
+            </div>
+            <p v-else class="tw-filter-empty">还没有标签，可以先在任务里添加。</p>
+          </div>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="filterVisible = false">取消</button>
+          <button class="tw-dialog-ok" :disabled="filterBusy" @click="saveFilter">{{ filterBusy ? '保存中…' : '保存' }}</button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="tagManagerVisible" class="tw-dialog-scrim" @click.self="tagManagerVisible = false">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" @keydown.esc="tagManagerVisible = false">
+        <header class="tw-dialog-head">
+          <h2>管理标签</h2>
+          <button class="tw-icon-button" title="关闭" @click="tagManagerVisible = false">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body tw-tag-manager">
+          <div v-for="tag in tagCounts" :key="tag.name" class="tw-tag-row">
+            <template v-if="editingTag === tag.name">
+              <input
+                v-model="editingTagName"
+                class="tw-dialog-input"
+                maxlength="30"
+                @keydown.enter="saveTagRename(tag)"
+                @keydown.esc="cancelRenameTag"
+              />
+              <button class="tw-icon-button" title="保存" :disabled="tagBusy" @click="saveTagRename(tag)">
+                <TaskIcon name="check" :size="15" />
+              </button>
+              <button class="tw-icon-button" title="取消" @click="cancelRenameTag">
+                <TaskIcon name="close" :size="15" />
+              </button>
+            </template>
+            <template v-else>
+              <span class="tw-tag-row-name">#{{ tag.name }}</span>
+              <small>{{ tag.count }}</small>
+              <button class="tw-icon-button" title="重命名" @click="startRenameTag(tag)">
+                <TaskIcon name="edit" :size="14" />
+              </button>
+              <button class="tw-icon-button" title="删除标签" @click="confirmDeleteTag(tag)">
+                <TaskIcon name="trash" :size="14" />
+              </button>
+            </template>
+          </div>
+          <p v-if="!tagCounts.length" class="tw-filter-empty">暂无标签。</p>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="tagManagerVisible = false">关闭</button>
+        </footer>
+      </div>
+    </div>
+
     <div v-if="editVisible" class="tw-dialog-scrim" @click.self="editVisible = false">
       <div class="tw-dialog" role="dialog" aria-modal="true" aria-label="编辑清单" @keydown.esc="editVisible = false">
         <header class="tw-dialog-head">
@@ -377,6 +559,13 @@
               />
             </div>
           </div>
+          <label class="tw-modal-label">
+            文件夹
+            <select v-model.number="editForm.folderId" class="tw-field-select">
+              <option :value="0">根目录</option>
+              <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option>
+            </select>
+          </label>
           <p class="tw-modal-note">删除清单会把其中的任务移动到收集箱。</p>
         </div>
         <footer class="tw-dialog-foot">
@@ -413,20 +602,28 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { TaskCounts, TaskItem, TaskList, TaskWorkspaceData } from '../types'
+import type { SavedFilter, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
+  createSavedFilter,
   createTask,
+  createTaskFolder,
   createTaskList,
+  deleteSavedFilter,
   deleteTask,
+  deleteTaskFolder,
   deleteTaskList,
+  deleteTaskTag,
   emptyTaskTrash,
   fetchTaskReminders,
   fetchTaskWorkspace,
   purgeTask,
+  renameTaskTag,
   reorderTasks,
   restoreTask,
+  updateSavedFilter,
   updateTask,
+  updateTaskFolder,
   updateTaskList,
   type TaskView,
 } from '../tasks-api'
@@ -453,13 +650,17 @@ const route = useRoute()
 const router = useRouter()
 
 const lists = ref<TaskList[]>([])
+const folders = ref<TaskFolder[]>([])
+const filters = ref<SavedFilter[]>([])
 const tasks = ref<TaskItem[]>([])
 const tags = ref<string[]>([])
+const tagCounts = ref<TaskTagCount[]>([])
 const counts = reactive<TaskCounts>({ all: 0, today: 0, next7: 0, inbox: 0, completed: 0, trash: 0 })
 const inboxId = ref(0)
 
 const view = ref<TaskView>('all')
 const activeListId = ref(0)
+const activeFilterId = ref(0)
 const activeTag = ref('')
 const mode = ref<Mode>('list')
 const query = ref('')
@@ -494,7 +695,22 @@ const editNameInput = ref<HTMLInputElement | null>(null)
 
 const editVisible = ref(false)
 const editBusy = ref(false)
-const editForm = reactive({ id: 0, name: '', color: LIST_COLORS[0] })
+const editForm = reactive({ id: 0, name: '', color: LIST_COLORS[0], folderId: 0 })
+const folderVisible = ref(false)
+const folderBusy = ref(false)
+const folderForm = reactive({ id: 0, name: '' })
+const filterVisible = ref(false)
+const filterBusy = ref(false)
+const filterForm = reactive<{ id: number; name: string; color: string; conditions: TaskFilterConditions }>({
+  id: 0,
+  name: '',
+  color: LIST_COLORS[0],
+  conditions: { listIds: [], tags: [], tagMode: 'any', priorities: [], status: 'open', date: 'any', keyword: '' },
+})
+const tagManagerVisible = ref(false)
+const tagBusy = ref(false)
+const editingTag = ref('')
+const editingTagName = ref('')
 const confirmBusy = ref(false)
 const confirmDialog = reactive<{ open: boolean; title: string; message: string; action: (() => Promise<void> | void) | null }>({
   open: false,
@@ -514,14 +730,18 @@ const smartLabels: Record<string, string> = {
   inbox: '收集箱',
   completed: '已完成',
   trash: '垃圾桶',
+  filter: '过滤器',
   list: '清单',
 }
+
+const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
 
 const heading = computed(() => {
   if (view.value === 'list') {
     const list = lists.value.find((item) => item.id === activeListId.value)
     return list?.name || '清单'
   }
+  if (view.value === 'filter') return activeFilter.value?.name || '过滤器'
   return smartLabels[view.value] || '任务'
 })
 
@@ -532,6 +752,7 @@ const headingIcon = computed(() => {
   if (view.value === 'inbox') return 'inbox'
   if (view.value === 'completed') return 'check'
   if (view.value === 'trash') return 'trash'
+  if (view.value === 'filter') return 'filter'
   return 'list'
 })
 
@@ -571,6 +792,7 @@ const hint = computed(() => quickHint(quickText.value))
 const emptyHint = computed(() => {
   if (query.value) return `没有找到“${query.value}”相关的任务。`
   if (activeTag.value) return `还没有带 #${activeTag.value} 标签的任务。`
+  if (view.value === 'filter') return '当前过滤器没有匹配的任务，可以调整条件或新建任务。'
   return '按 N 或点击上方输入框，快速记下一件事。'
 })
 
@@ -592,11 +814,15 @@ async function loadWorkspace(silent = false) {
     const data: TaskWorkspaceData = await fetchTaskWorkspace({
       view: view.value,
       listId: activeListId.value || undefined,
+      filterId: activeFilterId.value || undefined,
       q: query.value || undefined,
     })
     lists.value = data.lists
+    folders.value = data.folders
+    filters.value = data.filters
     tasks.value = data.tasks
     tags.value = data.tags
+    tagCounts.value = data.tagCounts
     inboxId.value = data.inbox
     Object.assign(counts, data.counts)
     if (view.value === 'trash' && mode.value !== 'list') mode.value = 'list'
@@ -620,6 +846,7 @@ function scheduleRefresh() {
 function syncURL() {
   const next: Record<string, string> = { view: view.value }
   if (view.value === 'list' && activeListId.value) next.list = String(activeListId.value)
+  if (view.value === 'filter' && activeFilterId.value) next.filter = String(activeFilterId.value)
   if (mode.value !== 'list') next.mode = mode.value
   if (selectedId.value) next.task = String(selectedId.value)
   if (query.value) next.q = query.value
@@ -645,6 +872,18 @@ function selectView(nextView: string) {
 function selectList(id: number) {
   view.value = 'list'
   activeListId.value = id
+  activeFilterId.value = 0
+  activeTag.value = ''
+  selectedId.value = 0
+  sidebarOpen.value = false
+  clearSelection()
+  syncURL()
+}
+
+function selectFilter(id: number) {
+  view.value = 'filter'
+  activeFilterId.value = id
+  activeListId.value = 0
   activeTag.value = ''
   selectedId.value = 0
   sidebarOpen.value = false
@@ -771,6 +1010,7 @@ function openEditList(list: TaskList) {
   editForm.id = list.id
   editForm.name = list.name
   editForm.color = list.color || LIST_COLORS[0]
+  editForm.folderId = list.folderId || 0
   editVisible.value = true
   requestAnimationFrame(() => editNameInput.value?.focus())
 }
@@ -783,7 +1023,7 @@ async function saveList() {
   }
   editBusy.value = true
   try {
-    await updateTaskList(editForm.id, { name, color: editForm.color })
+    await updateTaskList(editForm.id, { name, color: editForm.color, folderId: editForm.folderId })
     editVisible.value = false
     await loadWorkspace(true)
   } catch (error) {
@@ -946,6 +1186,171 @@ function onKeydown(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     selectedId.value = 0
   }
+}
+
+function emptyConditions(): TaskFilterConditions {
+  return { listIds: [], tags: [], tagMode: 'any', priorities: [], status: 'open', date: 'any', keyword: '' }
+}
+
+function openCreateFolder() {
+  folderForm.id = 0
+  folderForm.name = ''
+  folderVisible.value = true
+}
+
+function openEditFolder(folder: TaskFolder) {
+  folderForm.id = folder.id
+  folderForm.name = folder.name
+  folderVisible.value = true
+}
+
+async function saveFolder() {
+  const name = folderForm.name.trim()
+  if (!name) {
+    Message.warning('文件夹名称不能为空')
+    return
+  }
+  folderBusy.value = true
+  try {
+    if (folderForm.id) await updateTaskFolder(folderForm.id, { name })
+    else await createTaskFolder(name)
+    folderVisible.value = false
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存文件夹失败')
+  } finally {
+    folderBusy.value = false
+  }
+}
+
+function confirmDeleteFolder(folder: TaskFolder) {
+  askConfirm('删除文件夹', `删除「${folder.name}」后，其中的清单会回到根目录。`, async () => {
+    await deleteTaskFolder(folder.id)
+    await loadWorkspace(true)
+  })
+}
+
+function openCreateFilter() {
+  filterForm.id = 0
+  filterForm.name = ''
+  filterForm.color = LIST_COLORS[0]
+  filterForm.conditions = emptyConditions()
+  filterVisible.value = true
+}
+
+function openEditFilter(filter: SavedFilter) {
+  filterForm.id = filter.id
+  filterForm.name = filter.name
+  filterForm.color = filter.color || LIST_COLORS[0]
+  const cond = filter.conditions || emptyConditions()
+  filterForm.conditions = {
+    listIds: [...(cond.listIds || [])],
+    tags: [...(cond.tags || [])],
+    tagMode: cond.tagMode || 'any',
+    priorities: [...(cond.priorities || [])],
+    status: cond.status || 'open',
+    date: cond.date || 'any',
+    keyword: cond.keyword || '',
+  }
+  filterVisible.value = true
+}
+
+function toggleFilterValue(kind: 'listIds' | 'priorities', value: number) {
+  const list = filterForm.conditions[kind] as number[]
+  const index = list.indexOf(value)
+  if (index >= 0) list.splice(index, 1)
+  else list.push(value)
+}
+
+function toggleFilterTag(tag: string) {
+  const list = filterForm.conditions.tags
+  const index = list.indexOf(tag)
+  if (index >= 0) list.splice(index, 1)
+  else list.push(tag)
+}
+
+async function saveFilter() {
+  const name = filterForm.name.trim()
+  if (!name) {
+    Message.warning('过滤器名称不能为空')
+    return
+  }
+  filterBusy.value = true
+  try {
+    const payload = {
+      name,
+      color: filterForm.color,
+      conditions: {
+        ...filterForm.conditions,
+        keyword: filterForm.conditions.keyword.trim(),
+      },
+    }
+    const result = filterForm.id
+      ? await updateSavedFilter(filterForm.id, payload)
+      : await createSavedFilter(payload)
+    filterVisible.value = false
+    await loadWorkspace(true)
+    if (filterForm.id && activeFilterId.value === filterForm.id) {
+      await loadWorkspace()
+    } else if (!filterForm.id) {
+      selectFilter(result.filter.id)
+    }
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存过滤器失败')
+  } finally {
+    filterBusy.value = false
+  }
+}
+
+function confirmDeleteFilter(filter: SavedFilter) {
+  askConfirm('删除过滤器', `确定删除「${filter.name}」吗？`, async () => {
+    await deleteSavedFilter(filter.id)
+    if (activeFilterId.value === filter.id) selectView('all')
+    await loadWorkspace(true)
+  })
+}
+
+function openTagManager() {
+  editingTag.value = ''
+  editingTagName.value = ''
+  tagManagerVisible.value = true
+}
+
+function startRenameTag(tag: TaskTagCount) {
+  editingTag.value = tag.name
+  editingTagName.value = tag.name
+}
+
+function cancelRenameTag() {
+  editingTag.value = ''
+  editingTagName.value = ''
+}
+
+async function saveTagRename(tag: TaskTagCount) {
+  const name = editingTagName.value.trim().replace(/^#/, '')
+  if (!name || name === tag.name) {
+    cancelRenameTag()
+    return
+  }
+  tagBusy.value = true
+  try {
+    await renameTaskTag(tag.name, name)
+    if (activeTag.value === tag.name) activeTag.value = name
+    cancelRenameTag()
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '重命名标签失败')
+  } finally {
+    tagBusy.value = false
+  }
+}
+
+function confirmDeleteTag(tag: TaskTagCount) {
+  askConfirm('删除标签', `从所有任务中移除「#${tag.name}」？`, async () => {
+    await deleteTaskTag(tag.name)
+    if (activeTag.value === tag.name) activeTag.value = ''
+    await loadWorkspace(true)
+  })
 }
 
 function toggleManualSort() {
@@ -1186,10 +1591,13 @@ async function toggleReminders() {
 function hydrateFromRoute() {
   const q = route.query
   const nextView = typeof q.view === 'string' ? q.view : 'all'
-  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'list'].includes(nextView) ? nextView : 'all') as TaskView
+  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'filter', 'list'].includes(nextView) ? nextView : 'all') as TaskView
   const listId = typeof q.list === 'string' ? Number(q.list) : 0
   if (view.value === 'list' && listId) activeListId.value = listId
   else if (view.value === 'list') view.value = 'all'
+  const filterId = typeof q.filter === 'string' ? Number(q.filter) : 0
+  if (view.value === 'filter' && filterId) activeFilterId.value = filterId
+  else if (view.value === 'filter') view.value = 'all'
   const nextMode = typeof q.mode === 'string' ? q.mode : 'list'
   mode.value = (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
   if (view.value === 'trash') mode.value = 'list' 
@@ -1233,7 +1641,7 @@ onBeforeUnmount(() => {
   stopReminderTimer()
 })
 
-watch([view, activeListId, query], () => {
+watch([view, activeListId, activeFilterId, query], () => {
   if (!initialized) return
   void loadWorkspace()
 })

@@ -119,10 +119,40 @@ export interface TaskItem {
 
 export interface TaskList {
   id: number
+  folderId: number
   name: string
   color: string
   order: number
   isInbox: boolean
+  count: number
+}
+
+export interface TaskFolder {
+  id: number
+  name: string
+  order: number
+}
+
+export interface TaskFilterConditions {
+  listIds: number[]
+  tags: string[]
+  tagMode: 'any' | 'all'
+  priorities: number[]
+  status: 'open' | 'completed' | 'all'
+  date: 'any' | 'today' | 'next7' | 'overdue' | 'none'
+  keyword: string
+}
+
+export interface SavedFilter {
+  id: number
+  name: string
+  color: string
+  conditions: TaskFilterConditions
+  order: number
+}
+
+export interface TaskTagCount {
+  name: string
   count: number
 }
 
@@ -137,8 +167,11 @@ export interface TaskCounts {
 
 export interface TaskWorkspaceData {
   lists: TaskList[]
+  folders: TaskFolder[]
+  filters: SavedFilter[]
   tasks: TaskItem[]
   counts: TaskCounts
   tags: string[]
+  tagCounts: TaskTagCount[]
   inbox: number
 }

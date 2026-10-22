@@ -1,7 +1,7 @@
 import { api } from './api'
-import type { ChecklistItem, TaskItem, TaskList, TaskWorkspaceData } from './types'
+import type { ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'list'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'list' | 'filter'
 
 export function browserTimezone() {
   try {
@@ -11,10 +11,11 @@ export function browserTimezone() {
   }
 }
 
-export function fetchTaskWorkspace(params: { view: TaskView; listId?: number; q?: string }) {
+export function fetchTaskWorkspace(params: { view: TaskView; listId?: number; filterId?: number; q?: string }) {
   const query = new URLSearchParams()
   query.set('view', params.view)
   if (params.listId) query.set('listId', String(params.listId))
+  if (params.filterId) query.set('filterId', String(params.filterId))
   if (params.q) query.set('q', params.q)
   return api<TaskWorkspaceData>(`/tasks?${query.toString()}`)
 }
@@ -53,17 +54,71 @@ export function deleteTask(id: number) {
   return api<void>(`/tasks/${id}`, { method: 'DELETE' })
 }
 
-export function createTaskList(name: string, color: string) {
+export function createTaskList(name: string, color: string, folderId?: number) {
   return api<{ list: TaskList }>('/task-lists', {
     method: 'POST',
-    body: JSON.stringify({ name, color }),
+    body: JSON.stringify({ name, color, folderId: folderId || 0 }),
   })
 }
 
-export function updateTaskList(id: number, patch: { name?: string; color?: string; order?: number }) {
+export function updateTaskList(id: number, patch: { name?: string; color?: string; order?: number; folderId?: number }) {
   return api<{ list: TaskList }>(`/task-lists/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+  })
+}
+
+export function createTaskFolder(name: string) {
+  return api<{ folder: TaskFolder }>('/task-folders', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function updateTaskFolder(id: number, patch: { name?: string; order?: number }) {
+  return api<{ folder: TaskFolder }>(`/task-folders/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteTaskFolder(id: number) {
+  return api<void>(`/task-folders/${id}`, { method: 'DELETE' })
+}
+
+export function createSavedFilter(payload: { name: string; color?: string; conditions: unknown }) {
+  return api<{ filter: SavedFilter }>('/task-filters', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateSavedFilter(id: number, payload: { name?: string; color?: string; conditions?: unknown; order?: number }) {
+  return api<{ filter: SavedFilter }>(`/task-filters/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteSavedFilter(id: number) {
+  return api<void>(`/task-filters/${id}`, { method: 'DELETE' })
+}
+
+export function fetchTaskTags() {
+  return api<{ tags: TaskTagCount[] }>('/task-tags')
+}
+
+export function renameTaskTag(from: string, to: string) {
+  return api<{ tags: TaskTagCount[] }>('/task-tags/rename', {
+    method: 'POST',
+    body: JSON.stringify({ from, to }),
+  })
+}
+
+export function deleteTaskTag(tag: string) {
+  return api<{ tags: TaskTagCount[] }>('/task-tags/delete', {
+    method: 'POST',
+    body: JSON.stringify({ tag }),
   })
 }
 

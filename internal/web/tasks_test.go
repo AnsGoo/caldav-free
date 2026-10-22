@@ -30,17 +30,23 @@ type taskResponse struct {
 
 type workspaceResponse struct {
 	Lists []struct {
-		ID      int64  `json:"id"`
-		Name    string `json:"name"`
-		IsInbox bool   `json:"isInbox"`
-		Count   int64  `json:"count"`
+		ID       int64  `json:"id"`
+		Name     string `json:"name"`
+		IsInbox  bool   `json:"isInbox"`
+		FolderID int64  `json:"folderId"`
+		Count    int64  `json:"count"`
 	} `json:"lists"`
+	Folders []struct {
+		ID   int64  `json:"id"`
+		Name string `json:"name"`
+	} `json:"folders"`
 	Tasks []struct {
-		ID        int64  `json:"id"`
-		Title     string `json:"title"`
-		Completed bool   `json:"completed"`
-		ListName  string `json:"listName"`
-		Order     int    `json:"order"`
+		ID        int64    `json:"id"`
+		Title     string   `json:"title"`
+		Completed bool     `json:"completed"`
+		ListName  string   `json:"listName"`
+		Order     int      `json:"order"`
+		Tags      []string `json:"tags"`
 	} `json:"tasks"`
 	Counts struct {
 		All       int64 `json:"all"`
@@ -414,5 +420,152 @@ func TestTaskAPIBatchAndReorder(t *testing.T) {
 	workspace := decode[workspaceResponse](t, body)
 	if len(workspace.Tasks) != 1 || workspace.Tasks[0].Order != 1 {
 		t.Fatalf("unexpected order: %+v", workspace.Tasks)
+	}
+}
+
+func TestTaskAPIFoldersTagsAndFilters(t *testing.T) {
+	env := newAPIEnv(t)
+
+	status, body := env.request(t, "POST", "/api/admin/task-folders", map[string]any{"name": "项目"}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create folder = %d: %s", status, body)
+	}
+	folder := decode[struct {
+		Folder struct {
+			ID int64 `json:"id"`
+		} `json:"folder"`
+	}](t, body)
+
+	status, body = env.request(t, "POST", "/api/admin/task-lists", map[string]any{
+		"name": "项目 A", "folderId": folder.Folder.ID,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID       int64 `json:"id"`
+			FolderID int64 `json:"folderId"`
+		} `json:"list"`
+	}](t, body)
+	if list.List.FolderID != folder.Folder.ID {
+		t.Fatalf("list folder = %d", list.List.FolderID)
+	}
+
+	for _, payload := range []map[string]any{
+		{"title": "高优工作", "listId": list.List.ID, "priority": 3, "tags": []string{"工作"}},
+		{"title": "低优生活", "listId": list.List.ID, "priority": 1, "tags": []string{"生活"}},
+	} {
+		status, body = env.request(t, "POST", "/api/admin/tasks", payload, env.csrf)
+		if status != http.StatusCreated {
+			t.Fatalf("create task = %d: %s", status, body)
+		}
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/task-filters", map[string]any{
+		"name": "高优工作", "conditions": map[string]any{
+			"listIds": []int64{list.List.ID}, "tags": []string{"工作"}, "priorities": []int{3},
+			"status": "open", "date": "any",
+		},
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create filter = %d: %s", status, body)
+	}
+	filter := decode[struct {
+		Filter struct {
+			ID int64 `json:"id"`
+		} `json:"filter"`
+	}](t, body)
+
+	status, body = env.request(t, "GET", "/api/admin/tasks?filterId="+itoa(filter.Filter.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("filter workspace = %d: %s", status, body)
+	}
+	filtered := decode[workspaceResponse](t, body)
+	if len(filtered.Tasks) != 1 || filtered.Tasks[0].Title != "高优工作" {
+		t.Fatalf("unexpected filtered tasks: %+v", filtered.Tasks)
+	}
+	if len(filtered.Folders) != 1 || filtered.Folders[0].Name != "项目" {
+		t.Fatalf("folders = %+v", filtered.Folders)
+	}
+
+	status, body = env.request(t, "GET", "/api/admin/task-tags", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("tags = %d: %s", status, body)
+	}
+	tags := decode[struct {
+		Tags []struct {
+			Name  string `json:"name"`
+			Count int    `json:"count"`
+		} `json:"tags"`
+	}](t, body)
+	if len(tags.Tags) != 2 {
+		t.Fatalf("tags = %+v", tags.Tags)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/task-tags/rename", map[string]any{
+		"from": "工作", "to": "项目",
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("rename tag = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/task-filters", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("filters = %d: %s", status, body)
+	}
+	filterRows := decode[struct {
+		Filters []struct {
+			Conditions struct {
+				Tags []string `json:"tags"`
+			} `json:"conditions"`
+		} `json:"filters"`
+	}](t, body)
+	if len(filterRows.Filters) != 1 || len(filterRows.Filters[0].Conditions.Tags) != 1 || filterRows.Filters[0].Conditions.Tags[0] != "项目" {
+		t.Fatalf("filter tags not updated: %+v", filterRows.Filters)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/task-tags/delete", map[string]any{"tag": "生活"}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("delete tag = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=all", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("workspace = %d: %s", status, body)
+	}
+	workspace := decode[workspaceResponse](t, body)
+	for _, task := range workspace.Tasks {
+		for _, tag := range task.Tags {
+			if tag == "工作" || tag == "生活" {
+				t.Fatalf("tag not rewritten: %+v", task)
+			}
+		}
+	}
+
+	status, body = env.request(t, "PATCH", "/api/admin/task-filters/"+itoa(filter.Filter.ID), map[string]any{
+		"name": "改名后的过滤器", "conditions": map[string]any{
+			"tags": []string{"项目"}, "status": "open", "date": "any",
+		},
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("update filter = %d: %s", status, body)
+	}
+	status, _ = env.request(t, "DELETE", "/api/admin/task-filters/"+itoa(filter.Filter.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete filter = %d", status)
+	}
+
+	status, _ = env.request(t, "DELETE", "/api/admin/task-folders/"+itoa(folder.Folder.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete folder = %d", status)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=all", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("workspace = %d: %s", status, body)
+	}
+	workspace = decode[workspaceResponse](t, body)
+	for _, item := range workspace.Lists {
+		if item.FolderID != 0 {
+			t.Fatalf("list still in folder: %+v", item)
+		}
 	}
 }

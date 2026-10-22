@@ -30,6 +30,9 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 三种视图模式：清单 / 看板（按清单分列，支持拖拽移动）/ 月历
 - 重复任务：每天、工作日、每周、每月、每年，或自定义 RRULE；完成后自动滚到下一次
 - 提醒：准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天，写入 CalDAV `VALARM`，页面打开时同时使用浏览器通知
+- 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
+- 保存过滤器：按清单、标签、优先级、日期、状态、关键词组合筛选并命名保存
+- 标签管理：重命名或删除标签，变更会回写到所有任务与 VTODO `CATEGORIES`
 - 垃圾桶：删除后可恢复、单条彻底删除或清空垃圾桶
 - 多选批量操作：批量完成、移动到清单、删除
 - 手动排序：拖拽调整任务顺序并持久化
@@ -198,7 +201,10 @@ docker run -d --name caldav \
 | `/api/admin/tasks/reorder` | 手动排序 |
 | `/api/admin/tasks/{id}/restore` | 从垃圾桶恢复 |
 | `/api/admin/tasks/{id}/purge` | 彻底删除垃圾桶任务 |
-| `/api/admin/task-lists` | 清单 CRUD |
+| `/api/admin/task-lists` | 清单 CRUD（支持文件夹） |
+| `/api/admin/task-folders` | 清单文件夹 CRUD |
+| `/api/admin/task-filters` | 保存过滤器 CRUD |
+| `/api/admin/task-tags` | 标签统计、重命名、删除 |
 | `/healthz` | 健康检查 |
 
 支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
@@ -258,7 +264,9 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `objects`：ICS 原文、ETag、时间范围缓存、墓碑
 - `sync_changes`：每次变更的序号日志，用于 sync-collection
 - `settings`：服务端设置
-- `task_lists`：任务清单（每个用户一个收集箱）
+- `task_folders`：清单文件夹
+- `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹）
+- `task_filters`：保存的过滤器条件（JSON）
 - `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
@@ -419,6 +427,7 @@ go vet ./...
 - 管理后台登录、CSRF、用户/日历/事件 CRUD（JSON API）
 - 任务清单/任务 CRUD、智能视图计数、完成/删除、快速添加解析
 - 重复任务推进、提醒字段、垃圾桶恢复/彻底删除、批量操作、手动排序
+- 文件夹归类、保存过滤器条件应用、标签重命名/删除
 - VTODO 推送、客户端修改导入、客户端删除识别、任务日历重建
 - Vue SPA 路由回退与静态资源嵌入
 
@@ -441,6 +450,8 @@ go vet ./...
 - 手动排序只保证当前筛选结果内的相对顺序；跨日期分组的排序在重新加载后仍以手动顺序为准。
 - 浏览器提醒依赖页面保持打开；关闭页面后只有支持 `VALARM` 的 CalDAV 客户端会继续提醒。
 - 垃圾桶没有自动清理期限，需要手动彻底删除或清空。
+- 保存过滤器、清单文件夹与标签管理属于工作台组织能力，不映射到 CalDAV 日历结构。
+- 标签目前不支持单独设置颜色。
 - 子任务与标签分别存储在 `X-CALDDAV-CHECKLIST`、`CATEGORIES`；少数不保留扩展属性的客户端在编辑后可能丢失子任务，备注与完成状态不受影响。
 - 任务智能视图的“今天”边界使用服务端默认时区 `Asia/Shanghai`；快速添加会按浏览器的时区解析自然语言日期。
 - 任务工作台仅管理员可用，且只展示当前登录管理员自己的任务。

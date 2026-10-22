@@ -15,6 +15,7 @@ import (
 type TaskList struct {
 	ID         int64     `gorm:"primaryKey"`
 	UserID     int64     `gorm:"not null;uniqueIndex:idx_tasklist_owner_name,priority:1;index:idx_tasklist_user"`
+	FolderID   int64     `gorm:"not null;default:0;index:idx_tasklist_folder"`
 	Name       string    `gorm:"size:190;not null;uniqueIndex:idx_tasklist_owner_name,priority:2"`
 	Color      string    `gorm:"size:32;not null;default:''"`
 	Order      int       `gorm:"column:order_index;not null;default:0"`

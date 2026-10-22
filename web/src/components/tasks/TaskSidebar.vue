@@ -18,7 +18,7 @@
         v-for="item in smartItems"
         :key="item.view"
         class="tw-nav-item"
-        :class="{ active: view === item.view && !activeListId }"
+        :class="{ active: view === item.view && !activeListId && !activeFilterId }"
         @click="$emit('select-view', item.view)"
       >
         <TaskIcon :name="item.icon" :size="18" />
@@ -31,9 +31,14 @@
       <section class="tw-side-section">
         <header class="tw-section-head">
           <span>清单</span>
-          <button class="tw-icon-button" aria-label="新建清单" title="新建清单" @click="toggleAdd">
-            <TaskIcon name="plus" :size="16" />
-          </button>
+          <span class="tw-section-actions">
+            <button class="tw-icon-button" aria-label="新建文件夹" title="新建文件夹" @click="$emit('create-folder')">
+              <TaskIcon name="folder" :size="16" />
+            </button>
+            <button class="tw-icon-button" aria-label="新建清单" title="新建清单" @click="toggleAdd">
+              <TaskIcon name="plus" :size="16" />
+            </button>
+          </span>
         </header>
 
         <form v-if="adding" class="tw-new-list" @submit.prevent="submitList">
@@ -49,50 +54,101 @@
         </form>
 
         <ul class="tw-list-nav">
-          <li v-for="list in customLists" :key="list.id">
+          <template v-for="row in listRows" :key="row.key">
+            <li v-if="row.kind === 'folder'" class="tw-folder-row">
+              <button class="tw-folder-head" @click="toggleFolder(row.folder!.id)">
+                <span class="tw-folder-caret" :class="{ collapsed: isFolderCollapsed(row.folder!.id) }">
+                  <TaskIcon name="chevron" :size="11" />
+                </span>
+                <TaskIcon name="folder" :size="15" />
+                <span class="tw-nav-label">{{ row.folder!.name }}</span>
+                <span class="tw-nav-count">{{ row.count }}</span>
+              </button>
+              <div class="tw-list-actions tw-folder-actions">
+                <button class="tw-icon-button" title="编辑文件夹" @click.stop="$emit('edit-folder', row.folder!)">
+                  <TaskIcon name="edit" :size="14" />
+                </button>
+                <button class="tw-icon-button" title="删除文件夹" @click.stop="$emit('delete-folder', row.folder!)">
+                  <TaskIcon name="trash" :size="14" />
+                </button>
+              </div>
+            </li>
+            <li v-else :class="{ 'tw-list-nested': row.nested }">
+              <button
+                class="tw-nav-item tw-list-item"
+                :class="{ active: activeListId === row.list!.id }"
+                @click="$emit('select-list', row.list!.id)"
+              >
+                <span class="tw-list-dot" :style="{ background: row.list!.color || '#4772fa' }" />
+                <span class="tw-nav-label">{{ row.list!.name }}</span>
+                <span v-if="row.list!.count" class="tw-nav-count">{{ row.list!.count }}</span>
+              </button>
+              <div class="tw-list-actions">
+                <button class="tw-icon-button" title="编辑清单" @click.stop="$emit('edit-list', row.list!)">
+                  <TaskIcon name="edit" :size="14" />
+                </button>
+                <button class="tw-icon-button" title="删除清单" @click.stop="$emit('delete-list', row.list!)">
+                  <TaskIcon name="trash" :size="14" />
+                </button>
+              </div>
+            </li>
+          </template>
+        </ul>
+
+        <p v-if="!customLists.length" class="tw-side-hint">
+          用清单来分类收集、组织和管理你的任务与笔记。
+        </p>
+      </section>
+
+      <section class="tw-side-section">
+        <header class="tw-section-head">
+          <span>过滤器</span>
+          <button class="tw-icon-button" aria-label="新建过滤器" title="新建过滤器" @click="$emit('create-filter')">
+            <TaskIcon name="plus" :size="16" />
+          </button>
+        </header>
+        <ul class="tw-list-nav">
+          <li v-for="filter in filters" :key="filter.id">
             <button
-              class="tw-nav-item tw-list-item"
-              :class="{ active: activeListId === list.id }"
-              @click="$emit('select-list', list.id)"
+              class="tw-nav-item tw-filter-item"
+              :class="{ active: activeFilterId === filter.id }"
+              @click="$emit('select-filter', filter.id)"
             >
-              <span class="tw-list-dot" :style="{ background: list.color || '#4772fa' }">
-                <TaskIcon v-if="list.isInbox" name="inbox" :size="13" />
-              </span>
-              <span class="tw-nav-label">{{ list.name }}</span>
-              <span v-if="list.count" class="tw-nav-count">{{ list.count }}</span>
+              <span class="tw-filter-icon"><TaskIcon name="filter" :size="15" /></span>
+              <span class="tw-nav-label">{{ filter.name }}</span>
             </button>
-            <div v-if="!list.isInbox" class="tw-list-actions">
-              <button class="tw-icon-button" title="编辑清单" @click.stop="$emit('edit-list', list)">
+            <div class="tw-list-actions">
+              <button class="tw-icon-button" title="编辑过滤器" @click.stop="$emit('edit-filter', filter)">
                 <TaskIcon name="edit" :size="14" />
               </button>
-              <button class="tw-icon-button" title="删除清单" @click.stop="$emit('delete-list', list)">
+              <button class="tw-icon-button" title="删除过滤器" @click.stop="$emit('delete-filter', filter)">
                 <TaskIcon name="trash" :size="14" />
               </button>
             </div>
           </li>
         </ul>
-
-        <p v-if="lists.length <= 1" class="tw-side-hint">
-          用清单来分类收集、组织和管理你的任务与笔记。
-        </p>
+        <p v-if="!filters.length" class="tw-side-hint">按清单、日期、优先级、标签与状态组合筛选，并保存为过滤器。</p>
       </section>
 
-      <section v-if="tags.length" class="tw-side-section">
+      <section class="tw-side-section">
         <header class="tw-section-head">
           <span>标签</span>
-          <button v-if="activeTag" class="tw-link-button" @click="$emit('select-tag', '')">清除</button>
+          <button class="tw-icon-button" aria-label="管理标签" title="管理标签" @click="$emit('manage-tags')">
+            <TaskIcon name="edit" :size="15" />
+          </button>
         </header>
-        <div class="tw-tag-cloud">
+        <div v-if="tagCounts.length" class="tw-tag-cloud">
           <button
-            v-for="tag in tags"
-            :key="tag"
+            v-for="tag in tagCounts"
+            :key="tag.name"
             class="tw-tag-chip"
-            :class="{ active: activeTag === tag }"
-            @click="$emit('select-tag', activeTag === tag ? '' : tag)"
+            :class="{ active: activeTag === tag.name }"
+            @click="$emit('select-tag', activeTag === tag.name ? '' : tag.name)"
           >
-            # {{ tag }}
+            # {{ tag.name }}
           </button>
         </div>
+        <p v-else class="tw-side-hint">添加任务时输入 “#” 可快速创建标签。</p>
       </section>
     </div>
 
@@ -121,15 +177,18 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import type { TaskCounts, TaskList } from '../../types'
+import type { SavedFilter, TaskCounts, TaskFolder, TaskList, TaskTagCount } from '../../types'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
   lists: TaskList[]
+  folders: TaskFolder[]
+  filters: SavedFilter[]
+  tagCounts: TaskTagCount[]
   counts: TaskCounts
   view: string
   activeListId: number
-  tags: string[]
+  activeFilterId: number
   activeTag: string
   userName: string
   displayName: string
@@ -139,10 +198,18 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'select-view', view: string): void
   (event: 'select-list', id: number): void
+  (event: 'select-filter', id: number): void
+  (event: 'select-tag', tag: string): void
   (event: 'create-list', name: string): void
   (event: 'edit-list', list: TaskList): void
   (event: 'delete-list', list: TaskList): void
-  (event: 'select-tag', tag: string): void
+  (event: 'create-folder'): void
+  (event: 'edit-folder', folder: TaskFolder): void
+  (event: 'delete-folder', folder: TaskFolder): void
+  (event: 'create-filter'): void
+  (event: 'edit-filter', filter: SavedFilter): void
+  (event: 'delete-filter', filter: SavedFilter): void
+  (event: 'manage-tags'): void
   (event: 'logout'): void
   (event: 'close'): void
 }>()
@@ -150,9 +217,30 @@ const emit = defineEmits<{
 const adding = ref(false)
 const newListName = ref('')
 const nameInput = ref<HTMLInputElement | null>(null)
+const collapsedFolders = ref(new Set<number>())
 
 const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
 const customLists = computed(() => props.lists.filter((list) => !list.isInbox))
+
+type ListRow =
+  | { kind: 'folder'; key: string; folder: TaskFolder; count: number }
+  | { kind: 'list'; key: string; list: TaskList; nested: boolean }
+
+const listRows = computed<ListRow[]>(() => {
+  const rows: ListRow[] = []
+  for (const folder of props.folders) {
+    const lists = customLists.value.filter((list) => list.folderId === folder.id)
+    rows.push({ kind: 'folder', key: `folder-${folder.id}`, folder, count: lists.length })
+    if (collapsedFolders.value.has(folder.id)) continue
+    for (const list of lists) {
+      rows.push({ kind: 'list', key: `list-${list.id}`, list, nested: true })
+    }
+  }
+  for (const list of customLists.value.filter((item) => item.folderId === 0)) {
+    rows.push({ kind: 'list', key: `list-${list.id}`, list, nested: false })
+  }
+  return rows
+})
 
 const smartItems = computed(() => [
   { view: 'all', label: '所有', icon: 'list', count: props.counts.all },
@@ -162,6 +250,22 @@ const smartItems = computed(() => [
   { view: 'completed', label: '已完成', icon: 'check', count: props.counts.completed },
   { view: 'trash', label: '垃圾桶', icon: 'trash', count: props.counts.trash },
 ])
+
+function isFolderCollapsed(id: number) {
+  return collapsedFolders.value.has(id)
+}
+
+function toggleFolder(id: number) {
+  const next = new Set(collapsedFolders.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  collapsedFolders.value = next
+  try {
+    localStorage.setItem('caldav-task-folders', JSON.stringify([...next]))
+  } catch {
+    /* ignore */
+  }
+}
 
 async function toggleAdd() {
   adding.value = true
@@ -184,5 +288,13 @@ function submitList() {
   if (!name) return cancelAdd()
   emit('create-list', name)
   cancelAdd()
+}
+
+// Restore folder collapse state on first render.
+try {
+  const raw = localStorage.getItem('caldav-task-folders')
+  if (raw) collapsedFolders.value = new Set(JSON.parse(raw) as number[])
+} catch {
+  /* ignore */
 }
 </script>

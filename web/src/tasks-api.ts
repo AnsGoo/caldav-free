@@ -1,7 +1,7 @@
 import { api } from './api'
-import type { CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskStats, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskStats, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'list' | 'filter'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'ai' | 'list' | 'filter'
 
 export function browserTimezone() {
   try {
@@ -165,4 +165,22 @@ export function fetchCalendarEvents(from: Date, to: Date) {
 
 export function fetchTaskStats(days = 30) {
   return api<{ stats: TaskStats }>(`/tasks/stats?days=${days}`)
+}
+
+export function fetchAISettings() {
+  return api<AISettings>('/tasks/ai/settings')
+}
+
+export function saveAISettings(payload: { baseUrl: string; model: string; apiKey?: string; clearKey?: boolean }) {
+  return api<AISettings>('/tasks/ai/settings', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function sendAIChat(messages: Array<{ role: string; content: string }>, timezone: string) {
+  return api<AIChatReply>('/tasks/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({ messages, timezone }),
+  })
 }

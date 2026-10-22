@@ -95,6 +95,17 @@
     <template v-else-if="name === 'flag'">
       <path d="M6 20.5V4.5h9.5l-1.5 3.8 1.5 3.7H6" />
     </template>
+    <template v-else-if="name === 'sparkles'">
+      <path d="M12 3.5l1.6 4.9 4.9 1.6-4.9 1.6L12 16.5l-1.6-4.9L5.5 10l4.9-1.6L12 3.5Z" fill="currentColor" stroke="none" />
+      <path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'mic'">
+      <rect x="9" y="3.5" width="6" height="10" rx="3" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M9 21h6" />
+    </template>
+    <template v-else-if="name === 'send'">
+      <path d="M20.5 3.5 10 14M20.5 3.5l-6.5 17-4-7-7-4 17-6Z" />
+    </template>
     <template v-else-if="name === 'chart'">
       <path d="M4 20h16" />
       <path d="M7 20V11M12 20V5M17 20v-6" />

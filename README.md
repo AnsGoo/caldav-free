@@ -31,6 +31,9 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 日历支持月、周、日、日程四种视图；周/日为时间网格，日程为未来 30 天清单
 - 日历叠加当前用户所有 CalDAV 日历的 `VEVENT`（重复事件会展开），与任务到期时间同屏显示；点击日程进入事件编辑页
 - 统计页：未完成/已完成/逾期/完成率、每日新建与完成趋势、到期折线、按清单/标签/优先级分布、7/30/90 天周期概览
+- AI 助手：接入 OpenAI 兼容接口，通过工具调用查询/创建/修改/完成/删除任务、创建清单、读取统计
+- AI 语音输入：支持浏览器 Web Speech API 的浏览器可直接口述任务
+- AI 设置：Base URL、模型、API Key 可在页面配置，也支持环境变量初始化
 - 重复任务：每天、工作日、每周、每月、每年，或自定义 RRULE；完成后自动滚到下一次
 - 提醒：准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天，写入 CalDAV `VALARM`，页面打开时同时使用浏览器通知
 - 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
@@ -150,6 +153,9 @@ docker run -d --name caldav \
 | `-tls-cert` | — | 空 | TLS 证书；与 `-tls-key` 同时提供时启用 HTTPS |
 | `-tls-key` | — | 空 | TLS 私钥 |
 | `-debug` | — | false | 调试日志 |
+| — | `CALDAV_AI_BASE_URL` | 空 | AI 接口 Base URL（OpenAI 兼容） |
+| — | `CALDAV_AI_MODEL` | 空 | AI 模型名称 |
+| — | `CALDAV_AI_API_KEY` | 空 | AI API Key（页面保存优先） |
 | `-version` | — | — | 输出版本号 |
 
 数据库文件位于 `<data>/caldav-free.db`，使用 WAL 模式。
@@ -202,6 +208,8 @@ docker run -d --name caldav \
 | `/api/admin/tasks/reminders` | 提醒候选任务 |
 | `/api/admin/tasks/calendar` | 指定日期范围内的 CalDAV 事件（展开重复） |
 | `/api/admin/tasks/stats` | 任务统计（天数可配置） |
+| `/api/admin/tasks/ai/settings` | AI 模型配置（读取/保存，Key 不回传） |
+| `/api/admin/tasks/ai/chat` | AI 对话与工具调用 |
 | `/api/admin/tasks/batch` | 批量完成 / 移动 / 删除 |
 | `/api/admin/tasks/reorder` | 手动排序 |
 | `/api/admin/tasks/{id}/restore` | 从垃圾桶恢复 |
@@ -436,6 +444,7 @@ go vet ./...
 - 日历事件范围展开、周/日/日程视图、跨日历事件叠加
 - 重复 VEVENT 范围展开、跨日历事件查询与非法范围校验
 - 统计接口的总数、逾期、完成率、每日趋势、清单/标签/优先级分布
+- AI 设置保存与 Key 脱敏、无配置时的 503、工具调用创建任务、Mock OpenAI 上游往返
 - VTODO 推送、客户端修改导入、客户端删除识别、任务日历重建
 - Vue SPA 路由回退与静态资源嵌入
 
@@ -465,6 +474,11 @@ go vet ./...
 - 日历事件查询窗口一次最多 120 天，最多返回 2000 个实例。
 - 统计基于当前仍保留的任务数据；彻底删除或清空垃圾桶会移除对应历史。
 - 统计不含习惯打卡、番茄专注与 CalDAV 事件时长，仅覆盖任务工作台数据。
+- AI 助手需要兼容 OpenAI Chat Completions 且支持 tools/function calling 的接口；Ollama 等本地接口也需开启对应能力。
+- AI 对话为非流式请求，回复期间显示“思考中”；对话记录只保存在浏览器 localStorage，不写入服务端。
+- AI 会按你的指令直接创建/修改/完成任务；删除任务会进入垃圾桶，但模型是否先确认取决于其遵循系统提示的程度。
+- AI 请求会把对话、任务、清单和统计数据发送到你配置的模型服务；API Key 以明文保存在 SQLite 中，请限制数据库访问权限。
+- 暂不支持录音转写/会议摘要、MCP / CLI / OpenClaw 自动化，也未内置模型额度计费。
 - 子任务与标签分别存储在 `X-CALDDAV-CHECKLIST`、`CATEGORIES`；少数不保留扩展属性的客户端在编辑后可能丢失子任务，备注与完成状态不受影响。
 - 任务智能视图的“今天”边界使用服务端默认时区 `Asia/Shanghai`；快速添加会按浏览器的时区解析自然语言日期。
 - 任务工作台仅管理员可用，且只展示当前登录管理员自己的任务。

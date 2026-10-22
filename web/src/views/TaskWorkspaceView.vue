@@ -20,6 +20,9 @@
         <button class="tw-rail-button" :class="{ active: view === 'stats' }" title="统计" @click="openStats">
           <TaskIcon name="chart" :size="21" />
         </button>
+        <button class="tw-rail-button" :class="{ active: view === 'ai' }" title="AI 助手" @click="openAI">
+          <TaskIcon name="sparkles" :size="21" />
+        </button>
         <button class="tw-rail-button" :class="{ active: searchOpen }" title="搜索" @click="toggleSearch">
           <TaskIcon name="search" :size="21" />
         </button>
@@ -86,7 +89,7 @@
           <span v-if="headingCount" class="tw-heading-count">{{ headingCount }}</span>
         </div>
         <div class="tw-toolbar-actions">
-          <div v-if="view !== 'trash' && view !== 'stats'" class="tw-mode-switch" role="group" aria-label="视图模式">
+          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'ai'" class="tw-mode-switch" role="group" aria-label="视图模式">
             <button :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
@@ -98,7 +101,7 @@
             </button>
           </div>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'completed' && mode === 'list'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'ai' && view !== 'completed' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: manualSort }"
             :title="manualSort ? '关闭手动排序' : '手动排序（拖拽调整顺序）'"
@@ -107,7 +110,7 @@
             <TaskIcon name="sort" :size="18" />
           </button>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && mode === 'list'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'ai' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: selectionMode }"
             :title="selectionMode ? '退出多选' : '多选任务'"
@@ -115,13 +118,13 @@
           >
             <TaskIcon name="select" :size="18" />
           </button>
-          <button v-if="view !== 'stats'" class="tw-icon-button" title="搜索" @click="toggleSearch">
+          <button v-if="view !== 'stats' && view !== 'ai'" class="tw-icon-button" title="搜索" @click="toggleSearch">
             <TaskIcon name="search" :size="18" />
           </button>
         </div>
       </header>
 
-      <div v-if="searchOpen && view !== 'stats'" class="tw-search-bar">
+      <div v-if="searchOpen && view !== 'stats' && view !== 'ai'" class="tw-search-bar">
         <TaskIcon name="search" :size="17" />
         <input
           ref="searchInputEl"
@@ -137,7 +140,7 @@
 
       <div class="tw-scroll">
         <div class="tw-content">
-          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats'" class="tw-quick-add">
+          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'ai'" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
             <input
               ref="quickInputEl"
@@ -152,7 +155,7 @@
             </button>
           </div>
 
-          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats'" class="tw-quick-hint">
+          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'ai'" class="tw-quick-hint">
             <span v-if="hint.date" class="tw-hint-chip">{{ hint.date }}</span>
             <span v-if="hint.time" class="tw-hint-chip">{{ hint.time }}</span>
             <span v-for="tag in hint.tags" :key="tag" class="tw-hint-chip">#{{ tag }}</span>
@@ -169,6 +172,8 @@
             @open-list="selectList"
             @select-tag="selectTagFromStats"
           />
+
+          <TaskAIPanel v-else-if="view === 'ai'" @tasks-changed="handleAITasksChanged" />
 
           <template v-else-if="view === 'trash'">
             <div class="tw-trash-bar">
@@ -655,6 +660,7 @@ import TaskRow from '../components/tasks/TaskRow.vue'
 import TaskDetail from '../components/tasks/TaskDetail.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
+import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
 import TaskIcon from '../components/tasks/TaskIcon.vue'
 
 type Mode = 'list' | 'board' | 'calendar'
@@ -745,6 +751,7 @@ const smartLabels: Record<string, string> = {
   completed: '已完成',
   trash: '垃圾桶',
   stats: '统计',
+  ai: 'AI 助手',
   filter: '过滤器',
   list: '清单',
 }
@@ -779,7 +786,7 @@ const filteredTasks = computed(() => {
 const openInView = computed(() => filteredTasks.value.filter((task) => !task.completed).length)
 const headingCount = computed(() => {
   if (view.value === 'trash') return tasks.value.length
-  if (view.value === 'stats') return 0
+  if (view.value === 'stats' || view.value === 'ai') return 0
   return openInView.value
 })
 const manualOpenTasks = computed(() =>
@@ -881,7 +888,7 @@ function selectView(nextView: string) {
   selectedId.value = 0
   sidebarOpen.value = false
   clearSelection()
-  if (view.value === 'trash' || view.value === 'stats') {
+  if (view.value === 'trash' || view.value === 'stats' || view.value === 'ai') {
     mode.value = 'list'
     manualSort.value = false
   }
@@ -922,7 +929,7 @@ function selectTagFromStats(tag: string) {
 
 function switchMode(next: Mode) {
   if (view.value === 'trash') return
-  if (view.value === 'stats') selectView('all')
+  if (view.value === 'stats' || view.value === 'ai') selectView('all')
   clearSelection()
   mode.value = next
   if (next === 'calendar') {
@@ -1178,8 +1185,17 @@ function openStats() {
   sidebarOpen.value = false
 }
 
+function openAI() {
+  selectView('ai')
+  sidebarOpen.value = false
+}
+
+function handleAITasksChanged() {
+  void loadWorkspace(true)
+}
+
 function toggleSearch() {
-  if (view.value === 'stats') selectView('all')
+  if (view.value === 'stats' || view.value === 'ai') selectView('all')
   searchOpen.value = !searchOpen.value
   if (searchOpen.value) {
     requestAnimationFrame(() => searchInputEl.value?.focus())
@@ -1635,7 +1651,7 @@ async function toggleReminders() {
 function hydrateFromRoute() {
   const q = route.query
   const nextView = typeof q.view === 'string' ? q.view : 'all'
-  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'filter', 'list'].includes(nextView) ? nextView : 'all') as TaskView
+  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'ai', 'filter', 'list'].includes(nextView) ? nextView : 'all') as TaskView
   const listId = typeof q.list === 'string' ? Number(q.list) : 0
   if (view.value === 'list' && listId) activeListId.value = listId
   else if (view.value === 'list') view.value = 'all'

@@ -244,3 +244,37 @@ export interface TaskStats {
   tags: TaskTagStat[]
   priorities: TaskPriorityStat[]
 }
+
+export interface AISettings {
+  baseUrl: string
+  model: string
+  hasKey: boolean
+  configured: boolean
+}
+
+export interface AIAction {
+  type: string
+  label: string
+  taskId?: number
+  listId?: number
+}
+
+export interface AIChatAction {
+  type: string
+  label: string
+  taskId?: number
+  listId?: number
+}
+
+export interface AIChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  actions?: AIAction[]
+  error?: boolean
+}
+
+export interface AIChatReply {
+  message: string
+  actions: AIAction[]
+  model: string
+}

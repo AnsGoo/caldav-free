@@ -250,6 +250,7 @@ const smartItems = computed(() => [
   { view: 'completed', label: '已完成', icon: 'check', count: props.counts.completed },
   { view: 'trash', label: '垃圾桶', icon: 'trash', count: props.counts.trash },
   { view: 'stats', label: '统计', icon: 'chart', count: 0 },
+  { view: 'ai', label: 'AI 助手', icon: 'sparkles', count: 0 },
 ])
 
 function isFolderCollapsed(id: number) {

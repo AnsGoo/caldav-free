@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from './types'
+import type { CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'list' | 'filter'
 
@@ -156,4 +156,9 @@ export function reorderTasks(ids: number[]) {
     method: 'POST',
     body: JSON.stringify({ ids }),
   })
+}
+
+export function fetchCalendarEvents(from: Date, to: Date) {
+  const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })
+  return api<{ calendars: CalendarSource[]; events: CalendarEvent[] }>(`/tasks/calendar?${query.toString()}`)
 }

@@ -101,6 +101,10 @@
     <template v-else-if="name === 'filter'">
       <path d="M3.5 5.5h17l-6.5 7v5l-4 2v-7l-6.5-7Z" />
     </template>
+    <template v-else-if="name === 'refresh'">
+      <path d="M20.5 11a8.5 8.5 0 1 0-2.3 6.6" />
+      <path d="M20.5 4.5V11H14" />
+    </template>
     <template v-else-if="name === 'repeat'">
       <path d="M17 2.5v4.5h-4.5" />
       <path d="M7 21.5V17h4.5" />

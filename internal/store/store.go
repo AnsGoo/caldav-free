@@ -80,6 +80,14 @@ type Calendar struct {
 	ModifiedAt   time.Time  `gorm:"not null;autoUpdateTime"`
 }
 
+// DisplayNameOrSlug returns a non-empty human-readable calendar name.
+func (c *Calendar) DisplayNameOrSlug() string {
+	if strings.TrimSpace(c.DisplayName) != "" {
+		return c.DisplayName
+	}
+	return c.Slug
+}
+
 // SupportsComponent reports whether the calendar accepts the component type.
 func (c *Calendar) SupportsComponent(component string) bool {
 	if len(c.Components) == 0 {

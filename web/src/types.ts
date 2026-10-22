@@ -175,3 +175,24 @@ export interface TaskWorkspaceData {
   tagCounts: TaskTagCount[]
   inbox: number
 }
+
+export interface CalendarSource {
+  id: number
+  name: string
+  color: string
+}
+
+export interface CalendarEvent {
+  id: string
+  uid: string
+  href: string
+  calendarId: number
+  calendarName: string
+  color: string
+  summary: string
+  location: string
+  start: string
+  end: string
+  allDay: boolean
+  recurring: boolean
+}

@@ -911,19 +911,29 @@ func parseAPITimes(startRaw, endRaw string, allDay bool, loc *time.Location) (ti
 		return time.Time{}, time.Time{}, fmt.Errorf("请填写开始时间")
 	}
 	if allDay {
-		if len(startRaw) > 10 {
-			startRaw = startRaw[:10]
+		parseDate := func(raw string) (time.Time, error) {
+			raw = strings.TrimSpace(raw)
+			if raw == "" {
+				return time.Time{}, fmt.Errorf("日期为空")
+			}
+			if strings.Contains(raw, "T") {
+				if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+					local := parsed.In(loc)
+					return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc), nil
+				}
+			}
+			if len(raw) > 10 {
+				raw = raw[:10]
+			}
+			return time.ParseInLocation("2006-01-02", raw, loc)
 		}
-		if len(endRaw) > 10 {
-			endRaw = endRaw[:10]
-		}
-		start, err := time.ParseInLocation("2006-01-02", startRaw, loc)
+		start, err := parseDate(startRaw)
 		if err != nil {
 			return time.Time{}, time.Time{}, fmt.Errorf("开始日期格式无效")
 		}
 		end := start.AddDate(0, 0, 1)
-		if endRaw != "" {
-			if parsed, err := time.ParseInLocation("2006-01-02", endRaw, loc); err == nil && parsed.After(start) {
+		if strings.TrimSpace(endRaw) != "" {
+			if parsed, err := parseDate(endRaw); err == nil && parsed.After(start) {
 				end = parsed
 			}
 		}
@@ -956,11 +966,19 @@ func buildEventICS(cal *store.Calendar, summary, location, description string, s
 	ev.AddProp("UID", uid, nil)
 	ev.AddProp("DTSTAMP", time.Now().UTC().Format("20060102T150405Z"), nil)
 	if allDay {
-		ev.AddProp("DTSTART", start.Format("20060102"), ical.Params{"VALUE": {"DATE"}})
-		ev.AddProp("DTEND", end.Format("20060102"), ical.Params{"VALUE": {"DATE"}})
+		loc, err := time.LoadLocation(tzid)
+		if err != nil {
+			loc = time.UTC
+		}
+		ev.AddProp("DTSTART", start.In(loc).Format("20060102"), ical.Params{"VALUE": {"DATE"}})
+		ev.AddProp("DTEND", end.In(loc).Format("20060102"), ical.Params{"VALUE": {"DATE"}})
 	} else {
-		ev.AddProp("DTSTART", start.Format("20060102T150405"), ical.Params{"TZID": {tzid}})
-		ev.AddProp("DTEND", end.Format("20060102T150405"), ical.Params{"TZID": {tzid}})
+		loc, err := time.LoadLocation(tzid)
+		if err != nil {
+			loc = time.UTC
+		}
+		ev.AddProp("DTSTART", start.In(loc).Format("20060102T150405"), ical.Params{"TZID": {tzid}})
+		ev.AddProp("DTEND", end.In(loc).Format("20060102T150405"), ical.Params{"TZID": {tzid}})
 	}
 	ev.AddProp("SUMMARY", ical.EscapeText(strings.TrimSpace(summary)), nil)
 	if strings.TrimSpace(description) != "" {

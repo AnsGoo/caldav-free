@@ -1,71 +1,205 @@
 <template>
-  <section class="tw-calendar">
+  <section class="tw-calendar" :class="`mode-${viewMode}`">
     <header class="tw-calendar-head">
       <div class="tw-calendar-title">
-        <h2>{{ monthTitle }}</h2>
-        <span class="tw-calendar-sub">{{ tasksInMonth }} 个任务</span>
+        <h2>{{ rangeTitle }}</h2>
+        <span class="tw-calendar-sub">{{ summaryText }}</span>
       </div>
       <div class="tw-calendar-actions">
+        <div class="tw-cal-view-switch">
+          <button
+            v-for="option in viewOptions"
+            :key="option.value"
+            :class="{ active: viewMode === option.value }"
+            @click="$emit('change-view', option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
         <button class="tw-ghost-button" @click="$emit('today')">今天</button>
-        <button class="tw-icon-button" title="上个月" @click="$emit('prev')">
+        <button class="tw-icon-button" title="上一段" @click="$emit('prev')">
           <TaskIcon name="back" :size="16" />
         </button>
-        <button class="tw-icon-button" title="下个月" @click="$emit('next')">
+        <button class="tw-icon-button" title="下一段" @click="$emit('next')">
           <TaskIcon name="chevron" :size="16" />
+        </button>
+        <button class="tw-icon-button" title="刷新日程" @click="loadEvents">
+          <TaskIcon name="refresh" :size="15" />
         </button>
       </div>
     </header>
 
-    <div class="tw-calendar-weekdays">
-      <span v-for="day in weekdays" :key="day">{{ day }}</span>
+    <div v-if="sources.length" class="tw-cal-legend">
+      <span v-for="source in sources" :key="source.id">
+        <i :style="{ background: source.color || '#4772fa' }" />
+        {{ source.name }}
+      </span>
+      <span class="tw-cal-legend-gap" />
+      <span class="tw-cal-legend-tasks"><i />任务</span>
+      <span v-if="eventsLoading" class="tw-cal-loading">事件加载中…</span>
     </div>
 
-    <div class="tw-calendar-grid">
-      <div
-        v-for="cell in cells"
-        :key="cell.key"
-        class="tw-calendar-cell"
-        :class="{ muted: !cell.inMonth, today: cell.isToday }"
-      >
-        <div class="tw-cell-head">
-          <button class="tw-cell-day" title="查看当天任务" @click="openDay(cell.key)">{{ cell.label }}</button>
-          <button class="tw-cell-add" title="添加任务" @click="startCreate(cell.key)">
-            <TaskIcon name="plus" :size="13" />
-          </button>
-        </div>
+    <!-- month -->
+    <div v-if="viewMode === 'month'" class="tw-calendar-month">
+      <div class="tw-calendar-weekdays">
+        <span v-for="day in weekdays" :key="day">{{ day }}</span>
+      </div>
+      <div class="tw-calendar-grid">
+        <div
+          v-for="cell in monthCells"
+          :key="cell.key"
+          class="tw-calendar-cell"
+          :class="{ muted: !cell.inMonth, today: cell.isToday }"
+        >
+          <div class="tw-cell-head">
+            <button class="tw-cell-day" title="查看当天安排" @click="openDay(cell.key)">{{ cell.label }}</button>
+            <button class="tw-cell-add" title="添加任务" @click="startCreate(cell.key)">
+              <TaskIcon name="plus" :size="13" />
+            </button>
+          </div>
 
-        <form v-if="editingDay === cell.key" class="tw-cell-form" @submit.prevent="submitCreate">
-          <input
-            ref="createInput"
-            v-model="newTitle"
-            class="tw-cell-input"
-            maxlength="200"
-            placeholder="任务标题"
-            @keydown.esc="cancelCreate"
-            @blur="submitCreate"
-          />
-        </form>
+          <form v-if="editingDay === cell.key" class="tw-cell-form" @submit.prevent="submitCreate">
+            <input
+              ref="createInput"
+              v-model="newTitle"
+              class="tw-cell-input"
+              maxlength="200"
+              placeholder="任务标题"
+              @keydown.esc="cancelCreate"
+              @blur="submitCreate"
+            />
+          </form>
 
-        <div class="tw-cell-tasks">
-          <button
-            v-for="task in (tasksByDay[cell.key] || []).slice(0, 3)"
-            :key="task.id"
-            class="tw-calendar-task"
-            :class="{ done: task.completed, overdue: cell.key < todayKey && !task.completed }"
-            :title="task.title"
-            @click="$emit('open', task)"
-          >
-            <i :style="{ background: task.listColor || '#4772fa' }" />
-            <span>{{ task.title }}</span>
-          </button>
-          <button
-            v-if="(tasksByDay[cell.key] || []).length > 3"
-            class="tw-cell-more"
-            @click="$emit('open', tasksByDay[cell.key][3])"
-          >
-            +{{ tasksByDay[cell.key].length - 3 }}
-          </button>
+          <div class="tw-cell-tasks">
+            <template v-for="item in cellItems(cell.key).slice(0, 3)" :key="item.key">
+              <button
+                v-if="item.kind === 'task'"
+                class="tw-calendar-task"
+                :class="{ done: item.task!.completed, overdue: cell.key < todayKey && !item.task!.completed }"
+                :title="item.title"
+                @click="$emit('open', item.task!)"
+              >
+                <i :style="{ background: item.task!.listColor || '#4772fa' }" />
+                <span>{{ item.title }}</span>
+              </button>
+              <button
+                v-else
+                class="tw-calendar-task tw-calendar-event"
+                :style="{ borderLeftColor: item.color, background: `color-mix(in srgb, ${item.color} 16%, var(--tw-surface))` }"
+                :title="item.title"
+                @click="$emit('open-event', item.event!)"
+              >
+                <i :style="{ background: item.color }" />
+                <span>{{ item.title }}</span>
+              </button>
+            </template>
+            <button
+              v-if="cellItems(cell.key).length > 3"
+              class="tw-cell-more"
+              @click="openDay(cell.key)"
+            >
+              +{{ cellItems(cell.key).length - 3 }}
+            </button>
+          </div>
         </div>
+      </div>
+    </div>
+
+    <!-- week / day time grid -->
+    <div v-else-if="viewMode === 'week' || viewMode === 'day'" class="tw-timegrid-wrap">
+      <div class="tw-tg-head" :style="{ gridTemplateColumns: `46px repeat(${visibleDays.length}, minmax(0, 1fr))` }">
+        <span class="tw-tg-gutter" />
+        <button
+          v-for="day in visibleDays"
+          :key="day.key"
+          class="tw-tg-dayhead"
+          :class="{ today: day.key === todayKey }"
+          @click="openDay(day.key)"
+        >
+          <span>{{ weekdays[day.date.getDay()] }}</span>
+          <strong>{{ day.date.getDate() }}</strong>
+        </button>
+      </div>
+
+      <div class="tw-tg-allday" :style="{ gridTemplateColumns: `46px repeat(${visibleDays.length}, minmax(0, 1fr))` }">
+        <span class="tw-tg-allday-label">全天</span>
+        <div v-for="day in visibleDays" :key="day.key" class="tw-tg-allday-cell">
+          <template v-for="item in allDayItems(day.key).slice(0, 4)" :key="item.key">
+            <button
+              v-if="item.kind === 'task'"
+              class="tw-tg-allday-chip task"
+              :style="{ borderLeftColor: item.color }"
+              :title="item.title"
+              @click="$emit('open', item.task!)"
+            >
+              {{ item.title }}
+            </button>
+            <button
+              v-else
+              class="tw-tg-allday-chip event"
+              :style="{ borderLeftColor: item.color }"
+              :title="item.title"
+              @click="$emit('open-event', item.event!)"
+            >
+              {{ item.title }}
+            </button>
+          </template>
+          <span v-if="allDayItems(day.key).length > 4" class="tw-tg-more">+{{ allDayItems(day.key).length - 4 }}</span>
+        </div>
+      </div>
+
+      <div ref="scrollRef" class="tw-tg-scroll">
+        <div class="tw-tg-body" :style="{ gridTemplateColumns: `46px repeat(${visibleDays.length}, minmax(0, 1fr))` }">
+          <div class="tw-tg-hours">
+            <div v-for="hour in 24" :key="hour" class="tw-tg-hour">
+              <span>{{ String(hour - 1).padStart(2, '0') }}:00</span>
+            </div>
+          </div>
+          <div v-for="day in visibleDays" :key="day.key" class="tw-tg-col">
+            <div v-for="hour in 24" :key="hour" class="tw-tg-line" />
+            <div
+              v-for="item in layoutItems(day.key)"
+              :key="item.key"
+              class="tw-tg-block"
+              :class="item.kind"
+              :style="item.style"
+              :title="`${item.title}${item.timeLabel ? ' · ' + item.timeLabel : ''}`"
+              @click="item.kind === 'task' ? $emit('open', item.task!) : $emit('open-event', item.event!)"
+            >
+              <strong>{{ item.title }}</strong>
+              <small v-if="item.height > 34">{{ item.timeLabel }}</small>
+            </div>
+            <div v-if="day.key === todayKey" class="tw-tg-now" :style="{ top: `${nowTop}px` }">
+              <i />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- agenda -->
+    <div v-else class="tw-agenda">
+      <section v-for="group in agendaGroups" :key="group.key" class="tw-agenda-group">
+        <header class="tw-agenda-date" :class="{ today: group.key === todayKey }">
+          <strong>{{ group.title }}</strong>
+          <span>{{ group.items.length }}</span>
+        </header>
+        <button
+          v-for="item in group.items"
+          :key="item.key"
+          class="tw-agenda-row"
+          @click="item.kind === 'task' ? $emit('open', item.task!) : $emit('open-event', item.event!)"
+        >
+          <span class="tw-agenda-time">{{ item.timeLabel || '全天' }}</span>
+          <i :style="{ background: item.color }" />
+          <span class="tw-agenda-title" :class="{ done: item.task?.completed }">{{ item.title }}</span>
+          <small v-if="item.location">{{ item.location }}</small>
+          <span class="tw-agenda-kind">{{ item.kind === 'task' ? '任务' : item.event?.calendarName }}</span>
+        </button>
+      </section>
+      <div v-if="!agendaGroups.length" class="tw-agenda-empty">
+        <TaskIcon name="calendar" :size="28" />
+        <p>未来 30 天没有安排</p>
       </div>
     </div>
 
@@ -74,23 +208,29 @@
         <header class="tw-day-head">
           <div>
             <h3>{{ dayTitle }}</h3>
-            <small>{{ dayTasks.length }} 个任务</small>
+            <small>{{ dayItems.length }} 项安排</small>
           </div>
           <button class="tw-icon-button" title="关闭" @click="dayOpen = ''">
             <TaskIcon name="close" :size="16" />
           </button>
         </header>
         <div class="tw-day-list">
-          <button v-for="task in dayTasks" :key="task.id" class="tw-day-row" @click="openFromDay(task)">
-            <span class="tw-check" :class="{ checked: task.completed }">
-              <svg v-if="task.completed" viewBox="0 0 20 20" width="10" height="10" aria-hidden="true">
+          <button
+            v-for="item in dayItems"
+            :key="item.key"
+            class="tw-day-row"
+            @click="openDayItem(item)"
+          >
+            <span v-if="item.kind === 'task'" class="tw-check" :class="{ checked: item.task!.completed }">
+              <svg v-if="item.task!.completed" viewBox="0 0 20 20" width="10" height="10" aria-hidden="true">
                 <path d="m4.5 10.2 3.6 3.7 7.4-8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </span>
-            <span class="tw-day-title" :class="{ done: task.completed }">{{ task.title }}</span>
-            <small>{{ task.allDay ? '全天' : timeOf(task.due || '') }}</small>
+            <i v-else :style="{ background: item.color }" class="tw-day-event-dot" />
+            <span class="tw-day-title" :class="{ done: item.task?.completed }">{{ item.title }}</span>
+            <small>{{ item.allDay ? '全天' : item.timeLabel }}</small>
           </button>
-          <p v-if="!dayTasks.length" class="tw-day-empty">这一天还没有任务</p>
+          <p v-if="!dayItems.length" class="tw-day-empty">这一天还没有安排</p>
         </div>
         <form class="tw-day-add" @submit.prevent="submitDay">
           <TaskIcon name="plus" :size="15" />
@@ -102,69 +242,252 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import type { TaskItem } from '../../types'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import type { CalendarEvent, CalendarSource, TaskItem } from '../../types'
 import { dayKey, startOfToday, taskDayKey } from '../../tasks-utils'
+import { fetchCalendarEvents } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ tasks: TaskItem[]; cursor: Date }>()
+const props = defineProps<{
+  tasks: TaskItem[]
+  cursor: Date
+  viewMode: 'month' | 'week' | 'day' | 'agenda'
+}>()
+
 const emit = defineEmits<{
   (event: 'open', task: TaskItem): void
+  (event: 'open-event', item: CalendarEvent): void
   (event: 'create', payload: { date: string; title: string }): void
   (event: 'prev'): void
   (event: 'next'): void
   (event: 'today'): void
+  (event: 'change-view', value: 'month' | 'week' | 'day' | 'agenda'): void
 }>()
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+const viewOptions = [
+  { value: 'month', label: '月' },
+  { value: 'week', label: '周' },
+  { value: 'day', label: '日' },
+  { value: 'agenda', label: '日程' },
+] as const
+const HOUR_HEIGHT = 56
+
+const todayKey = dayKey(startOfToday())
+const events = ref<CalendarEvent[]>([])
+const sources = ref<CalendarSource[]>([])
+const eventsLoading = ref(false)
 const editingDay = ref('')
 const newTitle = ref('')
 const dayOpen = ref('')
 const dayTitleInput = ref('')
+const scrollRef = ref<HTMLElement | null>(null)
 const createInput = ref<HTMLInputElement[] | HTMLInputElement | null>(null)
+let requestId = 0
 
-const todayKey = dayKey(startOfToday())
+interface CalItem {
+  key: string
+  kind: 'task' | 'event'
+  title: string
+  color: string
+  allDay: boolean
+  start?: Date
+  end?: Date
+  timeLabel: string
+  location?: string
+  task?: TaskItem
+  event?: CalendarEvent
+}
 
-const monthTitle = computed(() => `${props.cursor.getFullYear()} 年 ${props.cursor.getMonth() + 1} 月`)
+interface LayoutItem extends CalItem {
+  style: Record<string, string>
+  height: number
+  top: number
+  column?: number
+  columns?: number
+}
 
-const tasksByDay = computed(() => {
-  const map: Record<string, TaskItem[]> = {}
-  for (const task of props.tasks) {
+const monthStart = computed(() => new Date(props.cursor.getFullYear(), props.cursor.getMonth(), 1))
+const weekStart = computed(() => {
+  const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
+  start.setDate(start.getDate() - start.getDay())
+  return start
+})
+
+const visibleDays = computed(() => {
+  if (props.viewMode === 'day') {
+    const date = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
+    return [{ key: dayKey(date), date }]
+  }
+  const start = weekStart.value
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    return { key: dayKey(date), date }
+  })
+})
+
+const range = computed(() => {
+  if (props.viewMode === 'month') {
+    const start = new Date(monthStart.value)
+    start.setDate(start.getDate() - start.getDay())
+    const end = new Date(start)
+    end.setDate(start.getDate() + 42)
+    return { start, end }
+  }
+  if (props.viewMode === 'week') {
+    const start = new Date(weekStart.value)
+    const end = new Date(start)
+    end.setDate(start.getDate() + 7)
+    return { start, end }
+  }
+  if (props.viewMode === 'day') {
+    const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
+    const end = new Date(start)
+    end.setDate(start.getDate() + 1)
+    return { start, end }
+  }
+  const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
+  const end = new Date(start)
+  end.setDate(start.getDate() + 30)
+  return { start, end }
+})
+
+const rangeTitle = computed(() => {
+  if (props.viewMode === 'month') return `${props.cursor.getFullYear()} 年 ${props.cursor.getMonth() + 1} 月`
+  if (props.viewMode === 'week') {
+    const start = weekStart.value
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+    return `${start.getMonth() + 1} 月 ${start.getDate()} 日 - ${end.getMonth() + 1} 月 ${end.getDate()} 日`
+  }
+  if (props.viewMode === 'day') {
+    return `${props.cursor.getFullYear()} 年 ${props.cursor.getMonth() + 1} 月 ${props.cursor.getDate()} 日 ${weekdays[props.cursor.getDay()]}`
+  }
+  const end = new Date(props.cursor)
+  end.setDate(end.getDate() + 29)
+  return `${props.cursor.getMonth() + 1} 月 ${props.cursor.getDate()} 日 - ${end.getMonth() + 1} 月 ${end.getDate()} 日`
+})
+
+const summaryText = computed(() => {
+  const taskCount = props.viewMode === 'month' ? tasksInMonth.value : tasksInRange.value
+  return `${taskCount} 个任务 · ${events.value.length} 个日程`
+})
+
+const tasksInMonth = computed(() => {
+  const prefix = `${props.cursor.getFullYear()}-${String(props.cursor.getMonth() + 1).padStart(2, '0')}`
+  return props.tasks.filter((task) => taskDayKey(task).startsWith(prefix)).length
+})
+
+const tasksInRange = computed(() => {
+  const from = dayKey(range.value.start)
+  const to = dayKey(range.value.end)
+  return props.tasks.filter((task) => {
     const key = taskDayKey(task)
-    if (!key) continue
+    return key >= from && key < to
+  }).length
+})
+
+const monthCells = computed(() => {
+  const year = props.cursor.getFullYear()
+  const month = props.cursor.getMonth()
+  const first = new Date(year, month, 1)
+  const start = new Date(year, month, 1 - first.getDay())
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start)
+    date.setDate(start.getDate() + index)
+    const key = dayKey(date)
+    return {
+      key,
+      label: date.getDate() === 1 ? `${date.getMonth() + 1}/${date.getDate()}` : date.getDate(),
+      inMonth: date.getMonth() === month,
+      isToday: key === todayKey,
+    }
+  })
+})
+
+const itemsByDay = computed(() => {
+  const map: Record<string, CalItem[]> = {}
+  const push = (key: string, item: CalItem) => {
     if (!map[key]) map[key] = []
-    map[key].push(task)
+    map[key].push(item)
+  }
+  for (const task of props.tasks) {
+    if (!task.due) continue
+    const start = new Date(task.due)
+    const key = dayKey(start)
+    push(key, {
+      key: `task-${task.id}-${key}`,
+      kind: 'task',
+      title: task.title,
+      color: task.listColor || '#4772fa',
+      allDay: task.allDay,
+      start: task.allDay ? undefined : start,
+      end: task.allDay ? undefined : new Date(start.getTime() + 30 * 60000),
+      timeLabel: task.allDay ? '全天' : timeText(start),
+      task,
+    })
+  }
+  for (const event of events.value) {
+    const start = new Date(event.start)
+    const end = new Date(event.end)
+    if (event.allDay) {
+      const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+      const last = new Date(end)
+      if (last.getHours() === 0 && last.getMinutes() === 0) last.setDate(last.getDate() - 1)
+      while (cursor <= last) {
+        const key = dayKey(cursor)
+        push(key, {
+          key: `event-${event.id}-${key}`,
+          kind: 'event',
+          title: event.summary,
+          color: event.color || '#4772fa',
+          allDay: true,
+          timeLabel: '全天',
+          location: event.location,
+          event,
+        })
+        cursor.setDate(cursor.getDate() + 1)
+      }
+    } else {
+      push(dayKey(start), {
+        key: `event-${event.id}`,
+        kind: 'event',
+        title: event.summary,
+        color: event.color || '#4772fa',
+        allDay: false,
+        start,
+        end,
+        timeLabel: timeText(start),
+        location: event.location,
+        event,
+      })
+    }
   }
   for (const key of Object.keys(map)) {
     map[key].sort((a, b) => {
       if (a.allDay !== b.allDay) return a.allDay ? -1 : 1
-      return (a.due || '').localeCompare(b.due || '')
+      return (a.start?.getTime() || 0) - (b.start?.getTime() || 0)
     })
   }
   return map
 })
 
-const cells = computed(() => {
-  const year = props.cursor.getFullYear()
-  const month = props.cursor.getMonth()
-  const first = new Date(year, month, 1)
-  const start = new Date(year, month, 1 - first.getDay())
-  const out: Array<{ key: string; label: number | string; inMonth: boolean; isToday: boolean }> = []
-  for (let index = 0; index < 42; index += 1) {
+const agendaGroups = computed(() => {
+  const out: Array<{ key: string; title: string; items: CalItem[] }> = []
+  const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
+  for (let index = 0; index < 30; index += 1) {
     const date = new Date(start)
     date.setDate(start.getDate() + index)
     const key = dayKey(date)
-    out.push({
-      key,
-      label: date.getDate() === 1 ? `${date.getMonth() + 1}/${date.getDate()}` : date.getDate(),
-      inMonth: date.getMonth() === month,
-      isToday: key === todayKey,
-    })
+    const items = itemsByDay.value[key] || []
+    if (!items.length) continue
+    out.push({ key, title: `${date.getMonth() + 1} 月 ${date.getDate()} 日 ${weekdays[date.getDay()]}`, items })
   }
   return out
 })
 
-const dayTasks = computed(() => tasksByDay.value[dayOpen.value] || [])
+const dayItems = computed(() => itemsByDay.value[dayOpen.value] || [])
 
 const dayTitle = computed(() => {
   if (!dayOpen.value) return ''
@@ -173,10 +496,133 @@ const dayTitle = computed(() => {
   return `${month} 月 ${day} 日 ${weekdays[date.getDay()]}`
 })
 
-const tasksInMonth = computed(() => {
-  const prefix = `${props.cursor.getFullYear()}-${String(props.cursor.getMonth() + 1).padStart(2, '0')}`
-  return props.tasks.filter((task) => taskDayKey(task).startsWith(prefix)).length
+const nowTop = computed(() => {
+  const now = new Date()
+  return (now.getHours() + now.getMinutes() / 60) * HOUR_HEIGHT
 })
+
+function timeText(date: Date) {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function cellItems(key: string) {
+  return itemsByDay.value[key] || []
+}
+
+function allDayItems(key: string) {
+  return (itemsByDay.value[key] || []).filter((item) => item.allDay)
+}
+
+function timedItems(key: string) {
+  const day = new Date(`${key}T00:00:00`)
+  const dayEnd = new Date(day)
+  dayEnd.setDate(day.getDate() + 1)
+  return (itemsByDay.value[key] || []).filter((item) => {
+    if (item.allDay || !item.start) return false
+    return item.end ? item.end > day && item.start < dayEnd : item.start >= day && item.start < dayEnd
+  })
+}
+
+function layoutItems(key: string): LayoutItem[] {
+  const day = new Date(`${key}T00:00:00`)
+  const dayEnd = new Date(day)
+  dayEnd.setDate(day.getDate() + 1)
+  const items = timedItems(key).map((item) => {
+    const start = item.start && item.start < day ? day : item.start || day
+    const end = item.end && item.end > dayEnd ? dayEnd : item.end || new Date((item.start || day).getTime() + 30 * 60000)
+    const top = (start.getHours() + start.getMinutes() / 60) * HOUR_HEIGHT
+    const height = Math.max(((end.getTime() - start.getTime()) / 3600000) * HOUR_HEIGHT, 22)
+    return { ...item, start, end, top, height, column: 0, columns: 1 }
+  })
+  items.sort((a, b) => (a.start?.getTime() || 0) - (b.start?.getTime() || 0) || b.height - a.height)
+  const result: LayoutItem[] = []
+  let cluster: typeof items = []
+  let clusterEnd = 0
+  const flush = () => {
+    if (!cluster.length) return
+    const columnEnds: number[] = []
+    for (const item of cluster) {
+      const start = item.start?.getTime() || 0
+      let column = columnEnds.findIndex((value) => value <= start)
+      if (column === -1) {
+        column = columnEnds.length
+        columnEnds.push(0)
+      }
+      columnEnds[column] = item.end?.getTime() || start
+      item.column = column
+    }
+    const columns = Math.max(columnEnds.length, 1)
+    for (const item of cluster) {
+      result.push({
+        ...item,
+        columns,
+        style: {
+          top: `${item.top}px`,
+          height: `${item.height}px`,
+          left: `calc(${(item.column / columns) * 100}% + 2px)`,
+          width: `calc(${100 / columns}% - 4px)`,
+          borderLeftColor: item.color,
+          background: `color-mix(in srgb, ${item.color} 22%, var(--tw-bg))`,
+        },
+      })
+    }
+    cluster = []
+    clusterEnd = 0
+  }
+  for (const item of items) {
+    const start = item.start?.getTime() || 0
+    const end = item.end?.getTime() || start
+    if (cluster.length && start >= clusterEnd) flush()
+    cluster.push(item)
+    clusterEnd = Math.max(clusterEnd, end)
+  }
+  flush()
+  return result
+}
+
+async function loadEvents() {
+  const current = ++requestId
+  eventsLoading.value = true
+  try {
+    const data = await fetchCalendarEvents(range.value.start, range.value.end)
+    if (current !== requestId) return
+    events.value = data.events
+    sources.value = data.calendars
+  } catch {
+    if (current === requestId) {
+      events.value = []
+      sources.value = []
+    }
+  } finally {
+    if (current === requestId) eventsLoading.value = false
+  }
+}
+
+async function scrollToMorning() {
+  await nextTick()
+  if (scrollRef.value) scrollRef.value.scrollTop = 7 * HOUR_HEIGHT
+}
+
+watch([() => props.viewMode, () => props.cursor], () => {
+  void loadEvents()
+  if (props.viewMode === 'week' || props.viewMode === 'day') void scrollToMorning()
+})
+
+onMounted(() => {
+  void loadEvents()
+  if (props.viewMode === 'week' || props.viewMode === 'day') void scrollToMorning()
+})
+
+function openDay(key: string) {
+  dayOpen.value = key
+  dayTitleInput.value = ''
+}
+
+function openDayItem(item: CalItem) {
+  dayOpen.value = ''
+  if (item.kind === 'task' && item.task) emit('open', item.task)
+  else if (item.event) emit('open-event', item.event)
+}
 
 async function startCreate(key: string) {
   editingDay.value = key
@@ -185,30 +631,6 @@ async function startCreate(key: string) {
   const input = createInput.value
   if (Array.isArray(input)) input[0]?.focus()
   else input?.focus()
-}
-
-function openFromDay(task: TaskItem) {
-  dayOpen.value = ''
-  emit('open', task)
-}
-
-function openDay(key: string) {
-  dayOpen.value = key
-  dayTitleInput.value = ''
-}
-
-function submitDay() {
-  const title = dayTitleInput.value.trim()
-  if (!title) return
-  emit('create', { date: dayOpen.value, title })
-  dayTitleInput.value = ''
-  dayOpen.value = ''
-}
-
-function timeOf(value: string) {
-  if (!value) return ''
-  const date = new Date(value)
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
 }
 
 function cancelCreate() {
@@ -221,5 +643,13 @@ function submitCreate() {
   if (!title) return cancelCreate()
   emit('create', { date: editingDay.value, title })
   cancelCreate()
+}
+
+function submitDay() {
+  const title = dayTitleInput.value.trim()
+  if (!title) return
+  emit('create', { date: dayOpen.value, title })
+  dayTitleInput.value = ''
+  dayOpen.value = ''
 }
 </script>

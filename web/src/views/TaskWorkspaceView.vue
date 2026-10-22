@@ -95,7 +95,7 @@
             </button>
           </div>
           <button
-            v-if="view !== 'trash' && view !== 'completed'"
+            v-if="view !== 'trash' && view !== 'completed' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: manualSort }"
             :title="manualSort ? '关闭手动排序' : '手动排序（拖拽调整顺序）'"
@@ -104,7 +104,7 @@
             <TaskIcon name="sort" :size="18" />
           </button>
           <button
-            v-if="view !== 'trash'"
+            v-if="view !== 'trash' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: selectionMode }"
             :title="selectionMode ? '退出多选' : '多选任务'"
@@ -251,10 +251,13 @@
             v-else-if="mode === 'calendar'"
             :tasks="filteredTasks"
             :cursor="cursor"
+            :view-mode="calendarView"
             @open="openTask"
+            @open-event="openCalendarEvent"
             @create="createFromCalendar"
-            @prev="shiftMonth(-1)"
-            @next="shiftMonth(1)"
+            @change-view="calendarView = $event"
+            @prev="stepCalendar(-1)"
+            @next="stepCalendar(1)"
             @today="cursor = new Date()"
           />
 
@@ -673,6 +676,7 @@ const quickText = ref('')
 const quickBusy = ref(false)
 const quickListId = ref(0)
 const cursor = ref(new Date())
+const calendarView = ref<'month' | 'week' | 'day' | 'agenda'>('month')
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
@@ -1131,8 +1135,21 @@ function dropOnList(listId: number) {
   })
 }
 
-function shiftMonth(delta: number) {
-  cursor.value = new Date(cursor.value.getFullYear(), cursor.value.getMonth() + delta, 1)
+function stepCalendar(delta: number) {
+  const date = cursor.value
+  if (calendarView.value === 'month') {
+    cursor.value = new Date(date.getFullYear(), date.getMonth() + delta, 1)
+  } else if (calendarView.value === 'week') {
+    cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 7)
+  } else if (calendarView.value === 'day') {
+    cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta)
+  } else {
+    cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 30)
+  }
+}
+
+function openCalendarEvent(event: { calendarId: number; href: string }) {
+  void router.push(`/calendars/${event.calendarId}/events/${encodeURIComponent(event.href)}/edit`)
 }
 
 function toggleSearch() {

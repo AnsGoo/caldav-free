@@ -1,0 +1,18 @@
+services:
+  caldav:
+    build: .
+    image: caldav-free:latest
+    container_name: caldav-free
+    restart: unless-stopped
+    ports:
+      - "5232:5232"
+    environment:
+      # Only used on first start (empty database).
+      CALDAV_ADMIN_USER: admin
+      CALDAV_ADMIN_PASSWORD: change-me-please
+      CALDAV_EXTERNAL_URL: http://localhost:5232
+    volumes:
+      - caldav-data:/data
+
+volumes:
+  caldav-data:

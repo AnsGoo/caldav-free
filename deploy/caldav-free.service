@@ -1,0 +1,25 @@
+[Unit]
+Description=caldav-free CalDAV server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=caldav
+Group=caldav
+ExecStart=/opt/caldav-free/caldav-free \
+  -addr 127.0.0.1:5232 \
+  -data /var/lib/caldav-free \
+  -external-url https://caldav-free.byteportrait.com
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/caldav-free
+Restart=on-failure
+RestartSec=3
+UMask=0077
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,89 @@
+{{define "user"}}
+<nav class="breadcrumb"><a href="/admin/users">用户</a><span>/</span><span>{{.UserDetail.Username}}</span></nav>
+
+<section class="split">
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <p class="eyebrow">Profile</p>
+        <h2>账号资料</h2>
+      </div>
+      <span class="pill">{{if .UserDetail.IsAdmin}}管理员{{else}}成员{{end}}</span>
+    </div>
+    <form method="post" action="/admin/users/{{.UserDetail.ID}}" class="stack">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="form-grid">
+        <label class="field"><span>用户名</span><input type="text" value="{{.UserDetail.Username}}" disabled></label>
+        <label class="field"><span>显示名称</span><input type="text" name="display_name" value="{{.UserDetail.DisplayName}}"></label>
+      </div>
+      <label class="field"><span>邮箱</span><input type="email" name="email" value="{{.UserDetail.Email}}"></label>
+      <label class="field"><span>重置密码</span><input type="password" name="password" minlength="8" placeholder="留空则不修改"><small>修改后所有客户端需使用新密码重新认证</small></label>
+      <label class="checkbox"><input type="checkbox" name="is_admin" {{if .UserDetail.IsAdmin}}checked{{end}}> <span>管理员权限</span></label>
+      <div class="form-actions"><button class="btn btn-primary" type="submit">保存资料</button></div>
+    </form>
+  </article>
+
+  <aside class="card">
+    <div class="card-head"><div><p class="eyebrow">Account</p><h2>概览</h2></div></div>
+    <dl class="facts">
+      <div><dt>用户 ID</dt><dd>#{{.UserDetail.ID}}</dd></div>
+      <div><dt>注册时间</dt><dd>{{date .UserDetail.CreatedAt}}</dd></div>
+      <div><dt>日历数量</dt><dd>{{len .Calendars}}</dd></div>
+      <div><dt>Principal</dt><dd class="mono">/principals/{{.UserDetail.Username}}/</dd></div>
+    </dl>
+    <div class="copy-row compact">
+      <code>{{printf "%s/calendars/%s/" .BaseURL .UserDetail.Username}}</code>
+      <button class="btn btn-ghost btn-sm" type="button" data-copy="{{printf "%s/calendars/%s/" .BaseURL .UserDetail.Username}}">复制</button>
+    </div>
+    {{if not .IsSelf}}
+    <form method="post" action="/admin/users/{{.UserDetail.ID}}/delete" class="danger-zone" data-confirm="确定删除用户 {{.UserDetail.Username}} 及其所有日历吗？该操作不可撤销。">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <p>删除账号会同时移除其所有日历和事件，且无法恢复。</p>
+      <button class="btn btn-danger btn-block" type="submit">删除用户</button>
+    </form>
+    {{end}}
+  </aside>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <p class="eyebrow">Calendars</p>
+      <h2>日历集合</h2>
+    </div>
+    <span class="pill">{{len .Calendars}} 个</span>
+  </div>
+  {{if .Calendars}}
+  <div class="calendar-grid">
+    {{range .Calendars}}
+    <a class="calendar-tile" href="/admin/calendars/{{.Calendar.ID}}">
+      <span class="color-dot" style="--dot: {{if .Calendar.Color}}{{.Calendar.Color}}{{else}}#3366CC{{end}}"></span>
+      <div class="calendar-tile-body">
+        <strong>{{if .Calendar.DisplayName}}{{.Calendar.DisplayName}}{{else}}{{.Calendar.Slug}}{{end}}</strong>
+        <small>{{.Calendar.Slug}} · {{.Count}} 个事件</small>
+      </div>
+      <span class="tile-arrow">→</span>
+    </a>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="empty">该用户还没有日历，使用右侧表单创建一个。</p>
+  {{end}}
+  <div class="create-calendar">
+    <h3>新建日历</h3>
+    <form method="post" action="/admin/users/{{.UserDetail.ID}}/calendars" class="inline-form">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label class="field"><span>标识（URL）</span><input type="text" name="slug" pattern="[A-Za-z0-9._-]{2,64}" placeholder="work" required></label>
+      <label class="field"><span>名称</span><input type="text" name="display_name" placeholder="工作"></label>
+      <label class="field"><span>时区</span>
+        <input type="text" name="timezone" list="timezone-options" value="UTC" required>
+        <small>任意 IANA 时区，例如 Asia/Shanghai</small>
+      </label>
+      <button class="btn btn-primary" type="submit">创建日历</button>
+    </form>
+  </div>
+</section>
+<datalist id="timezone-options">
+  {{range .Timezones}}<option value="{{.}}"></option>{{end}}
+</datalist>
+{{end}}

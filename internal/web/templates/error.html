@@ -1,0 +1,10 @@
+{{define "error"}}
+<section class="card error-card">
+  <p class="eyebrow">Something went wrong</p>
+  <h2>{{.Title}}</h2>
+  <p class="muted">请返回上一页重试，或检查服务端日志获取更多信息。</p>
+  <div class="form-actions">
+    <a class="btn btn-primary" href="/admin">返回控制台</a>
+  </div>
+</section>
+{{end}}

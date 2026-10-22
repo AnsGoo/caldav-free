@@ -1,0 +1,52 @@
+{{define "users"}}
+<section class="split split-asym">
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <p class="eyebrow">Directory</p>
+        <h2>全部用户</h2>
+      </div>
+      <span class="pill">{{len .Users}} 个账号</span>
+    </div>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>用户</th><th>角色</th><th>日历</th><th>创建时间</th><th></th></tr></thead>
+        <tbody>
+        {{range .Users}}
+          <tr>
+            <td>
+              <div class="user-cell">
+                <span class="avatar avatar-sm">{{initials .User.Username}}</span>
+                <div><strong>{{.User.Username}}</strong><small>{{if .User.Email}}{{.User.Email}}{{else}}未设置邮箱{{end}}</small></div>
+              </div>
+            </td>
+            <td>{{if .User.IsAdmin}}<span class="pill pill-accent">管理员</span>{{else}}<span class="pill">成员</span>{{end}}</td>
+            <td>{{.Calendars}}</td>
+            <td>{{.Created}}</td>
+            <td class="right"><a class="link" href="/admin/users/{{.User.ID}}">管理 →</a></td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+  </article>
+
+  <aside class="card sticky-card">
+    <div class="card-head">
+      <div>
+        <p class="eyebrow">New principal</p>
+        <h2>创建用户</h2>
+      </div>
+    </div>
+    <form method="post" action="/admin/users" class="stack">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label class="field"><span>用户名</span><input type="text" name="username" pattern="[a-z0-9._-]{2,64}" placeholder="例如 alice" required><small>小写字母、数字、点、下划线或连字符</small></label>
+      <label class="field"><span>显示名称</span><input type="text" name="display_name" placeholder="Alice"></label>
+      <label class="field"><span>邮箱</span><input type="email" name="email" placeholder="alice@example.com"></label>
+      <label class="field"><span>初始密码</span><input type="password" name="password" minlength="8" required><small>至少 8 位，同时用于 CalDAV Basic Auth</small></label>
+      <label class="checkbox"><input type="checkbox" name="is_admin"> <span>管理员权限</span></label>
+      <button class="btn btn-primary btn-block" type="submit">创建用户</button>
+    </form>
+  </aside>
+</section>
+{{end}}

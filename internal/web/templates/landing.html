@@ -1,0 +1,42 @@
+{{define "landing"}}<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>caldav-free</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f172a'/%3E%3Cpath d='M9 11h14M9 16h9M9 21h12' stroke='%232dd4bf' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+</head>
+<body class="login-page">
+  <div class="login-art" aria-hidden="true">
+    <div class="login-art-grid"></div>
+    <div class="login-quote">
+      <p class="eyebrow">self-hosted calendar</p>
+      <h2>你的日程，<br>只属于你。</h2>
+      <p>标准 CalDAV 服务运行中。客户端请使用下面的 Calendar Home 地址与账户密码连接。</p>
+      <ul class="tick-list">
+        <li>CalDAV + WebDAV Sync</li>
+        <li>公共可信 TLS 证书</li>
+        <li>SQLite 单文件存储</li>
+      </ul>
+    </div>
+  </div>
+  <main class="login-panel">
+    <div class="login-card">
+      <a class="brand brand-dark" href="/">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="30" height="30"><path d="M8 10.5h16M8 16h11M8 21.5h13" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><circle cx="24" cy="23" r="2.2" fill="currentColor"/></svg>
+        </span>
+        <span class="brand-name">caldav<em>free</em></span>
+      </a>
+      <h1>服务运行中</h1>
+      <p class="muted">CalDAV 客户端请使用 <code>{{.BaseURL}}/calendars/admin/</code>，用户名 <code>admin</code>。</p>
+      <div class="stack">
+        <a class="btn btn-primary btn-block" href="/calendars/admin/">打开 Calendar Home</a>
+        <a class="btn btn-ghost btn-block" href="/admin">管理后台</a>
+      </div>
+      <p class="login-note">管理后台需要额外认证；CalDAV 客户端直接使用账户密码即可。</p>
+    </div>
+  </main>
+</body>
+</html>{{end}}

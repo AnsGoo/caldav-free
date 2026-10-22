@@ -1,0 +1,50 @@
+{{define "eventedit"}}
+<nav class="breadcrumb"><a href="/admin/users">用户</a><span>/</span><a href="/admin/users/{{.Owner.ID}}">{{.Owner.Username}}</a><span>/</span><a href="/admin/calendars/{{.Calendar.ID}}">{{.Calendar.Slug}}</a><span>/</span><span>{{.EventName}}</span></nav>
+
+<section class="split split-wide">
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <p class="eyebrow">Raw iCalendar</p>
+        <h2>编辑事件</h2>
+      </div>
+      <span class="pill">{{.EditEvent.ComponentType}}</span>
+    </div>
+    <p class="muted">直接编辑 RFC 5545 数据。保存时会重新校验 UID、组件类型、时区与时间范围，并生成新的 ETag。</p>
+    <form method="post" action="/admin/calendars/{{.Calendar.ID}}/events/update" class="stack">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="name" value="{{.EventName}}">
+      <label class="field">
+        <span>iCalendar 数据</span>
+        <textarea name="data" class="code-area" rows="28" spellcheck="false" required>{{.EventData}}</textarea>
+      </label>
+      <div class="form-actions">
+        <a class="btn btn-ghost" href="/admin/calendars/{{.Calendar.ID}}">取消</a>
+        <button class="btn btn-primary" type="submit">保存事件</button>
+      </div>
+    </form>
+  </article>
+
+  <aside class="stack-lg">
+    <article class="card">
+      <div class="card-head"><div><p class="eyebrow">Metadata</p><h2>对象信息</h2></div></div>
+      <dl class="facts">
+        <div><dt>文件名</dt><dd class="mono">{{.EventName}}</dd></div>
+        <div><dt>UID</dt><dd class="mono">{{.EditEvent.UID}}</dd></div>
+        <div><dt>组件</dt><dd>{{.EditEvent.ComponentType}}</dd></div>
+        <div><dt>大小</dt><dd>{{.EditEvent.Size}} bytes</dd></div>
+        <div><dt>修改时间</dt><dd>{{datetime .EditEvent.ModifiedAt}}</dd></div>
+        <div><dt>ETag</dt><dd class="mono">{{.EditEvent.ETag}}</dd></div>
+      </dl>
+    </article>
+    <article class="card">
+      <div class="card-head"><div><p class="eyebrow">Calendar</p><h2>{{if .Calendar.DisplayName}}{{.Calendar.DisplayName}}{{else}}{{.Calendar.Slug}}{{end}}</h2></div></div>
+      <dl class="facts">
+        <div><dt>所属用户</dt><dd><a class="link" href="/admin/users/{{.Owner.ID}}">{{.Owner.Username}}</a></dd></div>
+        <div><dt>时区</dt><dd>{{.Calendar.Timezone}}</dd></div>
+        <div><dt>URL 标识</dt><dd class="mono">{{.Calendar.Slug}}</dd></div>
+      </dl>
+    </article>
+  </aside>
+</section>
+{{end}}

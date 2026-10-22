@@ -1,0 +1,97 @@
+{{define "dashboard"}}
+<section class="stat-grid">
+  <article class="stat-card">
+    <span class="stat-icon">U</span>
+    <div><strong>{{.Stats.Users}}</strong><span>用户</span></div>
+  </article>
+  <article class="stat-card">
+    <span class="stat-icon">C</span>
+    <div><strong>{{.Stats.Calendars}}</strong><span>日历</span></div>
+  </article>
+  <article class="stat-card">
+    <span class="stat-icon">E</span>
+    <div><strong>{{.Stats.Objects}}</strong><span>事件对象</span></div>
+  </article>
+</section>
+
+<section class="split">
+  <article class="card accent-card">
+    <div class="card-head">
+      <div>
+        <p class="eyebrow">CalDAV endpoint</p>
+        <h2>客户端接入</h2>
+      </div>
+      <span class="pill pill-live">运行中</span>
+    </div>
+    <p class="muted">在 Apple 日历、Thunderbird、DAVx5 等客户端中选择 “CalDAV 账户”，填入以下地址与用户名/密码即可。用户名不区分大小写。</p>
+    <div class="copy-row">
+      <div class="copy-field">
+        <span class="copy-label">Principal URL</span>
+        <code>{{printf "%s/principals/%s/" .BaseURL .User.Username}}</code>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-copy="{{printf "%s/principals/%s/" .BaseURL .User.Username}}">复制</button>
+    </div>
+    <div class="copy-row">
+      <div class="copy-field">
+        <span class="copy-label">Calendar Home</span>
+        <code>{{printf "%s/calendars/%s/" .BaseURL .User.Username}}</code>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" data-copy="{{printf "%s/calendars/%s/" .BaseURL .User.Username}}">复制</button>
+    </div>
+    <div class="endpoint-meta">
+      <span>服务端口：{{.BaseURL}}</span>
+      <span>协议：CalDAV · sync-collection · free-busy</span>
+    </div>
+  </article>
+
+  <article class="card">
+    <div class="card-head">
+      <div>
+        <p class="eyebrow">Quick start</p>
+        <h2>三步开始</h2>
+      </div>
+    </div>
+    <ol class="steps">
+      <li><span>1</span><div><strong>创建用户</strong><p>为每位使用者在 <a href="/admin/users">用户</a> 页面创建账号。</p></div></li>
+      <li><span>2</span><div><strong>创建日历</strong><p>进入用户详情，添加一个或多个日历集合。</p></div></li>
+      <li><span>3</span><div><strong>连接客户端</strong><p>使用上面的 Principal URL 和 Basic Auth 登录。</p></div></li>
+    </ol>
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-head">
+    <div>
+      <p class="eyebrow">Principals</p>
+      <h2>用户概览</h2>
+    </div>
+    <a class="btn btn-primary btn-sm" href="/admin/users">管理用户</a>
+  </div>
+  {{if .Users}}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>用户</th><th>日历</th><th>事件</th><th>创建时间</th><th></th></tr></thead>
+      <tbody>
+      {{range .Users}}
+        <tr>
+          <td>
+            <div class="user-cell">
+              <span class="avatar avatar-sm">{{initials .User.Username}}</span>
+              <div><strong>{{.User.Username}}</strong><small>{{if .User.DisplayName}}{{.User.DisplayName}}{{else}}{{.User.Email}}{{end}}</small></div>
+              {{if .User.IsAdmin}}<span class="pill">管理员</span>{{end}}
+            </div>
+          </td>
+          <td>{{.Calendars}}</td>
+          <td>{{.Objects}}</td>
+          <td>{{.Created}}</td>
+          <td class="right"><a class="link" href="/admin/users/{{.User.ID}}">详情 →</a></td>
+        </tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty">还没有用户。先创建一个管理员或普通账号吧。</p>
+  {{end}}
+</section>
+{{end}}

@@ -196,3 +196,51 @@ export interface CalendarEvent {
   allDay: boolean
   recurring: boolean
 }
+
+export interface TaskDailyStat {
+  date: string
+  created: number
+  completed: number
+  due: number
+}
+
+export interface TaskListStat {
+  id: number
+  name: string
+  color: string
+  open: number
+  completed: number
+  overdue: number
+}
+
+export interface TaskTagStat {
+  name: string
+  open: number
+  completed: number
+  overdue: number
+}
+
+export interface TaskPriorityStat {
+  priority: number
+  open: number
+  completed: number
+}
+
+export interface TaskStats {
+  days: number
+  open: number
+  completed: number
+  overdue: number
+  today: number
+  trash: number
+  completionRate: number
+  createdInPeriod: number
+  completedInPeriod: number
+  dueInPeriod: number
+  onTimeInPeriod: number
+  avgCompletionHours: number
+  daily: TaskDailyStat[]
+  lists: TaskListStat[]
+  tags: TaskTagStat[]
+  priorities: TaskPriorityStat[]
+}

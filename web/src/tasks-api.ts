@@ -1,7 +1,7 @@
 import { api } from './api'
-import type { CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from './types'
+import type { CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskStats, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'list' | 'filter'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'list' | 'filter'
 
 export function browserTimezone() {
   try {
@@ -161,4 +161,8 @@ export function reorderTasks(ids: number[]) {
 export function fetchCalendarEvents(from: Date, to: Date) {
   const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })
   return api<{ calendars: CalendarSource[]; events: CalendarEvent[] }>(`/tasks/calendar?${query.toString()}`)
+}
+
+export function fetchTaskStats(days = 30) {
+  return api<{ stats: TaskStats }>(`/tasks/stats?days=${days}`)
 }

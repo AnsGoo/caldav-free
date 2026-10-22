@@ -1246,3 +1246,16 @@ func (s *Server) apiDeleteSavedFilter(w http.ResponseWriter, r *http.Request, cu
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (s *Server) apiTaskStats(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+	if days <= 0 || days > 365 {
+		days = 30
+	}
+	stats, err := s.store.ComputeTaskStats(r.Context(), current.ID, days)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"stats": stats})
+}

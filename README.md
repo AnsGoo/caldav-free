@@ -64,6 +64,13 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - JSON API + HttpOnly/SameSite 会话、CSRF、CSP、登录限速
 - 响应式布局，手机浏览器可直接管理
 
+## 文档
+
+- [任务工作台使用指南](docs/任务工作台.md)：界面、自然语言、重复/提醒、日历、统计、AI、VTODO 同步、配置与限制
+- [Admin JSON API](docs/API.md)：任务/清单/文件夹/过滤器/标签/日历/统计/AI 接口与示例
+- [架构与同步设计](docs/ARCHITECTURE.md)：数据表、VTODO 对账、事件展开、统计聚合、AI 工具循环
+- [实现进度与路线图](docs/ROADMAP.md)：已完成批次、提交记录、未实现能力与优先级
+
 ## 快速开始
 
 ### 本地运行

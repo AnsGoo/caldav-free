@@ -131,6 +131,15 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /api/admin/calendars/{id}/events/{name}", s.apiAdmin(s.apiUpdateEvent))
 	mux.HandleFunc("DELETE /api/admin/calendars/{id}/events/{name}", s.apiAdmin(s.apiDeleteEvent))
 
+	// Task workspace.
+	mux.HandleFunc("GET /api/admin/tasks", s.apiAdmin(s.apiTaskWorkspace))
+	mux.HandleFunc("POST /api/admin/tasks", s.apiAdmin(s.apiCreateTask))
+	mux.HandleFunc("PATCH /api/admin/tasks/{id}", s.apiAdmin(s.apiUpdateTask))
+	mux.HandleFunc("DELETE /api/admin/tasks/{id}", s.apiAdmin(s.apiDeleteTask))
+	mux.HandleFunc("POST /api/admin/task-lists", s.apiAdmin(s.apiCreateTaskList))
+	mux.HandleFunc("PATCH /api/admin/task-lists/{id}", s.apiAdmin(s.apiUpdateTaskList))
+	mux.HandleFunc("DELETE /api/admin/task-lists/{id}", s.apiAdmin(s.apiDeleteTaskList))
+
 	// Vue SPA. Nginx adds an additional Basic Auth layer for this path.
 	mux.Handle("/admin/", s.spaHandler())
 	mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) {

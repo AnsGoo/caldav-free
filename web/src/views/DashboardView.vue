@@ -79,6 +79,11 @@
             <p class="eyebrow">Quick actions</p>
             <h2>快速操作</h2>
             <div class="quick-grid">
+              <router-link class="quick-card" to="/tasks">
+                <IconCheckSquare :size="22" />
+                <strong>任务工作台</strong>
+                <small>清单、看板、日历与自然语言添加</small>
+              </router-link>
               <router-link class="quick-card" to="/users">
                 <IconUserGroup :size="22" />
                 <strong>用户管理</strong>
@@ -178,6 +183,7 @@ import type { TableColumnData } from '@arco-design/web-vue'
 import {
   IconCalendar,
   IconCheckCircle,
+  IconCheckSquare,
   IconCopy,
   IconPlus,
   IconRefresh,

@@ -16,6 +16,10 @@
           <IconDashboard :size="18" />
           <span>控制台</span>
         </router-link>
+        <router-link class="nav-item" :class="{ active: route.name === 'tasks' }" to="/tasks">
+          <IconCheckSquare :size="18" />
+          <span>任务工作台</span>
+        </router-link>
         <router-link class="nav-item" :class="{ active: route.name === 'users' || route.name === 'user' || route.name === 'calendar' || route.name === 'event-edit' }" to="/users">
           <IconUserGroup :size="18" />
           <span>用户与日历</span>
@@ -58,7 +62,7 @@
 
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
-import { IconDashboard, IconUserGroup } from '@arco-design/web-vue/es/icon'
+import { IconCheckSquare, IconDashboard, IconUserGroup } from '@arco-design/web-vue/es/icon'
 import { Message } from '@arco-design/web-vue'
 import { auth, initials, logout } from '../auth'
 

@@ -87,3 +87,54 @@ export interface ListData<T> {
   user?: T
   event?: T
 }
+
+export interface ChecklistItem {
+  id: string
+  title: string
+  done: boolean
+}
+
+export interface TaskItem {
+  id: number
+  parentId?: number
+  listId: number
+  listName: string
+  listColor: string
+  title: string
+  notes: string
+  priority: number
+  due?: string
+  allDay: boolean
+  completed: boolean
+  completedAt?: string
+  tags: string[]
+  checklist: ChecklistItem[]
+  order: number
+  createdAt: string
+  modifiedAt: string
+}
+
+export interface TaskList {
+  id: number
+  name: string
+  color: string
+  order: number
+  isInbox: boolean
+  count: number
+}
+
+export interface TaskCounts {
+  all: number
+  today: number
+  next7: number
+  inbox: number
+  completed: number
+}
+
+export interface TaskWorkspaceData {
+  lists: TaskList[]
+  tasks: TaskItem[]
+  counts: TaskCounts
+  tags: string[]
+  inbox: number
+}

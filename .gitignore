@@ -7,3 +7,6 @@
 *.db-wal
 .DS_Store
 .env
+
+/.rea/
+__debug_bin*

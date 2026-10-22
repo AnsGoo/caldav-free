@@ -23,6 +23,20 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 多用户、owner 隔离；管理员可跨用户管理
 - Basic Auth + PBKDF2-SHA256 密码哈希；认证结果短期缓存，改密立即失效
 
+### 任务工作台
+
+- 内置滴答清单风格的任务管理界面：图标栏 + 清单侧栏 + 任务列表 + 详情面板
+- 智能视图：所有、今天、最近 7 天、收集箱、已完成；支持清单、标签与关键词筛选
+- 三种视图模式：清单 / 看板（按清单分列，支持拖拽移动）/ 月历
+- 快速添加支持自然语言：`明天下午 3 点和张三开会 #工作 !!`
+  - 中文相对日期：今天、明天、后天、今晚、周一…周日、下周一、10 月 25 日
+  - 时间：`下午 3 点`、`15:30`、`3 点半`；无日期时默认当天
+  - `#标签`、`!` / `!!` / `!!!` 优先级
+- 任务详情：标题、备注、日期/全天、清单、优先级、标签、子任务，输入后自动保存
+- 逾期任务一键顺延到今天；已完成任务自动归档；删除清单时任务移入收集箱
+- 深色 / 浅色主题跟随系统并可手动切换；响应式布局支持手机浏览器
+- 管理员账号拥有自己的任务空间；数据独立于 CalDAV 日历对象
+
 ### 管理后台
 
 - Vue 3 + Vite+ + Arco Design Vue 单页应用，Go `embed` 进单个二进制
@@ -169,7 +183,10 @@ docker run -d --name caldav \
 | `/calendars/{user}/{calendar}/` | 日历集合；支持 GET 聚合 ICS |
 | `/calendars/{user}/{calendar}/{name}.ics` | 日历对象资源 |
 | `/admin` | Vue 管理后台（仅管理员） |
+| `/admin/tasks` | 任务工作台（清单 / 看板 / 日历） |
 | `/api/admin/*` | 管理后台 JSON API（会话 + CSRF） |
+| `/api/admin/tasks` | 任务工作台数据与任务 CRUD |
+| `/api/admin/task-lists` | 清单 CRUD |
 | `/healthz` | 健康检查 |
 
 支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
@@ -217,6 +234,7 @@ internal/auth          PBKDF2 密码哈希、随机 token
 internal/store         GORM + SQLite 数据层（用户/日历/对象/同步日志）
 internal/ical          iCalendar 解析、序列化、时区、重复展开、过滤、free-busy
 internal/dav           CalDAV/WebDAV HTTP 处理器、XML、属性、REPORT
+internal/tasks         任务快速添加的自然语言解析（日期、时间、标签、优先级）
 internal/web           管理后台（模板、会话、CSRF、静态资源 embed）
 ```
 
@@ -227,6 +245,8 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `objects`：ICS 原文、ETag、时间范围缓存、墓碑
 - `sync_changes`：每次变更的序号日志，用于 sync-collection
 - `settings`：服务端设置
+- `task_lists`：任务清单（每个用户一个收集箱）
+- `tasks`：任务、备注、日期、优先级、标签、子任务与软删除标记
 
 ### 同步模型
 
@@ -384,6 +404,7 @@ go vet ./...
 - 时区属性、组件限制、extended MKCOL、管理员跨用户访问、改密后缓存失效
 - GORM 数据层事务与同步日志
 - 管理后台登录、CSRF、用户/日历/事件 CRUD（JSON API）
+- 任务清单/任务 CRUD、智能视图计数、完成/删除、快速添加解析
 - Vue SPA 路由回退与静态资源嵌入
 
 ## 安全说明
@@ -399,6 +420,9 @@ go vet ./...
 
 ## 已知限制
 
+- 任务工作台的数据暂未映射为 CalDAV `VTODO` 对象，因此不会自动同步到手机端日历/待办应用；日历视图展示的是任务自身的到期日，与 CalDAV 事件相互独立。
+- 任务智能视图的“今天”边界使用服务端默认时区 `Asia/Shanghai`；快速添加会按浏览器的时区解析自然语言日期。
+- 任务工作台仅管理员可用，且只展示当前登录管理员自己的任务。
 - 不实现 CardDAV（联系人）。
 - 不实现 RFC 6638 日程邀请/调度（iTIP/iMIP）、scheduling inbox/outbox。
 - 不实现 WebDAV 锁（LOCK/UNLOCK）与细粒度 ACL；权限模型为“所有者读写，管理员全权”。

@@ -6,6 +6,7 @@ import router from './router'
 import { bootstrapAuth } from './auth'
 import { setUnauthorizedHandler } from './api'
 import './styles.css'
+import './tasks.css'
 
 setUnauthorizedHandler(() => {
   if (router.currentRoute.value.name !== 'login') {

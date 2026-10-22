@@ -1,0 +1,117 @@
+<template>
+  <svg
+    class="tw-ico"
+    :width="size"
+    :height="size"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.7"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <template v-if="name === 'list'">
+      <path d="M4 6.5h16M4 12h16M4 17.5h10" />
+      <circle cx="18.6" cy="17.5" r="1.6" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'board'">
+      <rect x="3.5" y="4.5" width="5" height="15" rx="1.5" />
+      <rect x="10" y="4.5" width="5" height="10" rx="1.5" />
+      <rect x="16.5" y="4.5" width="4" height="13" rx="1.5" />
+    </template>
+    <template v-else-if="name === 'calendar'">
+      <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 9.5h17M8 3.5v4M16 3.5v4" />
+    </template>
+    <template v-else-if="name === 'search'">
+      <circle cx="10.8" cy="10.8" r="6.3" />
+      <path d="m15.4 15.4 4.1 4.1" />
+    </template>
+    <template v-else-if="name === 'inbox'">
+      <path d="M4 5.5h16l1.4 8.2a2 2 0 0 1-2 2.3h-3.1l-1.6 2.2H9.3l-1.6-2.2H4.6a2 2 0 0 1-2-2.3L4 5.5Z" />
+    </template>
+    <template v-else-if="name === 'today'">
+      <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 9.5h17M8 3.5v4M16 3.5v4" />
+      <path d="M9 13.5h2.5v4" />
+    </template>
+    <template v-else-if="name === 'next7'">
+      <path d="M4.5 7.5h11a4 4 0 0 1 4 4v5" />
+      <path d="m16.5 13.5 3 3 3-3" />
+      <path d="M4.5 12h7M4.5 16.5h5" />
+    </template>
+    <template v-else-if="name === 'check'">
+      <path d="m4.5 12.5 5 5 10-11" />
+    </template>
+    <template v-else-if="name === 'plus'">
+      <path d="M12 4.5v15M4.5 12h15" />
+    </template>
+    <template v-else-if="name === 'close'">
+      <path d="m5.5 5.5 13 13M18.5 5.5l-13 13" />
+    </template>
+    <template v-else-if="name === 'trash'">
+      <path d="M4.5 6.5h15M9.5 6.5v-2h5v2M6.5 6.5l1 13h9l1-13M10 10v6M14 10v6" />
+    </template>
+    <template v-else-if="name === 'edit'">
+      <path d="M4.5 19.5h4l10-10a2.1 2.1 0 0 0-3-3l-10 10v3Z" />
+      <path d="m13.5 6.5 3 3" />
+    </template>
+    <template v-else-if="name === 'more'">
+      <circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'sun'">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6" />
+    </template>
+    <template v-else-if="name === 'moon'">
+      <path d="M20 14.5A8.2 8.2 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" />
+    </template>
+    <template v-else-if="name === 'settings'">
+      <circle cx="12" cy="12" r="8.1" stroke-dasharray="2.4 2.2" />
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M12 3.9v1.6M12 18.5v1.6M3.9 12h1.6M18.5 12h1.6" />
+    </template>
+    <template v-else-if="name === 'back'">
+      <path d="M14.5 5.5 8 12l6.5 6.5" />
+    </template>
+    <template v-else-if="name === 'chevron'">
+      <path d="m8.5 5.5 6.5 6.5-6.5 6.5" />
+    </template>
+    <template v-else-if="name === 'clock'">
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M12 7.5V12l3 1.8" />
+    </template>
+    <template v-else-if="name === 'note'">
+      <rect x="4.5" y="4" width="15" height="16" rx="2.5" />
+      <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4" />
+    </template>
+    <template v-else-if="name === 'tag'">
+      <path d="M4 4.5h7.2l8.3 8.3a2 2 0 0 1 0 2.8l-4 4a2 2 0 0 1-2.8 0L4.5 11.3V4.5Z" />
+      <circle cx="8.2" cy="8.2" r="1.2" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'flag'">
+      <path d="M6 20.5V4.5h9.5l-1.5 3.8 1.5 3.7H6" />
+    </template>
+    <template v-else-if="name === 'drag'">
+      <circle cx="9" cy="7" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="7" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="9" cy="17" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="17" r="1.2" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="name === 'sunrise'">
+      <path d="M4 18h16M6.5 14a5.5 5.5 0 0 1 11 0M12 4v3M4.8 8.2l1.8 1.8M19.2 8.2l-1.8 1.8" />
+    </template>
+    <template v-else>
+      <path d="m4.5 12.5 5 5 10-11" />
+    </template>
+  </svg>
+</template>
+
+<script setup lang="ts">
+withDefaults(defineProps<{ name: string; size?: number }>(), { size: 18 })
+</script>

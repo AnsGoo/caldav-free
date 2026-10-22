@@ -104,7 +104,10 @@
               <span class="color-dot" :style="{ background: calendar.color || '#3366CC' }" />
               <span class="calendar-tile-body">
                 <strong>{{ calendar.displayName || calendar.slug }}</strong>
-                <small>{{ calendar.slug }} · {{ calendar.eventCount || 0 }} 个事件</small>
+                <small>
+                  {{ calendar.slug }} · {{ calendar.eventCount || 0 }} 个对象
+                  <template v-if="calendar.slug === 'caldav-tasks'"> · 任务同步</template>
+                </small>
               </span>
               <span class="tile-arrow">→</span>
             </button>

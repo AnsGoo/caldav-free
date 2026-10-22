@@ -22,6 +22,7 @@ import (
 	"caldav-free/internal/dav"
 	"caldav-free/internal/ical"
 	"caldav-free/internal/store"
+	"caldav-free/internal/tasksync"
 )
 
 //go:embed templates/*.html
@@ -53,6 +54,7 @@ type Server struct {
 	externalURL string
 	// CalDAVURL is the public CalDAV base URL shown to administrators.
 	CalDAVURL string
+	taskSync  *tasksync.Syncer
 }
 
 // New creates the admin web server. externalURL may be empty to derive URLs
@@ -97,6 +99,7 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 		sessions:    newSessionStore(),
 		limiter:     newLoginLimiter(),
 		externalURL: strings.TrimRight(externalURL, "/"),
+		taskSync:    tasksync.New(st),
 	}, nil
 }
 

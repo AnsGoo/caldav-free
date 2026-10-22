@@ -300,6 +300,12 @@ func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 				return err
 			}
 		}
+		if err := tx.Where("user_id = ?", id).Delete(&Task{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", id).Delete(&TaskList{}).Error; err != nil {
+			return err
+		}
 		res := tx.Delete(&User{}, id)
 		if res.Error != nil {
 			return res.Error

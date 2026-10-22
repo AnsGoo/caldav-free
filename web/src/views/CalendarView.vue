@@ -230,7 +230,18 @@
                 <div><dt>创建时间</dt><dd>{{ formatDate(detail.calendar.createdAt) }}</dd></div>
                 <div><dt>同步序号</dt><dd>#{{ detail.calendar.syncSeq }}</dd></div>
               </dl>
-              <a-button status="danger" long class="danger-button" @click="removeCalendar">删除日历</a-button>
+              <a-button
+                status="danger"
+                long
+                class="danger-button"
+                :disabled="detail.calendar.slug === 'caldav-tasks'"
+                @click="removeCalendar"
+              >
+                删除日历
+              </a-button>
+              <p v-if="detail.calendar.slug === 'caldav-tasks'" class="muted" style="margin-top: 8px; font-size: 12px">
+                该日历由任务工作台维护，用于同步 VTODO，不能在这里删除。
+              </p>
             </a-card>
           </aside>
         </section>

@@ -97,6 +97,10 @@
     </div>
 
     <footer class="tw-side-foot">
+      <p class="tw-sync-note" title="任务会写入自动创建的 VTODO 日历并同步到 CalDAV 客户端">
+        <TaskIcon name="check" :size="13" />
+        CalDAV VTODO 同步
+      </p>
       <router-link class="tw-side-link" to="/">
         <TaskIcon name="back" :size="16" />
         <span>管理后台</span>

@@ -1,8 +1,14 @@
 package web
 
 import (
+	"context"
 	"net/http"
+	"strings"
 	"testing"
+
+	"caldav-free/internal/ical"
+	"caldav-free/internal/store"
+	"caldav-free/internal/tasksync"
 )
 
 type taskResponse struct {
@@ -184,5 +190,80 @@ func TestTaskAPIValidation(t *testing.T) {
 	status, _ = env.request(t, "POST", "/api/admin/tasks", map[string]any{"title": "没有 CSRF"}, "")
 	if status != http.StatusForbidden {
 		t.Fatalf("csrf = %d, want 403", status)
+	}
+}
+
+func TestTaskAPICalDAVSync(t *testing.T) {
+	env := newAPIEnv(t)
+	ctx := context.Background()
+
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "本地任务", "priority": 2,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create task = %d: %s", status, body)
+	}
+	created := decode[taskResponse](t, body)
+
+	cal, err := env.store.GetCalendarBySlug(ctx, env.userID, tasksync.CalendarSlug)
+	if err != nil {
+		t.Fatalf("task calendar: %v", err)
+	}
+	stored, err := env.store.GetTask(ctx, env.userID, created.Task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.VTODOUID == "" || stored.VTODOHref == "" {
+		t.Fatalf("task has no caldav identity: %+v", stored)
+	}
+	obj, err := env.store.GetObject(ctx, cal.ID, stored.VTODOHref)
+	if err != nil {
+		t.Fatalf("VTODO object missing: %v", err)
+	}
+	if !strings.Contains(string(obj.Data), "SUMMARY:本地任务") {
+		t.Fatalf("unexpected VTODO: %s", obj.Data)
+	}
+
+	// A VTODO written by a CalDAV client is imported on the next workspace load.
+	root := ical.NewComponent("VCALENDAR")
+	root.AddProp("VERSION", "2.0", nil)
+	root.AddProp("PRODID", "-//test//EN", nil)
+	todo := ical.NewComponent("VTODO")
+	todo.AddProp("UID", "dav-client@example.test", nil)
+	todo.AddProp("SUMMARY", "来自客户端的任务", nil)
+	todo.AddProp("STATUS", "NEEDS-ACTION", nil)
+	root.AddChild(todo)
+	data := []byte(root.Encode())
+	external := &store.Object{
+		CalendarID: cal.ID, Href: "dav-client.ics", UID: "dav-client@example.test",
+		ETag: "external-etag", ContentType: "text/calendar; charset=utf-8", Data: data,
+		ComponentType: "VTODO", Size: int64(len(data)),
+	}
+	if _, _, _, err := env.store.PutObject(ctx, external); err != nil {
+		t.Fatal(err)
+	}
+
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=all", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("workspace = %d: %s", status, body)
+	}
+	workspace := decode[workspaceResponse](t, body)
+	found := false
+	for _, task := range workspace.Tasks {
+		if task.Title == "来自客户端的任务" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("external task not imported: %+v", workspace.Tasks)
+	}
+
+	// Deleting locally removes the VTODO so it cannot be re-imported.
+	status, body = env.request(t, "DELETE", "/api/admin/tasks/"+itoa(created.Task.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete task = %d: %s", status, body)
+	}
+	if _, err := env.store.GetObject(ctx, cal.ID, stored.VTODOHref); err != store.ErrNotFound {
+		t.Fatalf("object still present after delete: %v", err)
 	}
 }

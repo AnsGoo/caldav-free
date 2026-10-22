@@ -193,6 +193,9 @@ func parseTaskDue(raw, tz string, allDay bool) (*time.Time, bool, bool) {
 
 func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	ctx := r.Context()
+	if err := s.taskSync.Sync(ctx, current.ID); err != nil {
+		s.logger.Warn("sync task workspace", "user", current.Username, "error", err)
+	}
 	inbox, err := s.store.EnsureInbox(ctx, current.ID)
 	if err != nil {
 		s.apiServerError(w, err)
@@ -356,6 +359,9 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := s.taskSync.PushTask(ctx, current.ID, created); err != nil {
+		s.logger.Warn("push task to caldav", "user", current.Username, "task", created.ID, "error", err)
+	}
 	list, _ := s.store.GetTaskList(ctx, current.ID, created.ListID)
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"task": apiTaskDTO(created, list)})
 }
@@ -445,6 +451,9 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
+		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
+	}
 	list, _ := s.store.GetTaskList(ctx, current.ID, task.ListID)
 	writeAPIJSON(w, http.StatusOK, map[string]any{"task": apiTaskDTO(task, list)})
 }
@@ -455,7 +464,19 @@ func (s *Server) apiDeleteTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusNotFound, "任务不存在")
 		return
 	}
-	if err := s.store.DeleteTask(r.Context(), current.ID, id); err != nil {
+	ctx := r.Context()
+	task, err := s.store.GetTask(ctx, current.ID, id)
+	if err != nil {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	// Remove the VTODO first: a stale object without a task would otherwise be
+	// imported as a brand new task on the next sync.
+	if err := s.taskSync.DeleteTask(ctx, current.ID, task); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	if err := s.store.DeleteTask(ctx, current.ID, id); err != nil {
 		s.apiServerError(w, err)
 		return
 	}
@@ -522,6 +543,9 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
+		s.logger.Warn("sync task workspace", "user", current.Username, "error", err)
+	}
 	updated, _ := s.store.GetTaskList(r.Context(), current.ID, id)
 	count, _ := s.store.CountTasksInList(r.Context(), current.ID, id)
 	writeAPIJSON(w, http.StatusOK, map[string]any{"list": apiTaskListDTO(updated, count)})
@@ -540,6 +564,9 @@ func (s *Server) apiDeleteTaskList(w http.ResponseWriter, r *http.Request, curre
 		}
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
+		s.logger.Warn("sync task workspace", "user", current.Username, "error", err)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

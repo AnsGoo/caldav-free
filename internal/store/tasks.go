@@ -41,7 +41,13 @@ type Task struct {
 	Tags        StringList `gorm:"not null"`
 	Checklist   string     `gorm:"type:text;not null;default:''"`
 	Order       int        `gorm:"column:order_index;not null;default:0"`
-	Deleted     bool       `gorm:"not null;default:false;index:idx_task_deleted"`
+	// VTODO fields link a task to its CalDAV object. SyncPending is set on
+	// local changes and cleared once the VTODO has been written.
+	VTODOUID    string `gorm:"column:vtodo_uid;size:255;not null;default:'';index:idx_task_vtodo_uid"`
+	VTODOHref   string `gorm:"column:vtodo_href;size:255;not null;default:''"`
+	VTODOETag   string `gorm:"column:vtodo_etag;size:64;not null;default:''"`
+	SyncPending bool   `gorm:"column:sync_pending;not null;default:false"`
+	Deleted     bool   `gorm:"not null;default:false;index:idx_task_deleted"`
 	DeletedAt   *time.Time
 	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime"`
@@ -156,6 +162,14 @@ func (s *Store) UpdateTaskList(ctx context.Context, userID, id int64, name, colo
 		}
 		return fmt.Errorf("update task list: %w", err)
 	}
+	if name != list.Name {
+		// The list name is mirrored into each VTODO.
+		if err := s.db.WithContext(ctx).Model(&Task{}).
+			Where("user_id = ? AND list_id = ? AND deleted = ?", userID, id, false).
+			Update("sync_pending", true).Error; err != nil {
+			return fmt.Errorf("mark tasks for sync: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -175,7 +189,7 @@ func (s *Store) DeleteTaskList(ctx context.Context, userID, id int64) error {
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&Task{}).Where("user_id = ? AND list_id = ? AND deleted = ?", userID, id, false).
-			Update("list_id", inbox.ID).Error; err != nil {
+			Updates(map[string]any{"list_id": inbox.ID, "sync_pending": true}).Error; err != nil {
 			return fmt.Errorf("move tasks to inbox: %w", err)
 		}
 		if err := tx.Where("id = ? AND user_id = ?", id, userID).Delete(&TaskList{}).Error; err != nil {
@@ -329,10 +343,11 @@ func (s *Store) CreateTask(ctx context.Context, task *Task) (*Task, error) {
 	if task.Priority < 0 || task.Priority > 3 {
 		return nil, errors.New("invalid priority")
 	}
-	if task.Completed {
+	if task.Completed && task.CompletedAt == nil {
 		now := time.Now().UTC()
 		task.CompletedAt = &now
 	}
+	task.SyncPending = true
 	normalizeTaskTimes(task)
 	if err := s.db.WithContext(ctx).Create(task).Error; err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
@@ -358,6 +373,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	if !task.Completed {
 		task.CompletedAt = nil
 	}
+	task.SyncPending = true
 	normalizeTaskTimes(task)
 	updates := map[string]any{
 		"list_id":      task.ListID,
@@ -425,4 +441,78 @@ func (s *Store) PurgeCompletedTasks(ctx context.Context, userID int64) (int64, e
 		return 0, fmt.Errorf("purge completed tasks: %w", result.Error)
 	}
 	return result.RowsAffected, nil
+}
+
+// ListAllTasks returns every live task for a user, used by CalDAV sync.
+func (s *Store) ListAllTasks(ctx context.Context, userID int64, limit int) ([]*Task, error) {
+	if limit <= 0 || limit > 5000 {
+		limit = 2000
+	}
+	var tasks []*Task
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND deleted = ?", userID, false).
+		Order("id ASC").
+		Limit(limit).Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("list all tasks: %w", err)
+	}
+	return tasks, nil
+}
+
+// GetTaskByVTODOUID finds a live task by its CalDAV UID.
+func (s *Store) GetTaskByVTODOUID(ctx context.Context, userID int64, uid string) (*Task, error) {
+	var task Task
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND vtodo_uid = ? AND deleted = ?", userID, uid, false).
+		First(&task).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get task by vtodo uid: %w", err)
+	}
+	return &task, nil
+}
+
+// SetTaskSyncIdentity persists a newly generated CalDAV identity without
+// clearing the pending flag, so a retry reuses the same UID and href.
+func (s *Store) SetTaskSyncIdentity(ctx context.Context, userID, id int64, uid, href string) error {
+	res := s.db.WithContext(ctx).Model(&Task{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]any{"vtodo_uid": uid, "vtodo_href": href})
+	if res.Error != nil {
+		return fmt.Errorf("set task sync identity: %w", res.Error)
+	}
+	return nil
+}
+
+// SetTaskSync records the CalDAV identity of a task and clears the pending
+// flag. It intentionally does not touch calendar-facing task fields.
+func (s *Store) SetTaskSync(ctx context.Context, userID, id int64, uid, href, etag string) error {
+	res := s.db.WithContext(ctx).Model(&Task{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]any{
+			"vtodo_uid":    uid,
+			"vtodo_href":   href,
+			"vtodo_etag":   etag,
+			"sync_pending": false,
+		})
+	if res.Error != nil {
+		return fmt.Errorf("set task sync: %w", res.Error)
+	}
+	return nil
+}
+
+// ListDeletedObjects returns tombstoned objects so the sync layer can detect
+// deletions made by CalDAV clients.
+func (s *Store) ListDeletedObjects(ctx context.Context, calendarID int64) ([]*Object, error) {
+	var objects []*Object
+	err := s.db.WithContext(ctx).
+		Where("calendar_id = ? AND deleted = ?", calendarID, true).
+		Order("modified_at DESC").
+		Limit(2000).Find(&objects).Error
+	if err != nil {
+		return nil, fmt.Errorf("list deleted objects: %w", err)
+	}
+	return objects, nil
 }

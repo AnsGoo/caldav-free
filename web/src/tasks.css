@@ -2191,3 +2191,12 @@
     font-size: 13px;
   }
 }
+
+.tw-sync-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  font-size: 11px;
+  color: var(--tw-text-3);
+}

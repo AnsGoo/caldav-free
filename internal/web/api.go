@@ -12,6 +12,7 @@ import (
 	"caldav-free/internal/auth"
 	"caldav-free/internal/ical"
 	"caldav-free/internal/store"
+	"caldav-free/internal/tasksync"
 )
 
 // ---------------------------------------------------------------- API plumbing
@@ -669,6 +670,15 @@ func (s *Server) apiDeleteCalendar(w http.ResponseWriter, r *http.Request, _ *st
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeAPIError(w, http.StatusNotFound, "日历不存在")
+		return
+	}
+	cal, err := s.store.GetCalendar(r.Context(), id)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "日历不存在")
+		return
+	}
+	if cal.Slug == tasksync.CalendarSlug {
+		writeAPIError(w, http.StatusConflict, "任务同步日历由任务工作台维护，不能删除")
 		return
 	}
 	if err := s.store.DeleteCalendar(r.Context(), id); err != nil {

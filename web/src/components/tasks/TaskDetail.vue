@@ -159,7 +159,7 @@
         <TaskIcon name="trash" :size="14" />
         删除任务
       </button>
-      <span class="tw-foot-hint">自动保存</span>
+      <span class="tw-foot-hint">自动保存 · 同步 CalDAV</span>
     </footer>
   </section>
 </template>

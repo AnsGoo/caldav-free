@@ -180,7 +180,7 @@ const creatingCalendar = ref(false)
 const calendarForm = reactive({
   slug: '',
   displayName: '',
-  timezone: 'UTC',
+  timezone: 'Asia/Shanghai',
   color: '#3366CC',
   components: ['VEVENT', 'VTODO', 'VJOURNAL'] as string[],
 })
@@ -219,7 +219,7 @@ async function saveProfile() {
 function openCalendar() {
   calendarForm.slug = ''
   calendarForm.displayName = ''
-  calendarForm.timezone = 'UTC'
+  calendarForm.timezone = 'Asia/Shanghai'
   calendarForm.color = '#3366CC'
   calendarForm.components = ['VEVENT', 'VTODO', 'VJOURNAL']
   calendarVisible.value = true

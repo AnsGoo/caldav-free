@@ -67,6 +67,33 @@ func TestUserLifecycle(t *testing.T) {
 	}
 }
 
+func TestDefaultCalendarTimezone(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("password123")
+	u, err := s.CreateUser(ctx, "alice", "", "", hash, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cal, err := s.CreateCalendar(ctx, u.ID, "work", "Work", "", "", "", 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cal.Timezone != DefaultTimezone {
+		t.Fatalf("default timezone = %q, want %q", cal.Timezone, DefaultTimezone)
+	}
+	if err := s.UpdateCalendar(ctx, cal.ID, "Work", "", "", "", 0, nil); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := s.GetCalendar(ctx, cal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Timezone != DefaultTimezone {
+		t.Fatalf("updated default timezone = %q, want %q", updated.Timezone, DefaultTimezone)
+	}
+}
+
 func TestCalendarAndObjectLifecycle(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()

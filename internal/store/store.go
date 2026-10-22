@@ -18,6 +18,9 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// DefaultTimezone is used for calendars that do not specify a timezone.
+const DefaultTimezone = "Asia/Shanghai"
+
 var (
 	// ErrNotFound is returned when a requested record does not exist.
 	ErrNotFound = errors.New("not found")
@@ -337,7 +340,7 @@ func (s *Store) CreateCalendar(ctx context.Context, userID int64, slug, displayN
 		return nil, errors.New("calendar slug is required")
 	}
 	if timezone == "" {
-		timezone = "UTC"
+		timezone = DefaultTimezone
 	}
 	if len(components) == 0 {
 		components = []string{"VEVENT", "VTODO", "VJOURNAL"}
@@ -396,7 +399,7 @@ func (s *Store) ListCalendars(ctx context.Context, userID int64) ([]*Calendar, e
 // UpdateCalendar updates editable calendar properties.
 func (s *Store) UpdateCalendar(ctx context.Context, id int64, displayName, description, color, timezone string, order int, components []string) error {
 	if timezone == "" {
-		timezone = "UTC"
+		timezone = DefaultTimezone
 	}
 	if len(components) == 0 {
 		components = []string{"VEVENT", "VTODO", "VJOURNAL"}

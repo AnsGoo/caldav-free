@@ -546,7 +546,7 @@ func (s *Server) apiCreateCalendar(w http.ResponseWriter, r *http.Request, _ *st
 	}
 	timezone := strings.TrimSpace(body.Timezone)
 	if timezone == "" {
-		timezone = "UTC"
+		timezone = store.DefaultTimezone
 	}
 	canonical, ok := ical.CanonicalTZID(timezone)
 	if !ok {
@@ -885,7 +885,11 @@ func principalPath(username string) string {
 func calendarLocation(tz string) (*time.Location, string) {
 	loc, err := time.LoadLocation(tz)
 	if err != nil || tz == "" {
-		return time.UTC, "UTC"
+		loc, err = time.LoadLocation(store.DefaultTimezone)
+		if err != nil {
+			return time.UTC, "UTC"
+		}
+		return loc, store.DefaultTimezone
 	}
 	return loc, tz
 }

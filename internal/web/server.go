@@ -729,8 +729,8 @@ func (s *Server) handleCalendar(w http.ResponseWriter, r *http.Request) {
 
 func timezones() []string {
 	base := []string{
-		"UTC",
 		"Asia/Shanghai",
+		"UTC",
 		"Asia/Hong_Kong",
 		"Asia/Taipei",
 		"Asia/Tokyo",
@@ -882,7 +882,7 @@ func (s *Server) handleCreateCalendar(w http.ResponseWriter, r *http.Request) {
 	displayName := strings.TrimSpace(r.FormValue("display_name"))
 	timezone := strings.TrimSpace(r.FormValue("timezone"))
 	if timezone == "" {
-		timezone = "UTC"
+		timezone = store.DefaultTimezone
 	}
 	if canonical, ok := ical.CanonicalTZID(timezone); ok {
 		timezone = canonical
@@ -1001,8 +1001,13 @@ func (s *Server) handleCreateEvent(w http.ResponseWriter, r *http.Request) {
 	loc, err := time.LoadLocation(cal.Timezone)
 	tzid := cal.Timezone
 	if err != nil || tzid == "" {
-		loc = time.UTC
-		tzid = "UTC"
+		loc, err = time.LoadLocation(store.DefaultTimezone)
+		if err != nil {
+			loc = time.UTC
+			tzid = "UTC"
+		} else {
+			tzid = store.DefaultTimezone
+		}
 	}
 	allDay := r.FormValue("all_day") == "on"
 	summary := strings.TrimSpace(r.FormValue("summary"))

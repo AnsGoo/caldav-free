@@ -1,0 +1,75 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Backend: Go (debug)",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "program": "${workspaceFolder}/cmd/caldav-free",
+      "cwd": "${workspaceFolder}",
+      "args": [
+        "-addr",
+        "127.0.0.1:5232",
+        "-data",
+        "${workspaceFolder}/data",
+        "-admin-user",
+        "admin",
+        "-admin-pass",
+        "admin",
+        "-external-url",
+        "http://127.0.0.1:5232",
+        "-caldav-url",
+        "http://127.0.0.1:5232",
+        "-debug"
+      ],
+      "console": "integratedTerminal",
+      "showLog": true
+    },
+    {
+      "name": "Frontend only: Chrome (backend required)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5175/admin/",
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true,
+      "pathMapping": {
+        "/": "${workspaceFolder}/web"
+      },
+      "preLaunchTask": "web: dev"
+    },
+    {
+      "name": "Full stack: Run (recommended)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5175/admin/",
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true,
+      "pathMapping": {
+        "/": "${workspaceFolder}/web"
+      },
+      "preLaunchTask": "dev: stack"
+    },
+    {
+      "name": "Frontend: Chrome (existing Vite)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5175/admin/",
+      "webRoot": "${workspaceFolder}/web",
+      "sourceMaps": true,
+      "pathMapping": {
+        "/": "${workspaceFolder}/web"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack: Backend + Chrome",
+      "configurations": [
+        "Backend: Go (debug)",
+        "Frontend only: Chrome (backend required)"
+      ],
+      "stopAll": true
+    }
+  ]
+}

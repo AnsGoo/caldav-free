@@ -80,7 +80,7 @@ func calendarValuesFrom(cal *store.Calendar) calendarValues {
 func defaultCalendarValues(slug string) calendarValues {
 	return calendarValues{
 		DisplayName: slug,
-		Timezone:    "UTC",
+		Timezone:    store.DefaultTimezone,
 		Components:  []string{"VEVENT", "VTODO", "VJOURNAL"},
 	}
 }
@@ -118,7 +118,7 @@ func applyCalendarChanges(base calendarValues, changes []propChange) (calendarVa
 			out.Order = n
 		case (name.Space == nsCalDAV || name.Space == "") && local == "calendar-timezone":
 			if change.Remove || strings.TrimSpace(value) == "" {
-				out.Timezone = "UTC"
+				out.Timezone = store.DefaultTimezone
 				out.TimezoneData = ""
 				continue
 			}

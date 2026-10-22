@@ -28,6 +28,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - Vue 3 + Vite+ + Arco Design Vue 单页应用，Go `embed` 进单个二进制
 - 用户创建、资料修改、密码重置、管理员权限、删除
 - 日历创建、颜色、排序、时区、描述、组件类型、删除
+- 新建日历时区默认 `Asia/Shanghai`（东八区），已有日历保持原时区
 - 事件列表、创建（含重复规则与全天事件）、原始 ICS 编辑、查看源码、删除
 - 控制台统计、客户端接入地址一键复制
 - JSON API + HttpOnly/SameSite 会话、CSRF、CSP、登录限速
@@ -81,7 +82,7 @@ make run            # 本地启动
 
 ```bash
 cd web
-npm run dev         # Vite+ dev server，/api 代理到 127.0.0.1:5232
+npm run dev         # Vite+ dev server: http://localhost:5175/admin/
 ```
 
 静态二进制（无 CGO）：

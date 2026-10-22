@@ -286,7 +286,7 @@ const settings = reactive({
   description: '',
   color: '#3366CC',
   order: 0,
-  timezone: 'UTC',
+  timezone: 'Asia/Shanghai',
   components: [] as string[],
 })
 

@@ -161,6 +161,13 @@ export function createTaskComment(taskId: number, body: string) {
   })
 }
 
+export function updateTaskComment(taskId: number, commentId: number, body: string) {
+  return api<{ comment: TaskComment }>(`/tasks/${taskId}/comments/${commentId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ body }),
+  })
+}
+
 export function deleteTaskComment(taskId: number, commentId: number) {
   return api<void>(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' })
 }

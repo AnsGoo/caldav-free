@@ -23,7 +23,9 @@ type apiTaskComment struct {
 	DisplayName string                 `json:"displayName"`
 	Body        string                 `json:"body"`
 	CreatedAt   string                 `json:"createdAt"`
+	EditedAt    string                 `json:"editedAt,omitempty"`
 	CanDelete   bool                   `json:"canDelete"`
+	CanEdit     bool                   `json:"canEdit"`
 	Attachments []apiCommentAttachment `json:"attachments"`
 }
 
@@ -71,7 +73,7 @@ func (s *Server) apiTaskComments(w http.ResponseWriter, r *http.Request, current
 		ID: comment.ID, TaskID: comment.TaskID, UserID: current.ID,
 		Username: current.Username, DisplayName: current.DisplayName,
 		Body: comment.Body, CreatedAt: comment.CreatedAt.Format(time.RFC3339),
-		CanDelete: true, Attachments: []apiCommentAttachment{},
+		CanDelete: true, CanEdit: true, Attachments: []apiCommentAttachment{},
 	}})
 }
 
@@ -98,15 +100,71 @@ func (s *Server) writeTaskComments(w http.ResponseWriter, r *http.Request, curre
 		if attachments == nil {
 			attachments = []apiCommentAttachment{}
 		}
+		editedAt := ""
+		if comment.EditedAt != nil {
+			editedAt = comment.EditedAt.Format(time.RFC3339)
+		}
 		rows = append(rows, apiTaskComment{
 			ID: comment.ID, TaskID: comment.TaskID, UserID: comment.UserID,
 			Username: comment.Username, DisplayName: comment.DisplayName,
-			Body: comment.Body, CreatedAt: comment.CreatedAt.Format(time.RFC3339),
+			Body: comment.Body, CreatedAt: comment.CreatedAt.Format(time.RFC3339), EditedAt: editedAt,
 			CanDelete:   comment.UserID == current.ID || access.List.UserID == current.ID,
+			CanEdit:     comment.UserID == current.ID,
 			Attachments: attachments,
 		})
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"comments": rows})
+}
+
+func (s *Server) apiUpdateTaskComment(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	taskID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "任务不存在")
+		return
+	}
+	commentID, err := strconv.ParseInt(r.PathValue("commentId"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "评论不存在")
+		return
+	}
+	if _, err := s.store.GetTaskAccess(r.Context(), current.ID, taskID); err != nil {
+		writeAPIError(w, http.StatusNotFound, "任务不存在")
+		return
+	}
+	var body struct {
+		Body string `json:"body"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	text := strings.TrimSpace(body.Body)
+	if text == "" {
+		writeAPIError(w, http.StatusBadRequest, "评论不能为空")
+		return
+	}
+	if utf8.RuneCountInString(text) > 4000 {
+		writeAPIError(w, http.StatusBadRequest, "评论最多 4000 字")
+		return
+	}
+	comment, err := s.store.UpdateTaskComment(r.Context(), taskID, commentID, current.ID, text)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusForbidden, "只能编辑自己的评论")
+			return
+		}
+		s.apiServerError(w, err)
+		return
+	}
+	editedAt := ""
+	if comment.EditedAt != nil {
+		editedAt = comment.EditedAt.Format(time.RFC3339)
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"comment": apiTaskComment{
+		ID: comment.ID, TaskID: comment.TaskID, UserID: current.ID,
+		Username: current.Username, DisplayName: current.DisplayName,
+		Body: comment.Body, CreatedAt: comment.CreatedAt.Format(time.RFC3339), EditedAt: editedAt,
+		CanDelete: true, CanEdit: true, Attachments: []apiCommentAttachment{},
+	}})
 }
 
 func (s *Server) apiDeleteTaskComment(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {

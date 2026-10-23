@@ -5287,3 +5287,30 @@ button.tw-side-link {
   width: 20px;
   height: 20px;
 }
+
+.tw-comment-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 5px;
+}
+
+.tw-comment-edit-actions .tw-dialog-cancel,
+.tw-comment-edit-actions .tw-comment-send {
+  height: 24px;
+  font-size: 10.5px;
+}
+
+.tw-comment-image-link {
+  display: block;
+  max-width: 220px;
+  margin-top: 5px;
+}
+
+.tw-comment-image-link img {
+  max-width: 100%;
+  max-height: 160px;
+  border-radius: 7px;
+  border: 1px solid var(--tw-border);
+  object-fit: contain;
+}

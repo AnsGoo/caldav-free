@@ -214,7 +214,9 @@ export interface TaskComment {
   displayName: string
   body: string
   createdAt: string
+  editedAt?: string
   canDelete: boolean
+  canEdit: boolean
   attachments: CommentAttachment[]
 }
 

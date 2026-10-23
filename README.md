@@ -40,7 +40,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
 - 清单共享：按用户名把清单共享给其他管理员，可授予只读或编辑权限；编辑者可在共享清单中新建、修改、完成、删除和指派任务
 - 协作通知：任务被指派时生成站内通知，并尽力通过 Web Push / SMTP 邮件提醒被指派人
-- 任务评论：共享成员可评论，使用 `@用户名` 提及成员并触发站内/推送/邮件通知；评论支持附件（单文件最大 10MB）
+- 任务评论：共享成员可评论，使用 `@用户名` 提及成员并触发站内/推送/邮件通知；评论支持附件（单文件最大 10MB）、图片预览和作者编辑
 - 保存过滤器：按清单、标签、优先级、日期、状态、关键词组合筛选并命名保存
 - 标签管理：重命名或删除标签，变更会回写到所有任务与 VTODO `CATEGORIES`
 - 垃圾桶：删除后可恢复、单条彻底删除或清空垃圾桶
@@ -250,7 +250,7 @@ docker run -d --name caldav \
 | `/api/admin/notifications` | 站内通知列表与未读数 |
 | `/api/admin/notifications/read` | 单条或全部标记已读 |
 | `/api/admin/tasks/{id}/comments` | 任务评论列表与发表评论 |
-| `/api/admin/tasks/{id}/comments/{commentId}` | 删除评论 |
+| `/api/admin/tasks/{id}/comments/{commentId}` | 编辑/删除评论 |
 | `/api/admin/tasks/{id}/comments/{commentId}/attachments` | 上传评论附件 |
 | `/api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}` | 下载/删除评论附件 |
 | `/api/admin/task-folders` | 清单文件夹 CRUD |

@@ -12,10 +12,11 @@ import (
 // TaskComment is a comment attached to a task. Comments are workspace-only
 // and are not written to CalDAV.
 type TaskComment struct {
-	ID        int64     `gorm:"primaryKey"`
-	TaskID    int64     `gorm:"not null;index:idx_task_comment_task,priority:1"`
-	UserID    int64     `gorm:"not null;index:idx_task_comment_user"`
-	Body      string    `gorm:"type:text;not null"`
+	ID        int64  `gorm:"primaryKey"`
+	TaskID    int64  `gorm:"not null;index:idx_task_comment_task,priority:1"`
+	UserID    int64  `gorm:"not null;index:idx_task_comment_user"`
+	Body      string `gorm:"type:text;not null"`
+	EditedAt  *time.Time
 	CreatedAt time.Time `gorm:"not null;autoCreateTime;index:idx_task_comment_task,priority:2"`
 }
 
@@ -27,6 +28,7 @@ type TaskCommentView struct {
 	Username    string
 	DisplayName string
 	Body        string
+	EditedAt    *time.Time
 	CreatedAt   time.Time
 }
 
@@ -53,7 +55,7 @@ func (s *Store) ListTaskComments(ctx context.Context, taskID int64) ([]TaskComme
 		user := byID[comment.UserID]
 		view := TaskCommentView{
 			ID: comment.ID, TaskID: comment.TaskID, UserID: comment.UserID,
-			Body: comment.Body, CreatedAt: comment.CreatedAt,
+			Body: comment.Body, EditedAt: comment.EditedAt, CreatedAt: comment.CreatedAt,
 		}
 		if user != nil {
 			view.Username = user.Username
@@ -82,16 +84,36 @@ func (s *Store) GetTaskComment(ctx context.Context, taskID, id int64) (*TaskComm
 	return &comment, nil
 }
 
-// DeleteTaskComment removes a comment.
-func (s *Store) DeleteTaskComment(ctx context.Context, taskID, id int64) error {
-	res := s.db.WithContext(ctx).Where("id = ? AND task_id = ?", id, taskID).Delete(&TaskComment{})
+// UpdateTaskComment edits a comment body.
+func (s *Store) UpdateTaskComment(ctx context.Context, taskID, id, userID int64, body string) (*TaskComment, error) {
+	now := time.Now().UTC()
+	res := s.db.WithContext(ctx).Model(&TaskComment{}).
+		Where("id = ? AND task_id = ? AND user_id = ?", id, taskID, userID).
+		Updates(map[string]any{"body": body, "edited_at": now})
 	if res.Error != nil {
-		return fmt.Errorf("delete task comment: %w", res.Error)
+		return nil, fmt.Errorf("update task comment: %w", res.Error)
 	}
 	if res.RowsAffected == 0 {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
-	return nil
+	return s.GetTaskComment(ctx, taskID, id)
+}
+
+// DeleteTaskComment removes a comment and its attachments.
+func (s *Store) DeleteTaskComment(ctx context.Context, taskID, id int64) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("comment_id = ? AND task_id = ?", id, taskID).Delete(&CommentAttachment{}).Error; err != nil {
+			return fmt.Errorf("delete comment attachments: %w", err)
+		}
+		res := tx.Where("id = ? AND task_id = ?", id, taskID).Delete(&TaskComment{})
+		if res.Error != nil {
+			return fmt.Errorf("delete task comment: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
 }
 
 // TaskAccess describes how a user can reach a task.

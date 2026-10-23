@@ -229,7 +229,15 @@
             <div class="tw-comment-main">
               <div class="tw-comment-head">
                 <strong>{{ comment.displayName || comment.username }}</strong>
-                <small>{{ formatCommentTime(comment.createdAt) }}</small>
+                <small>{{ formatCommentTime(comment.createdAt) }}<template v-if="comment.editedAt"> · 已编辑</template></small>
+                <button
+                  v-if="!readonly && comment.canEdit && editingCommentId !== comment.id"
+                  class="tw-icon-button tw-comment-delete"
+                  title="编辑评论"
+                  @click="startEditComment(comment)"
+                >
+                  <TaskIcon name="edit" :size="12" />
+                </button>
                 <button
                   v-if="!readonly && comment.canDelete"
                   class="tw-icon-button tw-comment-delete"
@@ -239,8 +247,31 @@
                   <TaskIcon name="trash" :size="12" />
                 </button>
               </div>
-              <p>{{ comment.body }}</p>
+              <template v-if="editingCommentId === comment.id">
+                <textarea
+                  v-model="editingCommentText"
+                  class="tw-comment-input"
+                  rows="2"
+                  maxlength="4000"
+                />
+                <div class="tw-comment-edit-actions">
+                  <button class="tw-dialog-cancel" @click="cancelEditComment">取消</button>
+                  <button class="tw-comment-send" :disabled="!editingCommentText.trim()" @click="saveEditedComment(comment)">保存</button>
+                </div>
+              </template>
+              <p v-else>{{ comment.body }}</p>
               <div v-if="comment.attachments.length" class="tw-comment-attachments">
+                <template v-for="attachment in comment.attachments" :key="`img-${attachment.id}`">
+                  <a
+                    v-if="isImageAttachment(attachment)"
+                    :href="attachmentURL(comment, attachment)"
+                    target="_blank"
+                    rel="noopener"
+                    class="tw-comment-image-link"
+                  >
+                    <img :src="attachmentURL(comment, attachment)" :alt="attachment.filename" />
+                  </a>
+                </template>
                 <div v-for="attachment in comment.attachments" :key="attachment.id" class="tw-comment-attachment">
                   <a :href="attachmentURL(comment, attachment)" target="_blank" rel="noopener">
                     <TaskIcon name="download" :size="13" />
@@ -318,7 +349,7 @@ import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { ChecklistItem, CommentAttachment, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskComments, updateTask, uploadCommentAttachment } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; readonly?: boolean; listLocked?: boolean }>()
@@ -374,6 +405,8 @@ const commentBusy = ref(false)
 const commentText = ref('')
 const commentFiles = ref<File[]>([])
 const commentFileInput = ref<HTMLInputElement | null>(null)
+const editingCommentId = ref(0)
+const editingCommentText = ref('')
 let hydrating = true
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let lastSaved = ''
@@ -421,6 +454,8 @@ function hydrate() {
   saved.value = false
   commentText.value = ''
   commentFiles.value = []
+  editingCommentId.value = 0
+  editingCommentText.value = ''
   void loadComments()
   nextTick(() => {
     growTitle()
@@ -528,6 +563,33 @@ async function removeAttachment(comment: TaskComment, attachment: CommentAttachm
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '删除附件失败')
   }
+}
+
+function startEditComment(comment: TaskComment) {
+  editingCommentId.value = comment.id
+  editingCommentText.value = comment.body
+}
+
+function cancelEditComment() {
+  editingCommentId.value = 0
+  editingCommentText.value = ''
+}
+
+async function saveEditedComment(comment: TaskComment) {
+  const body = editingCommentText.value.trim()
+  if (!body) return
+  try {
+    const result = await updateTaskComment(props.task.id, comment.id, body)
+    const index = comments.value.findIndex((item) => item.id === comment.id)
+    if (index >= 0) comments.value[index] = { ...comments.value[index], ...result.comment, attachments: comments.value[index].attachments }
+    cancelEditComment()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '编辑评论失败')
+  }
+}
+
+function isImageAttachment(attachment: CommentAttachment) {
+  return attachment.contentType.startsWith('image/')
 }
 
 async function removeComment(comment: TaskComment) {

@@ -546,9 +546,19 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 评论中的 `@username` 只对清单成员生效；作者、所有者/编辑者可发表评论。被提及成员、任务所有者和指派人会收到通知。
 
+### PATCH /api/admin/tasks/{id}/comments/{commentId}
+
+评论作者编辑正文：
+
+```json
+{ "body": "更新后的评论" }
+```
+
+返回更新后的评论，并设置 `editedAt`。
+
 ### DELETE /api/admin/tasks/{id}/comments/{commentId}
 
-作者或清单所有者可删除，返回 `204`。
+作者或清单所有者可删除，返回 `204`，同时级联删除附件。
 
 ### POST /api/admin/tasks/{id}/comments/{commentId}/attachments
 

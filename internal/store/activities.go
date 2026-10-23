@@ -69,3 +69,19 @@ func (s *Store) ListTaskActivities(ctx context.Context, taskID int64, limit int)
 	}
 	return out, nil
 }
+
+func (s *Store) LatestTaskActivity(ctx context.Context, taskID, userID int64, kind string) (*TaskActivity, error) {
+	var activity TaskActivity
+	err := s.db.WithContext(ctx).
+		Where("task_id = ? AND user_id = ? AND type = ?", taskID, userID, kind).
+		Order("created_at DESC, id DESC").First(&activity).Error
+	if err != nil {
+		return nil, err
+	}
+	return &activity, nil
+}
+
+func (s *Store) UpdateTaskActivityDetail(ctx context.Context, id int64, detail string) error {
+	return s.db.WithContext(ctx).Model(&TaskActivity{}).Where("id = ?", id).
+		Update("detail", detail).Error
+}

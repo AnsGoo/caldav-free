@@ -547,6 +547,30 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"task": apiTaskDTO(created, list)})
 }
 
+func (s *Server) recordTaskUpdateActivity(ctx context.Context, taskID, userID int64, changed []string) {
+	detail := "修改了" + strings.Join(changed, "、")
+	if latest, err := s.store.LatestTaskActivity(ctx, taskID, userID, "update"); err == nil && time.Since(latest.CreatedAt) < 2*time.Minute {
+		labels := make(map[string]bool)
+		order := make([]string, 0, 8)
+		add := func(value string) {
+			for _, label := range strings.Split(strings.TrimPrefix(value, "修改了"), "、") {
+				label = strings.TrimSpace(label)
+				if label != "" && !labels[label] {
+					labels[label] = true
+					order = append(order, label)
+				}
+			}
+		}
+		add(latest.Detail)
+		add(detail)
+		if err := s.store.UpdateTaskActivityDetail(ctx, latest.ID, "修改了"+strings.Join(order, "、")); err != nil {
+			s.logger.Warn("merge task activity", "task", taskID, "error", err)
+		}
+		return
+	}
+	_ = s.store.CreateTaskActivity(ctx, taskID, userID, "update", detail)
+}
+
 func (s *Server) taskForWrite(ctx context.Context, current *store.User, id int64) (*store.Task, *store.TaskList, string, bool, error) {
 	task, err := s.store.GetTask(ctx, current.ID, id)
 	if err == nil {
@@ -721,7 +745,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		changed = append(changed, "日期")
 	}
 	if len(changed) > 0 {
-		_ = s.store.CreateTaskActivity(ctx, task.ID, current.ID, "update", "修改了"+strings.Join(changed, "、"))
+		s.recordTaskUpdateActivity(ctx, task.ID, current.ID, changed)
 	}
 	if !strings.EqualFold(previousAssignee, task.Assignee) {
 		detail := "取消指派"

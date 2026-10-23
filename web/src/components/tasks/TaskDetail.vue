@@ -1,21 +1,21 @@
 <template>
-  <section class="tw-detail">
+  <section class="tw-detail" :class="{ 'is-readonly': readonly }">
     <header class="tw-detail-head">
       <label class="tw-detail-list">
         <i :style="{ background: currentList?.color || '#4772fa' }" />
-        <select v-model.number="draft.listId" @change="save">
+        <select v-model.number="draft.listId" :disabled="readonly" @change="save">
           <option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</option>
         </select>
       </label>
       <div class="tw-detail-head-actions">
-        <span class="tw-save-state">{{ saving ? '保存中…' : saved ? '已保存' : '' }}</span>
+        <span class="tw-save-state">{{ readonly ? '只读共享' : saving ? '保存中…' : saved ? '已保存' : '' }}</span>
         <button class="tw-icon-button" title="关闭" @click="$emit('close')">
           <TaskIcon name="close" :size="18" />
         </button>
       </div>
     </header>
 
-    <div class="tw-detail-scroll">
+    <div class="tw-detail-scroll" :inert="readonly">
       <div class="tw-detail-title-row">
         <button
           class="tw-check tw-check-lg"
@@ -211,11 +211,11 @@
     </div>
 
     <footer class="tw-detail-foot">
-      <button class="tw-danger-link" @click="$emit('remove', task)">
+      <button v-if="!readonly" class="tw-danger-link" @click="$emit('remove', task)">
         <TaskIcon name="trash" :size="14" />
         删除任务
       </button>
-      <span class="tw-foot-hint">自动保存 · 同步 CalDAV</span>
+      <span class="tw-foot-hint">{{ readonly ? '共享清单 · 只读' : '自动保存 · 同步 CalDAV' }}</span>
     </footer>
   </section>
 </template>
@@ -228,7 +228,7 @@ import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, form
 import { updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ task: TaskItem; lists: TaskList[] }>()
+const props = defineProps<{ task: TaskItem; lists: TaskList[]; readonly?: boolean }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', task: TaskItem): void
@@ -458,6 +458,7 @@ async function save() {
 }
 
 function toggleCompleted() {
+  if (props.readonly) return
   draft.completed = !draft.completed
   void save()
 }
@@ -559,6 +560,6 @@ watch(
 
 onBeforeUnmount(() => {
   if (saveTimer) clearTimeout(saveTimer)
-  if (snapshotDraft() !== lastSaved) void save()
+  if (!props.readonly && snapshotDraft() !== lastSaved) void save()
 })
 </script>

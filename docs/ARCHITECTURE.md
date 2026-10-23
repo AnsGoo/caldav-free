@@ -43,6 +43,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_lists` | 清单；每用户一个收集箱；`folder_id` 归属文件夹 |
 | `tasks` | 任务、日期、重复、提醒、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
+| `task_list_shares` | 清单只读共享成员；list_id + user_id 唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
 | `reminder_deliveries` | 服务端提醒成功记录；任务 + 到期时间 + 偏移 + 通道唯一 |
@@ -191,7 +192,16 @@ name:   任务
 - 不保留历史实例。
 - `COUNT` / `UNTIL` 会以当前到期时间重新锚定。
 
-## 7. 提醒
+## 7. 清单共享
+
+- `task_list_shares` 记录 `list_id`、`owner_id`、`user_id`、`role`。
+- 当前只支持 `viewer`；共享接口本身只允许清单所有者操作。
+- 接收方通过 `/tasks/shared?listId=` 读取任务；后端重新校验共享关系，不提供写接口。
+- 共享任务保留所有者 `user_id`，因此 CalDAV 同步、提醒、统计仍归所有者。
+- 接收方侧栏显示“共享给我”，详情面板使用 `inert` 只读展示。
+- 删除清单或用户时清理对应共享记录。
+
+## 8. 提醒
 
 - 相对偏移写入 `reminder_offsets`（兼容字段 `reminder_offset` 保存最早的一个）。
 - 每个提醒生成一个 VTODO `VALARM`：
@@ -218,7 +228,7 @@ END:VALARM
 - Service Worker 位于 `/admin/sw.js`，通知点击后聚焦或打开对应任务。
 - 可通过 `CALDAV_REMINDERS=off` 关闭调度器；`CALDAV_PUSH_SUBJECT` 配置 VAPID 联系人。
 
-## 8. 日历事件
+## 9. 日历事件
 
 `GET /api/admin/tasks/calendar`：
 
@@ -234,9 +244,11 @@ END:VALARM
 - 月：任务 + 事件按天聚合
 - 周/日：全天行 + 24 小时时间网格，重叠项分列
 - 日程：未来 30 天分组
-- 事件只读，点击跳转事件编辑页
+- 工作台内打开结构化日程弹窗，支持新建、编辑、删除
+- 编辑重复事件修改整个系列；结构化更新会重建 VEVENT 标准字段
+- 原始 ICS 仍可在管理后台事件编辑页修改
 
-## 9. 统计
+## 10. 统计
 
 `ComputeTaskStats` 在内存中聚合当前用户全部未删除任务：
 
@@ -249,7 +261,7 @@ END:VALARM
 
 统计不是基于历史事件日志，清空垃圾桶或彻底删除会丢失对应历史。
 
-## 10. 摘要
+## 11. 摘要
 
 摘要页不持久化服务端文档，而是按条件生成内容：
 
@@ -275,7 +287,7 @@ END:VALARM
 
 服务端只返回任务快照，不保存编辑后的文档。
 
-## 11. AI 助手
+## 12. AI 助手
 
 ### 10.1 配置
 
@@ -333,7 +345,7 @@ create_list
 - 删除工具依赖模型遵循“先确认”的系统提示，不是硬性拦截。
 - 模型调用不是流式，超时 90 秒。
 
-## 12. 测试
+## 13. 测试
 
 ```bash
 go test ./...
@@ -351,7 +363,7 @@ cd web && npx vue-tsc --noEmit
 - 统计聚合
 - AI 配置、工具调用、Mock OpenAI 上游
 
-## 13. 设计限制
+## 14. 设计限制
 
 - 任务与 CalDAV 的同步是懒对账，不是实时。
 - 清单与日历没有一对一映射。

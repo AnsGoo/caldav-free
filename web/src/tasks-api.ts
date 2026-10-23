@@ -1,7 +1,7 @@
 import { api } from './api'
-import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared'
 
 export function browserTimezone() {
   try {
@@ -127,6 +127,25 @@ export function deleteTaskList(id: number) {
   return api<void>(`/task-lists/${id}`, { method: 'DELETE' })
 }
 
+export function fetchSharedTasks(listId: number) {
+  return api<{ list: SharedTaskList; tasks: TaskItem[] }>(`/tasks/shared?listId=${listId}`)
+}
+
+export function fetchTaskListShares(listId: number) {
+  return api<{ shares: TaskListShare[] }>(`/task-lists/${listId}/shares`)
+}
+
+export function createTaskListShare(listId: number, username: string) {
+  return api<{ share: TaskListShare }>(`/task-lists/${listId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify({ username, role: 'viewer' }),
+  })
+}
+
+export function deleteTaskListShare(listId: number, userId: number) {
+  return api<void>(`/task-lists/${listId}/shares/${userId}`, { method: 'DELETE' })
+}
+
 export function fetchTaskReminders() {
   return api<{ tasks: TaskItem[] }>('/tasks/reminders')
 }
@@ -184,6 +203,35 @@ export function reorderTasks(ids: number[]) {
 export function fetchCalendarEvents(from: Date, to: Date) {
   const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })
   return api<{ calendars: CalendarSource[]; events: CalendarEvent[] }>(`/tasks/calendar?${query.toString()}`)
+}
+
+export interface CalendarEventInput {
+  summary: string
+  location?: string
+  description?: string
+  start: string
+  end: string
+  allDay: boolean
+  rrule?: string
+  count?: number
+}
+
+export function createCalendarEvent(calendarId: number, payload: CalendarEventInput) {
+  return api<{ event: CalendarEvent }>(`/calendars/${calendarId}/events`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateCalendarEvent(calendarId: number, href: string, payload: CalendarEventInput) {
+  return api<{ event: CalendarEvent; data: string }>(`/calendars/${calendarId}/events/${encodeURIComponent(href)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteCalendarEvent(calendarId: number, href: string) {
+  return api<void>(`/calendars/${calendarId}/events/${encodeURIComponent(href)}`, { method: 'DELETE' })
 }
 
 export function fetchTaskStats(days = 30) {

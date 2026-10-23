@@ -47,6 +47,7 @@
 
     <TaskSidebar
       :lists="lists"
+      :shared-lists="sharedLists"
       :folders="folders"
       :filters="filters"
       :tag-counts="tagCounts"
@@ -54,6 +55,7 @@
       :view="view"
       :active-list-id="activeListId"
       :active-filter-id="activeFilterId"
+      :active-shared-list-id="activeSharedListId"
       :active-tag="activeTag"
       :user-name="auth.user?.username || ''"
       :display-name="auth.user?.displayName || ''"
@@ -61,6 +63,8 @@
       @select-view="selectView"
       @select-list="selectList"
       @select-filter="selectFilter"
+      @select-shared="selectSharedList"
+      @share-list="openShareList"
       @create-list="createList"
       @edit-list="openEditList"
       @delete-list="confirmDeleteList"
@@ -90,7 +94,15 @@
           <span v-if="headingCount" class="tw-heading-count">{{ headingCount }}</span>
         </div>
         <div class="tw-toolbar-actions">
-          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai'" class="tw-mode-switch" role="group" aria-label="视图模式">
+          <button
+            v-if="mode === 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai'"
+            class="tw-ghost-button tw-new-event-button"
+            @click="openEventCreator"
+          >
+            <TaskIcon name="plus" :size="15" />
+            新建日程
+          </button>
+          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-mode-switch" role="group" aria-label="视图模式">
             <button :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
@@ -102,7 +114,7 @@
             </button>
           </div>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'completed' && mode === 'list'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'completed' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: manualSort }"
             :title="manualSort ? '关闭手动排序' : '手动排序（拖拽调整顺序）'"
@@ -111,7 +123,7 @@
             <TaskIcon name="sort" :size="18" />
           </button>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && mode === 'list'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: selectionMode }"
             :title="selectionMode ? '退出多选' : '多选任务'"
@@ -119,13 +131,13 @@
           >
             <TaskIcon name="select" :size="18" />
           </button>
-          <button v-if="view !== 'stats' && view !== 'summary' && view !== 'ai'" class="tw-icon-button" title="搜索" @click="toggleSearch">
+          <button v-if="view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-icon-button" title="搜索" @click="toggleSearch">
             <TaskIcon name="search" :size="18" />
           </button>
         </div>
       </header>
 
-      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai'" class="tw-search-bar">
+      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-search-bar">
         <TaskIcon name="search" :size="17" />
         <input
           ref="searchInputEl"
@@ -141,7 +153,7 @@
 
       <div class="tw-scroll">
         <div class="tw-content">
-          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai'" class="tw-quick-add">
+          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
             <input
               ref="quickInputEl"
@@ -156,7 +168,7 @@
             </button>
           </div>
 
-          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai'" class="tw-quick-hint">
+          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-quick-hint">
             <span v-if="hint.date" class="tw-hint-chip">{{ hint.date }}</span>
             <span v-if="hint.time" class="tw-hint-chip">{{ hint.time }}</span>
             <span v-for="tag in hint.tags" :key="tag" class="tw-hint-chip">#{{ tag }}</span>
@@ -273,8 +285,10 @@
             :tasks="filteredTasks"
             :cursor="cursor"
             :view-mode="calendarView"
+            :reload-key="calendarReload"
             @open="openTask"
             @open-event="openCalendarEvent"
+            @calendars="calendarSources = $event"
             @create="createFromCalendar"
             @change-view="calendarView = $event"
             @prev="stepCalendar(-1)"
@@ -334,7 +348,8 @@
     <TaskDetail
       v-if="selectedTask"
       :task="selectedTask"
-      :lists="lists"
+      :lists="detailLists"
+      :readonly="view === 'shared'"
       @close="selectedId = 0"
       @changed="onTaskChanged"
       @deleted="onTaskDeleted"
@@ -619,6 +634,22 @@
       </div>
     </div>
 
+    <TaskListShareDialog
+      v-if="shareDialogOpen && sharingList"
+      :list="sharingList"
+      @changed="onSharesChanged"
+      @close="shareDialogOpen = false"
+    />
+
+    <CalendarEventDialog
+      v-if="eventDialogOpen"
+      :event="editingEvent"
+      :calendars="calendarSources"
+      :default-date="cursor"
+      @saved="onEventSaved"
+      @close="eventDialogOpen = false"
+    />
+
     <ReminderSettingsDialog
       v-if="reminderSettingsOpen"
       :browser-enabled="remindersEnabled"
@@ -633,7 +664,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { SavedFilter, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   createSavedFilter,
@@ -646,6 +677,7 @@ import {
   deleteTaskList,
   deleteTaskTag,
   emptyTaskTrash,
+  fetchSharedTasks,
   fetchTaskReminders,
   fetchTaskWorkspace,
   purgeTask,
@@ -677,6 +709,8 @@ import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
 import TaskSummaryPanel from '../components/tasks/TaskSummaryPanel.vue'
 import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
+import CalendarEventDialog from '../components/tasks/CalendarEventDialog.vue'
+import TaskListShareDialog from '../components/tasks/TaskListShareDialog.vue'
 import ReminderSettingsDialog from '../components/tasks/ReminderSettingsDialog.vue'
 import TaskIcon from '../components/tasks/TaskIcon.vue'
 
@@ -686,6 +720,7 @@ const route = useRoute()
 const router = useRouter()
 
 const lists = ref<TaskList[]>([])
+const sharedLists = ref<SharedTaskList[]>([])
 const folders = ref<TaskFolder[]>([])
 const filters = ref<SavedFilter[]>([])
 const tasks = ref<TaskItem[]>([])
@@ -697,6 +732,7 @@ const inboxId = ref(0)
 const view = ref<TaskView>('all')
 const activeListId = ref(0)
 const activeFilterId = ref(0)
+const activeSharedListId = ref(0)
 const activeTag = ref('')
 const mode = ref<Mode>('list')
 const query = ref('')
@@ -710,6 +746,10 @@ const quickBusy = ref(false)
 const quickListId = ref(0)
 const cursor = ref(new Date())
 const calendarView = ref<'month' | 'week' | 'day' | 'agenda'>('month')
+const calendarSources = ref<CalendarSource[]>([])
+const calendarReload = ref(0)
+const eventDialogOpen = ref(false)
+const editingEvent = ref<CalendarEvent | null>(null)
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
@@ -745,6 +785,8 @@ const filterForm = reactive<{ id: number; name: string; color: string; condition
   color: LIST_COLORS[0],
   conditions: { listIds: [], tags: [], tagMode: 'any', priorities: [], status: 'open', date: 'any', keyword: '' },
 })
+const sharingList = ref<TaskList | null>(null)
+const shareDialogOpen = ref(false)
 const tagManagerVisible = ref(false)
 const tagBusy = ref(false)
 const editingTag = ref('')
@@ -777,7 +819,9 @@ const smartLabels: Record<string, string> = {
 
 const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
 
+const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))
 const heading = computed(() => {
+  if (view.value === 'shared') return activeSharedList.value?.name || '共享清单'
   if (view.value === 'list') {
     const list = lists.value.find((item) => item.id === activeListId.value)
     return list?.name || '清单'
@@ -823,9 +867,25 @@ const groups = computed(() => {
     if (done.length) out.push({ key: 'done', label: '已完成', tasks: done, tone: 'done' as const })
     return out
   }
-  return groupTasks(filteredTasks.value, view.value)
+  return groupTasks(filteredTasks.value, view.value === 'shared' ? 'all' : view.value)
 })
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedId.value))
+const detailLists = computed<TaskList[]>(() => {
+  const shared = view.value === 'shared' ? activeSharedList.value : undefined
+  if (!shared || lists.value.some((list) => list.id === shared.listId)) return lists.value
+  return [
+    ...lists.value,
+    {
+      id: shared.listId,
+      folderId: 0,
+      name: shared.name,
+      color: shared.color,
+      order: 0,
+      isInbox: false,
+      count: shared.count,
+    },
+  ]
+})
 
 const quickTargetList = computed(() => {
   const id = quickListId.value || (view.value === 'list' || view.value === 'inbox' ? activeListId.value : inboxId.value) || inboxId.value
@@ -857,21 +917,28 @@ async function loadWorkspace(silent = false) {
   if (!silent) loading.value = true
   try {
     const data: TaskWorkspaceData = await fetchTaskWorkspace({
-      view: view.value,
-      listId: activeListId.value || undefined,
+      view: view.value === 'shared' ? 'all' : view.value,
+      listId: view.value === 'shared' ? undefined : activeListId.value || undefined,
       filterId: activeFilterId.value || undefined,
       q: query.value || undefined,
     })
     lists.value = data.lists
+    sharedLists.value = data.sharedLists || []
     folders.value = data.folders
     filters.value = data.filters
     tasks.value = data.tasks
+    if (view.value === 'shared' && activeSharedListId.value) {
+      const shared = await fetchSharedTasks(activeSharedListId.value)
+      tasks.value = shared.tasks
+    } else if (view.value === 'shared') {
+      tasks.value = []
+    }
     tags.value = data.tags
     tagCounts.value = data.tagCounts
     inboxId.value = data.inbox
     Object.assign(counts, data.counts)
     if (view.value === 'trash' && mode.value !== 'list') mode.value = 'list'
-    if (selectedId.value && !data.tasks.some((task) => task.id === selectedId.value)) {
+    if (selectedId.value && !tasks.value.some((task) => task.id === selectedId.value)) {
       selectedId.value = 0
     }
   } catch (error) {
@@ -892,6 +959,7 @@ function syncURL() {
   const next: Record<string, string> = { view: view.value }
   if (view.value === 'list' && activeListId.value) next.list = String(activeListId.value)
   if (view.value === 'filter' && activeFilterId.value) next.filter = String(activeFilterId.value)
+  if (view.value === 'shared' && activeSharedListId.value) next.shared = String(activeSharedListId.value)
   if (mode.value !== 'list') next.mode = mode.value
   if (selectedId.value) next.task = String(selectedId.value)
   if (query.value) next.q = query.value
@@ -903,6 +971,7 @@ function syncURL() {
 function selectView(nextView: string) {
   view.value = nextView as TaskView
   activeListId.value = 0
+  activeSharedListId.value = 0
   activeTag.value = ''
   selectedId.value = 0
   sidebarOpen.value = false
@@ -936,6 +1005,28 @@ function selectFilter(id: number) {
   syncURL()
 }
 
+function selectSharedList(listId: number) {
+  view.value = 'shared'
+  activeSharedListId.value = listId
+  activeListId.value = 0
+  activeFilterId.value = 0
+  activeTag.value = ''
+  selectedId.value = 0
+  mode.value = 'list'
+  sidebarOpen.value = false
+  clearSelection()
+  syncURL()
+}
+
+function openShareList(list: TaskList) {
+  sharingList.value = list
+  shareDialogOpen.value = true
+}
+
+function onSharesChanged() {
+  void loadWorkspace(true)
+}
+
 function selectTag(tag: string) {
   activeTag.value = tag
   sidebarOpen.value = false
@@ -947,7 +1038,7 @@ function selectTagFromStats(tag: string) {
 }
 
 function switchMode(next: Mode) {
-  if (view.value === 'trash') return
+  if (view.value === 'trash' || view.value === 'shared') return
   if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai') selectView('all')
   clearSelection()
   mode.value = next
@@ -980,6 +1071,10 @@ function openTask(task: TaskItem) {
 }
 
 async function toggleTask(task: TaskItem) {
+  if (view.value === 'shared') {
+    Message.info('共享清单为只读')
+    return
+  }
   const target = !task.completed
   task.completed = target
   try {
@@ -1134,6 +1229,10 @@ function onTaskDeleted(id: number) {
 }
 
 function confirmRemoveTask(task: TaskItem) {
+  if (view.value === 'shared') {
+    Message.info('共享清单为只读')
+    return
+  }
   askConfirm('删除任务', `确定删除「${task.title}」吗？`, async () => {
     await deleteTask(task.id)
     onTaskDeleted(task.id)
@@ -1195,8 +1294,22 @@ function stepCalendar(delta: number) {
   }
 }
 
-function openCalendarEvent(event: { calendarId: number; href: string }) {
-  void router.push(`/calendars/${event.calendarId}/events/${encodeURIComponent(event.href)}/edit`)
+function openCalendarEvent(event: CalendarEvent) {
+  editingEvent.value = event
+  eventDialogOpen.value = true
+}
+
+function openEventCreator() {
+  if (!calendarSources.value.length) {
+    Message.warning('没有可用的日历，请先在管理后台创建日历')
+    return
+  }
+  editingEvent.value = null
+  eventDialogOpen.value = true
+}
+
+function onEventSaved() {
+  calendarReload.value += 1
 }
 
 function openStats() {
@@ -1548,6 +1661,7 @@ function onRowDragEnd() {
 }
 
 function onRowDrop(target: TaskItem) {
+  if (view.value === 'shared') return
   const source = dragTaskId.value
   dragTaskId.value = 0
   dragOverId.value = 0
@@ -1672,7 +1786,7 @@ async function toggleReminders() {
 function hydrateFromRoute() {
   const q = route.query
   const nextView = typeof q.view === 'string' ? q.view : 'all'
-  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list'].includes(nextView) ? nextView : 'all') as TaskView
+  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared'].includes(nextView) ? nextView : 'all') as TaskView
   const listId = typeof q.list === 'string' ? Number(q.list) : 0
   if (view.value === 'list' && listId) activeListId.value = listId
   else if (view.value === 'list') view.value = 'all'
@@ -1680,7 +1794,7 @@ function hydrateFromRoute() {
   if (view.value === 'filter' && filterId) activeFilterId.value = filterId
   else if (view.value === 'filter') view.value = 'all'
   const nextMode = typeof q.mode === 'string' ? q.mode : 'list'
-  mode.value = (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
+  mode.value = view.value === 'shared' ? 'list' : (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
   if (view.value === 'trash') mode.value = 'list' 
   const taskId = typeof q.task === 'string' ? Number(q.task) : 0
   if (taskId) selectedId.value = taskId

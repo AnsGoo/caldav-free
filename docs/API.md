@@ -136,7 +136,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
   "due": "2026-10-30T18:00:00+08:00",
   "allDay": false,
   "recurrence": "FREQ=WEEKLY",
-  "reminderOffset": 15,
+  "reminderOffset": 60,
   "reminderOffsets": [0, 15, 60],
   "completed": false,
   "completedAt": "",
@@ -173,7 +173,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
   "tags": ["工作"],
   "notes": "汇总进度",
   "recurrence": "FREQ=WEEKLY",
-  "reminderOffset": 15,
+  "reminderOffset": 60,
   "reminderOffsets": [0, 15, 60],
   "checklist": [{ "id": "c1", "title": "整理数据", "done": false }],
   "timezone": "Asia/Shanghai"
@@ -415,6 +415,8 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
       "color": "#0ea5e9",
       "summary": "产品评审",
       "location": "会议室 A",
+      "description": "评审材料",
+      "rrule": "FREQ=WEEKLY",
       "start": "2026-10-22T14:00:00+08:00",
       "end": "2026-10-22T15:00:00+08:00",
       "allDay": false,
@@ -424,12 +426,80 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 }
 ```
 
-- 排除 `caldav-tasks` 任务同步日历
+- 排除 `caldav-tasks` 任务同步日历和未启用 `VEVENT` 的日历
 - 重复 `VEVENT` 在范围内展开
 - 范围最长 120 天
 - 最多 2000 个实例
 
-## 8. 统计
+### POST /api/admin/calendars/{id}/events
+
+结构化创建 VEVENT：
+
+```json
+{
+  "summary": "产品评审",
+  "location": "会议室 A",
+  "description": "评审材料",
+  "start": "2026-10-23T10:00",
+  "end": "2026-10-23T11:00",
+  "allDay": false,
+  "rrule": "FREQ=WEEKLY",
+  "count": 5
+}
+```
+
+全天事件的 `start` / `end` 使用 `YYYY-MM-DD`，`end` 为不包含的结束日期。
+
+### PATCH /api/admin/calendars/{id}/events/{name}
+
+按结构化字段更新事件，保留原 UID，重建 VEVENT 标准字段：
+
+```json
+{
+  "summary": "产品评审（改）",
+  "start": "2026-10-24T10:00",
+  "end": "2026-10-24T11:00",
+  "allDay": false,
+  "rrule": "FREQ=WEEKLY"
+}
+```
+
+### DELETE /api/admin/calendars/{id}/events/{name}
+
+删除事件并返回 `204`。
+
+## 8. 清单共享
+
+### GET /api/admin/task-lists/{id}/shares
+
+返回当前用户清单的共享成员：
+
+```json
+{
+  "shares": [
+    { "userId": 2, "username": "bob", "displayName": "Bob", "role": "viewer", "createdAt": "2026-10-23T15:42:03Z" }
+  ]
+}
+```
+
+### POST /api/admin/task-lists/{id}/shares
+
+```json
+{ "username": "bob", "role": "viewer" }
+```
+
+当前只接受 `viewer`。收集箱不能共享。
+
+### DELETE /api/admin/task-lists/{id}/shares/{userId}
+
+移除共享成员，返回 `204`。
+
+### GET /api/admin/tasks/shared?listId=...
+
+返回共享给当前用户的清单和任务，任务对象与普通任务一致，但接口不提供写操作。
+
+
+## 9. 统计
 
 ### GET /api/admin/tasks/stats?days=30
 
@@ -473,7 +543,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 }
 ```
 
-## 9. 摘要
+## 10. 摘要
 
 ### GET /api/admin/tasks/summary
 
@@ -595,7 +665,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 返回 `204`。
 
-## 10. 清单与文件夹
+## 11. 清单与文件夹
 
 ### POST /api/admin/task-lists
 
@@ -637,7 +707,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 删除文件夹，其中的清单回到根目录。
 
-## 11. 标签
+## 12. 标签
 
 ### GET /api/admin/task-tags
 
@@ -666,7 +736,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 两个接口都返回更新后的标签列表。
 
-## 12. 保存过滤器
+## 13. 保存过滤器
 
 ### GET /api/admin/task-filters
 
@@ -709,7 +779,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 返回 `204`。
 
-## 13. AI 助手
+## 14. AI 助手
 
 ### GET /api/admin/tasks/ai/settings
 
@@ -784,7 +854,7 @@ delete_task
 create_list
 ```
 
-## 14. 状态码
+## 15. 状态码
 
 | 状态码 | 说明 |
 | --- | --- |

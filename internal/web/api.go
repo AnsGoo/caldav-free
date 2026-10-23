@@ -118,6 +118,8 @@ type apiEvent struct {
 	UID           string `json:"uid"`
 	Summary       string `json:"summary"`
 	Location      string `json:"location"`
+	Description   string `json:"description"`
+	RRule         string `json:"rrule"`
 	Start         string `json:"start"`
 	End           string `json:"end"`
 	AllDay        bool   `json:"allDay"`
@@ -188,6 +190,8 @@ func eventDTO(cal *store.Calendar, obj *store.Object) apiEvent {
 		dto.Summary = obj.UID
 	}
 	dto.Location = ical.UnescapeText(comp.Value("LOCATION"))
+	dto.Description = ical.UnescapeText(comp.Value("DESCRIPTION"))
+	dto.RRule = strings.TrimSpace(comp.Value("RRULE"))
 	start, end, allDay, err := parsed.ComponentTimes(comp)
 	if err == nil {
 		dto.AllDay = allDay
@@ -756,7 +760,7 @@ func (s *Server) apiCreateEvent(w http.ResponseWriter, r *http.Request, _ *store
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	data, uid, err := buildEventICS(cal, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count)
+	data, uid, err := buildEventICS(cal, "", body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
@@ -789,6 +793,80 @@ func (s *Server) apiCreateEvent(w http.ResponseWriter, r *http.Request, _ *store
 		return
 	}
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"event": eventDTO(cal, obj)})
+}
+
+func (s *Server) apiPatchEvent(w http.ResponseWriter, r *http.Request, _ *store.User, _ *session) {
+	calID, name, ok := eventPath(r)
+	if !ok {
+		writeAPIError(w, http.StatusBadRequest, "事件路径无效")
+		return
+	}
+	var body struct {
+		Summary     string `json:"summary"`
+		Location    string `json:"location"`
+		Description string `json:"description"`
+		Start       string `json:"start"`
+		End         string `json:"end"`
+		AllDay      bool   `json:"allDay"`
+		RRule       string `json:"rrule"`
+		Count       int    `json:"count"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Summary) == "" {
+		writeAPIError(w, http.StatusBadRequest, "请填写事件标题")
+		return
+	}
+	ctx := r.Context()
+	cal, err := s.store.GetCalendar(ctx, calID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "日历不存在")
+		return
+	}
+	if !cal.SupportsComponent("VEVENT") {
+		writeAPIError(w, http.StatusBadRequest, "该日历未启用 VEVENT 组件")
+		return
+	}
+	obj, err := s.store.GetObject(ctx, calID, name)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "事件不存在")
+		return
+	}
+	loc, tzid := calendarLocation(cal.Timezone)
+	start, end, err := parseAPITimes(body.Start, body.End, body.AllDay, loc)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	data, uid, err := buildEventICS(cal, obj.UID, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	parsed, err := ical.Load(data, cal.Timezone)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+		return
+	}
+	info, err := parsed.Analyze()
+	if err != nil || info.ComponentType != "VEVENT" {
+		writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+		return
+	}
+	obj.Data = data
+	obj.UID = uid
+	obj.ETag = hashData(data)
+	obj.ComponentType = info.ComponentType
+	obj.FirstStart = unixOrZero(info.FirstStart)
+	obj.LastEnd = unixOrZero(info.LastEnd)
+	obj.Recurring = info.Recurring
+	obj.Size = int64(len(data))
+	if _, _, _, err := s.store.PutObject(ctx, obj); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"event": eventDTO(cal, obj), "data": string(data)})
 }
 
 func (s *Server) apiUpdateEvent(w http.ResponseWriter, r *http.Request, _ *store.User, _ *session) {
@@ -956,8 +1034,10 @@ func parseAPITimes(startRaw, endRaw string, allDay bool, loc *time.Location) (ti
 	return start, end, nil
 }
 
-func buildEventICS(cal *store.Calendar, summary, location, description string, start, end time.Time, allDay bool, tzid, rrule string, count int) ([]byte, string, error) {
-	uid := auth.RandomToken(12) + "@caldav-free"
+func buildEventICS(cal *store.Calendar, uid, summary, location, description string, start, end time.Time, allDay bool, tzid, rrule string, count int) ([]byte, string, error) {
+	if strings.TrimSpace(uid) == "" {
+		uid = auth.RandomToken(12) + "@caldav-free"
+	}
 	root := ical.NewComponent("VCALENDAR")
 	root.AddProp("VERSION", "2.0", nil)
 	root.AddProp("PRODID", "-//caldav-free//CalDAV Server//EN", nil)
@@ -988,9 +1068,12 @@ func buildEventICS(cal *store.Calendar, summary, location, description string, s
 		ev.AddProp("LOCATION", ical.EscapeText(strings.TrimSpace(location)), nil)
 	}
 	ev.AddProp("STATUS", "CONFIRMED", nil)
-	freq := strings.ToUpper(strings.TrimSpace(rrule))
-	if freq != "" && freq != "NONE" {
-		rule := "FREQ=" + freq
+	rule := strings.TrimSpace(rrule)
+	upper := strings.ToUpper(rule)
+	if upper != "" && upper != "NONE" {
+		if !strings.HasPrefix(upper, "FREQ=") {
+			rule = "FREQ=" + rule
+		}
 		if count > 0 {
 			rule += fmt.Sprintf(";COUNT=%d", count)
 		}

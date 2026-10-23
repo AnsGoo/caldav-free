@@ -252,6 +252,7 @@ const props = defineProps<{
   tasks: TaskItem[]
   cursor: Date
   viewMode: 'month' | 'week' | 'day' | 'agenda'
+  reloadKey?: number
 }>()
 
 const emit = defineEmits<{
@@ -262,6 +263,7 @@ const emit = defineEmits<{
   (event: 'next'): void
   (event: 'today'): void
   (event: 'change-view', value: 'month' | 'week' | 'day' | 'agenda'): void
+  (event: 'calendars', value: CalendarSource[]): void
 }>()
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -588,6 +590,7 @@ async function loadEvents() {
     if (current !== requestId) return
     events.value = data.events
     sources.value = data.calendars
+    emit('calendars', data.calendars)
   } catch {
     if (current === requestId) {
       events.value = []
@@ -603,7 +606,7 @@ async function scrollToMorning() {
   if (scrollRef.value) scrollRef.value.scrollTop = 7 * HOUR_HEIGHT
 }
 
-watch([() => props.viewMode, () => props.cursor], () => {
+watch([() => props.viewMode, () => props.cursor, () => props.reloadKey], () => {
   void loadEvents()
   if (props.viewMode === 'week' || props.viewMode === 'day') void scrollToMorning()
 })

@@ -142,6 +142,11 @@
       <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
       <path d="m4.5 7 7.5 6 7.5-6" />
     </template>
+    <template v-else-if="name === 'share'">
+      <circle cx="9" cy="8" r="2.5" />
+      <circle cx="17" cy="7" r="2" />
+      <path d="M4.5 19c0-3 2-5 4.5-5s4.5 2 4.5 5M14.5 19c.2-2.3 1.4-4 3.1-4 1.4 0 2.4 1 2.9 2.6" />
+    </template>
     <template v-else-if="name === 'restore'">
       <path d="M4 10.5a8 8 0 1 1 2.1 8" />
       <path d="M4 4.5v6h6" />

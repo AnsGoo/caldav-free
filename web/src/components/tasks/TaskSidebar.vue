@@ -84,6 +84,9 @@
                 <span v-if="row.list!.count" class="tw-nav-count">{{ row.list!.count }}</span>
               </button>
               <div class="tw-list-actions">
+                <button v-if="!row.list!.isInbox" class="tw-icon-button" title="共享清单" @click.stop="$emit('share-list', row.list!)">
+                  <TaskIcon name="share" :size="14" />
+                </button>
                 <button class="tw-icon-button" title="编辑清单" @click.stop="$emit('edit-list', row.list!)">
                   <TaskIcon name="edit" :size="14" />
                 </button>
@@ -128,6 +131,28 @@
           </li>
         </ul>
         <p v-if="!filters.length" class="tw-side-hint">按清单、日期、优先级、标签与状态组合筛选，并保存为过滤器。</p>
+      </section>
+
+      <section v-if="sharedLists.length" class="tw-side-section">
+        <header class="tw-section-head">
+          <span>共享给我</span>
+          <span class="tw-shared-readonly">只读</span>
+        </header>
+        <ul class="tw-list-nav">
+          <li v-for="shared in sharedLists" :key="shared.listId">
+            <button
+              class="tw-nav-item tw-list-item"
+              :class="{ active: activeSharedListId === shared.listId }"
+              :title="`来自 ${shared.ownerDisplay || shared.ownerUsername}`"
+              @click="$emit('select-shared', shared.listId)"
+            >
+              <span class="tw-list-dot" :style="{ background: shared.color || '#4772fa' }" />
+              <span class="tw-nav-label">{{ shared.name }}</span>
+              <span v-if="shared.count" class="tw-nav-count">{{ shared.count }}</span>
+            </button>
+            <p class="tw-shared-owner">{{ shared.ownerDisplay || shared.ownerUsername }}</p>
+          </li>
+        </ul>
       </section>
 
       <section class="tw-side-section">
@@ -181,11 +206,12 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import type { SavedFilter, TaskCounts, TaskFolder, TaskList, TaskTagCount } from '../../types'
+import type { SavedFilter, SharedTaskList, TaskCounts, TaskFolder, TaskList, TaskTagCount } from '../../types'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
   lists: TaskList[]
+  sharedLists: SharedTaskList[]
   folders: TaskFolder[]
   filters: SavedFilter[]
   tagCounts: TaskTagCount[]
@@ -194,6 +220,7 @@ const props = defineProps<{
   activeListId: number
   activeFilterId: number
   activeTag: string
+  activeSharedListId: number
   userName: string
   displayName: string
   open: boolean
@@ -204,6 +231,7 @@ const emit = defineEmits<{
   (event: 'select-list', id: number): void
   (event: 'select-filter', id: number): void
   (event: 'select-tag', tag: string): void
+  (event: 'select-shared', listId: number): void
   (event: 'create-list', name: string): void
   (event: 'edit-list', list: TaskList): void
   (event: 'delete-list', list: TaskList): void
@@ -213,6 +241,7 @@ const emit = defineEmits<{
   (event: 'create-filter'): void
   (event: 'edit-filter', filter: SavedFilter): void
   (event: 'delete-filter', filter: SavedFilter): void
+  (event: 'share-list', list: TaskList): void
   (event: 'manage-tags'): void
   (event: 'open-reminders'): void
   (event: 'logout'): void

@@ -27,6 +27,8 @@ type apiCalendarEvent struct {
 	Color        string `json:"color"`
 	Summary      string `json:"summary"`
 	Location     string `json:"location"`
+	Description  string `json:"description"`
+	RRule        string `json:"rrule"`
 	Start        string `json:"start"`
 	End          string `json:"end"`
 	AllDay       bool   `json:"allDay"`
@@ -50,7 +52,7 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 	sources := make([]apiCalendarSource, 0, len(calendars))
 	events := make([]apiCalendarEvent, 0, 64)
 	for _, cal := range calendars {
-		if cal.Slug == tasksync.CalendarSlug {
+		if cal.Slug == tasksync.CalendarSlug || !cal.SupportsComponent("VEVENT") {
 			continue
 		}
 		sources = append(sources, apiCalendarSource{ID: cal.ID, Name: cal.DisplayNameOrSlug(), Color: cal.Color})
@@ -91,6 +93,8 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 					Color:        cal.Color,
 					Summary:      summary,
 					Location:     strings.TrimSpace(ical.UnescapeText(comp.Value("LOCATION"))),
+					Description:  strings.TrimSpace(ical.UnescapeText(comp.Value("DESCRIPTION"))),
+					RRule:        strings.TrimSpace(comp.Value("RRULE")),
 					Start:        instance.Start.Format(time.RFC3339),
 					End:          instance.End.Format(time.RFC3339),
 					AllDay:       instance.AllDay,

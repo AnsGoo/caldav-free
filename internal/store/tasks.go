@@ -268,6 +268,9 @@ func (s *Store) DeleteTaskList(ctx context.Context, userID, id int64) error {
 			Updates(map[string]any{"list_id": inbox.ID, "sync_pending": true}).Error; err != nil {
 			return fmt.Errorf("move tasks to inbox: %w", err)
 		}
+		if err := s.deleteTaskListSharesTx(tx, id); err != nil {
+			return fmt.Errorf("delete task list shares: %w", err)
+		}
 		if err := tx.Where("id = ? AND user_id = ?", id, userID).Delete(&TaskList{}).Error; err != nil {
 			return fmt.Errorf("delete task list: %w", err)
 		}

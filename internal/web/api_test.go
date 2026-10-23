@@ -200,6 +200,14 @@ func TestAdminAPIAndSPA(t *testing.T) {
 		t.Fatalf("update event = %d: %s", status, body)
 	}
 
+	status, body = env.request(t, "PATCH", "/api/admin/calendars/"+itoa(calID)+"/events/"+href, map[string]any{
+		"summary": "Structured Updated", "location": "Room B", "description": "structured patch",
+		"start": "2026-10-23T12:00", "end": "2026-10-23T13:00", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusOK || !strings.Contains(string(body), "Structured Updated") {
+		t.Fatalf("structured event update = %d: %s", status, body)
+	}
+
 	status, body = env.request(t, "PATCH", "/api/admin/calendars/"+itoa(calID), map[string]any{
 		"displayName": "Client Work", "description": "Updated", "color": "#ff0000",
 		"timezone": "Asia/Shanghai", "order": 3, "components": []string{"VEVENT"},

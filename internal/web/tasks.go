@@ -342,15 +342,25 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 		s.apiServerError(w, err)
 		return
 	}
+	shared, err := s.store.ListSharedTaskLists(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	sharedRows := make([]apiSharedTaskList, 0, len(shared))
+	for _, item := range shared {
+		sharedRows = append(sharedRows, sharedTaskListDTO(item))
+	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{
-		"lists":     listRows,
-		"folders":   folderRows,
-		"filters":   filterRows,
-		"tasks":     rows,
-		"counts":    counts,
-		"tags":      s.taskTags(ctx, current.ID),
-		"tagCounts": tagCounts,
-		"inbox":     inbox.ID,
+		"lists":       listRows,
+		"sharedLists": sharedRows,
+		"folders":     folderRows,
+		"filters":     filterRows,
+		"tasks":       rows,
+		"counts":      counts,
+		"tags":        s.taskTags(ctx, current.ID),
+		"tagCounts":   tagCounts,
+		"inbox":       inbox.ID,
 	})
 }
 

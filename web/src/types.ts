@@ -166,8 +166,28 @@ export interface TaskCounts {
   trash: number
 }
 
+export interface SharedTaskList {
+  listId: number
+  name: string
+  color: string
+  ownerId: number
+  ownerUsername: string
+  ownerDisplay: string
+  role: 'viewer'
+  count: number
+}
+
+export interface TaskListShare {
+  userId: number
+  username: string
+  displayName: string
+  role: 'viewer'
+  createdAt: string
+}
+
 export interface TaskWorkspaceData {
   lists: TaskList[]
+  sharedLists: SharedTaskList[]
   folders: TaskFolder[]
   filters: SavedFilter[]
   tasks: TaskItem[]
@@ -192,6 +212,8 @@ export interface CalendarEvent {
   color: string
   summary: string
   location: string
+  description: string
+  rrule: string
   start: string
   end: string
   allDay: boolean

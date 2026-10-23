@@ -625,7 +625,7 @@ GET /api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}
 
 ### POST /api/admin/notifications/{id}/snooze
 
-仅对 `type=event` 的日程通知有效：
+对 `type=event` 的日程通知和 `type=task` 的任务提醒通知有效：
 
 ```json
 { "minutes": 10 }

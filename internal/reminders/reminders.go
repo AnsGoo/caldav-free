@@ -137,6 +137,9 @@ func (s *Scheduler) tick(ctx context.Context) {
 			}
 			key := task.DueAt.UTC().Format(time.RFC3339) + ":" + fmt.Sprintf("%d", offset)
 			delivered := false
+			if s.deliverInAppTask(ctx, &task, key) {
+				delivered = true
+			}
 			if s.deliverPush(ctx, &task, key, now) {
 				delivered = true
 			}
@@ -159,8 +162,31 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if snoozeSent > 0 {
 		s.logger.Info("sent calendar snoozes", "count", snoozeSent)
 	}
+	taskSnoozeSent := s.tickTaskSnoozes(ctx, now, mailConfig)
+	if taskSnoozeSent > 0 {
+		s.logger.Info("sent task snoozes", "count", taskSnoozeSent)
+	}
 	_ = s.store.PurgeReminderDeliveries(ctx, now.AddDate(0, 0, -30))
 	_ = s.store.PurgeReminderAttempts(ctx, now.AddDate(0, 0, -30))
+}
+
+func (s *Scheduler) deliverInAppTask(ctx context.Context, task *store.Task, key string) bool {
+	delivered, err := s.store.HasReminderDelivery(ctx, task.ID, key, "inapp")
+	if err != nil || delivered {
+		return false
+	}
+	body := task.Title + reminderWhenLabel(task)
+	url := fmt.Sprintf("/tasks?view=list&list=%d&task=%d", task.ListID, task.ID)
+	if _, err := s.store.CreateNotification(ctx, &store.Notification{
+		UserID: task.UserID, Type: "task", Title: "任务提醒", Body: body, URL: url, TaskID: task.ID,
+	}); err != nil {
+		s.logger.Warn("task reminder notification", "task", task.ID, "error", err)
+		return false
+	}
+	if err := s.store.RecordReminderDelivery(ctx, task.ID, key, "inapp", ""); err != nil {
+		s.logger.Warn("record in-app reminder", "task", task.ID, "error", err)
+	}
+	return true
 }
 
 func (s *Scheduler) deliverPush(ctx context.Context, task *store.Task, key string, now time.Time) bool {

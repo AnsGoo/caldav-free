@@ -54,7 +54,7 @@ func (s *Server) apiSnoozeNotification(w http.ResponseWriter, r *http.Request, c
 		writeAPIError(w, http.StatusNotFound, "通知不存在")
 		return
 	}
-	if notification.Type != "event" {
+	if notification.Type != "event" && notification.Type != "task" {
 		writeAPIError(w, http.StatusBadRequest, "该通知不支持稍后提醒")
 		return
 	}

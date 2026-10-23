@@ -232,3 +232,43 @@ func (s *Scheduler) tickSnoozes(ctx context.Context, now time.Time, cfg mailer.C
 	}
 	return sent
 }
+
+func (s *Scheduler) tickTaskSnoozes(ctx context.Context, now time.Time, cfg mailer.Config) int {
+	items, err := s.store.ListDueTaskSnoozes(ctx, now.UTC(), 100)
+	if err != nil {
+		s.logger.Warn("list task snoozes", "error", err)
+		return 0
+	}
+	sent := 0
+	for _, item := range items {
+		owner, err := s.store.GetUser(ctx, item.UserID)
+		if err != nil {
+			_ = s.store.MarkTaskSnoozeSent(ctx, item.ID)
+			continue
+		}
+		title := item.Title
+		if title == "" {
+			title = "任务提醒"
+		}
+		if _, err := s.store.CreateNotification(ctx, &store.Notification{
+			UserID: item.UserID, Type: "task", Title: title, Body: item.Body, URL: item.URL, TaskID: item.TaskID,
+		}); err != nil {
+			s.logger.Warn("task snooze notification", "user", item.UserID, "error", err)
+			continue
+		}
+		absoluteURL := s.baseURL + "/admin" + item.URL
+		if _, err := NotifyUser(ctx, s.store, s.logger, item.UserID, PushMessage{
+			Title: title, Body: item.Body, Tag: "task-snooze-" + fmt.Sprint(item.ID), URL: absoluteURL, TaskID: item.TaskID,
+		}); err != nil {
+			s.logger.Warn("task snooze push", "user", item.UserID, "error", err)
+		}
+		if cfg.Enabled && owner.Email != "" {
+			if err := cfg.Send(ctx, owner.Email, title, item.Body+"\n\n打开任务："+absoluteURL+"\n"); err != nil {
+				s.logger.Warn("task snooze email", "user", item.UserID, "error", err)
+			}
+		}
+		_ = s.store.MarkTaskSnoozeSent(ctx, item.ID)
+		sent++
+	}
+	return sent
+}

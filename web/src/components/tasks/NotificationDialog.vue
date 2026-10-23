@@ -29,7 +29,7 @@
             <span>{{ item.body }}</span>
             <small>{{ formatTime(item.createdAt) }}</small>
           </span>
-          <span v-if="item.type === 'event'" class="tw-notification-actions" @click.stop>
+          <span v-if="item.type === 'event' || item.type === 'task'" class="tw-notification-actions" @click.stop>
             <select
               class="tw-notification-snooze-select"
               :value="snoozeMinutes[item.id] || 10"
@@ -124,7 +124,7 @@ function setSnoozeMinutes(id: number, event: Event) {
 }
 
 async function snooze(item: AppNotification) {
-  if (snoozing.value || item.type !== 'event') return
+  if (snoozing.value || (item.type !== 'event' && item.type !== 'task')) return
   const minutes = snoozeMinutes.value[item.id] || 10
   snoozing.value = item.id
   try {

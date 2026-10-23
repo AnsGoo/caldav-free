@@ -1,8 +1,11 @@
 package web
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -96,5 +99,75 @@ func TestTaskAPISummaryNextCycle(t *testing.T) {
 	}](t, body)
 	if len(result.NextTasks) != 1 || result.NextTasks[0].Title != "下一周期" {
 		t.Fatalf("next tasks: %+v", result.NextTasks)
+	}
+}
+
+func TestSummaryDocumentsAPI(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/task-summary-documents", map[string]any{
+		"kind": "template", "name": "周报模板", "content": "<h2>周报</h2>",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create doc = %d: %s", status, body)
+	}
+	created := decode[struct {
+		Document struct {
+			ID   int64  `json:"id"`
+			Kind string `json:"kind"`
+		} `json:"document"`
+	}](t, body)
+	if created.Document.ID == 0 || created.Document.Kind != "template" {
+		t.Fatalf("unexpected doc: %+v", created.Document)
+	}
+	status, body = env.request(t, "GET", "/api/admin/task-summary-documents?kind=template", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("list docs = %d: %s", status, body)
+	}
+	list := decode[struct {
+		Documents []struct {
+			ID   int64  `json:"id"`
+			Name string `json:"name"`
+		} `json:"documents"`
+	}](t, body)
+	if len(list.Documents) != 1 || list.Documents[0].Name != "周报模板" {
+		t.Fatalf("unexpected docs: %+v", list.Documents)
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/task-summary-documents/"+itoa(created.Document.ID), map[string]any{
+		"name": "周报模板 2", "content": "<h2>新周报</h2>",
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("update doc = %d: %s", status, body)
+	}
+	status, _ = env.request(t, "DELETE", "/api/admin/task-summary-documents/"+itoa(created.Document.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete doc = %d", status)
+	}
+}
+
+func TestSummaryOptimizeAPI(t *testing.T) {
+	env := newAPIEnv(t)
+	ctx := context.Background()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"## 优化后的摘要\n- 已完成：研发日报"}}]}`))
+	}))
+	defer upstream.Close()
+	if err := env.store.SetSetting(ctx, settingAIBaseURL, upstream.URL); err != nil {
+		t.Fatal(err)
+	}
+	if err := env.store.SetSetting(ctx, settingAIModel, "mock-model"); err != nil {
+		t.Fatal(err)
+	}
+	status, body := env.request(t, "POST", "/api/admin/tasks/summary/optimize", map[string]any{
+		"title": "9月摘要", "text": "已完成\n- 研发日报",
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("optimize = %d: %s", status, body)
+	}
+	result := decode[struct {
+		Markdown string `json:"markdown"`
+	}](t, body)
+	if !strings.Contains(result.Markdown, "优化后的摘要") {
+		t.Fatalf("unexpected markdown: %q", result.Markdown)
 	}
 }

@@ -444,6 +444,69 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 - 已完成条目排在未完成之前，已完成按完成时间倒序
 - `includeNext=1` 时，返回下一段等长范围内到期的未完成任务
 
+### POST /api/admin/tasks/summary/optimize
+
+使用已配置的 AI 模型润色摘要。
+
+```json
+{
+  "title": "9月1日-9月30日",
+  "text": "已完成\n- 研发日报\n未完成\n- 周报"
+}
+```
+
+响应：
+
+```json
+{
+  "markdown": "## 9 月回顾\n\n### 完成情况\n- ...",
+  "model": "gpt-4o-mini"
+}
+```
+
+未配置模型返回 `503`。
+
+### GET /api/admin/task-summary-documents
+
+参数：`kind=template` 或 `kind=history`，可省略返回全部。
+
+```json
+{
+  "documents": [
+    {
+      "id": 1,
+      "kind": "template",
+      "name": "周报模板",
+      "content": "<h2>...</h2>",
+      "createdAt": "2026-10-23T10:00:00Z",
+      "modifiedAt": "2026-10-23T10:00:00Z"
+    }
+  ]
+}
+```
+
+### POST /api/admin/task-summary-documents
+
+```json
+{
+  "kind": "history",
+  "name": "10月18日-10月24日",
+  "content": "<h2>...</h2>"
+}
+```
+
+响应 `201`，`{ "document": {...} }`。内容上限 300KB。
+
+### PATCH /api/admin/task-summary-documents/{id}
+
+```json
+{ "name": "新名称", "content": "<h2>...</h2>" }
+```
+
+### DELETE /api/admin/task-summary-documents/{id}
+
+返回 `204`。
+
 ## 10. 清单与文件夹
 
 ### POST /api/admin/task-lists

@@ -319,9 +319,11 @@ func (s *Server) callAI(ctx context.Context, config aiConfig, messages []aiChatM
 	payload := map[string]any{
 		"model":       config.Model,
 		"messages":    messages,
-		"tools":       tools,
-		"tool_choice": "auto",
 		"temperature": 0.3,
+	}
+	if len(tools) > 0 {
+		payload["tools"] = tools
+		payload["tool_choice"] = "auto"
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {

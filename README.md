@@ -31,7 +31,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 日历支持月、周、日、日程四种视图；周/日为时间网格，日程为未来 30 天清单
 - 日历叠加当前用户所有 CalDAV 日历的 `VEVENT`（重复事件会展开），与任务到期时间同屏显示；点击日程进入事件编辑页
 - 统计页：未完成/已完成/逾期/完成率、每日新建与完成趋势、到期折线、按清单/标签/优先级分布、7/30/90 天周期概览
-- 摘要页：按日期/清单/状态/优先级/标签生成可编辑富文本摘要；支持分组、显示字段、下一周期、模板/历史、复制与导出
+- 摘要页：按日期/清单/状态/优先级/标签生成可编辑富文本摘要；支持分组、显示字段、下一周期、AI 内容优化、服务端模板/历史、复制与导出
 - AI 助手：接入 OpenAI 兼容接口，通过工具调用查询/创建/修改/完成/删除任务、创建清单、读取统计
 - AI 语音输入：支持浏览器 Web Speech API 的浏览器可直接口述任务
 - AI 设置：Base URL、模型、API Key 可在页面配置，也支持环境变量初始化
@@ -217,6 +217,8 @@ docker run -d --name caldav \
 | `/api/admin/tasks/calendar` | 指定日期范围内的 CalDAV 事件（展开重复） |
 | `/api/admin/tasks/stats` | 任务统计（天数可配置） |
 | `/api/admin/tasks/summary` | 按筛选条件生成摘要数据 |
+| `/api/admin/tasks/summary/optimize` | AI 润色摘要 |
+| `/api/admin/task-summary-documents` | 摘要模板/历史文档 CRUD |
 | `/api/admin/tasks/ai/settings` | AI 模型配置（读取/保存，Key 不回传） |
 | `/api/admin/tasks/ai/chat` | AI 对话与工具调用 |
 | `/api/admin/tasks/batch` | 批量完成 / 移动 / 删除 |
@@ -289,6 +291,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `task_folders`：清单文件夹
 - `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹）
 - `task_filters`：保存的过滤器条件（JSON）
+- `summary_documents`：摘要模板与历史文档
 - `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
@@ -484,9 +487,9 @@ go vet ./...
 - 日历事件查询窗口一次最多 120 天，最多返回 2000 个实例。
 - 统计基于当前仍保留的任务数据；彻底删除或清空垃圾桶会移除对应历史。
 - 统计不含习惯打卡、番茄专注与 CalDAV 事件时长，仅覆盖任务工作台数据。
-- 摘要编辑器为浏览器 contenteditable，格式能力为基础富文本；模板与历史文档保存在浏览器 localStorage。
+- 摘要编辑器为浏览器 contenteditable，格式能力为基础富文本；模板与历史文档保存在服务端 SQLite。
 - 摘要“下一周期任务”追加的是当前范围之后同等长度时间段内到期的未完成任务，不是重复任务实例展开。
-- 摘要暂不支持指派人、专注数据、进度等字段；未实现 AI 内容优化。
+- 摘要暂不支持指派人、专注数据、进度等字段；AI 内容优化需要先配置模型。
 - 摘要导出支持 HTML、打印/PDF、邮件（mailto），暂不支持直接导出图片。
 - AI 助手需要兼容 OpenAI Chat Completions 且支持 tools/function calling 的接口；Ollama 等本地接口也需开启对应能力。
 - AI 对话为非流式请求，回复期间显示“思考中”；对话记录只保存在浏览器 localStorage，不写入服务端。

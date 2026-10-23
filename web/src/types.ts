@@ -307,3 +307,12 @@ export interface TaskSummaryData {
     open: number
   }
 }
+
+export interface SummaryDocument {
+  id: number
+  kind: 'template' | 'history'
+  name: string
+  content: string
+  createdAt: string
+  modifiedAt: string
+}

@@ -39,6 +39,7 @@ web/src/components/tasks/TaskAIPanel.vue
 | `task_lists` | 清单；每用户一个收集箱；`folder_id` 归属文件夹 |
 | `tasks` | 任务、日期、重复、提醒、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
+| `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 
 `tasks` 关键字段：
 
@@ -250,7 +251,8 @@ END:VALARM
 - 分组：状态/清单/完成时间/任务时间/标签/优先级
 - 显示字段：完成时间、任务时间、标签、清单、优先级、详细内容
 - 富文本工具栏基于 `document.execCommand`
-- 模板/历史文档存 localStorage
+- 模板/历史文档存服务端 `summary_documents`
+- 内容优化：调用 AI 文本接口，将摘要重写为 Markdown 后转换成 HTML
 - 导出：剪贴板、HTML、打印/PDF、mailto
 
 服务端只返回任务快照，不保存编辑后的文档。

@@ -191,3 +191,137 @@ func hasTag(tags []string, want string) bool {
 	}
 	return false
 }
+
+type apiSummaryDocument struct {
+	ID         int64  `json:"id"`
+	Kind       string `json:"kind"`
+	Name       string `json:"name"`
+	Content    string `json:"content"`
+	CreatedAt  string `json:"createdAt"`
+	ModifiedAt string `json:"modifiedAt"`
+}
+
+func summaryDocumentDTO(document *store.SummaryDocument) apiSummaryDocument {
+	return apiSummaryDocument{
+		ID: document.ID, Kind: document.Kind, Name: document.Name, Content: document.Content,
+		CreatedAt: document.CreatedAt.Format(time.RFC3339), ModifiedAt: document.ModifiedAt.Format(time.RFC3339),
+	}
+}
+
+func (s *Server) apiSummaryDocuments(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	ctx := r.Context()
+	if r.Method == http.MethodGet {
+		kind := strings.TrimSpace(r.URL.Query().Get("kind"))
+		if kind != "" && kind != "template" && kind != "history" {
+			writeAPIError(w, http.StatusBadRequest, "文档类型无效")
+			return
+		}
+		documents, err := s.store.ListSummaryDocuments(ctx, current.ID, kind)
+		if err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		rows := make([]apiSummaryDocument, 0, len(documents))
+		for _, document := range documents {
+			rows = append(rows, summaryDocumentDTO(document))
+		}
+		writeAPIJSON(w, http.StatusOK, map[string]any{"documents": rows})
+		return
+	}
+	var body struct {
+		Kind    string `json:"kind"`
+		Name    string `json:"name"`
+		Content string `json:"content"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if body.Kind != "template" && body.Kind != "history" {
+		writeAPIError(w, http.StatusBadRequest, "文档类型无效")
+		return
+	}
+	if len([]rune(body.Name)) > 190 || len(body.Content) > 300<<10 {
+		writeAPIError(w, http.StatusBadRequest, "文档名称或内容过大")
+		return
+	}
+	document, err := s.store.CreateSummaryDocument(ctx, current.ID, body.Kind, body.Name, body.Content)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusCreated, map[string]any{"document": summaryDocumentDTO(document)})
+}
+
+func (s *Server) apiSummaryDocument(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "文档不存在")
+		return
+	}
+	ctx := r.Context()
+	if r.Method == http.MethodDelete {
+		if err := s.store.DeleteSummaryDocument(ctx, current.ID, id); err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	var body struct {
+		Name    string `json:"name"`
+		Content string `json:"content"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if len([]rune(body.Name)) > 190 || len(body.Content) > 300<<10 {
+		writeAPIError(w, http.StatusBadRequest, "文档名称或内容过大")
+		return
+	}
+	document, err := s.store.UpdateSummaryDocument(ctx, current.ID, id, body.Name, body.Content)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "文档不存在")
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"document": summaryDocumentDTO(document)})
+}
+
+func (s *Server) apiOptimizeSummary(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Title string `json:"title"`
+		Text  string `json:"text"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	config := s.loadAIConfig(r.Context())
+	if config.BaseURL == "" || config.Model == "" {
+		writeAPIError(w, http.StatusServiceUnavailable, "尚未配置 AI 模型")
+		return
+	}
+	text := strings.TrimSpace(body.Text)
+	if text == "" {
+		writeAPIError(w, http.StatusBadRequest, "摘要内容为空")
+		return
+	}
+	if len([]rune(text)) > 12000 {
+		text = string([]rune(text)[:12000])
+	}
+	messages := []aiChatMessage{
+		{Role: "system", Content: "你是任务摘要润色助手。把用户提供的任务摘要整理成简洁、可读的中文 Markdown 文档。保留所有已完成/未完成事实，不添加不存在的任务；使用二级标题、分组标题和列表；不要输出代码块或解释。"},
+		{Role: "user", Content: "标题：" + strings.TrimSpace(body.Title) + "\n\n" + text},
+	}
+	reply, err := s.callAI(r.Context(), config, messages, nil)
+	if err != nil {
+		writeAPIError(w, http.StatusBadGateway, "AI 请求失败："+err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{
+		"markdown": strings.TrimSpace(reply.Content),
+		"model":    config.Model,
+	})
+}

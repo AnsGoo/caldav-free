@@ -24,7 +24,7 @@
           <div v-if="history.length" class="tw-summary-docs">
             <button v-for="doc in history" :key="doc.id" class="tw-summary-doc" @click="loadDocument(doc)">
               <span>{{ doc.name }}</span>
-              <small>{{ doc.createdAt }}</small>
+              <small>{{ formatDocTime(doc.createdAt) }}</small>
               <i class="tw-icon-button" title="删除" @click.stop="removeHistory(doc.id)">
                 <TaskIcon name="trash" :size="13" />
               </i>
@@ -59,7 +59,7 @@
       </div>
 
       <div class="tw-summary-editor-wrap">
-        <div v-if="loading" class="tw-summary-loading">生成摘要中…</div>
+        <div v-if="loading || optimizing" class="tw-summary-loading">{{ optimizing ? 'AI 优化中…' : '生成摘要中…' }}</div>
         <div ref="editorRef" class="tw-summary-editor" contenteditable="true" spellcheck="false" @input="onEdit" />
       </div>
 
@@ -180,7 +180,12 @@
           <input v-model="includeNext" type="checkbox" />
         </label>
         <p class="tw-summary-hint">“下一周期任务”会追加当前范围之后同等长度时间段内到期的未完成任务。</p>
-        <p class="tw-summary-hint">AI 内容优化暂未接入摘要编辑器。</p>
+        <label class="tw-summary-toggle">
+          <span>内容优化 <em class="tw-ai-badge">AI</em></span>
+          <input v-model="optimize" type="checkbox" :disabled="!aiConfigured" />
+        </label>
+        <p v-if="aiConfigured" class="tw-summary-hint">开启后会调用 AI 重写当前摘要，内容会发送到配置的模型服务。</p>
+        <p v-else class="tw-summary-hint">需先在 AI 助手中配置模型才能启用内容优化。</p>
       </section>
 
       <button class="tw-summary-aside-close" @click="asideOpen = false">收起设置</button>
@@ -191,8 +196,8 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { SummaryTask, TaskList, TaskSummaryData, TaskTagCount } from '../../types'
-import { fetchTaskSummary } from '../../tasks-api'
+import type { SummaryDocument, SummaryTask, TaskList, TaskSummaryData, TaskTagCount } from '../../types'
+import { createSummaryDocument, deleteSummaryDocument, fetchAISettings, fetchSummaryDocuments, fetchTaskSummary, optimizeSummary } from '../../tasks-api'
 import { PRIORITIES } from '../../tasks-utils'
 import TaskIcon from './TaskIcon.vue'
 
@@ -244,10 +249,11 @@ const asideOpen = ref(false)
 const historyOpen = ref(false)
 const saveMenuOpen = ref(false)
 
-const HISTORY_KEY = 'caldav-task-summary-history'
-const TEMPLATE_KEY = 'caldav-task-summary-templates'
-const history = ref<Array<{ id: string; name: string; createdAt: string; html: string }>>([])
-const templates = ref<Array<{ id: string; name: string; html: string }>>([])
+const history = ref<SummaryDocument[]>([])
+const templates = ref<SummaryDocument[]>([])
+const aiConfigured = ref(false)
+const optimize = ref(false)
+const optimizing = ref(false)
 
 let loadTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -305,6 +311,12 @@ function computeRange() {
       return { from, to }
     }
   }
+}
+
+function formatDocTime(value: string) {
+  const date = new Date(value)
+  const pad = (item: number) => String(item).padStart(2, '0')
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 function formatDate(value?: string) {
@@ -434,7 +446,10 @@ function generateHtml() {
 
 function renderEditor() {
   void nextTick(() => {
-    if (editorRef.value) editorRef.value.innerHTML = generateHtml()
+    if (editorRef.value) {
+      editorRef.value.innerHTML = generateHtml()
+      if (optimize.value && aiConfigured.value) void applyOptimization()
+    }
   })
 }
 
@@ -506,41 +521,132 @@ function readText() {
   return editorRef.value?.innerText || ''
 }
 
-function saveHistory() {
-  const html = readHtml()
-  const item = {
-    id: `${Date.now()}`,
-    name: data.value?.title || '摘要',
-    createdAt: new Date().toLocaleString('zh-CN'),
-    html,
+function markdownToHtml(markdown: string) {
+  let content = markdown.trim()
+  if (content.startsWith('```')) {
+    content = content.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '')
   }
-  history.value = [item, ...history.value].slice(0, 20)
-  persist(HISTORY_KEY, history.value)
-  saveMenuOpen.value = false
-  Message.success('已保存到历史文档')
+  const inline = (value: string) => escapeHtml(value)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+  const lines = content.split(/\r?\n/)
+  const out: string[] = []
+  let list: 'ul' | 'ol' | '' = ''
+  const closeList = () => {
+    if (list) {
+      out.push(`</${list}>`)
+      list = ''
+    }
+  }
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) {
+      closeList()
+      continue
+    }
+    const heading = trimmed.match(/^(#{1,4})\s+(.*)$/)
+    if (heading) {
+      closeList()
+      const level = Math.min(Math.max(heading[1].length + 1, 2), 4)
+      out.push(`<h${level}>${inline(heading[2])}</h${level}>`)
+      continue
+    }
+    const bullet = trimmed.match(/^[-*]\s+(.*)$/)
+    if (bullet) {
+      if (list !== 'ul') {
+        closeList()
+        list = 'ul'
+        out.push('<ul>')
+      }
+      out.push(`<li>${inline(bullet[1])}</li>`)
+      continue
+    }
+    const ordered = trimmed.match(/^\d+[.)]\s+(.*)$/)
+    if (ordered) {
+      if (list !== 'ol') {
+        closeList()
+        list = 'ol'
+        out.push('<ol>')
+      }
+      out.push(`<li>${inline(ordered[1])}</li>`)
+      continue
+    }
+    closeList()
+    out.push(`<p>${inline(trimmed)}</p>`)
+  }
+  closeList()
+  return out.join('')
 }
 
-function loadDocument(doc: { html: string }) {
-  if (editorRef.value) editorRef.value.innerHTML = doc.html
+let optimizeSeq = 0
+
+async function applyOptimization() {
+  if (!data.value) return
+  const text = readText().trim()
+  if (!text) return
+  const seq = ++optimizeSeq
+  optimizing.value = true
+  try {
+    const result = await optimizeSummary(data.value.title, text)
+    if (seq !== optimizeSeq) return
+    if (result.markdown && editorRef.value) {
+      editorRef.value.innerHTML = markdownToHtml(result.markdown)
+    } else if (!result.markdown) {
+      Message.warning('AI 没有返回优化内容')
+    }
+  } catch (error) {
+    if (seq === optimizeSeq) {
+      Message.warning(error instanceof Error ? error.message : 'AI 优化失败，已保留原摘要')
+    }
+  } finally {
+    if (seq === optimizeSeq) optimizing.value = false
+  }
+}
+
+async function saveHistory() {
+  try {
+    const { document } = await createSummaryDocument({
+      kind: 'history',
+      name: data.value?.title || '摘要',
+      content: readHtml(),
+    })
+    history.value = [document, ...history.value].slice(0, 50)
+    saveMenuOpen.value = false
+    Message.success('已保存到历史文档')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存失败')
+  }
+}
+
+function loadDocument(doc: SummaryDocument) {
+  if (editorRef.value) editorRef.value.innerHTML = doc.content
   historyOpen.value = false
 }
 
-function removeHistory(id: string) {
-  history.value = history.value.filter((item) => item.id !== id)
-  persist(HISTORY_KEY, history.value)
+async function removeHistory(id: number) {
+  try {
+    await deleteSummaryDocument(id)
+    history.value = history.value.filter((item) => item.id !== id)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除失败')
+  }
 }
 
-function saveAsTemplate() {
+async function saveAsTemplate() {
   const name = window.prompt('模板名称', data.value?.title || '摘要模板')
   if (!name) return
-  const item = { id: `${Date.now()}`, name, html: readHtml() }
-  templates.value = [item, ...templates.value].slice(0, 20)
-  persist(TEMPLATE_KEY, templates.value)
-  Message.success('模板已保存')
+  try {
+    const { document } = await createSummaryDocument({ kind: 'template', name, content: readHtml() })
+    templates.value = [document, ...templates.value].slice(0, 50)
+    Message.success('模板已保存')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存模板失败')
+  }
 }
 
-function loadTemplate(template: { html: string }) {
-  if (editorRef.value) editorRef.value.innerHTML = template.html
+function loadTemplate(template: SummaryDocument) {
+  if (editorRef.value) editorRef.value.innerHTML = template.content
 }
 
 async function copySummary() {
@@ -613,29 +719,44 @@ function download(name: string, content: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(link.href), 1000)
 }
 
-function persist(key: string, value: unknown) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    /* ignore */
-  }
-}
-
-function restore(key: string) {
-  try {
-    const raw = localStorage.getItem(key)
-    return raw ? JSON.parse(raw) : []
-  } catch {
-    return []
-  }
-}
-
 watch([preset, customFrom, customTo, listId, status, priority, tag, includeNext], scheduleLoad)
 watch([groupBy, fields], renderEditor, { deep: true })
 
+async function loadDocuments() {
+  try {
+    const [historyData, templateData] = await Promise.all([
+      fetchSummaryDocuments('history'),
+      fetchSummaryDocuments('template'),
+    ])
+    history.value = historyData.documents
+    templates.value = templateData.documents
+  } catch {
+    /* ignore documents load failure */
+  }
+}
+
+async function loadAIConfig() {
+  try {
+    const settings = await fetchAISettings()
+    aiConfigured.value = settings.configured
+  } catch {
+    aiConfigured.value = false
+  }
+}
+
+watch(optimize, (value) => {
+  if (value) {
+    void applyOptimization()
+  } else {
+    optimizeSeq += 1
+    optimizing.value = false
+    renderEditor()
+  }
+})
+
 onMounted(() => {
-  history.value = restore(HISTORY_KEY)
-  templates.value = restore(TEMPLATE_KEY)
+  void loadDocuments()
+  void loadAIConfig()
   void load()
 })
 

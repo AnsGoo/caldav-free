@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter'
 
@@ -204,4 +204,34 @@ export function fetchTaskSummary(params: {
   if (params.tag) query.set('tag', params.tag)
   if (params.includeNext) query.set('includeNext', '1')
   return api<TaskSummaryData>(`/tasks/summary?${query.toString()}`)
+}
+
+export function fetchSummaryDocuments(kind?: 'template' | 'history') {
+  const query = kind ? `?kind=${kind}` : ''
+  return api<{ documents: SummaryDocument[] }>(`/task-summary-documents${query}`)
+}
+
+export function createSummaryDocument(payload: { kind: 'template' | 'history'; name: string; content: string }) {
+  return api<{ document: SummaryDocument }>('/task-summary-documents', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateSummaryDocument(id: number, payload: { name?: string; content: string }) {
+  return api<{ document: SummaryDocument }>(`/task-summary-documents/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteSummaryDocument(id: number) {
+  return api<void>(`/task-summary-documents/${id}`, { method: 'DELETE' })
+}
+
+export function optimizeSummary(title: string, text: string) {
+  return api<{ markdown: string; model: string }>('/tasks/summary/optimize', {
+    method: 'POST',
+    body: JSON.stringify({ title, text }),
+  })
 }

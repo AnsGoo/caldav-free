@@ -46,6 +46,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
 | `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态 |
 | `task_comments` | 任务评论：任务、作者、正文、创建时间 |
+| `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
 | `reminder_deliveries` | 服务端提醒成功记录；任务 + 到期时间 + 偏移 + 通道唯一 |
@@ -261,7 +262,8 @@ END:VALARM
 - 拖拽重复事件仍修改整个系列
 - 结构化更新会重建 VEVENT 标准字段
 - `reminders` 写入 `VALARM`；浏览器端在页面打开时轮询 2 天内的日程并按提醒偏移通知
-- 日程还没有服务端独立推送/邮件调度
+- 服务端调度器扫描有 VALARM 的日历对象，展开重复实例，并按实例开始时间计算提醒；成功写入 `event_reminder_deliveries`
+- 日程提醒复用 Web Push 和 SMTP，失败通过 `reminder_attempts` 退避重试
 - 原始 ICS 仍可在管理后台事件编辑页修改
 
 ## 10. 统计

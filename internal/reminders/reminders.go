@@ -151,6 +151,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if sent > 0 {
 		s.logger.Info("sent task reminders", "count", sent)
 	}
+	eventSent := s.tickEvents(ctx, now, mailConfig)
+	if eventSent > 0 {
+		s.logger.Info("sent calendar reminders", "count", eventSent)
+	}
 	_ = s.store.PurgeReminderDeliveries(ctx, now.AddDate(0, 0, -30))
 	_ = s.store.PurgeReminderAttempts(ctx, now.AddDate(0, 0, -30))
 }

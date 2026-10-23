@@ -382,8 +382,18 @@ func (s *Store) CreateTask(ctx context.Context, task *Task) (*Task, error) {
 		task.Order = maxOrder + 1
 	}
 	normalizeTaskTimes(task)
+	// GORM replaces zero values with the column default (-1) on create, so a
+	// reminder exactly at the due time needs an explicit follow-up update.
+	reminderOffset := task.ReminderOffset
 	if err := s.db.WithContext(ctx).Create(task).Error; err != nil {
 		return nil, fmt.Errorf("create task: %w", err)
+	}
+	if reminderOffset == 0 {
+		if err := s.db.WithContext(ctx).Model(&Task{}).
+			Where("id = ?", task.ID).UpdateColumn("reminder_offset", 0).Error; err != nil {
+			return nil, fmt.Errorf("set task reminder: %w", err)
+		}
+		task.ReminderOffset = 0
 	}
 	return task, nil
 }

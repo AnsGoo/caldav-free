@@ -298,6 +298,46 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 
 浏览器端据此计算提醒时间并显示通知。
 
+### GET /api/admin/tasks/push/public-key
+
+返回 VAPID 公钥，首次调用时自动生成并保存到 `settings`：
+
+```json
+{ "publicKey": "B..." }
+```
+
+### GET /api/admin/tasks/push/subscriptions
+
+返回当前用户已登记的推送设备：
+
+```json
+{ "count": 1, "subscribed": true }
+```
+
+### POST /api/admin/tasks/push/subscribe
+
+保存浏览器 `PushSubscription.toJSON()` 的结果：
+
+```json
+{
+  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
+  "keys": {
+    "p256dh": "B...",
+    "auth": "..."
+  }
+}
+```
+
+同一 endpoint 会更新而不是重复插入。
+
+### DELETE /api/admin/tasks/push/subscribe
+
+```json
+{ "endpoint": "https://fcm.googleapis.com/fcm/send/..." }
+```
+
+服务端调度器由 `CALDAV_REMINDERS` 控制，默认每 `CALDAV_REMINDER_INTERVAL`（30 秒）检查一次。VAPID 联系人通过 `CALDAV_PUSH_SUBJECT` 配置。
+
 ## 7. 日历事件
 
 ### GET /api/admin/tasks/calendar?from=...&to=...

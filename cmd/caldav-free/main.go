@@ -16,6 +16,7 @@ import (
 
 	"caldav-free/internal/auth"
 	"caldav-free/internal/dav"
+	"caldav-free/internal/reminders"
 	"caldav-free/internal/store"
 	"caldav-free/internal/web"
 )
@@ -107,6 +108,16 @@ func main() {
 	)
 	if !strings.HasPrefix(base, "https://") {
 		logger.Warn("serving without HTTPS; CalDAV Basic Auth credentials will be sent in clear text unless a TLS proxy is used")
+	}
+
+	reminderCtx, stopReminders := context.WithCancel(context.Background())
+	defer stopReminders()
+	if os.Getenv("CALDAV_REMINDERS") != "off" {
+		if scheduler, err := reminders.New(st, logger); err != nil {
+			logger.Warn("reminder scheduler unavailable", "error", err)
+		} else {
+			go scheduler.Run(reminderCtx)
+		}
 	}
 
 	errCh := make(chan error, 1)

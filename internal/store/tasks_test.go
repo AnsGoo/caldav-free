@@ -267,3 +267,21 @@ func TestTaskManualOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestTaskReminderAtDueTime(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	inbox, _ := s.EnsureInbox(ctx, userID)
+	due := time.Date(2026, 10, 24, 9, 0, 0, 0, time.UTC)
+	task, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: inbox.ID, Title: "准时提醒", DueAt: &due, ReminderOffset: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.ReminderOffset != 0 {
+		t.Fatalf("created reminder offset = %d, want 0", task.ReminderOffset)
+	}
+	reloaded, err := s.GetTask(ctx, userID, task.ID)
+	if err != nil || reloaded.ReminderOffset != 0 {
+		t.Fatalf("reloaded reminder offset = %d (%v), want 0", reloaded.ReminderOffset, err)
+	}
+}

@@ -12,6 +12,7 @@ internal/ical/         iCalendar 解析/序列化、时区、RRULE 展开
 internal/dav/          CalDAV/WebDAV HTTP 处理
 internal/tasks/        自然语言解析、下一次重复计算
 internal/tasksync/     任务 ↔ VTODO 双向同步
+internal/reminders/    服务端提醒调度器、VAPID、Web Push
 internal/web/          管理后台、任务 API、日历事件、统计、AI
 web/                   Vue 3 + Vite+ + Arco 管理后台
 ```
@@ -27,6 +28,8 @@ web/src/components/tasks/TaskCalendar.vue
 web/src/components/tasks/TaskStatsPanel.vue
 web/src/components/tasks/TaskSummaryPanel.vue
 web/src/components/tasks/TaskAIPanel.vue
+web/src/components/tasks/ReminderSettingsDialog.vue
+web/public/sw.js       Service Worker（接收 push 并显示通知）
 ```
 
 ## 2. 数据表
@@ -40,6 +43,8 @@ web/src/components/tasks/TaskAIPanel.vue
 | `tasks` | 任务、日期、重复、提醒、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
+| `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
+| `reminder_deliveries` | 服务端提醒去重记录；任务 + 到期时间 + 偏移 + 通道唯一 |
 
 `tasks` 关键字段：
 
@@ -197,8 +202,15 @@ END:VALARM
 ```
 
 - 导入时解析 `TRIGGER` 为分钟；绝对时间 `TRIGGER` 忽略。
-- 浏览器端每 30 秒请求 `/tasks/reminders`，本地计算提醒时刻并去重。
-- 通知记录存 localStorage。
+- 浏览器端每 30 秒请求 `/tasks/reminders`，本地计算提醒时刻并去重；通知记录存 localStorage。
+- 服务端 `internal/reminders` 独立于页面运行，默认每 30 秒扫描带提醒的未完成任务：
+  - 定时任务提醒时刻 = `due_at - reminder_offset`；全天任务按 `Asia/Shanghai` 当天 09:00 计算。
+  - 只补发最近 6 小时内到期的提醒。
+  - 通过 `push_subscriptions` 中的 endpoint 调用 Web Push，payload 为 JSON（标题、正文、任务 URL）。
+  - `reminder_deliveries` 以任务、到期时间、偏移、通道去重；推送服务返回 404/410 时删除失效订阅。
+- VAPID 密钥首次启动自动生成，保存在 `settings`（`push.vapid_public` / `push.vapid_private`），私钥不通过 API 返回。
+- Service Worker 位于 `/admin/sw.js`，通知点击后聚焦或打开对应任务。
+- 可通过 `CALDAV_REMINDERS=off` 关闭调度器；`CALDAV_PUSH_SUBJECT` 配置 VAPID 联系人。
 
 ## 8. 日历事件
 

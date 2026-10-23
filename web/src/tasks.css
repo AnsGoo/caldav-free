@@ -2009,6 +2009,140 @@
   background: var(--tw-danger);
 }
 
+.tw-reminder-dialog {
+  width: min(540px, calc(100vw - 32px));
+}
+
+.tw-reminder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tw-reminder-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--tw-border);
+  border-radius: 12px;
+  background: var(--tw-surface);
+}
+
+.tw-reminder-icon {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tw-accent-soft);
+  color: var(--tw-accent);
+}
+
+.tw-reminder-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.tw-reminder-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.tw-reminder-title h3 {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--tw-text);
+}
+
+.tw-reminder-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--tw-surface-2);
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+}
+
+.tw-reminder-badge.on {
+  background: var(--tw-accent-soft);
+  color: var(--tw-accent);
+}
+
+.tw-reminder-card p {
+  color: var(--tw-text-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.tw-reminder-meta {
+  margin-top: 4px;
+  color: var(--tw-text-3) !important;
+  font-size: 11.5px !important;
+}
+
+.tw-reminder-warning {
+  margin-top: 6px;
+  color: var(--tw-danger) !important;
+  font-size: 11.5px !important;
+}
+
+.tw-reminder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.tw-reminder-action {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--tw-border);
+  border-radius: 8px;
+  background: var(--tw-bg);
+  color: var(--tw-text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tw-reminder-action:hover {
+  background: var(--tw-hover);
+  color: var(--tw-text);
+}
+
+.tw-reminder-action.primary {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent);
+  color: #fff;
+}
+
+.tw-reminder-action.primary:hover {
+  filter: brightness(1.06);
+}
+
+.tw-reminder-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.tw-reminder-note {
+  color: var(--tw-text-3);
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+button.tw-side-link {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
 .tw-cell-day {
   border: 0;
   background: transparent;

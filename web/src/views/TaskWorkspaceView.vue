@@ -31,8 +31,8 @@
         <button
           class="tw-rail-button"
           :class="{ active: remindersEnabled }"
-          :title="remindersEnabled ? '关闭浏览器提醒' : '开启浏览器提醒（需保持页面打开）'"
-          @click="toggleReminders"
+          title="提醒设置"
+          @click="reminderSettingsOpen = true"
         >
           <TaskIcon name="bell" :size="20" />
         </button>
@@ -72,6 +72,7 @@
       @delete-filter="confirmDeleteFilter"
       @select-tag="selectTag"
       @manage-tags="openTagManager"
+      @open-reminders="reminderSettingsOpen = true"
       @close="sidebarOpen = false"
       @logout="handleLogout"
     />
@@ -617,6 +618,13 @@
         </footer>
       </div>
     </div>
+
+    <ReminderSettingsDialog
+      v-if="reminderSettingsOpen"
+      :browser-enabled="remindersEnabled"
+      @toggle-browser="toggleReminders"
+      @close="reminderSettingsOpen = false"
+    />
   </div>
 </template>
 
@@ -668,6 +676,7 @@ import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
 import TaskSummaryPanel from '../components/tasks/TaskSummaryPanel.vue'
 import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
+import ReminderSettingsDialog from '../components/tasks/ReminderSettingsDialog.vue'
 import TaskIcon from '../components/tasks/TaskIcon.vue'
 
 type Mode = 'list' | 'board' | 'calendar'
@@ -712,6 +721,7 @@ const moveDialogOpen = ref(false)
 const moveTargetId = ref(0)
 const batchBusy = ref(false)
 const remindersEnabled = ref(false)
+const reminderSettingsOpen = ref(false)
 const reminderTasks = ref<TaskItem[]>([])
 const NOTIFY_KEY = 'caldav-task-notified'
 let reminderTimer: ReturnType<typeof setInterval> | undefined

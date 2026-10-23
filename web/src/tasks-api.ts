@@ -130,6 +130,28 @@ export function fetchTaskReminders() {
   return api<{ tasks: TaskItem[] }>('/tasks/reminders')
 }
 
+export function fetchPushPublicKey() {
+  return api<{ publicKey: string }>('/tasks/push/public-key')
+}
+
+export function fetchPushSubscriptions() {
+  return api<{ count: number; subscribed: boolean }>('/tasks/push/subscriptions')
+}
+
+export function savePushSubscription(subscription: PushSubscriptionJSON) {
+  return api<{ subscribed: boolean }>('/tasks/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+  })
+}
+
+export function deletePushSubscription(endpoint: string) {
+  return api<{ subscribed: boolean }>('/tasks/push/subscribe', {
+    method: 'DELETE',
+    body: JSON.stringify({ endpoint }),
+  })
+}
+
 export function restoreTask(id: number) {
   return api<{ task: TaskItem }>(`/tasks/${id}/restore`, { method: 'POST' })
 }

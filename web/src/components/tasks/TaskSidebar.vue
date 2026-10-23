@@ -157,6 +157,10 @@
         <TaskIcon name="check" :size="13" />
         CalDAV VTODO 同步
       </p>
+      <button class="tw-side-link" @click="$emit('open-reminders')">
+        <TaskIcon name="bell" :size="16" />
+        <span>提醒设置</span>
+      </button>
       <router-link class="tw-side-link" to="/">
         <TaskIcon name="back" :size="16" />
         <span>管理后台</span>
@@ -210,6 +214,7 @@ const emit = defineEmits<{
   (event: 'edit-filter', filter: SavedFilter): void
   (event: 'delete-filter', filter: SavedFilter): void
   (event: 'manage-tags'): void
+  (event: 'open-reminders'): void
   (event: 'logout'): void
   (event: 'close'): void
 }>()

@@ -36,7 +36,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - AI 语音输入：支持浏览器 Web Speech API 的浏览器可直接口述任务
 - AI 设置：Base URL、模型、API Key 可在页面配置，也支持环境变量初始化
 - 重复任务：每天、工作日、每周、每月、每年，或自定义 RRULE；完成后自动滚到下一次
-- 提醒：准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天，写入 CalDAV `VALARM`，页面打开时同时使用浏览器通知
+- 提醒：准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天，写入 CalDAV `VALARM`；同时支持页面内浏览器提醒与页面关闭后的服务端 Web Push
 - 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
 - 保存过滤器：按清单、标签、优先级、日期、状态、关键词组合筛选并命名保存
 - 标签管理：重命名或删除标签，变更会回写到所有任务与 VTODO `CATEGORIES`
@@ -164,6 +164,9 @@ docker run -d --name caldav \
 | — | `CALDAV_AI_BASE_URL` | 空 | AI 接口 Base URL（OpenAI 兼容） |
 | — | `CALDAV_AI_MODEL` | 空 | AI 模型名称 |
 | — | `CALDAV_AI_API_KEY` | 空 | AI API Key（页面保存优先） |
+| — | `CALDAV_REMINDERS` | 开启 | 设为 `off` 关闭服务端提醒调度器 |
+| — | `CALDAV_REMINDER_INTERVAL` | `30s` | 调度器检查间隔，最小 `10s` |
+| — | `CALDAV_PUSH_SUBJECT` | `mailto:admin@example.com` | VAPID 联系人，建议改成真实邮箱或站点 URL |
 | `-version` | — | — | 输出版本号 |
 
 数据库文件位于 `<data>/caldav-free.db`，使用 WAL 模式。
@@ -213,7 +216,10 @@ docker run -d --name caldav \
 | `/admin/tasks` | 任务工作台（清单 / 看板 / 日历） |
 | `/api/admin/*` | 管理后台 JSON API（会话 + CSRF） |
 | `/api/admin/tasks` | 任务工作台数据与任务 CRUD |
-| `/api/admin/tasks/reminders` | 提醒候选任务 |
+| `/api/admin/tasks/reminders` | 提醒候选任务（页面内提醒） |
+| `/api/admin/tasks/push/public-key` | Web Push VAPID 公钥 |
+| `/api/admin/tasks/push/subscriptions` | 当前用户已登记的推送设备数 |
+| `/api/admin/tasks/push/subscribe` | 新增或删除浏览器推送订阅 |
 | `/api/admin/tasks/calendar` | 指定日期范围内的 CalDAV 事件（展开重复） |
 | `/api/admin/tasks/stats` | 任务统计（天数可配置） |
 | `/api/admin/tasks/summary` | 按筛选条件生成摘要数据 |
@@ -292,6 +298,8 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹）
 - `task_filters`：保存的过滤器条件（JSON）
 - `summary_documents`：摘要模板与历史文档
+- `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
+- `reminder_deliveries`：服务端提醒投递去重记录
 - `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
@@ -478,7 +486,8 @@ go vet ./...
 - 工作台与客户端同时修改同一任务时采用“工作台优先”的最后写入策略，不做字段级合并。
 - 重复任务在完成时会把当前 VTODO 的 `DTSTART` / `DUE` 推进到下一次，不保留每次完成的历史实例；带 `COUNT` / `UNTIL` 的复杂规则会以当前到期时间重新锚定。
 - 手动排序只保证当前筛选结果内的相对顺序；跨日期分组的排序在重新加载后仍以手动顺序为准。
-- 浏览器提醒依赖页面保持打开；关闭页面后只有支持 `VALARM` 的 CalDAV 客户端会继续提醒。
+- 服务端 Web Push 需要 HTTPS（或 localhost）、浏览器允许通知并完成设备订阅；浏览器完全退出时通知可能延迟到下次启动。
+- CalDAV `VALARM` 仍由客户端负责触发；页面内浏览器提醒依赖页面保持打开。
 - 垃圾桶没有自动清理期限，需要手动彻底删除或清空。
 - 保存过滤器、清单文件夹与标签管理属于工作台组织能力，不映射到 CalDAV 日历结构。
 - 标签目前不支持单独设置颜色。

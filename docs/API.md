@@ -517,6 +517,25 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 移除共享成员，返回 `204`。
 
+### GET /api/admin/tasks/{id}/activities
+
+返回任务动态时间线（最近 50 条，倒序）：
+
+```json
+{
+  "activities": [
+    {
+      "id": 4,
+      "type": "assign",
+      "detail": "指派给 @bob",
+      "username": "admin",
+      "displayName": "Administrator",
+      "createdAt": "2026-10-24T00:40:00Z"
+    }
+  ]
+}
+```
+
 ### GET /api/admin/tasks/{id}/comments
 
 返回任务评论，按时间正序：

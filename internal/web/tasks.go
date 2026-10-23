@@ -542,6 +542,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", created.ID, "error", err)
 	}
 	s.notifyAssignment(ctx, r, current, "", created)
+	_ = s.store.CreateTaskActivity(ctx, created.ID, current.ID, "create", "")
 	list, _ := s.store.GetTaskList(ctx, created.UserID, created.ListID)
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"task": apiTaskDTO(created, list)})
 }
@@ -590,6 +591,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		return
 	}
 	previousAssignee := task.Assignee
+	previousCompleted := task.Completed
 	if body.Title != nil {
 		task.Title = strings.TrimSpace(*body.Title)
 	}
@@ -672,6 +674,22 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
 	}
 	s.notifyAssignment(ctx, r, current, previousAssignee, task)
+	if !strings.EqualFold(previousAssignee, task.Assignee) {
+		detail := "取消指派"
+		if task.Assignee != "" {
+			detail = "指派给 @" + task.Assignee
+		}
+		_ = s.store.CreateTaskActivity(ctx, task.ID, current.ID, "assign", detail)
+	}
+	if task.Completed != previousCompleted {
+		detail := "重新打开任务"
+		if task.Completed {
+			detail = "完成了任务"
+		}
+		_ = s.store.CreateTaskActivity(ctx, task.ID, current.ID, "complete", detail)
+	} else if body.Completed != nil && *body.Completed && task.Recurrence != "" && task.DueAt != nil {
+		_ = s.store.CreateTaskActivity(ctx, task.ID, current.ID, "complete", "完成了本次重复任务")
+	}
 	if list == nil {
 		list, _ = s.store.GetTaskList(ctx, task.UserID, task.ListID)
 	}

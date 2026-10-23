@@ -217,6 +217,20 @@
         </div>
       </section>
 
+      <section v-if="activities.length" class="tw-activity-section">
+        <header class="tw-detail-section-head"><span>动态</span></header>
+        <div class="tw-activity-list">
+          <div v-for="activity in activities" :key="activity.id" class="tw-activity-row">
+            <span class="tw-activity-dot" />
+            <span class="tw-activity-text">
+              <strong>{{ activity.displayName || activity.username }}</strong>
+              {{ activity.detail }}
+            </span>
+            <small>{{ formatCommentTime(activity.createdAt) }}</small>
+          </div>
+        </div>
+      </section>
+
       <section class="tw-comments-section">
         <header class="tw-detail-section-head">
           <span>评论</span>
@@ -347,9 +361,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, CommentAttachment, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
+import type { ChecklistItem, CommentAttachment, TaskActivity, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; readonly?: boolean; listLocked?: boolean }>()
@@ -400,6 +414,7 @@ const customRule = ref('')
 const saving = ref(false)
 const saved = ref(false)
 const comments = ref<TaskComment[]>([])
+const activities = ref<TaskActivity[]>([])
 const commentsLoading = ref(false)
 const commentBusy = ref(false)
 const commentText = ref('')
@@ -457,6 +472,7 @@ function hydrate() {
   editingCommentId.value = 0
   editingCommentText.value = ''
   void loadComments()
+  void loadActivities()
   nextTick(() => {
     growTitle()
     lastSaved = snapshotDraft()
@@ -487,6 +503,17 @@ function changeReminder(index: number, value: number) {
   }
   draft.reminderOffsets[index] = value
   draft.reminderOffsets.sort((a, b) => a - b)
+}
+
+async function loadActivities() {
+  const id = props.task.id
+  if (!id) return
+  try {
+    const result = await fetchTaskActivities(id)
+    if (id === props.task.id) activities.value = result.activities
+  } catch {
+    if (id === props.task.id) activities.value = []
+  }
 }
 
 async function loadComments() {
@@ -703,6 +730,7 @@ async function save() {
   try {
     const { task } = await updateTask(props.task.id, payload)
     lastSaved = JSON.stringify({ ...payload, title, checklist: payload.checklist })
+    void loadActivities()
     if (completing && !task.completed && task.recurrence) {
       draft.completed = false
       const input = toDateInput(task)

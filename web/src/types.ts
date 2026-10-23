@@ -220,6 +220,15 @@ export interface TaskComment {
   attachments: CommentAttachment[]
 }
 
+export interface TaskActivity {
+  id: number
+  type: string
+  detail: string
+  username: string
+  displayName: string
+  createdAt: string
+}
+
 export interface TaskListMember {
   username: string
   displayName: string

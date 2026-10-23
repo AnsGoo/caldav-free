@@ -41,6 +41,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 清单共享：按用户名把清单共享给其他管理员，可授予只读或编辑权限；编辑者可在共享清单中新建、修改、完成、删除和指派任务
 - 协作通知：任务被指派时生成站内通知，并尽力通过 Web Push / SMTP 邮件提醒被指派人
 - 任务和日程提醒都支持站内通知与“稍后 10 分钟 / 30 分钟 / 1 小时 / 1 天”，任务通知可直接完成，并由服务端重新投递站内/Push/邮件
+- 任务动态：记录创建、指派、完成/重新打开等协作动作
 - 任务评论：共享成员可评论，使用 `@用户名` 提及成员并触发站内/推送/邮件通知；评论支持附件（单文件最大 10MB）、图片预览和作者编辑
 - 保存过滤器：按清单、标签、优先级、日期、状态、关键词组合筛选并命名保存
 - 标签管理：重命名或删除标签，变更会回写到所有任务与 VTODO `CATEGORIES`
@@ -251,6 +252,7 @@ docker run -d --name caldav \
 | `/api/admin/notifications` | 站内通知列表与未读数 |
 | `/api/admin/notifications/read` | 单条或全部标记已读 |
 | `/api/admin/notifications/{id}/snooze` | 日程通知稍后提醒 |
+| `/api/admin/tasks/{id}/activities` | 任务动态时间线 |
 | `/api/admin/tasks/{id}/comments` | 任务评论列表与发表评论 |
 | `/api/admin/tasks/{id}/comments/{commentId}` | 编辑/删除评论 |
 | `/api/admin/tasks/{id}/comments/{commentId}/attachments` | 上传评论附件 |
@@ -324,6 +326,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `tasks.assignee`：指派人用户名
 - `notifications`：站内通知（任务指派、评论、@提及、日程提醒）
 - `event_reminder_deliveries`：服务端日程提醒成功投递去重记录
+- `task_activities`：任务动态（创建、指派、完成、重新打开）
 - `task_comments`：任务评论与作者
 - `comment_attachments`：评论附件元数据与文件内容（SQLite BLOB）
 - `summary_documents`：摘要模板与历史文档

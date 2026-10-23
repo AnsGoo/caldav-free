@@ -5381,3 +5381,48 @@ button.tw-side-link {
   background: var(--tw-accent-soft);
   color: var(--tw-accent);
 }
+
+.tw-activity-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.tw-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tw-activity-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--tw-text-2);
+  font-size: 11px;
+}
+
+.tw-activity-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tw-accent);
+  flex: none;
+}
+
+.tw-activity-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-activity-text strong {
+  font-weight: 600;
+  color: var(--tw-text);
+}
+
+.tw-activity-row small {
+  color: var(--tw-text-3);
+  font-size: 9.5px;
+  flex: none;
+}

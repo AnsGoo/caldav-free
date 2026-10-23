@@ -153,7 +153,7 @@
 
       <div class="tw-scroll">
         <div class="tw-content">
-          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-quick-add">
+          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
             <input
               ref="quickInputEl"
@@ -168,7 +168,7 @@
             </button>
           </div>
 
-          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-quick-hint">
+          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-hint">
             <span v-if="hint.date" class="tw-hint-chip">{{ hint.date }}</span>
             <span v-if="hint.time" class="tw-hint-chip">{{ hint.time }}</span>
             <span v-for="tag in hint.tags" :key="tag" class="tw-hint-chip">#{{ tag }}</span>
@@ -349,7 +349,8 @@
       v-if="selectedTask"
       :task="selectedTask"
       :lists="detailLists"
-      :readonly="view === 'shared'"
+      :readonly="sharedReadonly"
+      :list-locked="view === 'shared'"
       @close="selectedId = 0"
       @changed="onTaskChanged"
       @deleted="onTaskDeleted"
@@ -820,6 +821,8 @@ const smartLabels: Record<string, string> = {
 const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
 
 const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))
+const sharedEditable = computed(() => view.value === 'shared' && activeSharedList.value?.role === 'editor')
+const sharedReadonly = computed(() => view.value === 'shared' && !sharedEditable.value)
 const heading = computed(() => {
   if (view.value === 'shared') return activeSharedList.value?.name || '共享清单'
   if (view.value === 'list') {
@@ -891,7 +894,10 @@ const quickTargetList = computed(() => {
   const id = quickListId.value || (view.value === 'list' || view.value === 'inbox' ? activeListId.value : inboxId.value) || inboxId.value
   return lists.value.find((list) => list.id === id)
 })
-const quickTargetName = computed(() => quickTargetList.value?.name || '收集箱')
+const quickTargetName = computed(() => {
+  if (view.value === 'shared' && activeSharedList.value) return activeSharedList.value.name
+  return quickTargetList.value?.name || '收集箱'
+})
 const hint = computed(() => quickHint(quickText.value))
 
 const emptyHint = computed(() => {
@@ -1071,7 +1077,7 @@ function openTask(task: TaskItem) {
 }
 
 async function toggleTask(task: TaskItem) {
-  if (view.value === 'shared') {
+  if (sharedReadonly.value) {
     Message.info('共享清单为只读')
     return
   }
@@ -1102,7 +1108,10 @@ async function submitQuick() {
   if (!text || quickBusy.value) return
   quickBusy.value = true
   try {
-    const { task } = await createTask({ text, listId: quickTargetList.value?.id })
+    const { task } = await createTask({
+      text,
+      listId: view.value === 'shared' ? activeSharedList.value?.listId : quickTargetList.value?.id,
+    })
     quickText.value = ''
     quickListId.value = 0
     await loadWorkspace(true)
@@ -1229,7 +1238,7 @@ function onTaskDeleted(id: number) {
 }
 
 function confirmRemoveTask(task: TaskItem) {
-  if (view.value === 'shared') {
+  if (sharedReadonly.value) {
     Message.info('共享清单为只读')
     return
   }
@@ -1793,6 +1802,9 @@ function hydrateFromRoute() {
   const filterId = typeof q.filter === 'string' ? Number(q.filter) : 0
   if (view.value === 'filter' && filterId) activeFilterId.value = filterId
   else if (view.value === 'filter') view.value = 'all'
+  const sharedId = typeof q.shared === 'string' ? Number(q.shared) : 0
+  if (view.value === 'shared' && sharedId) activeSharedListId.value = sharedId
+  else if (view.value === 'shared') view.value = 'all'
   const nextMode = typeof q.mode === 'string' ? q.mode : 'list'
   mode.value = view.value === 'shared' ? 'list' : (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
   if (view.value === 'trash') mode.value = 'list' 

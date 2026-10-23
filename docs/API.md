@@ -485,10 +485,10 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 ### POST /api/admin/task-lists/{id}/shares
 
 ```json
-{ "username": "bob", "role": "viewer" }
+{ "username": "bob", "role": "editor" }
 ```
 
-当前只接受 `viewer`。收集箱不能共享。
+`role` 支持 `viewer`（只读）和 `editor`（可编辑）。收集箱不能共享。
 
 ### DELETE /api/admin/task-lists/{id}/shares/{userId}
 
@@ -496,7 +496,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 ### GET /api/admin/tasks/shared?listId=...
 
-返回共享给当前用户的清单和任务，任务对象与普通任务一致，但接口不提供写操作。
+返回共享给当前用户的清单和任务。写操作仍使用普通任务接口：编辑者在共享清单中新建任务时传共享清单 ID，修改/删除任务使用普通 PATCH/DELETE；后端会校验共享角色。
 
 
 ## 9. 统计

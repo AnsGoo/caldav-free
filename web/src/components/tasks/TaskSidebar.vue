@@ -136,7 +136,7 @@
       <section v-if="sharedLists.length" class="tw-side-section">
         <header class="tw-section-head">
           <span>共享给我</span>
-          <span class="tw-shared-readonly">只读</span>
+          <span class="tw-shared-readonly">共享</span>
         </header>
         <ul class="tw-list-nav">
           <li v-for="shared in sharedLists" :key="shared.listId">
@@ -150,7 +150,7 @@
               <span class="tw-nav-label">{{ shared.name }}</span>
               <span v-if="shared.count" class="tw-nav-count">{{ shared.count }}</span>
             </button>
-            <p class="tw-shared-owner">{{ shared.ownerDisplay || shared.ownerUsername }}</p>
+            <p class="tw-shared-owner">{{ shared.ownerDisplay || shared.ownerUsername }} · {{ shared.role === 'editor' ? '可编辑' : '只读' }}</p>
           </li>
         </ul>
       </section>

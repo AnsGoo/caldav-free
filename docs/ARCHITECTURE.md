@@ -43,7 +43,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_lists` | 清单；每用户一个收集箱；`folder_id` 归属文件夹 |
 | `tasks` | 任务、日期、重复、提醒、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
-| `task_list_shares` | 清单只读共享成员；list_id + user_id 唯一 |
+| `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
 | `reminder_deliveries` | 服务端提醒成功记录；任务 + 到期时间 + 偏移 + 通道唯一 |
@@ -195,10 +195,10 @@ name:   任务
 ## 7. 清单共享
 
 - `task_list_shares` 记录 `list_id`、`owner_id`、`user_id`、`role`。
-- 当前只支持 `viewer`；共享接口本身只允许清单所有者操作。
-- 接收方通过 `/tasks/shared?listId=` 读取任务；后端重新校验共享关系，不提供写接口。
-- 共享任务保留所有者 `user_id`，因此 CalDAV 同步、提醒、统计仍归所有者。
-- 接收方侧栏显示“共享给我”，详情面板使用 `inert` 只读展示。
+- 支持 `viewer` / `editor`；只有清单所有者可以管理共享。
+- 接收方通过 `/tasks/shared?listId=` 读取任务；编辑者复用普通任务写接口，后端校验 `editor` 角色，任务仍归属清单所有者。
+- 共享任务保留所有者 `user_id`，因此 CalDAV 同步、提醒、统计仍归所有者；编辑者的修改也会推送到所有者的 CalDAV。
+- 接收方侧栏显示“共享给我”；viewer 使用 `inert` 只读展示，editor 可编辑任务但清单下拉锁定。
 - 删除清单或用户时清理对应共享记录。
 
 ## 8. 提醒

@@ -173,7 +173,7 @@ export interface SharedTaskList {
   ownerId: number
   ownerUsername: string
   ownerDisplay: string
-  role: 'viewer'
+  role: 'viewer' | 'editor'
   count: number
 }
 
@@ -181,7 +181,7 @@ export interface TaskListShare {
   userId: number
   username: string
   displayName: string
-  role: 'viewer'
+  role: 'viewer' | 'editor'
   createdAt: string
 }
 

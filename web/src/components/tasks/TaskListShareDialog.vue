@@ -11,6 +11,10 @@
         <p class="tw-share-hint">输入管理后台用户名，对方会在“共享给我”中看到这个清单。当前版本仅支持只读共享。</p>
         <form class="tw-share-form" @submit.prevent="addShare">
           <input v-model="username" class="tw-dialog-input" placeholder="用户名" autocomplete="off" />
+          <select v-model="role" class="tw-dialog-input tw-share-role">
+            <option value="viewer">只读</option>
+            <option value="editor">可编辑</option>
+          </select>
           <button class="tw-dialog-ok" :disabled="busy || !username.trim()">添加</button>
         </form>
         <div v-if="loading" class="tw-share-empty">加载中…</div>
@@ -19,7 +23,7 @@
             <span class="tw-avatar tw-avatar-sm">{{ (share.displayName || share.username).slice(0, 1).toUpperCase() }}</span>
             <span class="tw-share-person">
               <strong>{{ share.displayName || share.username }}</strong>
-              <small>@{{ share.username }} · 只读</small>
+              <small>@{{ share.username }} · {{ share.role === 'editor' ? '可编辑' : '只读' }}</small>
             </span>
             <button class="tw-icon-button" title="移除共享" :disabled="busy" @click="removeShare(share)">
               <TaskIcon name="close" :size="14" />
@@ -51,6 +55,7 @@ const emit = defineEmits<{
 
 const shares = ref<TaskListShare[]>([])
 const username = ref('')
+const role = ref<'viewer' | 'editor'>('viewer')
 const loading = ref(true)
 const busy = ref(false)
 const error = ref('')
@@ -74,7 +79,7 @@ async function addShare() {
   busy.value = true
   error.value = ''
   try {
-    const { share } = await createTaskListShare(props.list.id, name)
+    const { share } = await createTaskListShare(props.list.id, name, role.value)
     const index = shares.value.findIndex((item) => item.userId === share.userId)
     if (index >= 0) shares.value[index] = share
     else shares.value.push(share)

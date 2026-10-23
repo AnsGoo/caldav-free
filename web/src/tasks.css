@@ -4853,6 +4853,10 @@ button.tw-side-link {
   flex: 1;
 }
 
+.tw-share-form .tw-share-role {
+  flex: 0 0 92px;
+}
+
 .tw-share-form .tw-dialog-ok {
   flex: none;
   height: 34px;

@@ -135,10 +135,10 @@ export function fetchTaskListShares(listId: number) {
   return api<{ shares: TaskListShare[] }>(`/task-lists/${listId}/shares`)
 }
 
-export function createTaskListShare(listId: number, username: string) {
+export function createTaskListShare(listId: number, username: string, role: 'viewer' | 'editor' = 'viewer') {
   return api<{ share: TaskListShare }>(`/task-lists/${listId}/shares`, {
     method: 'POST',
-    body: JSON.stringify({ username, role: 'viewer' }),
+    body: JSON.stringify({ username, role }),
   })
 }
 

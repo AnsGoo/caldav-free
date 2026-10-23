@@ -3,7 +3,7 @@
     <header class="tw-detail-head">
       <label class="tw-detail-list">
         <i :style="{ background: currentList?.color || '#4772fa' }" />
-        <select v-model.number="draft.listId" :disabled="readonly" @change="save">
+        <select v-model.number="draft.listId" :disabled="readonly || listLocked" @change="save">
           <option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</option>
         </select>
       </label>
@@ -228,7 +228,7 @@ import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, form
 import { updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ task: TaskItem; lists: TaskList[]; readonly?: boolean }>()
+const props = defineProps<{ task: TaskItem; lists: TaskList[]; readonly?: boolean; listLocked?: boolean }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', task: TaskItem): void

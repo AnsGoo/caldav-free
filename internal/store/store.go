@@ -26,6 +26,8 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrConflict is returned when a unique constraint would be violated.
 	ErrConflict = errors.New("conflict")
+	// ErrForbidden is returned when a share does not grant write access.
+	ErrForbidden = errors.New("forbidden")
 )
 
 // StringList is stored as a comma-separated TEXT column.

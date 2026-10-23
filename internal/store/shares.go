@@ -65,8 +65,8 @@ func (s *Store) ShareTaskList(ctx context.Context, ownerID, listID int64, userna
 	if role == "" {
 		role = "viewer"
 	}
-	if role != "viewer" {
-		return nil, errors.New("当前版本仅支持只读共享")
+	if role != "viewer" && role != "editor" {
+		return nil, errors.New("共享角色必须是 viewer 或 editor")
 	}
 	share := TaskListShare{ListID: listID, OwnerID: ownerID, UserID: user.ID, Role: role}
 	err = s.db.WithContext(ctx).Clauses(clause.OnConflict{
@@ -166,6 +166,26 @@ func (s *Store) GetSharedTaskList(ctx context.Context, userID, listID int64) (*T
 		return nil, "", err
 	}
 	return list, share.Role, nil
+}
+
+// GetSharedTask returns a task from a list shared with the user.
+func (s *Store) GetSharedTask(ctx context.Context, userID, taskID int64) (*Task, *TaskList, string, error) {
+	var task Task
+	err := s.db.WithContext(ctx).Where("id = ? AND deleted = ?", taskID, false).First(&task).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, "", ErrNotFound
+	}
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("get shared task: %w", err)
+	}
+	list, role, err := s.GetSharedTaskList(ctx, userID, task.ListID)
+	if err != nil {
+		return nil, nil, "", ErrNotFound
+	}
+	if list.UserID != task.UserID {
+		return nil, nil, "", ErrNotFound
+	}
+	return &task, list, role, nil
 }
 
 // ListSharedTasks returns tasks in a list shared with the user.

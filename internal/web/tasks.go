@@ -427,7 +427,19 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		text = strings.TrimSpace(*body.Text)
 	}
 	if body.ListID != nil && *body.ListID > 0 {
-		task.ListID = *body.ListID
+		if own, err := s.store.GetTaskList(ctx, current.ID, *body.ListID); err == nil {
+			task.ListID = own.ID
+		} else if shared, role, shareErr := s.store.GetSharedTaskList(ctx, current.ID, *body.ListID); shareErr == nil {
+			if role != "editor" {
+				writeAPIError(w, http.StatusForbidden, "该共享清单为只读")
+				return
+			}
+			task.UserID = shared.UserID
+			task.ListID = shared.ID
+		} else {
+			writeAPIError(w, http.StatusBadRequest, "清单不存在")
+			return
+		}
 	}
 	if body.Notes != nil {
 		task.Notes = *body.Notes
@@ -497,11 +509,30 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.taskSync.PushTask(ctx, current.ID, created); err != nil {
+	if err := s.taskSync.PushTask(ctx, created.UserID, created); err != nil {
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", created.ID, "error", err)
 	}
-	list, _ := s.store.GetTaskList(ctx, current.ID, created.ListID)
+	list, _ := s.store.GetTaskList(ctx, created.UserID, created.ListID)
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"task": apiTaskDTO(created, list)})
+}
+
+func (s *Server) taskForWrite(ctx context.Context, current *store.User, id int64) (*store.Task, *store.TaskList, string, bool, error) {
+	task, err := s.store.GetTask(ctx, current.ID, id)
+	if err == nil {
+		list, listErr := s.store.GetTaskList(ctx, current.ID, task.ListID)
+		return task, list, "", false, listErr
+	}
+	if err != store.ErrNotFound {
+		return nil, nil, "", false, err
+	}
+	task, list, role, err := s.store.GetSharedTask(ctx, current.ID, id)
+	if err != nil {
+		return nil, nil, "", false, err
+	}
+	if role != "editor" {
+		return nil, nil, role, true, store.ErrForbidden
+	}
+	return task, list, role, true, nil
 }
 
 func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
@@ -515,9 +546,17 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		return
 	}
 	ctx := r.Context()
-	task, err := s.store.GetTask(ctx, current.ID, id)
+	task, list, _, shared, err := s.taskForWrite(ctx, current, id)
 	if err != nil {
+		if err == store.ErrForbidden {
+			writeAPIError(w, http.StatusForbidden, "该共享清单为只读")
+			return
+		}
 		writeAPIError(w, http.StatusNotFound, "任务不存在")
+		return
+	}
+	if shared && body.ListID != nil && *body.ListID > 0 && *body.ListID != task.ListID {
+		writeAPIError(w, http.StatusBadRequest, "共享任务不能移动到其他清单")
 		return
 	}
 	if body.Title != nil {
@@ -594,10 +633,12 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
+	if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
 	}
-	list, _ := s.store.GetTaskList(ctx, current.ID, task.ListID)
+	if list == nil {
+		list, _ = s.store.GetTaskList(ctx, task.UserID, task.ListID)
+	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"task": apiTaskDTO(task, list)})
 }
 
@@ -608,18 +649,22 @@ func (s *Server) apiDeleteTask(w http.ResponseWriter, r *http.Request, current *
 		return
 	}
 	ctx := r.Context()
-	task, err := s.store.GetTask(ctx, current.ID, id)
+	task, _, _, _, err := s.taskForWrite(ctx, current, id)
 	if err != nil {
+		if err == store.ErrForbidden {
+			writeAPIError(w, http.StatusForbidden, "该共享清单为只读")
+			return
+		}
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	// Remove the VTODO first: a stale object without a task would otherwise be
 	// imported as a brand new task on the next sync.
-	if err := s.taskSync.DeleteTask(ctx, current.ID, task); err != nil {
+	if err := s.taskSync.DeleteTask(ctx, task.UserID, task); err != nil {
 		s.apiServerError(w, err)
 		return
 	}
-	if err := s.store.DeleteTask(ctx, current.ID, id); err != nil {
+	if err := s.store.DeleteTask(ctx, task.UserID, id); err != nil {
 		s.apiServerError(w, err)
 		return
 	}

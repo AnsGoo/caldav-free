@@ -5350,3 +5350,34 @@ button.tw-side-link {
   font-size: 10.5px;
   padding: 0 4px;
 }
+
+.tw-notification-tabs {
+  display: flex;
+  gap: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--tw-border);
+  position: sticky;
+  top: 0;
+  background: var(--tw-bg);
+  z-index: 1;
+}
+
+.tw-notification-tabs button {
+  height: 25px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tw-text-2);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tw-notification-tabs button:hover {
+  background: var(--tw-hover);
+}
+
+.tw-notification-tabs button.active {
+  background: var(--tw-accent-soft);
+  color: var(--tw-accent);
+}

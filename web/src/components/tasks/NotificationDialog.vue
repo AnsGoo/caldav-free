@@ -11,9 +11,15 @@
         </div>
       </header>
       <div class="tw-dialog-body tw-notification-body">
+        <div class="tw-notification-tabs">
+          <button :class="{ active: filter === 'all' }" @click="filter = 'all'">全部</button>
+          <button :class="{ active: filter === 'unread' }" @click="filter = 'unread'">未读</button>
+          <button :class="{ active: filter === 'task' }" @click="filter = 'task'">任务</button>
+          <button :class="{ active: filter === 'event' }" @click="filter = 'event'">日程</button>
+        </div>
         <div v-if="loading" class="tw-share-empty">加载中…</div>
         <div
-          v-for="item in notifications"
+          v-for="item in visibleNotifications"
           v-else
           :key="item.id"
           class="tw-notification-row"
@@ -30,6 +36,14 @@
             <small>{{ formatTime(item.createdAt) }}</small>
           </span>
           <span v-if="item.type === 'event' || item.type === 'task'" class="tw-notification-actions" @click.stop>
+            <button
+              v-if="item.type === 'task'"
+              class="tw-notification-snooze"
+              :disabled="completing === item.id"
+              @click="completeTask(item)"
+            >
+              {{ completing === item.id ? '处理中…' : '完成' }}
+            </button>
             <select
               class="tw-notification-snooze-select"
               :value="snoozeMinutes[item.id] || 10"
@@ -60,10 +74,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { AppNotification } from '../../types'
-import { fetchNotifications, markAllNotificationsRead, markNotificationRead, snoozeEventNotification } from '../../tasks-api'
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead, snoozeEventNotification, updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const emit = defineEmits<{
@@ -78,7 +92,14 @@ const loading = ref(true)
 const busy = ref(false)
 const snoozing = ref(0)
 const snoozeMinutes = ref<Record<number, number>>({})
+const completing = ref(0)
+const filter = ref<'all' | 'unread' | 'task' | 'event'>('all')
 const error = ref('')
+const visibleNotifications = computed(() => {
+  if (filter.value === 'all') return notifications.value
+  if (filter.value === 'unread') return notifications.value.filter((item) => !item.read)
+  return notifications.value.filter((item) => item.type === filter.value)
+})
 
 function formatTime(value: string) {
   const time = new Date(value).getTime()
@@ -121,6 +142,23 @@ async function open(item: AppNotification) {
 function setSnoozeMinutes(id: number, event: Event) {
   const value = Number((event.target as HTMLSelectElement).value)
   snoozeMinutes.value = { ...snoozeMinutes.value, [id]: value }
+}
+
+async function completeTask(item: AppNotification) {
+  if (completing.value || item.type !== 'task' || !item.taskId) return
+  completing.value = item.id
+  try {
+    await updateTask(item.taskId, { completed: true })
+    item.read = true
+    await markNotificationRead(item.id)
+    unread.value = Math.max(0, unread.value - 1)
+    emit('changed', unread.value)
+    Message.success('任务已完成')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '完成任务失败'
+  } finally {
+    completing.value = 0
+  }
 }
 
 async function snooze(item: AppNotification) {

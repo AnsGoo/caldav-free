@@ -95,11 +95,25 @@ func (s *Scheduler) deliverEventReminder(ctx context.Context, calendar *store.Ca
 		whenLabel = start.Format("1月2日") + " 全天"
 	}
 	body := fmt.Sprintf("%s · %s", title, whenLabel)
-	eventURL := fmt.Sprintf("%s/admin/tasks?view=all&mode=calendar&calendar=%d&event=%s&occurrence=%s",
-		s.baseURL, calendar.ID, url.QueryEscape(href), url.QueryEscape(instance.Start.Format(time.RFC3339)))
+	relativeURL := fmt.Sprintf("/tasks?view=all&mode=calendar&calendar=%d&event=%s&occurrence=%s",
+		calendar.ID, url.QueryEscape(href), url.QueryEscape(instance.Start.Format(time.RFC3339)))
+	eventURL := s.baseURL + "/admin" + relativeURL
 	sentAny := false
+	// In-app notification center.
+	delivered, _ := s.store.HasEventReminderDelivery(ctx, calendar.ID, key, "inapp")
+	if !delivered {
+		if _, err := s.store.CreateNotification(ctx, &store.Notification{
+			UserID: owner.ID, Type: "event", Title: "日程提醒", Body: body,
+			URL: relativeURL, TaskID: 0,
+		}); err != nil {
+			s.logger.Warn("event reminder notification", "calendar", calendar.ID, "error", err)
+		} else {
+			_ = s.store.RecordEventReminderDelivery(ctx, calendar.ID, key, "inapp", "")
+			sentAny = true
+		}
+	}
 	// Web Push
-	delivered, _ := s.store.HasEventReminderDelivery(ctx, calendar.ID, key, "push")
+	delivered, _ = s.store.HasEventReminderDelivery(ctx, calendar.ID, key, "push")
 	if !delivered {
 		attempt, ready := s.retryReady(ctx, 0, key, "push", now)
 		if ready {

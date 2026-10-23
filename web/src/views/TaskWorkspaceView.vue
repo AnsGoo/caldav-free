@@ -790,6 +790,7 @@ const reminderTasks = ref<TaskItem[]>([])
 const NOTIFY_KEY = 'caldav-task-notified'
 let reminderTimer: ReturnType<typeof setInterval> | undefined
 let notificationTimer: ReturnType<typeof setInterval> | undefined
+let notificationSource: EventSource | null = null
 
 const quickInputEl = ref<HTMLInputElement | null>(null)
 const searchInputEl = ref<HTMLInputElement | null>(null)
@@ -1898,6 +1899,19 @@ async function refreshNotifications() {
   }
 }
 
+function startNotificationStream() {
+  if (typeof EventSource === 'undefined' || notificationSource) return
+  notificationSource = new EventSource('/api/admin/notifications/stream')
+  notificationSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as { unread?: number }
+      if (typeof data.unread === 'number') unreadNotifications.value = data.unread
+    } catch {
+      /* ignore malformed SSE frames */
+    }
+  }
+}
+
 async function openNotification(url: string) {
   notificationDialogOpen.value = false
   const target = url.startsWith('/admin/') ? url.slice('/admin'.length) : url
@@ -1961,6 +1975,7 @@ onMounted(async () => {
   }
   await loadWorkspace()
   void refreshNotifications()
+  startNotificationStream()
   notificationTimer = setInterval(() => { void refreshNotifications() }, 60000)
   initialized = true
   window.addEventListener('keydown', onKeydown)
@@ -1971,6 +1986,8 @@ onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer)
   if (refreshTimer) clearTimeout(refreshTimer)
   if (notificationTimer) clearInterval(notificationTimer)
+  notificationSource?.close()
+  notificationSource = null
   stopReminderTimer()
 })
 

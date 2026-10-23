@@ -24,7 +24,20 @@ func (s *Store) CreateNotification(ctx context.Context, notification *Notificati
 	if err := s.db.WithContext(ctx).Create(notification).Error; err != nil {
 		return nil, fmt.Errorf("create notification: %w", err)
 	}
+	s.notifyMu.Lock()
+	listener := s.notifyListener
+	s.notifyMu.Unlock()
+	if listener != nil {
+		listener(notification)
+	}
 	return notification, nil
+}
+
+// SetNotificationListener registers a callback for newly created notifications.
+func (s *Store) SetNotificationListener(listener func(*Notification)) {
+	s.notifyMu.Lock()
+	s.notifyListener = listener
+	s.notifyMu.Unlock()
 }
 
 // ListNotifications returns recent notifications for a user.

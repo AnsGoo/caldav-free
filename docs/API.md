@@ -626,6 +626,16 @@ GET /api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}
 }
 ```
 
+### GET /api/admin/notifications/stream
+
+SSE 长连接，连接时和新增通知时发送：
+
+```text
+data: {"unread":2}
+```
+
+服务端每 25 秒发送一次注释心跳，连接随请求关闭而释放。
+
 ### POST /api/admin/notifications/read
 
 单条：

@@ -53,8 +53,9 @@ type Server struct {
 	limiter     *loginLimiter
 	externalURL string
 	// CalDAVURL is the public CalDAV base URL shown to administrators.
-	CalDAVURL string
-	taskSync  *tasksync.Syncer
+	CalDAVURL     string
+	taskSync      *tasksync.Syncer
+	notifications *notificationHub
 }
 
 // New creates the admin web server. externalURL may be empty to derive URLs
@@ -90,16 +91,21 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 		w.Header().Set("Cache-Control", "no-cache")
 		fileServer.ServeHTTP(w, r)
 	}))
+	notifications := newNotificationHub()
+	st.SetNotificationListener(func(notification *store.Notification) {
+		notifications.publish(notification.UserID)
+	})
 	return &Server{
-		store:       st,
-		dav:         davHandler,
-		logger:      logger,
-		templates:   tmpl,
-		assets:      assets,
-		sessions:    newSessionStore(),
-		limiter:     newLoginLimiter(),
-		externalURL: strings.TrimRight(externalURL, "/"),
-		taskSync:    tasksync.New(st),
+		store:         st,
+		notifications: notifications,
+		dav:           davHandler,
+		logger:        logger,
+		templates:     tmpl,
+		assets:        assets,
+		sessions:      newSessionStore(),
+		limiter:       newLoginLimiter(),
+		externalURL:   strings.TrimRight(externalURL, "/"),
+		taskSync:      tasksync.New(st),
 	}, nil
 }
 
@@ -121,6 +127,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/logout", s.apiAdmin(s.apiLogout))
 	mux.HandleFunc("GET /api/admin/dashboard", s.apiAdmin(s.apiDashboard))
 	mux.HandleFunc("GET /api/admin/notifications", s.apiAdmin(s.apiNotifications))
+	mux.HandleFunc("GET /api/admin/notifications/stream", s.apiAdmin(s.apiNotificationStream))
 	mux.HandleFunc("POST /api/admin/notifications/read", s.apiAdmin(s.apiNotificationsRead))
 	mux.HandleFunc("POST /api/admin/notifications/{id}/snooze", s.apiAdmin(s.apiSnoozeNotification))
 	mux.HandleFunc("GET /api/admin/users", s.apiAdmin(s.apiUsers))

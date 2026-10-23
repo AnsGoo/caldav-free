@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -141,7 +142,9 @@ type Setting struct {
 
 // Store owns the GORM database handle.
 type Store struct {
-	db *gorm.DB
+	db             *gorm.DB
+	notifyMu       sync.Mutex
+	notifyListener func(*Notification)
 }
 
 // Open opens (and if necessary creates) the SQLite database.

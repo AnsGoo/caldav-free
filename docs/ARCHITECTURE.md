@@ -44,7 +44,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `tasks` | 任务、日期、重复、提醒、指派人、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
-| `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态 |
+| `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态；SSE 实时推送未读数 |
 | `event_snoozes` | 日程稍后提醒：目标日历/事件、原通知、提醒时间、发送状态 |
 | `task_snoozes` | 任务稍后提醒：任务、原通知、提醒时间、发送状态 |
 | `task_activities` | 任务动态：创建、指派、完成/重新打开 |
@@ -210,7 +210,8 @@ name:   任务
 - 删除清单或用户时清理对应共享记录。
 - `assignee` 只允许清单所有者或共享成员；不写入 VTODO，由工作台展示。
 - 指派变更时写入 `notifications`，并异步尝试 Web Push / SMTP；失败不影响任务保存。
-- 前端每 60 秒拉取未读数；点击通知按 `url` 进入共享或普通任务。
+- 前端通过 EventSource 连接 `/api/admin/notifications/stream`，新通知立即更新未读数；仍保留 60 秒轮询兜底。
+- 点击通知按 `url` 进入共享或普通任务。
 - 评论通过 `GetTaskAccess` 支持所有者/共享成员；`@username` 仅对清单成员生效，评论作者和所有者可删除。
 - 评论通知复用站内通知、Web Push 和 SMTP 链路。
 - 附件通过任务权限校验后上传/下载；文件内容存 SQLite，便于单文件备份。

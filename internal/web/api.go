@@ -737,16 +737,7 @@ func (s *Server) apiCreateEvent(w http.ResponseWriter, r *http.Request, _ *store
 		writeAPIError(w, http.StatusBadRequest, "该日历未启用 VEVENT 组件")
 		return
 	}
-	var body struct {
-		Summary     string `json:"summary"`
-		Location    string `json:"location"`
-		Description string `json:"description"`
-		Start       string `json:"start"`
-		End         string `json:"end"`
-		AllDay      bool   `json:"allDay"`
-		RRule       string `json:"rrule"`
-		Count       int    `json:"count"`
-	}
+	var body eventPatchBody
 	if !readAPIJSON(w, r, &body) {
 		return
 	}
@@ -801,16 +792,7 @@ func (s *Server) apiPatchEvent(w http.ResponseWriter, r *http.Request, _ *store.
 		writeAPIError(w, http.StatusBadRequest, "事件路径无效")
 		return
 	}
-	var body struct {
-		Summary     string `json:"summary"`
-		Location    string `json:"location"`
-		Description string `json:"description"`
-		Start       string `json:"start"`
-		End         string `json:"end"`
-		AllDay      bool   `json:"allDay"`
-		RRule       string `json:"rrule"`
-		Count       int    `json:"count"`
-	}
+	var body eventPatchBody
 	if !readAPIJSON(w, r, &body) {
 		return
 	}
@@ -837,6 +819,36 @@ func (s *Server) apiPatchEvent(w http.ResponseWriter, r *http.Request, _ *store.
 	start, end, err := parseAPITimes(body.Start, body.End, body.AllDay, loc)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.EqualFold(body.Scope, "single") {
+		data, err := buildOccurrenceUpdate(cal, obj, body, start, end, tzid)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		parsed, err := ical.Load(data, cal.Timezone)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+			return
+		}
+		info, err := parsed.Analyze()
+		if err != nil || info.ComponentType != "VEVENT" {
+			writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+			return
+		}
+		obj.Data = data
+		obj.ETag = hashData(data)
+		obj.ComponentType = info.ComponentType
+		obj.FirstStart = unixOrZero(info.FirstStart)
+		obj.LastEnd = unixOrZero(info.LastEnd)
+		obj.Recurring = info.Recurring
+		obj.Size = int64(len(data))
+		if _, _, _, err := s.store.PutObject(ctx, obj); err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		writeAPIJSON(w, http.StatusOK, map[string]any{"event": eventDTO(cal, obj), "data": string(data)})
 		return
 	}
 	data, uid, err := buildEventICS(cal, obj.UID, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count)
@@ -934,6 +946,47 @@ func (s *Server) apiDeleteEvent(w http.ResponseWriter, r *http.Request, _ *store
 	calID, name, ok := eventPath(r)
 	if !ok {
 		writeAPIError(w, http.StatusBadRequest, "事件路径无效")
+		return
+	}
+	if recurrenceID := strings.TrimSpace(r.URL.Query().Get("recurrenceId")); recurrenceID != "" {
+		ctx := r.Context()
+		cal, err := s.store.GetCalendar(ctx, calID)
+		if err != nil {
+			writeAPIError(w, http.StatusNotFound, "日历不存在")
+			return
+		}
+		obj, err := s.store.GetObject(ctx, calID, name)
+		if err != nil {
+			writeAPIError(w, http.StatusNotFound, "事件不存在")
+			return
+		}
+		data, err := buildOccurrenceDelete(cal, obj, recurrenceID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		parsed, err := ical.Load(data, cal.Timezone)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+			return
+		}
+		info, err := parsed.Analyze()
+		if err != nil || info.ComponentType != "VEVENT" {
+			writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+			return
+		}
+		obj.Data = data
+		obj.ETag = hashData(data)
+		obj.ComponentType = info.ComponentType
+		obj.FirstStart = unixOrZero(info.FirstStart)
+		obj.LastEnd = unixOrZero(info.LastEnd)
+		obj.Recurring = info.Recurring
+		obj.Size = int64(len(data))
+		if _, _, _, err := s.store.PutObject(ctx, obj); err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	if _, _, err := s.store.DeleteObject(r.Context(), calID, name); err != nil {

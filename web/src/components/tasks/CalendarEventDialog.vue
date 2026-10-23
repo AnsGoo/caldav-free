@@ -23,7 +23,7 @@
           </label>
           <label class="tw-event-field">
             <span>重复</span>
-            <select v-model="repeatChoice" class="tw-dialog-input" @change="syncRepeat">
+            <select v-model="repeatChoice" class="tw-dialog-input" :disabled="editing && event?.recurring && scope === 'single'" @change="syncRepeat">
               <option value="NONE">不重复</option>
               <option value="FREQ=DAILY">每天</option>
               <option value="FREQ=WEEKLY">每周</option>
@@ -44,6 +44,17 @@
           <input v-model="form.allDay" type="checkbox" />
           <span>全天日程</span>
         </label>
+
+        <div v-if="editing && event?.recurring" class="tw-event-scope">
+          <label class="tw-event-check">
+            <input v-model="scope" type="radio" value="single" />
+            <span>仅修改此次</span>
+          </label>
+          <label class="tw-event-check">
+            <input v-model="scope" type="radio" value="series" />
+            <span>修改整个系列</span>
+          </label>
+        </div>
 
         <div class="tw-event-grid">
           <label class="tw-event-field">
@@ -75,8 +86,11 @@
           <textarea v-model="form.description" class="tw-event-textarea" rows="3" placeholder="可选" />
         </label>
 
-        <p v-if="editing && event?.recurring" class="tw-reminder-warning">
-          这是重复日程，保存会修改整个重复系列；暂不支持只改单次。
+        <p v-if="editing && event?.recurring && scope === 'single'" class="tw-reminder-warning">
+          将只修改这一次日程，并写入独立的 RECURRENCE-ID 例外。
+        </p>
+        <p v-if="editing && event?.recurring && scope === 'series'" class="tw-reminder-warning">
+          将修改整个重复系列。
         </p>
         <p v-if="error" class="tw-reminder-warning">{{ error }}</p>
       </div>
@@ -118,6 +132,7 @@ const error = ref('')
 const deleteArmed = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
 const repeatChoice = ref('NONE')
+const scope = ref<'single' | 'series'>('single')
 const form = reactive({
   calendarId: 0,
   summary: '',
@@ -148,6 +163,7 @@ function addDays(date: Date, days: number) {
 function hydrate() {
   error.value = ''
   deleteArmed.value = false
+  scope.value = 'single'
   const event = props.event
   if (event) {
     const start = new Date(event.start)
@@ -239,6 +255,9 @@ async function save() {
       end,
       allDay: form.allDay,
       rrule: form.rrule.trim(),
+      ...(props.event && props.event.recurring && scope.value === 'single'
+        ? { recurrenceId: props.event.recurrenceId || props.event.start, scope: 'single' as const }
+        : { scope: 'series' as const }),
     }
     if (props.event) {
       await updateCalendarEvent(props.event.calendarId, props.event.href, payload)
@@ -263,7 +282,11 @@ async function remove() {
   }
   busy.value = true
   try {
-    await deleteCalendarEvent(props.event.calendarId, props.event.href)
+    const recurrenceId =
+      props.event.recurring && scope.value === 'single'
+        ? props.event.recurrenceId || props.event.start
+        : undefined
+    await deleteCalendarEvent(props.event.calendarId, props.event.href, recurrenceId)
     Message.success('日程已删除')
     emit('saved')
     emit('close')

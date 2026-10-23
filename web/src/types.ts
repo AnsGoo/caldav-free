@@ -247,6 +247,7 @@ export interface CalendarEvent {
   end: string
   allDay: boolean
   recurring: boolean
+  recurrenceId?: string
 }
 
 export interface TaskDailyStat {

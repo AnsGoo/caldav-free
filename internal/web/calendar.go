@@ -33,6 +33,7 @@ type apiCalendarEvent struct {
 	End          string `json:"end"`
 	AllDay       bool   `json:"allDay"`
 	Recurring    bool   `json:"recurring"`
+	RecurrenceID string `json:"recurrenceId,omitempty"`
 }
 
 // apiTaskCalendarEvents expands VEVENTs from all of the current user's
@@ -84,6 +85,15 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 					uid = obj.UID
 				}
 				key := strconv.FormatInt(cal.ID, 10) + ":" + obj.Href + ":" + strconv.FormatInt(instance.Start.Unix(), 10)
+				recurrenceID := ""
+				if instance.RecurrenceID != nil {
+					loc, _ := time.LoadLocation(cal.Timezone)
+					if instance.AllDay {
+						recurrenceID = instance.RecurrenceID.In(loc).Format("2006-01-02")
+					} else {
+						recurrenceID = instance.RecurrenceID.In(loc).Format(time.RFC3339)
+					}
+				}
 				events = append(events, apiCalendarEvent{
 					ID:           key,
 					UID:          uid,
@@ -99,6 +109,7 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 					End:          instance.End.Format(time.RFC3339),
 					AllDay:       instance.AllDay,
 					Recurring:    obj.Recurring,
+					RecurrenceID: recurrenceID,
 				})
 				if len(events) >= 2000 {
 					break

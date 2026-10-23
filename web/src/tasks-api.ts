@@ -252,6 +252,8 @@ export interface CalendarEventInput {
   allDay: boolean
   rrule?: string
   count?: number
+  recurrenceId?: string
+  scope?: 'single' | 'series'
 }
 
 export function createCalendarEvent(calendarId: number, payload: CalendarEventInput) {
@@ -268,8 +270,9 @@ export function updateCalendarEvent(calendarId: number, href: string, payload: C
   })
 }
 
-export function deleteCalendarEvent(calendarId: number, href: string) {
-  return api<void>(`/calendars/${calendarId}/events/${encodeURIComponent(href)}`, { method: 'DELETE' })
+export function deleteCalendarEvent(calendarId: number, href: string, recurrenceId?: string) {
+  const query = recurrenceId ? `?recurrenceId=${encodeURIComponent(recurrenceId)}` : ''
+  return api<void>(`/calendars/${calendarId}/events/${encodeURIComponent(href)}${query}`, { method: 'DELETE' })
 }
 
 export function fetchTaskStats(days = 30) {

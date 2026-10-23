@@ -455,7 +455,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 ### PATCH /api/admin/calendars/{id}/events/{name}
 
-按结构化字段更新事件，保留原 UID，重建 VEVENT 标准字段：
+按结构化字段更新事件，保留原 UID，重建 VEVENT 标准字段。默认修改整个系列：
 
 ```json
 {
@@ -467,9 +467,26 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 }
 ```
 
+只修改某一次重复日程时附加：
+
+```json
+{
+  "scope": "single",
+  "recurrenceId": "2026-10-26T10:00:00+08:00"
+}
+```
+
+后端会生成带 `RECURRENCE-ID` 的独立 VEVENT 例外，原系列保持不变。
+
 ### DELETE /api/admin/calendars/{id}/events/{name}
 
-删除事件并返回 `204`。
+删除整个事件返回 `204`。删除单次实例使用查询参数：
+
+```text
+DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00%3A00%2B08%3A00
+```
+
+后端会移除对应例外并向主事件添加 `EXDATE`。
 
 ## 8. 清单共享
 

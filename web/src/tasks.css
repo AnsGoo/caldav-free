@@ -5187,3 +5187,12 @@ button.tw-side-link {
   opacity: 0.5;
   cursor: default;
 }
+
+.tw-event-scope {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--tw-surface);
+}

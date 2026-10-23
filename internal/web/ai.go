@@ -176,29 +176,31 @@ func (s *Server) aiTools() []aiToolDef {
 		}),
 		tool("get_stats", "获取最近 30 天的任务统计。", map[string]any{}),
 		tool("create_task", "创建任务。日期使用 RFC3339 或 YYYY-MM-DDTHH:mm；只有日期没有时间时 allDay=true。", map[string]any{
-			"title":          stringProp("任务标题"),
-			"text":           stringProp("自然语言任务描述，可包含日期、#标签、! 优先级；可替代 title"),
-			"listId":         numberProp("清单 ID，缺省为收集箱"),
-			"due":            stringProp("到期时间"),
-			"allDay":         map[string]any{"type": "boolean"},
-			"priority":       numberProp("优先级 0=无, 1=低, 2=中, 3=高"),
-			"tags":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"notes":          stringProp("备注"),
-			"recurrence":     stringProp("RRULE，例如 FREQ=DAILY 或 FREQ=WEEKLY;BYDAY=MO,WE"),
-			"reminderOffset": numberProp("提前提醒分钟数，-1=不提醒"),
+			"title":           stringProp("任务标题"),
+			"text":            stringProp("自然语言任务描述，可包含日期、#标签、! 优先级；可替代 title"),
+			"listId":          numberProp("清单 ID，缺省为收集箱"),
+			"due":             stringProp("到期时间"),
+			"allDay":          map[string]any{"type": "boolean"},
+			"priority":        numberProp("优先级 0=无, 1=低, 2=中, 3=高"),
+			"tags":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"notes":           stringProp("备注"),
+			"recurrence":      stringProp("RRULE，例如 FREQ=DAILY 或 FREQ=WEEKLY;BYDAY=MO,WE"),
+			"reminderOffset":  numberProp("单个提前提醒分钟数，-1=不提醒"),
+			"reminderOffsets": map[string]any{"type": "array", "items": numberProp("提前分钟数，0=准时"), "description": "多个提醒偏移，优先于 reminderOffset"},
 		}, "title"),
 		tool("update_task", "修改任务字段。只传需要修改的字段；completed=true 完成（重复任务会推进到下一次）。", map[string]any{
-			"id":             numberProp("任务 ID"),
-			"title":          stringProp("新标题"),
-			"listId":         numberProp("移动到清单 ID"),
-			"due":            stringProp("新到期时间；传空字符串清除日期"),
-			"allDay":         map[string]any{"type": "boolean"},
-			"priority":       numberProp("优先级 0-3"),
-			"tags":           map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"notes":          stringProp("备注"),
-			"recurrence":     stringProp("RRULE；空字符串表示不重复"),
-			"reminderOffset": numberProp("提前提醒分钟数，-1=不提醒"),
-			"completed":      map[string]any{"type": "boolean"},
+			"id":              numberProp("任务 ID"),
+			"title":           stringProp("新标题"),
+			"listId":          numberProp("移动到清单 ID"),
+			"due":             stringProp("新到期时间；传空字符串清除日期"),
+			"allDay":          map[string]any{"type": "boolean"},
+			"priority":        numberProp("优先级 0-3"),
+			"tags":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"notes":           stringProp("备注"),
+			"recurrence":      stringProp("RRULE；空字符串表示不重复"),
+			"reminderOffset":  numberProp("单个提前提醒分钟数，-1=不提醒"),
+			"reminderOffsets": map[string]any{"type": "array", "items": numberProp("提前分钟数，0=准时"), "description": "多个提醒偏移，优先于 reminderOffset；空数组清除提醒"},
+			"completed":       map[string]any{"type": "boolean"},
 		}, "id"),
 		tool("complete_task", "完成一个任务；重复任务会推进到下一次。", map[string]any{
 			"id": numberProp("任务 ID"),
@@ -502,7 +504,8 @@ func (s *Server) aiListTasks(ctx context.Context, current *store.User, args map[
 		row := map[string]any{
 			"id": task.ID, "title": task.Title, "list": names[task.ListID], "completed": task.Completed,
 			"priority": task.Priority, "tags": []string(task.Tags), "recurrence": task.Recurrence,
-			"reminderOffset": task.ReminderOffset,
+			"reminderOffset":  task.ReminderOffset,
+			"reminderOffsets": task.ReminderValues(),
 		}
 		if task.DueAt != nil {
 			row["due"] = task.DueAt.Format(time.RFC3339)
@@ -539,6 +542,40 @@ func aiStringPointer(args map[string]any, key string) *string {
 	if value, ok := args[key]; ok {
 		if text, ok := value.(string); ok {
 			return &text
+		}
+	}
+	return nil
+}
+
+func applyAIReminders(task *store.Task, args map[string]any) error {
+	if value, ok := args["reminderOffsets"]; ok {
+		raw, ok := value.([]any)
+		if !ok {
+			return fmt.Errorf("reminderOffsets 必须是数组")
+		}
+		offsets := make([]int, 0, len(raw))
+		for _, item := range raw {
+			number, ok := item.(float64)
+			if !ok {
+				return fmt.Errorf("reminderOffsets 必须是整数数组")
+			}
+			offsets = append(offsets, int(number))
+		}
+		normalized, err := store.NormalizeReminderOffsets(offsets)
+		if err != nil {
+			return err
+		}
+		task.SetReminderValues(normalized)
+		return nil
+	}
+	if value, ok := args["reminderOffset"].(float64); ok {
+		if int(value) < -1 || int(value) > 10080 {
+			return fmt.Errorf("提醒偏移必须在 -1 到 10080 分钟之间")
+		}
+		if int(value) < 0 {
+			task.SetReminderValues(nil)
+		} else {
+			task.SetReminderValues([]int{int(value)})
 		}
 	}
 	return nil
@@ -585,8 +622,8 @@ func (s *Server) aiCreateTask(ctx context.Context, current *store.User, args map
 	if value, ok := args["notes"].(string); ok {
 		task.Notes = value
 	}
-	if value, ok := args["reminderOffset"].(float64); ok {
-		task.ReminderOffset = int(value)
+	if err := applyAIReminders(task, args); err != nil {
+		return nil, nil, err
 	}
 	if value, ok := args["tags"].([]any); ok {
 		tags := make([]string, 0, len(value))
@@ -636,8 +673,8 @@ func (s *Server) aiUpdateTask(ctx context.Context, current *store.User, args map
 	if value, ok := args["notes"].(string); ok {
 		task.Notes = value
 	}
-	if value, ok := args["reminderOffset"].(float64); ok {
-		task.ReminderOffset = int(value)
+	if err := applyAIReminders(task, args); err != nil {
+		return nil, nil, err
 	}
 	if value, ok := args["allDay"].(bool); ok {
 		task.AllDay = value

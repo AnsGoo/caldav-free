@@ -668,6 +668,7 @@ import {
   quickHint,
   reminderInstant,
   startOfToday,
+  taskReminderOffsets,
 } from '../tasks-utils'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
@@ -1590,22 +1591,24 @@ async function checkReminders() {
       if (now - at < 7 * 86400000) next[key] = at
     }
     for (const task of candidates) {
-      const at = reminderInstant(task)
-      if (!at) continue
-      const key = `${task.id}:${task.due}:${task.reminderOffset}`
-      if (next[key]) continue
-      const diff = now - at.getTime()
-      if (diff >= 0 && diff < 5 * 60000) {
-        next[key] = now
-        const body = task.due ? `${task.title} · ${formatDue(task)}` : task.title
-        try {
-          if (Notification.permission === 'granted') {
-            new Notification('任务提醒', { body, tag: `task-${task.id}` })
-          } else {
+      for (const offset of taskReminderOffsets(task)) {
+        const at = reminderInstant(task, offset)
+        if (!at) continue
+        const key = `${task.id}:${task.due}:${offset}`
+        if (next[key]) continue
+        const diff = now - at.getTime()
+        if (diff >= 0 && diff < 5 * 60000) {
+          next[key] = now
+          const body = task.due ? `${task.title} · ${formatDue(task)}` : task.title
+          try {
+            if (Notification.permission === 'granted') {
+              new Notification('任务提醒', { body, tag: `task-${task.id}-${offset}` })
+            } else {
+              Message.info(`任务提醒：${body}`)
+            }
+          } catch {
             Message.info(`任务提醒：${body}`)
           }
-        } catch {
-          Message.info(`任务提醒：${body}`)
         }
       }
     }

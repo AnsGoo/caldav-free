@@ -57,7 +57,8 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `priority` | 0–3 |
 | `due_at` / `all_day` | 到期时间（UTC）与全天标记 |
 | `recurrence` | RRULE 主体 |
-| `reminder_offset` | 提前分钟，`-1` 不提醒 |
+| `reminder_offset` | 兼容字段；单个提醒或最早的多提醒偏移，`-1` 不提醒 |
+| `reminder_offsets` | 逗号分隔的提醒偏移列表，最多 10 个，非空时优先 |
 | `completed` / `completed_at` | 完成状态 |
 | `tags` | 逗号分隔标签 |
 | `checklist` | JSON 子任务数组 |
@@ -192,8 +193,8 @@ name:   任务
 
 ## 7. 提醒
 
-- 相对偏移写入 `reminder_offset`。
-- VTODO `VALARM`：
+- 相对偏移写入 `reminder_offsets`（兼容字段 `reminder_offset` 保存最早的一个）。
+- 每个提醒生成一个 VTODO `VALARM`：
 
 ```text
 BEGIN:VALARM
@@ -206,7 +207,7 @@ END:VALARM
 - 导入时解析 `TRIGGER` 为分钟；绝对时间 `TRIGGER` 忽略。
 - 浏览器端每 30 秒请求 `/tasks/reminders`，本地计算提醒时刻并去重；通知记录存 localStorage。
 - 服务端 `internal/reminders` 独立于页面运行，默认每 30 秒扫描带提醒的未完成任务：
-  - 定时任务提醒时刻 = `due_at - reminder_offset`；全天任务按 `Asia/Shanghai` 当天 09:00 计算。
+  - 对每个 `ReminderOffsets` 偏移分别计算 `due_at - offset`；旧任务回退到 `reminder_offset`。全天任务按 `Asia/Shanghai` 当天 09:00 计算。
   - 只补发最近 6 小时内到期的提醒。
   - 通过 `push_subscriptions` 中的 endpoint 调用 Web Push，payload 为 JSON（标题、正文、任务 URL）。
   - `reminder_deliveries` 以任务、到期时间、偏移、通道去重；推送服务返回 404/410 时删除失效订阅。

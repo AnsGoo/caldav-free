@@ -33,6 +33,7 @@ export interface TaskDraft {
   checklist?: ChecklistItem[]
   recurrence?: string
   reminderOffset?: number
+  reminderOffsets?: number[]
   timezone?: string
 }
 

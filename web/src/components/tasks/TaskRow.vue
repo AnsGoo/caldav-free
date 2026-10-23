@@ -56,7 +56,7 @@
         <i :style="{ background: task.listColor || '#4772fa' }" />
         {{ task.listName }}
       </span>
-      <span v-if="task.reminderOffset >= 0 && !trashMode" class="tw-row-bell" :title="reminderLabel(task.reminderOffset)">
+      <span v-if="taskReminderOffsets(task).length && !trashMode" class="tw-row-bell" :title="taskReminderOffsets(task).map(reminderLabel).join('、')">
         <TaskIcon name="bell" :size="12" />
       </span>
       <span v-if="dueLabel && !trashMode" class="tw-row-due">{{ dueLabel }}</span>
@@ -79,7 +79,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { TaskItem } from '../../types'
-import { PRIORITIES, formatDeleted, formatDue, isOverdue, recurrenceLabel, reminderLabel } from '../../tasks-utils'
+import { PRIORITIES, formatDeleted, formatDue, isOverdue, recurrenceLabel, reminderLabel, taskReminderOffsets } from '../../tasks-utils'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{

@@ -107,6 +107,7 @@ export interface TaskItem {
   allDay: boolean
   recurrence: string
   reminderOffset: number
+  reminderOffsets: number[]
   completed: boolean
   completedAt?: string
   deletedAt?: string

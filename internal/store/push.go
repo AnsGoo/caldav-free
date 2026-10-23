@@ -94,7 +94,7 @@ func (s *Store) ListPushSubscriptions(ctx context.Context, userID int64) ([]*Pus
 func (s *Store) ListReminderCandidates(ctx context.Context) ([]ReminderCandidate, error) {
 	var tasks []Task
 	if err := s.db.WithContext(ctx).
-		Where("deleted = ? AND completed = ? AND reminder_offset >= 0 AND due_at IS NOT NULL", false, false).
+		Where("deleted = ? AND completed = ? AND due_at IS NOT NULL AND (reminder_offset >= 0 OR reminder_offsets <> '')", false, false).
 		Find(&tasks).Error; err != nil {
 		return nil, fmt.Errorf("list reminder candidates: %w", err)
 	}

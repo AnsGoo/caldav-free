@@ -2442,6 +2442,43 @@ button.tw-side-link {
   color: var(--tw-text-3);
 }
 
+.tw-reminder-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tw-reminder-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tw-reminder-edit-row .tw-field-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-add-reminder {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 7px;
+  border: 1px dashed var(--tw-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tw-text-2);
+  font-size: 11.5px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.tw-add-reminder:hover {
+  color: var(--tw-accent);
+  border-color: var(--tw-accent);
+}
+
 /* ------------------------------------------------------ multi select/trash */
 .tw-select-check {
   width: 19px;

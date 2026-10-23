@@ -281,3 +281,43 @@ func TestSyncImportsRecurrenceAndReminder(t *testing.T) {
 		t.Fatalf("recurrence/reminder not cleared: %+v", reloaded)
 	}
 }
+
+func TestMultipleReminderAlarms(t *testing.T) {
+	st, syncer, userID, inbox := newSyncEnv(t)
+	ctx := context.Background()
+	due := time.Date(2026, 10, 25, 14, 0, 0, 0, time.UTC)
+	task, err := st.CreateTask(ctx, &store.Task{
+		UserID: userID, ListID: inbox.ID, Title: "多提醒", DueAt: &due,
+		ReminderOffsets: store.StringList{"1440", "0", "15"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.PushTask(ctx, userID, task); err != nil {
+		t.Fatal(err)
+	}
+	cal, err := syncer.EnsureTaskCalendar(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj, err := st.GetObject(ctx, cal.ID, task.VTODOHref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(obj.Data)
+	for _, want := range []string{"TRIGGER:-P1D", "TRIGGER:-PT15M", "TRIGGER:PT0M"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("VTODO missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Count(body, "BEGIN:VALARM") != 3 {
+		t.Fatalf("VALARM count = %d:\n%s", strings.Count(body, "BEGIN:VALARM"), body)
+	}
+	parsed, err := parseVTODO(cal, obj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(parsed.ReminderOffsets) != 3 || parsed.ReminderOffsets[0] != 0 || parsed.ReminderOffsets[2] != 1440 {
+		t.Fatalf("parsed reminders = %v", parsed.ReminderOffsets)
+	}
+}

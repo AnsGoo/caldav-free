@@ -326,11 +326,11 @@ func buildVTODO(cal *store.Calendar, task *store.Task, listName string) []byte {
 	if strings.TrimSpace(listName) != "" {
 		todo.AddProp("X-CALDDAV-LIST", ical.EscapeText(listName), nil)
 	}
-	if task.ReminderOffset >= 0 {
+	for _, offset := range task.ReminderValues() {
 		alarm := ical.NewComponent("VALARM")
 		alarm.AddProp("ACTION", "DISPLAY", nil)
 		alarm.AddProp("DESCRIPTION", ical.EscapeText(strings.TrimSpace(task.Title)), nil)
-		alarm.AddProp("TRIGGER", reminderTrigger(task.ReminderOffset), nil)
+		alarm.AddProp("TRIGGER", reminderTrigger(offset), nil)
 		todo.AddChild(alarm)
 	}
 	root.AddChild(todo)
@@ -422,20 +422,20 @@ func (s *Syncer) push(ctx context.Context, cal *store.Calendar, task *store.Task
 // ---------------------------------------------------------------- import
 
 type parsedVTODO struct {
-	UID            string
-	Title          string
-	Notes          string
-	Priority       int
-	Due            *time.Time
-	AllDay         bool
-	Recurrence     string
-	ReminderOffset int
-	Completed      bool
-	CompletedAt    *time.Time
-	CreatedAt      *time.Time
-	Tags           []string
-	Checklist      string
-	ListName       string
+	UID             string
+	Title           string
+	Notes           string
+	Priority        int
+	Due             *time.Time
+	AllDay          bool
+	Recurrence      string
+	ReminderOffsets []int
+	Completed       bool
+	CompletedAt     *time.Time
+	CreatedAt       *time.Time
+	Tags            []string
+	Checklist       string
+	ListName        string
 }
 
 func parseVTODO(cal *store.Calendar, obj *store.Object) (*parsedVTODO, error) {
@@ -448,11 +448,11 @@ func parseVTODO(cal *store.Calendar, obj *store.Object) (*parsedVTODO, error) {
 		return nil, fmt.Errorf("object %s has no VTODO component", obj.Href)
 	}
 	out := &parsedVTODO{
-		UID:            strings.TrimSpace(comp.Value("UID")),
-		Title:          strings.TrimSpace(ical.UnescapeText(comp.Value("SUMMARY"))),
-		Notes:          ical.UnescapeText(comp.Value("DESCRIPTION")),
-		Recurrence:     strings.TrimSpace(comp.Value("RRULE")),
-		ReminderOffset: reminderFromVTODO(comp),
+		UID:             strings.TrimSpace(comp.Value("UID")),
+		Title:           strings.TrimSpace(ical.UnescapeText(comp.Value("SUMMARY"))),
+		Notes:           ical.UnescapeText(comp.Value("DESCRIPTION")),
+		Recurrence:      strings.TrimSpace(comp.Value("RRULE")),
+		ReminderOffsets: remindersFromVTODO(comp),
 	}
 	if out.UID == "" {
 		out.UID = obj.UID
@@ -546,23 +546,23 @@ func (s *Syncer) importNew(ctx context.Context, cal *store.Calendar, obj *store.
 		}
 	}
 	task := &store.Task{
-		UserID:         inbox.UserID,
-		ListID:         list.ID,
-		Title:          parsed.Title,
-		Notes:          parsed.Notes,
-		Priority:       parsed.Priority,
-		DueAt:          parsed.Due,
-		AllDay:         parsed.AllDay,
-		Completed:      parsed.Completed,
-		CompletedAt:    parsed.CompletedAt,
-		Tags:           sanitizeTags(parsed.Tags),
-		Checklist:      parsed.Checklist,
-		Recurrence:     parsed.Recurrence,
-		ReminderOffset: parsed.ReminderOffset,
-		VTODOUID:       parsed.UID,
-		VTODOHref:      obj.Href,
-		VTODOETag:      obj.ETag,
+		UserID:      inbox.UserID,
+		ListID:      list.ID,
+		Title:       parsed.Title,
+		Notes:       parsed.Notes,
+		Priority:    parsed.Priority,
+		DueAt:       parsed.Due,
+		AllDay:      parsed.AllDay,
+		Completed:   parsed.Completed,
+		CompletedAt: parsed.CompletedAt,
+		Tags:        sanitizeTags(parsed.Tags),
+		Checklist:   parsed.Checklist,
+		Recurrence:  parsed.Recurrence,
+		VTODOUID:    parsed.UID,
+		VTODOHref:   obj.Href,
+		VTODOETag:   obj.ETag,
 	}
+	task.SetReminderValues(parsed.ReminderOffsets)
 	if parsed.CreatedAt != nil {
 		task.CreatedAt = *parsed.CreatedAt
 	}
@@ -588,7 +588,7 @@ func (s *Syncer) importInto(ctx context.Context, cal *store.Calendar, task *stor
 	task.Tags = sanitizeTags(parsed.Tags)
 	task.Checklist = parsed.Checklist
 	task.Recurrence = parsed.Recurrence
-	task.ReminderOffset = parsed.ReminderOffset
+	task.SetReminderValues(parsed.ReminderOffsets)
 	task.VTODOUID = parsed.UID
 	task.VTODOHref = obj.Href
 	if err := s.store.UpdateTask(ctx, task); err != nil {
@@ -610,37 +610,36 @@ func reminderTrigger(minutes int) string {
 	return fmt.Sprintf("-PT%dM", minutes)
 }
 
-func reminderFromVTODO(comp *ical.Component) int {
-	alarm := comp.Child("VALARM")
-	if alarm == nil {
-		return -1
+func remindersFromVTODO(comp *ical.Component) []int {
+	alarms := comp.ChildrenNamed("VALARM")
+	offsets := make([]int, 0, len(alarms))
+	for _, alarm := range alarms {
+		raw := strings.TrimSpace(alarm.Value("TRIGGER"))
+		if raw == "" {
+			continue
+		}
+		negative := strings.HasPrefix(raw, "-")
+		raw = strings.TrimPrefix(raw, "-")
+		if raw == "" || (raw[0] >= '0' && raw[0] <= '9') {
+			// Absolute DATE-TIME triggers are not represented by our relative model.
+			continue
+		}
+		duration, err := ical.ParseDuration(raw)
+		if err != nil {
+			continue
+		}
+		if duration < 0 {
+			duration = -duration
+		}
+		minutes := int(duration.Minutes())
+		if minutes < 0 || (!negative && minutes > 0) {
+			continue
+		}
+		if minutes > 10080 {
+			minutes = 10080
+		}
+		offsets = append(offsets, minutes)
 	}
-	raw := strings.TrimSpace(alarm.Value("TRIGGER"))
-	if raw == "" {
-		return -1
-	}
-	negative := strings.HasPrefix(raw, "-")
-	raw = strings.TrimPrefix(raw, "-")
-	if raw == "" || (raw[0] >= '0' && raw[0] <= '9') {
-		// Absolute DATE-TIME triggers are not represented by our relative model.
-		return -1
-	}
-	duration, err := ical.ParseDuration(raw)
-	if err != nil {
-		return -1
-	}
-	if duration < 0 {
-		duration = -duration
-	}
-	minutes := int(duration.Minutes())
-	if minutes < 0 {
-		return -1
-	}
-	if !negative && minutes > 0 {
-		return -1
-	}
-	if minutes > 10080 {
-		minutes = 10080
-	}
-	return minutes
+	normalized, _ := store.NormalizeReminderOffsets(offsets)
+	return normalized
 }

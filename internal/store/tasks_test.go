@@ -285,3 +285,37 @@ func TestTaskReminderAtDueTime(t *testing.T) {
 		t.Fatalf("reloaded reminder offset = %d (%v), want 0", reloaded.ReminderOffset, err)
 	}
 }
+
+func TestTaskMultipleReminders(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	inbox, _ := s.EnsureInbox(ctx, userID)
+	due := time.Date(2026, 10, 24, 9, 0, 0, 0, time.UTC)
+	task, err := s.CreateTask(ctx, &Task{
+		UserID: userID, ListID: inbox.ID, Title: "多提醒", DueAt: &due,
+		ReminderOffsets: StringList{"15", "0", "60", "15"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []int{0, 15, 60}
+	got := task.ReminderValues()
+	if len(got) != len(want) {
+		t.Fatalf("reminders = %v, want %v", got, want)
+	}
+	for index := range want {
+		if got[index] != want[index] {
+			t.Fatalf("reminders = %v, want %v", got, want)
+		}
+	}
+	if task.ReminderOffset != 60 {
+		t.Fatalf("legacy reminder = %d, want earliest 60", task.ReminderOffset)
+	}
+	reloaded, err := s.GetTask(ctx, userID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values := reloaded.ReminderValues(); len(values) != 3 || values[0] != 0 || values[2] != 60 {
+		t.Fatalf("reloaded reminders = %v", values)
+	}
+}

@@ -137,6 +137,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
   "allDay": false,
   "recurrence": "FREQ=WEEKLY",
   "reminderOffset": 15,
+  "reminderOffsets": [0, 15, 60],
   "completed": false,
   "completedAt": "",
   "deletedAt": "",
@@ -156,7 +157,8 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 | --- | --- |
 | `priority` | 0 无、1 低、2 中、3 高 |
 | `recurrence` | RRULE 主体，如 `FREQ=DAILY`；空表示不重复 |
-| `reminderOffset` | 提前分钟数，`-1` 不提醒，`0` 准时 |
+| `reminderOffset` | 单个提醒的兼容字段；多提醒时等于最早的一个（最大偏移） |
+| `reminderOffsets` | 提醒偏移数组，按分钟升序；为空表示不提醒，最多 10 个。写入时优先于 `reminderOffset` |
 | `allDay` | 全天任务 |
 | `checklist` | 子任务列表 |
 
@@ -172,6 +174,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
   "notes": "汇总进度",
   "recurrence": "FREQ=WEEKLY",
   "reminderOffset": 15,
+  "reminderOffsets": [0, 15, 60],
   "checklist": [{ "id": "c1", "title": "整理数据", "done": false }],
   "timezone": "Asia/Shanghai"
 }
@@ -296,7 +299,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 }
 ```
 
-浏览器端据此计算提醒时间并显示通知。
+浏览器端据此计算提醒时间并显示通知；任务对象同时包含 `reminderOffsets`，每个偏移独立计算。
 
 ### GET /api/admin/tasks/push/public-key
 

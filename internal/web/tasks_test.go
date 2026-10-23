@@ -14,17 +14,18 @@ import (
 
 type taskResponse struct {
 	Task struct {
-		ID             int64    `json:"id"`
-		ListID         int64    `json:"listId"`
-		Title          string   `json:"title"`
-		Priority       int      `json:"priority"`
-		Due            string   `json:"due"`
-		AllDay         bool     `json:"allDay"`
-		Tags           []string `json:"tags"`
-		Completed      bool     `json:"completed"`
-		Recurrence     string   `json:"recurrence"`
-		ReminderOffset int      `json:"reminderOffset"`
-		Order          int      `json:"order"`
+		ID              int64    `json:"id"`
+		ListID          int64    `json:"listId"`
+		Title           string   `json:"title"`
+		Priority        int      `json:"priority"`
+		Due             string   `json:"due"`
+		AllDay          bool     `json:"allDay"`
+		Tags            []string `json:"tags"`
+		Completed       bool     `json:"completed"`
+		Recurrence      string   `json:"recurrence"`
+		ReminderOffset  int      `json:"reminderOffset"`
+		ReminderOffsets []int    `json:"reminderOffsets"`
+		Order           int      `json:"order"`
 	} `json:"task"`
 }
 
@@ -296,6 +297,16 @@ func TestTaskAPIRecurrenceReminderAndTrash(t *testing.T) {
 	if created.Task.Recurrence != "FREQ=DAILY" || created.Task.ReminderOffset != 15 {
 		t.Fatalf("recurrence/reminder not stored: %+v", created.Task)
 	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(created.Task.ID), map[string]any{
+		"reminderOffsets": []int{0, 15, 60},
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("update reminders = %d: %s", status, body)
+	}
+	updated := decode[taskResponse](t, body)
+	if len(updated.Task.ReminderOffsets) != 3 || updated.Task.ReminderOffset != 60 {
+		t.Fatalf("multiple reminders not stored: %+v", updated.Task)
+	}
 	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(created.Task.ID), map[string]any{"completed": true}, env.csrf)
 	if status != http.StatusOK {
 		t.Fatalf("complete recurring = %d: %s", status, body)
@@ -319,7 +330,7 @@ func TestTaskAPIRecurrenceReminderAndTrash(t *testing.T) {
 			Reminder int   `json:"reminderOffset"`
 		} `json:"tasks"`
 	}](t, body)
-	if len(reminders.Tasks) != 1 || reminders.Tasks[0].Reminder != 15 {
+	if len(reminders.Tasks) != 1 || reminders.Tasks[0].Reminder != 60 {
 		t.Fatalf("unexpected reminders: %+v", reminders)
 	}
 

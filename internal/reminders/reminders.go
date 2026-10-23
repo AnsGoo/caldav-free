@@ -130,20 +130,22 @@ func (s *Scheduler) tick(ctx context.Context) {
 	sent := 0
 	for _, candidate := range candidates {
 		task := candidate.Task
-		when, ok := ReminderTime(&task)
-		if !ok || when.After(now) || now.Sub(when) > s.grace {
-			continue
-		}
-		key := task.DueAt.UTC().Format(time.RFC3339) + ":" + fmt.Sprintf("%d", task.ReminderOffset)
-		delivered := false
-		if s.deliverPush(ctx, &task, key, now) {
-			delivered = true
-		}
-		if mailErr == nil && s.deliverEmail(ctx, &task, candidate.Email, key, mailConfig, now) {
-			delivered = true
-		}
-		if delivered {
-			sent++
+		for _, offset := range task.ReminderValues() {
+			when, ok := ReminderTimeForOffset(&task, offset)
+			if !ok || when.After(now) || now.Sub(when) > s.grace {
+				continue
+			}
+			key := task.DueAt.UTC().Format(time.RFC3339) + ":" + fmt.Sprintf("%d", offset)
+			delivered := false
+			if s.deliverPush(ctx, &task, key, now) {
+				delivered = true
+			}
+			if mailErr == nil && s.deliverEmail(ctx, &task, candidate.Email, key, mailConfig, now) {
+				delivered = true
+			}
+			if delivered {
+				sent++
+			}
 		}
 	}
 	if sent > 0 {
@@ -309,9 +311,18 @@ func (s *Scheduler) emailBody(task *store.Task) string {
 	return strings.Join(parts, "\n") + "\n"
 }
 
-// ReminderTime computes the absolute reminder instant for a task.
+// ReminderTime computes the reminder instant for the task's legacy single
+// reminder. Multi-reminder callers should use ReminderTimeForOffset.
 func ReminderTime(task *store.Task) (time.Time, bool) {
-	if task == nil || task.DueAt == nil || task.ReminderOffset < 0 {
+	if task == nil {
+		return time.Time{}, false
+	}
+	return ReminderTimeForOffset(task, task.ReminderOffset)
+}
+
+// ReminderTimeForOffset computes one absolute reminder instant.
+func ReminderTimeForOffset(task *store.Task, offset int) (time.Time, bool) {
+	if task == nil || task.DueAt == nil || offset < 0 {
 		return time.Time{}, false
 	}
 	loc, err := time.LoadLocation(store.DefaultTimezone)
@@ -322,7 +333,7 @@ func ReminderTime(task *store.Task) (time.Time, bool) {
 	if task.AllDay {
 		due = time.Date(due.Year(), due.Month(), due.Day(), 9, 0, 0, 0, loc)
 	}
-	return due.Add(-time.Duration(task.ReminderOffset) * time.Minute), true
+	return due.Add(-time.Duration(offset) * time.Minute), true
 }
 
 func reminderWhenLabel(task *store.Task) string {

@@ -51,9 +51,9 @@
           <TaskIcon name="repeat" :size="14" />
           {{ recurrenceLabel(draft.recurrence) }}
         </span>
-        <span v-if="draft.reminderOffset >= 0" class="tw-pill">
+        <span v-if="draft.reminderOffsets.length" class="tw-pill">
           <TaskIcon name="bell" :size="14" />
-          {{ reminderLabel(draft.reminderOffset) }}
+          {{ reminderSummary }}
         </span>
         <span v-if="draft.tags.length" class="tw-pill">
           <TaskIcon name="tag" :size="14" />
@@ -127,12 +127,31 @@
               <option v-for="option in RECURRENCE_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </label>
-          <label class="tw-field">
+          <div class="tw-field">
             <span>提醒</span>
-            <select v-model.number="draft.reminderOffset" class="tw-field-select" @change="save">
-              <option v-for="option in REMINDER_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
+            <div class="tw-reminder-editor">
+              <div v-for="(offset, index) in draft.reminderOffsets" :key="`${offset}-${index}`" class="tw-reminder-edit-row">
+                <select
+                  class="tw-field-select"
+                  :value="offset"
+                  @change="changeReminder(index, Number(($event.target as HTMLSelectElement).value))"
+                >
+                  <option v-for="option in reminderChoices" :key="option.value" :value="option.value" :disabled="draft.reminderOffsets.includes(option.value) && option.value !== offset">
+                    {{ option.label }}
+                  </option>
+                  <option v-if="!reminderChoices.some((option) => option.value === offset)" :value="offset">{{ reminderLabel(offset) }}</option>
+                </select>
+                <button type="button" class="tw-icon-button" title="删除提醒" @click="removeReminder(index)">
+                  <TaskIcon name="close" :size="14" />
+                </button>
+              </div>
+              <button v-if="draft.reminderOffsets.length < 10" type="button" class="tw-add-reminder" @click="addReminder">
+                <TaskIcon name="plus" :size="13" />
+                添加提醒
+              </button>
+              <p v-if="!draft.reminderOffsets.length" class="tw-field-hint">不提醒</p>
+            </div>
+          </div>
         </div>
         <input
           v-if="recurrenceChoice === 'custom'"
@@ -227,7 +246,7 @@ interface Draft {
   allDay: boolean
   completed: boolean
   recurrence: string
-  reminderOffset: number
+  reminderOffsets: number[]
   tags: string[]
   checklist: ChecklistItem[]
 }
@@ -242,7 +261,7 @@ const draft = reactive<Draft>({
   allDay: false,
   completed: false,
   recurrence: '',
-  reminderOffset: -1,
+  reminderOffsets: [],
   tags: [],
   checklist: [],
 })
@@ -260,6 +279,11 @@ let lastSaved = ''
 
 const currentList = computed(() => props.lists.find((list) => list.id === draft.listId))
 const priorityMeta = computed(() => PRIORITIES.find((item) => item.value === draft.priority))
+const reminderChoices = REMINDER_OPTIONS.filter((option) => option.value >= 0)
+const reminderSummary = computed(() => {
+  if (draft.reminderOffsets.length === 1) return reminderLabel(draft.reminderOffsets[0])
+  return `${draft.reminderOffsets.length} 个提醒`
+})
 const doneCount = computed(() => draft.checklist.filter((item) => item.done).length)
 
 function hydrate() {
@@ -272,7 +296,11 @@ function hydrate() {
   draft.completed = props.task.completed
   draft.allDay = props.task.allDay
   draft.recurrence = props.task.recurrence || ''
-  draft.reminderOffset = props.task.reminderOffset ?? -1
+  draft.reminderOffsets = props.task.reminderOffsets?.length
+    ? [...props.task.reminderOffsets].sort((a, b) => a - b)
+    : props.task.reminderOffset >= 0
+      ? [props.task.reminderOffset]
+      : []
   const preset = RECURRENCE_OPTIONS.some((option) => option.value === props.task.recurrence && option.value !== 'custom')
   recurrenceChoice.value = props.task.recurrence ? (preset ? props.task.recurrence : 'custom') : ''
   customRule.value = preset ? '' : props.task.recurrence || ''
@@ -295,6 +323,31 @@ function hydrate() {
   })
 }
 
+function addReminder() {
+  const preferred = [15, 5, 60, 0, 1440]
+  const next = preferred.find((value) => !draft.reminderOffsets.includes(value))
+  if (next === undefined) return
+  draft.reminderOffsets.push(next)
+  draft.reminderOffsets.sort((a, b) => a - b)
+}
+
+function removeReminder(index: number) {
+  draft.reminderOffsets.splice(index, 1)
+}
+
+function changeReminder(index: number, value: number) {
+  if (value < 0) {
+    removeReminder(index)
+    return
+  }
+  if (draft.reminderOffsets.some((offset, position) => offset === value && position !== index)) {
+    draft.reminderOffsets.splice(index, 1)
+    return
+  }
+  draft.reminderOffsets[index] = value
+  draft.reminderOffsets.sort((a, b) => a - b)
+}
+
 function snapshotDraft() {
   return JSON.stringify({
     title: draft.title.trim(),
@@ -305,7 +358,7 @@ function snapshotDraft() {
     allDay: draft.allDay,
     completed: draft.completed,
     recurrence: draft.recurrence,
-    reminderOffset: draft.reminderOffset,
+    reminderOffsets: draft.reminderOffsets,
     tags: draft.tags,
     checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
   })
@@ -379,7 +432,7 @@ async function save() {
     allDay: draft.allDay,
     completed: draft.completed,
     recurrence: draft.recurrence,
-    reminderOffset: draft.reminderOffset,
+    reminderOffsets: draft.reminderOffsets,
     tags: draft.tags,
     checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
   }

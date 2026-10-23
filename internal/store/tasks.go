@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,13 +40,16 @@ type Task struct {
 	DueAt      *time.Time `gorm:"index:idx_task_user_due,priority:2"`
 	AllDay     bool       `gorm:"not null;default:false"`
 	Recurrence string     `gorm:"size:255;not null;default:''"`
-	// ReminderOffset is minutes before the due time; -1 means no reminder.
-	ReminderOffset int  `gorm:"not null;default:-1"`
-	Completed      bool `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
-	CompletedAt    *time.Time
-	Tags           StringList `gorm:"not null"`
-	Checklist      string     `gorm:"type:text;not null;default:''"`
-	Order          int        `gorm:"column:order_index;not null;default:0"`
+	// ReminderOffset is the legacy single reminder (minutes before due; -1
+	// means none). ReminderOffsets stores all offsets as a comma-separated
+	// list; when it is non-empty it is authoritative.
+	ReminderOffset  int        `gorm:"not null;default:-1"`
+	ReminderOffsets StringList `gorm:"column:reminder_offsets;type:text;not null;default:''"`
+	Completed       bool       `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
+	CompletedAt     *time.Time
+	Tags            StringList `gorm:"not null"`
+	Checklist       string     `gorm:"type:text;not null;default:''"`
+	Order           int        `gorm:"column:order_index;not null;default:0"`
 	// VTODO fields link a task to its CalDAV object. SyncPending is set on
 	// local changes and cleared once the VTODO has been written.
 	VTODOUID    string `gorm:"column:vtodo_uid;size:255;not null;default:'';index:idx_task_vtodo_uid"`
@@ -55,6 +60,72 @@ type Task struct {
 	DeletedAt   *time.Time
 	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt  time.Time `gorm:"not null;autoUpdateTime"`
+}
+
+// MaxReminders is the maximum number of reminders a task may have.
+const MaxReminders = 10
+
+// NormalizeReminderOffsets validates, deduplicates and sorts reminder offsets.
+// Offsets are minutes before the due time; 0 means exactly at due time.
+func NormalizeReminderOffsets(values []int) ([]int, error) {
+	if len(values) > MaxReminders {
+		return nil, fmt.Errorf("最多设置 %d 个提醒", MaxReminders)
+	}
+	seen := make(map[int]struct{}, len(values))
+	out := make([]int, 0, len(values))
+	for _, value := range values {
+		if value < 0 || value > 10080 {
+			return nil, errors.New("提醒偏移必须在 0-10080 分钟之间")
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	sort.Ints(out)
+	return out, nil
+}
+
+// ReminderValues returns the effective reminders, falling back to the legacy
+// single ReminderOffset for tasks created before multi-reminder support.
+func (t *Task) ReminderValues() []int {
+	values := make([]int, 0, len(t.ReminderOffsets))
+	for _, raw := range t.ReminderOffsets {
+		value, err := strconv.Atoi(strings.TrimSpace(raw))
+		if err != nil || value < 0 || value > 10080 {
+			continue
+		}
+		values = append(values, value)
+	}
+	if len(values) > 0 {
+		normalized, _ := NormalizeReminderOffsets(values)
+		return normalized
+	}
+	if t.ReminderOffset >= 0 && t.ReminderOffset <= 10080 {
+		return []int{t.ReminderOffset}
+	}
+	return nil
+}
+
+// SetReminderValues stores a normalized reminder list and mirrors the earliest
+// reminder into ReminderOffset for legacy clients.
+func (t *Task) SetReminderValues(values []int) {
+	normalized, err := NormalizeReminderOffsets(values)
+	if err != nil {
+		normalized = nil
+	}
+	t.ReminderOffsets = make(StringList, 0, len(normalized))
+	for _, value := range normalized {
+		t.ReminderOffsets = append(t.ReminderOffsets, strconv.Itoa(value))
+	}
+	if len(normalized) == 0 {
+		t.ReminderOffset = -1
+		return
+	}
+	// The largest offset fires earliest and preserves the old single-reminder
+	// meaning for integrations that only read ReminderOffset.
+	t.ReminderOffset = normalized[len(normalized)-1]
 }
 
 // TaskFilter selects tasks for the smart lists in the task workspace.
@@ -371,6 +442,7 @@ func (s *Store) CreateTask(ctx context.Context, task *Task) (*Task, error) {
 		task.CompletedAt = &now
 	}
 	task.SyncPending = true
+	task.SetReminderValues(task.ReminderValues())
 	if task.ReminderOffset < -1 || task.ReminderOffset > 10080 {
 		return nil, errors.New("invalid reminder offset")
 	}
@@ -406,6 +478,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	if task.Priority < 0 || task.Priority > 3 {
 		return errors.New("invalid priority")
 	}
+	task.SetReminderValues(task.ReminderValues())
 	if task.ReminderOffset < -1 || task.ReminderOffset > 10080 {
 		return errors.New("invalid reminder offset")
 	}
@@ -422,19 +495,20 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	task.SyncPending = true
 	normalizeTaskTimes(task)
 	updates := map[string]any{
-		"list_id":         task.ListID,
-		"title":           task.Title,
-		"notes":           task.Notes,
-		"priority":        task.Priority,
-		"due_at":          task.DueAt,
-		"recurrence":      task.Recurrence,
-		"reminder_offset": task.ReminderOffset,
-		"all_day":         task.AllDay,
-		"completed":       task.Completed,
-		"completed_at":    task.CompletedAt,
-		"tags":            task.Tags,
-		"checklist":       task.Checklist,
-		"order_index":     task.Order,
+		"list_id":          task.ListID,
+		"title":            task.Title,
+		"notes":            task.Notes,
+		"priority":         task.Priority,
+		"due_at":           task.DueAt,
+		"recurrence":       task.Recurrence,
+		"reminder_offset":  task.ReminderOffset,
+		"reminder_offsets": task.ReminderOffsets,
+		"all_day":          task.AllDay,
+		"completed":        task.Completed,
+		"completed_at":     task.CompletedAt,
+		"tags":             task.Tags,
+		"checklist":        task.Checklist,
+		"order_index":      task.Order,
 	}
 	err := s.db.WithContext(ctx).Model(&Task{}).
 		Where("id = ? AND user_id = ? AND deleted = ?", task.ID, task.UserID, false).

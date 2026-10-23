@@ -204,11 +204,19 @@ export function reminderLabel(offset: number) {
   return REMINDER_OPTIONS.find((option) => option.value === offset)?.label || '提醒'
 }
 
-export function reminderInstant(task: Pick<TaskItem, 'due' | 'allDay' | 'reminderOffset'>) {
-  if (!task.due || task.reminderOffset < 0) return null
+export function taskReminderOffsets(task: Pick<TaskItem, 'reminderOffset' | 'reminderOffsets'>) {
+  if (task.reminderOffsets?.length) return [...task.reminderOffsets].sort((a, b) => a - b)
+  return task.reminderOffset >= 0 ? [task.reminderOffset] : []
+}
+
+export function reminderInstant(
+  task: Pick<TaskItem, 'due' | 'allDay' | 'reminderOffset' | 'reminderOffsets'>,
+  offset = task.reminderOffset,
+) {
+  if (!task.due || offset < 0) return null
   const due = new Date(task.due)
   if (task.allDay) due.setHours(9, 0, 0, 0)
-  return new Date(due.getTime() - task.reminderOffset * 60000)
+  return new Date(due.getTime() - offset * 60000)
 }
 
 export function formatDeleted(value?: string) {

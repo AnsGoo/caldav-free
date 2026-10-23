@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -46,42 +47,44 @@ type apiSavedFilter struct {
 }
 
 type apiTask struct {
-	ID             int64              `json:"id"`
-	ParentID       int64              `json:"parentId,omitempty"`
-	ListID         int64              `json:"listId"`
-	ListName       string             `json:"listName"`
-	ListColor      string             `json:"listColor"`
-	Title          string             `json:"title"`
-	Notes          string             `json:"notes"`
-	Priority       int                `json:"priority"`
-	Due            string             `json:"due,omitempty"`
-	AllDay         bool               `json:"allDay"`
-	Completed      bool               `json:"completed"`
-	CompletedAt    string             `json:"completedAt,omitempty"`
-	Recurrence     string             `json:"recurrence"`
-	ReminderOffset int                `json:"reminderOffset"`
-	DeletedAt      string             `json:"deletedAt,omitempty"`
-	Tags           []string           `json:"tags"`
-	Checklist      []apiChecklistItem `json:"checklist"`
-	Order          int                `json:"order"`
-	CreatedAt      string             `json:"createdAt"`
-	ModifiedAt     string             `json:"modifiedAt"`
+	ID              int64              `json:"id"`
+	ParentID        int64              `json:"parentId,omitempty"`
+	ListID          int64              `json:"listId"`
+	ListName        string             `json:"listName"`
+	ListColor       string             `json:"listColor"`
+	Title           string             `json:"title"`
+	Notes           string             `json:"notes"`
+	Priority        int                `json:"priority"`
+	Due             string             `json:"due,omitempty"`
+	AllDay          bool               `json:"allDay"`
+	Completed       bool               `json:"completed"`
+	CompletedAt     string             `json:"completedAt,omitempty"`
+	Recurrence      string             `json:"recurrence"`
+	ReminderOffset  int                `json:"reminderOffset"`
+	ReminderOffsets []int              `json:"reminderOffsets"`
+	DeletedAt       string             `json:"deletedAt,omitempty"`
+	Tags            []string           `json:"tags"`
+	Checklist       []apiChecklistItem `json:"checklist"`
+	Order           int                `json:"order"`
+	CreatedAt       string             `json:"createdAt"`
+	ModifiedAt      string             `json:"modifiedAt"`
 }
 
 type taskPatch struct {
-	Text           *string             `json:"text"`
-	Title          *string             `json:"title"`
-	ListID         *int64              `json:"listId"`
-	Notes          *string             `json:"notes"`
-	Priority       *int                `json:"priority"`
-	Due            *string             `json:"due"`
-	AllDay         *bool               `json:"allDay"`
-	Completed      *bool               `json:"completed"`
-	Tags           *[]string           `json:"tags"`
-	Checklist      *[]apiChecklistItem `json:"checklist"`
-	Recurrence     *string             `json:"recurrence"`
-	ReminderOffset *int                `json:"reminderOffset"`
-	Timezone       string              `json:"timezone"`
+	Text            *string             `json:"text"`
+	Title           *string             `json:"title"`
+	ListID          *int64              `json:"listId"`
+	Notes           *string             `json:"notes"`
+	Priority        *int                `json:"priority"`
+	Due             *string             `json:"due"`
+	AllDay          *bool               `json:"allDay"`
+	Completed       *bool               `json:"completed"`
+	Tags            *[]string           `json:"tags"`
+	Checklist       *[]apiChecklistItem `json:"checklist"`
+	Recurrence      *string             `json:"recurrence"`
+	ReminderOffset  *int                `json:"reminderOffset"`
+	ReminderOffsets *[]int              `json:"reminderOffsets"`
+	Timezone        string              `json:"timezone"`
 }
 
 func decodeChecklist(raw string) []apiChecklistItem {
@@ -131,24 +134,28 @@ func encodeChecklist(items []apiChecklistItem) string {
 
 func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 	dto := apiTask{
-		ID:             task.ID,
-		ParentID:       task.ParentID,
-		ListID:         task.ListID,
-		Title:          task.Title,
-		Notes:          task.Notes,
-		Priority:       task.Priority,
-		AllDay:         task.AllDay,
-		Completed:      task.Completed,
-		Recurrence:     task.Recurrence,
-		ReminderOffset: task.ReminderOffset,
-		Tags:           append([]string(nil), task.Tags...),
-		Checklist:      decodeChecklist(task.Checklist),
-		Order:          task.Order,
-		CreatedAt:      task.CreatedAt.Format(time.RFC3339),
-		ModifiedAt:     task.ModifiedAt.Format(time.RFC3339),
+		ID:              task.ID,
+		ParentID:        task.ParentID,
+		ListID:          task.ListID,
+		Title:           task.Title,
+		Notes:           task.Notes,
+		Priority:        task.Priority,
+		AllDay:          task.AllDay,
+		Completed:       task.Completed,
+		Recurrence:      task.Recurrence,
+		ReminderOffset:  task.ReminderOffset,
+		ReminderOffsets: task.ReminderValues(),
+		Tags:            append([]string(nil), task.Tags...),
+		Checklist:       decodeChecklist(task.Checklist),
+		Order:           task.Order,
+		CreatedAt:       task.CreatedAt.Format(time.RFC3339),
+		ModifiedAt:      task.ModifiedAt.Format(time.RFC3339),
 	}
 	if dto.Tags == nil {
 		dto.Tags = []string{}
+	}
+	if dto.ReminderOffsets == nil {
+		dto.ReminderOffsets = []int{}
 	}
 	if task.DueAt != nil {
 		dto.Due = task.DueAt.Format(time.RFC3339)
@@ -367,6 +374,28 @@ func (s *Server) taskTags(ctx context.Context, userID int64) []string {
 	return out
 }
 
+func applyTaskReminders(task *store.Task, body taskPatch) error {
+	if body.ReminderOffsets != nil {
+		offsets, err := store.NormalizeReminderOffsets(*body.ReminderOffsets)
+		if err != nil {
+			return err
+		}
+		task.SetReminderValues(offsets)
+		return nil
+	}
+	if body.ReminderOffset != nil {
+		if *body.ReminderOffset < -1 || *body.ReminderOffset > 10080 {
+			return errors.New("提醒偏移必须在 -1 到 10080 分钟之间")
+		}
+		if *body.ReminderOffset < 0 {
+			task.SetReminderValues(nil)
+		} else {
+			task.SetReminderValues([]int{*body.ReminderOffset})
+		}
+	}
+	return nil
+}
+
 func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body taskPatch
 	if !readAPIJSON(w, r, &body) {
@@ -404,8 +433,9 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		task.Recurrence = rule
 	}
-	if body.ReminderOffset != nil {
-		task.ReminderOffset = *body.ReminderOffset
+	if err := applyTaskReminders(task, body); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	if body.Tags != nil {
 		task.Tags = normalizeTaskTags(*body.Tags)
@@ -500,8 +530,9 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		task.Recurrence = rule
 	}
-	if body.ReminderOffset != nil {
-		task.ReminderOffset = *body.ReminderOffset
+	if err := applyTaskReminders(task, body); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 	if body.Tags != nil {
 		task.Tags = normalizeTaskTags(*body.Tags)

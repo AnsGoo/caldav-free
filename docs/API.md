@@ -497,6 +497,39 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 移除共享成员，返回 `204`。
 
+### GET /api/admin/tasks/{id}/comments
+
+返回任务评论，按时间正序：
+
+```json
+{
+  "comments": [
+    {
+      "id": 1,
+      "taskId": 8,
+      "userId": 2,
+      "username": "bob",
+      "displayName": "Bob",
+      "body": "@admin 请确认",
+      "createdAt": "2026-10-23T16:04:48Z",
+      "canDelete": true
+    }
+  ]
+}
+```
+
+### POST /api/admin/tasks/{id}/comments
+
+```json
+{ "body": "@admin 请确认" }
+```
+
+评论中的 `@username` 只对清单成员生效；作者、所有者/编辑者可发表评论。被提及成员、任务所有者和指派人会收到通知。
+
+### DELETE /api/admin/tasks/{id}/comments/{commentId}
+
+作者或清单所有者可删除，返回 `204`。
+
 ### GET /api/admin/notifications
 
 返回最近 50 条站内通知和未读数：

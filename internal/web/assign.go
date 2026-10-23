@@ -29,10 +29,7 @@ func (s *Server) notifyAssignment(ctx context.Context, r *http.Request, actor *s
 		s.logger.Warn("assignment notification: list not found", "list", task.ListID)
 		return
 	}
-	relativeURL := fmt.Sprintf("/tasks?view=list&list=%d&task=%d", list.ID, task.ID)
-	if assignee.ID != list.UserID {
-		relativeURL = fmt.Sprintf("/tasks?view=shared&shared=%d&task=%d", list.ID, task.ID)
-	}
+	relativeURL := taskURLForUser(list, assignee.ID, task.ID)
 	actorName := actor.DisplayName
 	if strings.TrimSpace(actorName) == "" {
 		actorName = actor.Username
@@ -47,10 +44,17 @@ func (s *Server) notifyAssignment(ctx context.Context, r *http.Request, actor *s
 		s.logger.Warn("create assignment notification", "user", assignee.ID, "error", err)
 	}
 	absoluteURL := s.baseURL(r) + "/admin" + relativeURL
-	go s.sendAssignmentPush(assignee, title, body, absoluteURL, task)
+	go s.sendUserNotification(assignee, title, body, absoluteURL, task)
 }
 
-func (s *Server) sendAssignmentPush(assignee *store.User, title, body, url string, task *store.Task) {
+func taskURLForUser(list *store.TaskList, recipientID, taskID int64) string {
+	if recipientID == list.UserID {
+		return fmt.Sprintf("/tasks?view=list&list=%d&task=%d", list.ID, taskID)
+	}
+	return fmt.Sprintf("/tasks?view=shared&shared=%d&task=%d", list.ID, taskID)
+}
+
+func (s *Server) sendUserNotification(assignee *store.User, title, body, url string, task *store.Task) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if _, err := reminders.NotifyUser(ctx, s.store, s.logger, assignee.ID, reminders.PushMessage{
@@ -63,7 +67,7 @@ func (s *Server) sendAssignmentPush(assignee *store.User, title, body, url strin
 		return
 	}
 	content := body + "\n\n任务：" + task.Title + "\n打开任务：" + url + "\n"
-	if err := cfg.Send(ctx, assignee.Email, "任务指派："+task.Title, content); err != nil {
+	if err := cfg.Send(ctx, assignee.Email, title+"："+task.Title, content); err != nil {
 		s.logger.Warn("send assignment email", "user", assignee.ID, "error", err)
 	}
 }

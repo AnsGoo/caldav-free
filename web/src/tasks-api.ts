@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared'
 
@@ -148,6 +148,21 @@ export function markAllNotificationsRead() {
 
 export function fetchSharedTasks(listId: number) {
   return api<{ list: SharedTaskList; tasks: TaskItem[] }>(`/tasks/shared?listId=${listId}`)
+}
+
+export function fetchTaskComments(taskId: number) {
+  return api<{ comments: TaskComment[] }>(`/tasks/${taskId}/comments`)
+}
+
+export function createTaskComment(taskId: number, body: string) {
+  return api<{ comment: TaskComment }>(`/tasks/${taskId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  })
+}
+
+export function deleteTaskComment(taskId: number, commentId: number) {
+  return api<void>(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' })
 }
 
 export function fetchTaskListMembers(listId: number) {

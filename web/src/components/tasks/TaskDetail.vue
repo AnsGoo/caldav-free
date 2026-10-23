@@ -217,6 +217,61 @@
         </div>
       </section>
 
+      <section class="tw-comments-section">
+        <header class="tw-detail-section-head">
+          <span>评论</span>
+          <small v-if="comments.length">{{ comments.length }}</small>
+        </header>
+        <div v-if="commentsLoading" class="tw-comments-loading">加载评论…</div>
+        <div v-else-if="comments.length" class="tw-comment-list">
+          <article v-for="comment in comments" :key="comment.id" class="tw-comment-row">
+            <span class="tw-avatar tw-avatar-sm">{{ (comment.displayName || comment.username).slice(0, 1).toUpperCase() }}</span>
+            <div class="tw-comment-main">
+              <div class="tw-comment-head">
+                <strong>{{ comment.displayName || comment.username }}</strong>
+                <small>{{ formatCommentTime(comment.createdAt) }}</small>
+                <button
+                  v-if="!readonly && comment.canDelete"
+                  class="tw-icon-button tw-comment-delete"
+                  title="删除评论"
+                  @click="removeComment(comment)"
+                >
+                  <TaskIcon name="trash" :size="12" />
+                </button>
+              </div>
+              <p>{{ comment.body }}</p>
+            </div>
+          </article>
+        </div>
+        <p v-else class="tw-comments-empty">还没有评论。</p>
+
+        <div v-if="!readonly" class="tw-comment-compose">
+          <textarea
+            v-model="commentText"
+            class="tw-comment-input"
+            rows="2"
+            maxlength="4000"
+            placeholder="写评论，使用 @用户名 提及成员"
+          />
+          <div class="tw-comment-actions">
+            <div class="tw-comment-mentions">
+              <button
+                v-for="member in mentionMembers"
+                :key="member.username"
+                type="button"
+                class="tw-mention-chip"
+                @click="insertMention(member.username)"
+              >
+                @{{ member.username }}
+              </button>
+            </div>
+            <button class="tw-comment-send" :disabled="commentBusy || !commentText.trim()" @click="postComment">
+              {{ commentBusy ? '发送中…' : '发表评论' }}
+            </button>
+          </div>
+        </div>
+      </section>
+
       <p class="tw-detail-meta">
         创建于 {{ formatMoment(task.createdAt) }}
         <template v-if="task.completedAt"> · 完成于 {{ formatMoment(task.completedAt) }}</template>
@@ -236,9 +291,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, TaskItem, TaskList, TaskListMember } from '../../types'
+import type { ChecklistItem, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { updateTask } from '../../tasks-api'
+import { createTaskComment, deleteTaskComment, fetchTaskComments, updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; readonly?: boolean; listLocked?: boolean }>()
@@ -288,6 +343,10 @@ const recurrenceChoice = ref('')
 const customRule = ref('')
 const saving = ref(false)
 const saved = ref(false)
+const comments = ref<TaskComment[]>([])
+const commentsLoading = ref(false)
+const commentBusy = ref(false)
+const commentText = ref('')
 let hydrating = true
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let lastSaved = ''
@@ -300,6 +359,7 @@ const reminderSummary = computed(() => {
   return `${draft.reminderOffsets.length} 个提醒`
 })
 const doneCount = computed(() => draft.checklist.filter((item) => item.done).length)
+const mentionMembers = computed(() => (props.members || []).slice(0, 6))
 
 function hydrate() {
   hydrating = true
@@ -332,6 +392,8 @@ function hydrate() {
     draft.dueTime = '09:00'
   }
   saved.value = false
+  commentText.value = ''
+  void loadComments()
   nextTick(() => {
     growTitle()
     lastSaved = snapshotDraft()
@@ -362,6 +424,59 @@ function changeReminder(index: number, value: number) {
   }
   draft.reminderOffsets[index] = value
   draft.reminderOffsets.sort((a, b) => a - b)
+}
+
+async function loadComments() {
+  const id = props.task.id
+  if (!id) return
+  commentsLoading.value = true
+  try {
+    const result = await fetchTaskComments(id)
+    if (id === props.task.id) comments.value = result.comments
+  } catch {
+    if (id === props.task.id) comments.value = []
+  } finally {
+    if (id === props.task.id) commentsLoading.value = false
+  }
+}
+
+function insertMention(username: string) {
+  const prefix = commentText.value && !commentText.value.endsWith(' ') ? ' ' : ''
+  commentText.value += `${prefix}@${username} `
+}
+
+async function postComment() {
+  const body = commentText.value.trim()
+  if (!body || commentBusy.value) return
+  commentBusy.value = true
+  try {
+    const { comment } = await createTaskComment(props.task.id, body)
+    comments.value.push(comment)
+    commentText.value = ''
+    Message.success('评论已发布')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '发表评论失败')
+  } finally {
+    commentBusy.value = false
+  }
+}
+
+async function removeComment(comment: TaskComment) {
+  try {
+    await deleteTaskComment(props.task.id, comment.id)
+    comments.value = comments.value.filter((item) => item.id !== comment.id)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除评论失败')
+  }
+}
+
+function formatCommentTime(value: string) {
+  const time = new Date(value).getTime()
+  const diff = Date.now() - time
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`
+  return new Date(value).toLocaleDateString('zh-CN')
 }
 
 function snapshotDraft() {

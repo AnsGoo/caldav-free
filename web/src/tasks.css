@@ -5056,3 +5056,134 @@ button.tw-side-link {
   color: var(--tw-text-3);
   font-size: 12px;
 }
+
+/* ------------------------------------------------------ task comments */
+.tw-comments-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.tw-comments-loading,
+.tw-comments-empty {
+  color: var(--tw-text-3);
+  font-size: 11.5px;
+}
+
+.tw-comment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tw-comment-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tw-comment-main {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 9px;
+  border: 1px solid var(--tw-border);
+  border-radius: 9px;
+  background: var(--tw-surface);
+}
+
+.tw-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 3px;
+}
+
+.tw-comment-head strong {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.tw-comment-head small {
+  color: var(--tw-text-3);
+  font-size: 10px;
+}
+
+.tw-comment-delete {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+}
+
+.tw-comment-main p {
+  margin: 0;
+  color: var(--tw-text-2);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tw-comment-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tw-comment-input {
+  width: 100%;
+  min-height: 56px;
+  resize: vertical;
+  border: 1px solid var(--tw-border);
+  border-radius: 8px;
+  background: var(--tw-surface);
+  color: var(--tw-text);
+  padding: 7px 9px;
+  font-size: 12px;
+  line-height: 1.6;
+  outline: none;
+}
+
+.tw-comment-input:focus {
+  border-color: var(--tw-accent);
+}
+
+.tw-comment-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.tw-comment-mentions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.tw-mention-chip {
+  border: 0;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: var(--tw-accent-soft);
+  color: var(--tw-accent);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.tw-comment-send {
+  flex: none;
+  height: 28px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--tw-accent);
+  color: #fff;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.tw-comment-send:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

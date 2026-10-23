@@ -197,6 +197,17 @@ export interface AppNotification {
   createdAt: string
 }
 
+export interface TaskComment {
+  id: number
+  taskId: number
+  userId: number
+  username: string
+  displayName: string
+  body: string
+  createdAt: string
+  canDelete: boolean
+}
+
 export interface TaskListMember {
   username: string
   displayName: string

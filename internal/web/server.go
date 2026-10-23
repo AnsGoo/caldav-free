@@ -142,6 +142,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/tasks/reminders", s.apiAdmin(s.apiTaskReminders))
 	mux.HandleFunc("GET /api/admin/tasks/calendar", s.apiAdmin(s.apiTaskCalendarEvents))
 	mux.HandleFunc("GET /api/admin/tasks/stats", s.apiAdmin(s.apiTaskStats))
+	mux.HandleFunc("GET /api/admin/tasks/summary", s.apiAdmin(s.apiTaskSummary))
 	mux.HandleFunc("GET /api/admin/tasks/ai/settings", s.apiAdmin(s.apiAISettings))
 	mux.HandleFunc("PUT /api/admin/tasks/ai/settings", s.apiAdmin(s.apiAISettings))
 	mux.HandleFunc("POST /api/admin/tasks/ai/chat", s.apiAdmin(s.apiAIChat))

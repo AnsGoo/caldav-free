@@ -278,3 +278,32 @@ export interface AIChatReply {
   actions: AIAction[]
   model: string
 }
+
+export interface SummaryTask {
+  id: number
+  title: string
+  listId: number
+  listName: string
+  listColor: string
+  completed: boolean
+  completedAt?: string
+  due?: string
+  allDay: boolean
+  priority: number
+  tags: string[]
+  notes: string
+  checklist: ChecklistItem[]
+  createdAt: string
+}
+
+export interface TaskSummaryData {
+  title: string
+  from: string
+  to: string
+  tasks: SummaryTask[]
+  nextTasks: SummaryTask[]
+  counts: {
+    completed: number
+    open: number
+  }
+}

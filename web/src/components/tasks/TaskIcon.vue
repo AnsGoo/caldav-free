@@ -95,6 +95,14 @@
     <template v-else-if="name === 'flag'">
       <path d="M6 20.5V4.5h9.5l-1.5 3.8 1.5 3.7H6" />
     </template>
+    <template v-else-if="name === 'download'">
+      <path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5" />
+      <path d="M4.5 17.5v2h15v-2" />
+    </template>
+    <template v-else-if="name === 'copy'">
+      <rect x="8" y="8" width="11.5" height="11.5" rx="2" />
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+    </template>
     <template v-else-if="name === 'sparkles'">
       <path d="M12 3.5l1.6 4.9 4.9 1.6-4.9 1.6L12 16.5l-1.6-4.9L5.5 10l4.9-1.6L12 3.5Z" fill="currentColor" stroke="none" />
       <path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z" fill="currentColor" stroke="none" />

@@ -1,7 +1,7 @@
 import { api } from './api'
-import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskStats, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, TaskFolder, TaskItem, TaskList, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'ai' | 'list' | 'filter'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter'
 
 export function browserTimezone() {
   try {
@@ -183,4 +183,25 @@ export function sendAIChat(messages: Array<{ role: string; content: string }>, t
     method: 'POST',
     body: JSON.stringify({ messages, timezone }),
   })
+}
+
+export function fetchTaskSummary(params: {
+  from: Date
+  to: Date
+  listId?: number
+  status?: string
+  priority?: number
+  tag?: string
+  includeNext?: boolean
+}) {
+  const query = new URLSearchParams({
+    from: params.from.toISOString(),
+    to: params.to.toISOString(),
+  })
+  if (params.listId) query.set('listId', String(params.listId))
+  if (params.status && params.status !== 'all') query.set('status', params.status)
+  if (params.priority) query.set('priority', String(params.priority))
+  if (params.tag) query.set('tag', params.tag)
+  if (params.includeNext) query.set('includeNext', '1')
+  return api<TaskSummaryData>(`/tasks/summary?${query.toString()}`)
 }

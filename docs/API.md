@@ -631,7 +631,7 @@ GET /api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}
 { "minutes": 10 }
 ```
 
-服务端会创建一条延迟提醒，返回：
+`minutes` 支持 1–1440，界面提供 10/30/60/1440。服务端会创建一条延迟提醒，返回：
 
 ```json
 {

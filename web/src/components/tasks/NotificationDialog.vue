@@ -29,14 +29,25 @@
             <span>{{ item.body }}</span>
             <small>{{ formatTime(item.createdAt) }}</small>
           </span>
-          <button
-            v-if="item.type === 'event'"
-            class="tw-notification-snooze"
-            :disabled="snoozing === item.id"
-            @click.stop="snooze(item)"
-          >
-            {{ snoozing === item.id ? '处理中…' : '稍后 10 分钟' }}
-          </button>
+          <span v-if="item.type === 'event'" class="tw-notification-actions" @click.stop>
+            <select
+              class="tw-notification-snooze-select"
+              :value="snoozeMinutes[item.id] || 10"
+              @change="setSnoozeMinutes(item.id, $event)"
+            >
+              <option :value="10">10 分钟</option>
+              <option :value="30">30 分钟</option>
+              <option :value="60">1 小时</option>
+              <option :value="1440">1 天</option>
+            </select>
+            <button
+              class="tw-notification-snooze"
+              :disabled="snoozing === item.id"
+              @click="snooze(item)"
+            >
+              {{ snoozing === item.id ? '处理中…' : '稍后' }}
+            </button>
+          </span>
         </div>
         <div v-if="!loading && !notifications.length" class="tw-notification-empty">
           <TaskIcon name="bell" :size="24" />
@@ -66,6 +77,7 @@ const unread = ref(0)
 const loading = ref(true)
 const busy = ref(false)
 const snoozing = ref(0)
+const snoozeMinutes = ref<Record<number, number>>({})
 const error = ref('')
 
 function formatTime(value: string) {
@@ -106,15 +118,22 @@ async function open(item: AppNotification) {
   else emit('close')
 }
 
+function setSnoozeMinutes(id: number, event: Event) {
+  const value = Number((event.target as HTMLSelectElement).value)
+  snoozeMinutes.value = { ...snoozeMinutes.value, [id]: value }
+}
+
 async function snooze(item: AppNotification) {
   if (snoozing.value || item.type !== 'event') return
+  const minutes = snoozeMinutes.value[item.id] || 10
   snoozing.value = item.id
   try {
-    const result = await snoozeEventNotification(item.id, 10)
+    const result = await snoozeEventNotification(item.id, minutes)
     item.read = true
     unread.value = result.unread
     emit('changed', result.unread)
-    Message.success('已安排 10 分钟后提醒')
+    const label = minutes >= 1440 ? '1 天' : minutes >= 60 ? `${minutes / 60} 小时` : `${minutes} 分钟`
+    Message.success(`已安排 ${label}后提醒`)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '稍后提醒失败'
   } finally {

@@ -289,6 +289,8 @@
             @open="openTask"
             @open-event="openCalendarEvent"
             @calendars="calendarSources = $event"
+            @reschedule-task="rescheduleTask"
+            @reschedule-event="rescheduleEvent"
             @create="createFromCalendar"
             @change-view="calendarView = $event"
             @prev="stepCalendar(-1)"
@@ -685,6 +687,7 @@ import {
   renameTaskTag,
   reorderTasks,
   restoreTask,
+  updateCalendarEvent,
   updateSavedFilter,
   updateTask,
   updateTaskFolder,
@@ -1319,6 +1322,36 @@ function openEventCreator() {
 
 function onEventSaved() {
   calendarReload.value += 1
+}
+
+async function rescheduleTask(payload: { task: TaskItem; due: string; allDay: boolean }) {
+  try {
+    const { task } = await updateTask(payload.task.id, { due: payload.due, allDay: payload.allDay })
+    replaceTask(task)
+    Message.success('任务已改期')
+    scheduleRefresh()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '改期失败')
+  }
+}
+
+async function rescheduleEvent(payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }) {
+  const { event } = payload
+  try {
+    await updateCalendarEvent(event.calendarId, event.href, {
+      summary: event.summary,
+      location: event.location,
+      description: event.description,
+      start: payload.start,
+      end: payload.end,
+      allDay: payload.allDay,
+      rrule: event.rrule,
+    })
+    calendarReload.value += 1
+    Message.success(event.recurring ? '重复日程已整体改期' : '日程已改期')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '日程改期失败')
+  }
 }
 
 function openStats() {

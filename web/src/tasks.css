@@ -4914,3 +4914,15 @@ button.tw-side-link {
 .tw-detail.is-readonly .tw-save-state {
   color: var(--tw-text-3);
 }
+
+/* ------------------------------------------------------ calendar drag */
+.tw-calendar-task[draggable='true'],
+.tw-tg-block[draggable='true'],
+.tw-tg-allday-chip[draggable='true'] {
+  cursor: grab;
+}
+
+.tw-calendar-cell:has(.tw-calendar-task[draggable='true']:active),
+.tw-tg-col:has(.tw-tg-block[draggable='true']:active) {
+  cursor: grabbing;
+}

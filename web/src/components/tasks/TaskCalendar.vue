@@ -50,6 +50,8 @@
           :key="cell.key"
           class="tw-calendar-cell"
           :class="{ muted: !cell.inMonth, today: cell.isToday }"
+          @dragover.prevent
+          @drop="dropOnDay(cell.key)"
         >
           <div class="tw-cell-head">
             <button class="tw-cell-day" title="查看当天安排" @click="openDay(cell.key)">{{ cell.label }}</button>
@@ -77,6 +79,8 @@
                 class="tw-calendar-task"
                 :class="{ done: item.task!.completed, overdue: cell.key < todayKey && !item.task!.completed }"
                 :title="item.title"
+                draggable="true"
+                @dragstart="startDrag(item, $event)"
                 @click="$emit('open', item.task!)"
               >
                 <i :style="{ background: item.task!.listColor || '#4772fa' }" />
@@ -87,6 +91,8 @@
                 class="tw-calendar-task tw-calendar-event"
                 :style="{ borderLeftColor: item.color, background: `color-mix(in srgb, ${item.color} 16%, var(--tw-surface))` }"
                 :title="item.title"
+                draggable="true"
+                @dragstart="startDrag(item, $event)"
                 @click="$emit('open-event', item.event!)"
               >
                 <i :style="{ background: item.color }" />
@@ -123,13 +129,15 @@
 
       <div class="tw-tg-allday" :style="{ gridTemplateColumns: `46px repeat(${visibleDays.length}, minmax(0, 1fr))` }">
         <span class="tw-tg-allday-label">全天</span>
-        <div v-for="day in visibleDays" :key="day.key" class="tw-tg-allday-cell">
+        <div v-for="day in visibleDays" :key="day.key" class="tw-tg-allday-cell" @dragover.prevent @drop="dropAllDay(day.key)">
           <template v-for="item in allDayItems(day.key).slice(0, 4)" :key="item.key">
             <button
               v-if="item.kind === 'task'"
               class="tw-tg-allday-chip task"
               :style="{ borderLeftColor: item.color }"
               :title="item.title"
+              draggable="true"
+              @dragstart="startDrag(item, $event)"
               @click="$emit('open', item.task!)"
             >
               {{ item.title }}
@@ -139,6 +147,8 @@
               class="tw-tg-allday-chip event"
               :style="{ borderLeftColor: item.color }"
               :title="item.title"
+              draggable="true"
+              @dragstart="startDrag(item, $event)"
               @click="$emit('open-event', item.event!)"
             >
               {{ item.title }}
@@ -156,7 +166,7 @@
             </div>
           </div>
           <div v-for="day in visibleDays" :key="day.key" class="tw-tg-col">
-            <div v-for="hour in 24" :key="hour" class="tw-tg-line" />
+            <div v-for="hour in 24" :key="hour" class="tw-tg-line" @dragover.prevent @drop="dropOnTime(day.key, hour - 1)" />
             <div
               v-for="item in layoutItems(day.key)"
               :key="item.key"
@@ -164,6 +174,8 @@
               :class="item.kind"
               :style="item.style"
               :title="`${item.title}${item.timeLabel ? ' · ' + item.timeLabel : ''}`"
+              draggable="true"
+              @dragstart="startDrag(item, $event)"
               @click="item.kind === 'task' ? $emit('open', item.task!) : $emit('open-event', item.event!)"
             >
               <strong>{{ item.title }}</strong>
@@ -264,6 +276,8 @@ const emit = defineEmits<{
   (event: 'today'): void
   (event: 'change-view', value: 'month' | 'week' | 'day' | 'agenda'): void
   (event: 'calendars', value: CalendarSource[]): void
+  (event: 'reschedule-task', payload: { task: TaskItem; due: string; allDay: boolean }): void
+  (event: 'reschedule-event', payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }): void
 }>()
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -580,6 +594,105 @@ function layoutItems(key: string): LayoutItem[] {
   }
   flush()
   return result
+}
+
+const dragItem = ref<CalItem | null>(null)
+
+function startDrag(item: CalItem, event: DragEvent) {
+  dragItem.value = item
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', item.key)
+  }
+}
+
+function formatLocal(date: Date) {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function addDaysLocal(date: Date, days: number) {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+function eventDuration(event: CalendarEvent) {
+  const start = new Date(event.start).getTime()
+  const end = new Date(event.end).getTime()
+  return Math.max(15 * 60000, end - start)
+}
+
+function allDayDuration(event: CalendarEvent) {
+  const start = new Date(event.start)
+  const end = new Date(event.end)
+  const days = Math.round((end.getTime() - start.getTime()) / 86400000)
+  return Math.max(1, days)
+}
+
+function dropOnDay(key: string) {
+  const item = dragItem.value
+  dragItem.value = null
+  if (!item) return
+  if (item.kind === 'task' && item.task) {
+    const task = item.task
+    if (task.allDay || !task.due) {
+      emit('reschedule-task', { task, due: `${key}T00:00:00`, allDay: true })
+      return
+    }
+    const original = new Date(task.due)
+    emit('reschedule-task', {
+      task,
+      due: `${key}T${String(original.getHours()).padStart(2, '0')}:${String(original.getMinutes()).padStart(2, '0')}`,
+      allDay: false,
+    })
+    return
+  }
+  if (!item.event) return
+  const event = item.event
+  if (event.allDay) {
+    const start = new Date(`${key}T00:00:00`)
+    const end = addDaysLocal(start, allDayDuration(event))
+    emit('reschedule-event', { event, start: `${key}T00:00:00`, end: formatLocal(end), allDay: true })
+    return
+  }
+  const original = new Date(event.start)
+  const start = new Date(`${key}T${String(original.getHours()).padStart(2, '0')}:${String(original.getMinutes()).padStart(2, '0')}:00`)
+  const end = new Date(start.getTime() + eventDuration(event))
+  emit('reschedule-event', { event, start: formatLocal(start), end: formatLocal(end), allDay: false })
+}
+
+function dropAllDay(key: string) {
+  const item = dragItem.value
+  dragItem.value = null
+  if (!item) return
+  if (item.kind === 'task' && item.task) {
+    emit('reschedule-task', { task: item.task, due: `${key}T00:00:00`, allDay: true })
+    return
+  }
+  if (!item.event) return
+  const event = item.event
+  const days = event.allDay ? allDayDuration(event) : 1
+  const start = new Date(`${key}T00:00:00`)
+  const end = addDaysLocal(start, days)
+  emit('reschedule-event', { event, start: `${key}T00:00:00`, end: formatLocal(end), allDay: true })
+}
+
+function dropOnTime(key: string, hour: number) {
+  const item = dragItem.value
+  dragItem.value = null
+  if (!item) return
+  const time = `${String(hour).padStart(2, '0')}:00`
+  if (item.kind === 'task' && item.task) {
+    emit('reschedule-task', { task: item.task, due: `${key}T${time}`, allDay: false })
+    return
+  }
+  if (!item.event) return
+  const event = item.event
+  const start = new Date(`${key}T${time}:00`)
+  const duration = event.allDay ? 60 * 60000 : eventDuration(event)
+  const end = new Date(start.getTime() + duration)
+  emit('reschedule-event', { event, start: formatLocal(start), end: formatLocal(end), allDay: false })
 }
 
 async function loadEvents() {

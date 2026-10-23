@@ -550,6 +550,31 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 作者或清单所有者可删除，返回 `204`。
 
+### POST /api/admin/tasks/{id}/comments/{commentId}/attachments
+
+使用 `multipart/form-data` 上传字段 `file`，单文件最大 10MB：
+
+```json
+{
+  "attachment": {
+    "id": 1,
+    "commentId": 8,
+    "filename": "note.txt",
+    "contentType": "text/plain",
+    "size": 16,
+    "canDelete": true
+  }
+}
+```
+
+附件随评论/任务权限校验；下载使用：
+
+```text
+GET /api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}
+```
+
+删除使用 `DELETE` 同一路径。
+
 ### GET /api/admin/notifications
 
 返回最近 50 条站内通知和未读数：

@@ -83,3 +83,32 @@ export async function logoutRequest() {
 export async function meRequest() {
   return api<{ user: unknown; csrf: string; baseUrl: string }>('/me', {}, { auth: false, csrf: false })
 }
+
+export async function apiForm<T>(path: string, form: FormData): Promise<T> {
+  const headers = new Headers()
+  if (csrfToken) headers.set('X-CSRF-Token', csrfToken)
+  const response = await fetch(`/api/admin${path}`, {
+    method: 'POST',
+    headers,
+    body: form,
+    credentials: 'same-origin',
+  })
+  if (response.status === 401) unauthorizedHandler?.()
+  const text = await response.text()
+  let payload: unknown = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = text
+    }
+  }
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === 'object' && 'error' in payload
+        ? String((payload as { error: unknown }).error)
+        : `请求失败（${response.status}）`
+    throw new ApiError(response.status, message)
+  }
+  return payload as T
+}

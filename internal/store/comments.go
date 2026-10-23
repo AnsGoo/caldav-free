@@ -2,8 +2,11 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // TaskComment is a comment attached to a task. Comments are workspace-only
@@ -112,4 +115,68 @@ func (s *Store) GetTaskAccess(ctx context.Context, userID, taskID int64) (*TaskA
 		return nil, err
 	}
 	return &TaskAccess{Task: task, List: list, Role: role}, nil
+}
+
+// CommentAttachment is a file attached to a task comment. Data is stored in
+// SQLite to keep self-hosted deployments to a single backup unit.
+type CommentAttachment struct {
+	ID          int64     `gorm:"primaryKey"`
+	TaskID      int64     `gorm:"not null;index:idx_comment_attachment_task"`
+	CommentID   int64     `gorm:"not null;index:idx_comment_attachment_comment"`
+	UserID      int64     `gorm:"not null;index:idx_comment_attachment_user"`
+	Filename    string    `gorm:"size:255;not null"`
+	ContentType string    `gorm:"size:190;not null;default:'application/octet-stream'"`
+	Size        int64     `gorm:"not null;default:0"`
+	Data        []byte    `gorm:"type:blob;not null"`
+	CreatedAt   time.Time `gorm:"not null;autoCreateTime"`
+}
+
+// CommentAttachmentInfo is attachment metadata without the blob.
+type CommentAttachmentInfo struct {
+	ID          int64
+	CommentID   int64
+	TaskID      int64
+	UserID      int64
+	Filename    string
+	ContentType string
+	Size        int64
+	CreatedAt   time.Time
+}
+
+func (s *Store) CreateCommentAttachment(ctx context.Context, attachment *CommentAttachment) error {
+	return s.db.WithContext(ctx).Create(attachment).Error
+}
+
+func (s *Store) ListAttachmentInfo(ctx context.Context, taskID int64) ([]CommentAttachmentInfo, error) {
+	var rows []CommentAttachmentInfo
+	err := s.db.WithContext(ctx).Model(&CommentAttachment{}).
+		Select("id, comment_id, task_id, user_id, filename, content_type, size, created_at").
+		Where("task_id = ?", taskID).Order("id ASC").Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("list comment attachments: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Store) GetCommentAttachment(ctx context.Context, taskID, commentID, id int64) (*CommentAttachment, error) {
+	var attachment CommentAttachment
+	err := s.db.WithContext(ctx).Where("id = ? AND task_id = ? AND comment_id = ?", id, taskID, commentID).First(&attachment).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &attachment, nil
+}
+
+func (s *Store) DeleteCommentAttachment(ctx context.Context, taskID, commentID, id int64) error {
+	res := s.db.WithContext(ctx).Where("id = ? AND task_id = ? AND comment_id = ?", id, taskID, commentID).Delete(&CommentAttachment{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

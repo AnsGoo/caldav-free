@@ -46,6 +46,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
 | `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态 |
 | `task_comments` | 任务评论：任务、作者、正文、创建时间 |
+| `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
@@ -209,6 +210,7 @@ name:   任务
 - 前端每 60 秒拉取未读数；点击通知按 `url` 进入共享或普通任务。
 - 评论通过 `GetTaskAccess` 支持所有者/共享成员；`@username` 仅对清单成员生效，评论作者和所有者可删除。
 - 评论通知复用站内通知、Web Push 和 SMTP 链路。
+- 附件通过任务权限校验后上传/下载；文件内容存 SQLite，便于单文件备份。
 
 ## 8. 提醒
 

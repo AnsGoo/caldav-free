@@ -5222,3 +5222,68 @@ button.tw-side-link {
 .tw-tg-block:hover .tw-tg-resize::after {
   opacity: 1;
 }
+
+.tw-comment-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.tw-comment-files span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--tw-surface-2);
+  color: var(--tw-text-2);
+  font-size: 10.5px;
+}
+
+.tw-comment-files button {
+  border: 0;
+  background: transparent;
+  color: var(--tw-text-3);
+  cursor: pointer;
+  padding: 0;
+}
+
+.tw-comment-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+}
+
+.tw-comment-attachment {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tw-comment-attachment a {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--tw-accent);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.tw-comment-attachment a span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-comment-attachment a small {
+  color: var(--tw-text-3);
+  font-size: 9.5px;
+  flex: none;
+}
+
+.tw-comment-attachment .tw-icon-button {
+  width: 20px;
+  height: 20px;
+}

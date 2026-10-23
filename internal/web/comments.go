@@ -16,14 +16,15 @@ import (
 var mentionPattern = regexp.MustCompile(`(?i)@([a-z0-9][a-z0-9._-]{1,63})`)
 
 type apiTaskComment struct {
-	ID          int64  `json:"id"`
-	TaskID      int64  `json:"taskId"`
-	UserID      int64  `json:"userId"`
-	Username    string `json:"username"`
-	DisplayName string `json:"displayName"`
-	Body        string `json:"body"`
-	CreatedAt   string `json:"createdAt"`
-	CanDelete   bool   `json:"canDelete"`
+	ID          int64                  `json:"id"`
+	TaskID      int64                  `json:"taskId"`
+	UserID      int64                  `json:"userId"`
+	Username    string                 `json:"username"`
+	DisplayName string                 `json:"displayName"`
+	Body        string                 `json:"body"`
+	CreatedAt   string                 `json:"createdAt"`
+	CanDelete   bool                   `json:"canDelete"`
+	Attachments []apiCommentAttachment `json:"attachments"`
 }
 
 func (s *Server) apiTaskComments(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
@@ -70,7 +71,7 @@ func (s *Server) apiTaskComments(w http.ResponseWriter, r *http.Request, current
 		ID: comment.ID, TaskID: comment.TaskID, UserID: current.ID,
 		Username: current.Username, DisplayName: current.DisplayName,
 		Body: comment.Body, CreatedAt: comment.CreatedAt.Format(time.RFC3339),
-		CanDelete: true,
+		CanDelete: true, Attachments: []apiCommentAttachment{},
 	}})
 }
 
@@ -80,13 +81,29 @@ func (s *Server) writeTaskComments(w http.ResponseWriter, r *http.Request, curre
 		s.apiServerError(w, err)
 		return
 	}
+	info, err := s.store.ListAttachmentInfo(r.Context(), access.Task.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	byComment := make(map[int64][]apiCommentAttachment)
+	for _, item := range info {
+		byComment[item.CommentID] = append(byComment[item.CommentID], commentAttachmentDTO(
+			item, item.UserID == current.ID || access.List.UserID == current.ID,
+		))
+	}
 	rows := make([]apiTaskComment, 0, len(comments))
 	for _, comment := range comments {
+		attachments := byComment[comment.ID]
+		if attachments == nil {
+			attachments = []apiCommentAttachment{}
+		}
 		rows = append(rows, apiTaskComment{
 			ID: comment.ID, TaskID: comment.TaskID, UserID: comment.UserID,
 			Username: comment.Username, DisplayName: comment.DisplayName,
 			Body: comment.Body, CreatedAt: comment.CreatedAt.Format(time.RFC3339),
-			CanDelete: comment.UserID == current.ID || access.List.UserID == current.ID,
+			CanDelete:   comment.UserID == current.ID || access.List.UserID == current.ID,
+			Attachments: attachments,
 		})
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"comments": rows})

@@ -240,6 +240,23 @@
                 </button>
               </div>
               <p>{{ comment.body }}</p>
+              <div v-if="comment.attachments.length" class="tw-comment-attachments">
+                <div v-for="attachment in comment.attachments" :key="attachment.id" class="tw-comment-attachment">
+                  <a :href="attachmentURL(comment, attachment)" target="_blank" rel="noopener">
+                    <TaskIcon name="download" :size="13" />
+                    <span>{{ attachment.filename }}</span>
+                    <small>{{ formatSize(attachment.size) }}</small>
+                  </a>
+                  <button
+                    v-if="!readonly && attachment.canDelete"
+                    class="tw-icon-button"
+                    title="删除附件"
+                    @click="removeAttachment(comment, attachment)"
+                  >
+                    <TaskIcon name="trash" :size="12" />
+                  </button>
+                </div>
+              </div>
             </div>
           </article>
         </div>
@@ -253,8 +270,16 @@
             maxlength="4000"
             placeholder="写评论，使用 @用户名 提及成员"
           />
+          <div v-if="commentFiles.length" class="tw-comment-files">
+            <span v-for="(file, index) in commentFiles" :key="`${file.name}-${index}`">
+              {{ file.name }}
+              <button type="button" title="移除" @click="commentFiles.splice(index, 1)">×</button>
+            </span>
+          </div>
           <div class="tw-comment-actions">
             <div class="tw-comment-mentions">
+              <input ref="commentFileInput" type="file" multiple hidden @change="onCommentFiles" />
+              <button type="button" class="tw-mention-chip" @click="commentFileInput?.click()">+ 附件</button>
               <button
                 v-for="member in mentionMembers"
                 :key="member.username"
@@ -265,7 +290,7 @@
                 @{{ member.username }}
               </button>
             </div>
-            <button class="tw-comment-send" :disabled="commentBusy || !commentText.trim()" @click="postComment">
+            <button class="tw-comment-send" :disabled="commentBusy || (!commentText.trim() && !commentFiles.length)" @click="postComment">
               {{ commentBusy ? '发送中…' : '发表评论' }}
             </button>
           </div>
@@ -291,9 +316,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
+import type { ChecklistItem, CommentAttachment, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteTaskComment, fetchTaskComments, updateTask } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskComments, updateTask, uploadCommentAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; readonly?: boolean; listLocked?: boolean }>()
@@ -347,6 +372,8 @@ const comments = ref<TaskComment[]>([])
 const commentsLoading = ref(false)
 const commentBusy = ref(false)
 const commentText = ref('')
+const commentFiles = ref<File[]>([])
+const commentFileInput = ref<HTMLInputElement | null>(null)
 let hydrating = true
 let saveTimer: ReturnType<typeof setTimeout> | undefined
 let lastSaved = ''
@@ -393,6 +420,7 @@ function hydrate() {
   }
   saved.value = false
   commentText.value = ''
+  commentFiles.value = []
   void loadComments()
   nextTick(() => {
     growTitle()
@@ -445,19 +473,60 @@ function insertMention(username: string) {
   commentText.value += `${prefix}@${username} `
 }
 
+function onCommentFiles(event: Event) {
+  const input = event.target as HTMLInputElement
+  const files = Array.from(input.files || [])
+  for (const file of files) {
+    if (file.size > 10 * 1024 * 1024) {
+      Message.warning(`${file.name} 超过 10MB，已跳过`)
+      continue
+    }
+    commentFiles.value.push(file)
+  }
+  input.value = ''
+}
+
 async function postComment() {
   const body = commentText.value.trim()
-  if (!body || commentBusy.value) return
+  if ((!body && !commentFiles.value.length) || commentBusy.value) return
   commentBusy.value = true
   try {
-    const { comment } = await createTaskComment(props.task.id, body)
-    comments.value.push(comment)
+    const { comment } = await createTaskComment(props.task.id, body || '（附件）')
+    if (commentFiles.value.length) {
+      for (const file of commentFiles.value) {
+        await uploadCommentAttachment(props.task.id, comment.id, file)
+      }
+      commentFiles.value = []
+      await loadComments()
+    } else {
+      comments.value.push(comment)
+    }
     commentText.value = ''
     Message.success('评论已发布')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '发表评论失败')
+    await loadComments()
   } finally {
     commentBusy.value = false
+  }
+}
+
+function attachmentURL(comment: TaskComment, attachment: CommentAttachment) {
+  return `/api/admin/tasks/${props.task.id}/comments/${comment.id}/attachments/${attachment.id}`
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+async function removeAttachment(comment: TaskComment, attachment: CommentAttachment) {
+  try {
+    await deleteCommentAttachment(props.task.id, comment.id, attachment.id)
+    comment.attachments = comment.attachments.filter((item) => item.id !== attachment.id)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除附件失败')
   }
 }
 

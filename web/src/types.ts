@@ -197,6 +197,15 @@ export interface AppNotification {
   createdAt: string
 }
 
+export interface CommentAttachment {
+  id: number
+  commentId: number
+  filename: string
+  contentType: string
+  size: number
+  canDelete: boolean
+}
+
 export interface TaskComment {
   id: number
   taskId: number
@@ -206,6 +215,7 @@ export interface TaskComment {
   body: string
   createdAt: string
   canDelete: boolean
+  attachments: CommentAttachment[]
 }
 
 export interface TaskListMember {

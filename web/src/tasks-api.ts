@@ -1,5 +1,5 @@
-import { api } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import { api, apiForm } from './api'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, SavedFilter, SharedTaskList, SummaryDocument, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared'
 
@@ -163,6 +163,16 @@ export function createTaskComment(taskId: number, body: string) {
 
 export function deleteTaskComment(taskId: number, commentId: number) {
   return api<void>(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' })
+}
+
+export function uploadCommentAttachment(taskId: number, commentId: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return apiForm<{ attachment: CommentAttachment }>(`/tasks/${taskId}/comments/${commentId}/attachments`, form)
+}
+
+export function deleteCommentAttachment(taskId: number, commentId: number, attachmentId: number) {
+  return api<void>(`/tasks/${taskId}/comments/${commentId}/attachments/${attachmentId}`, { method: 'DELETE' })
 }
 
 export function fetchTaskListMembers(listId: number) {

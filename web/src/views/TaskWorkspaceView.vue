@@ -690,6 +690,7 @@ import {
   deleteTaskList,
   deleteTaskTag,
   emptyTaskTrash,
+  fetchCalendarEvents,
   fetchNotifications,
   fetchSharedTasks,
   fetchTaskListMembers,
@@ -1775,6 +1776,32 @@ async function checkReminders() {
     const next: Record<string, number> = {}
     for (const [key, at] of Object.entries(notified)) {
       if (now - at < 7 * 86400000) next[key] = at
+    }
+    try {
+      const eventData = await fetchCalendarEvents(new Date(now - 60 * 60000), new Date(now + 2 * 86400000))
+      for (const event of eventData.events) {
+      for (const offset of event.reminders || []) {
+        const start = new Date(event.start)
+        if (event.allDay) start.setHours(9, 0, 0, 0)
+        const at = new Date(start.getTime() - offset * 60000)
+        if (now - at.getTime() < 0 || now - at.getTime() >= 5 * 60000) continue
+        const key = `event:${event.uid}:${event.start}:${offset}`
+        if (next[key]) continue
+        next[key] = now
+        const body = `${event.summary} · ${event.allDay ? start.toLocaleDateString('zh-CN') : start.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+        try {
+          if (Notification.permission === 'granted') {
+            new Notification('日程提醒', { body, tag: `event-${event.uid}-${offset}` })
+          } else {
+            Message.info(`日程提醒：${body}`)
+          }
+        } catch {
+          Message.info(`日程提醒：${body}`)
+        }
+      }
+      }
+    } catch {
+      /* event reminders are best-effort */
     }
     for (const task of candidates) {
       for (const offset of taskReminderOffsets(task)) {

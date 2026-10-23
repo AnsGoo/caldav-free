@@ -254,6 +254,7 @@ export interface CalendarEventInput {
   count?: number
   recurrenceId?: string
   scope?: 'single' | 'series'
+  reminders?: number[]
 }
 
 export function createCalendarEvent(calendarId: number, payload: CalendarEventInput) {

@@ -21,6 +21,7 @@ type eventPatchBody struct {
 	Count        int    `json:"count"`
 	RecurrenceID string `json:"recurrenceId"`
 	Scope        string `json:"scope"`
+	Reminders    []int  `json:"reminders"`
 }
 
 func parseOccurrenceID(raw string, loc *time.Location) (time.Time, bool, error) {
@@ -64,7 +65,7 @@ func buildOccurrenceUpdate(cal *store.Calendar, obj *store.Object, body eventPat
 	if err != nil {
 		return nil, err
 	}
-	data, _, err := buildEventICS(cal, uid, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, "", 0)
+	data, _, err := buildEventICS(cal, uid, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, "", 0, body.Reminders)
 	if err != nil {
 		return nil, err
 	}

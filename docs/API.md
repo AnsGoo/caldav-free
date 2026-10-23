@@ -420,6 +420,7 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
       "location": "会议室 A",
       "description": "评审材料",
       "rrule": "FREQ=WEEKLY",
+      "reminders": [15],
       "start": "2026-10-22T14:00:00+08:00",
       "end": "2026-10-22T15:00:00+08:00",
       "allDay": false,
@@ -447,11 +448,12 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
   "end": "2026-10-23T11:00",
   "allDay": false,
   "rrule": "FREQ=WEEKLY",
-  "count": 5
+  "count": 5,
+  "reminders": [15]
 }
 ```
 
-全天事件的 `start` / `end` 使用 `YYYY-MM-DD`，`end` 为不包含的结束日期。
+全天事件的 `start` / `end` 使用 `YYYY-MM-DD`，`end` 为不包含的结束日期。`reminders` 为提前分钟数组，最多 5 个，写入 `VALARM`；当前工作台界面只编辑一个提醒。
 
 ### PATCH /api/admin/calendars/{id}/events/{name}
 
@@ -463,7 +465,8 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
   "start": "2026-10-24T10:00",
   "end": "2026-10-24T11:00",
   "allDay": false,
-  "rrule": "FREQ=WEEKLY"
+  "rrule": "FREQ=WEEKLY",
+  "reminders": [60]
 }
 ```
 

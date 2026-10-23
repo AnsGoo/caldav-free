@@ -33,6 +33,7 @@ type apiCalendarEvent struct {
 	End          string `json:"end"`
 	AllDay       bool   `json:"allDay"`
 	Recurring    bool   `json:"recurring"`
+	Reminders    []int  `json:"reminders"`
 	RecurrenceID string `json:"recurrenceId,omitempty"`
 }
 
@@ -109,6 +110,7 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 					End:          instance.End.Format(time.RFC3339),
 					AllDay:       instance.AllDay,
 					Recurring:    obj.Recurring,
+					Reminders:    parseEventReminders(comp),
 					RecurrenceID: recurrenceID,
 				})
 				if len(events) >= 2000 {

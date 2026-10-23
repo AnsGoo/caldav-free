@@ -45,6 +45,18 @@
           <span>全天日程</span>
         </label>
 
+        <label class="tw-event-field">
+          <span>提醒</span>
+          <select v-model.number="form.reminder" class="tw-dialog-input">
+            <option :value="-1">不提醒</option>
+            <option :value="0">准时提醒</option>
+            <option :value="5">提前 5 分钟</option>
+            <option :value="15">提前 15 分钟</option>
+            <option :value="60">提前 1 小时</option>
+            <option :value="1440">提前 1 天</option>
+          </select>
+        </label>
+
         <div v-if="editing && event?.recurring" class="tw-event-scope">
           <label class="tw-event-check">
             <input v-model="scope" type="radio" value="single" />
@@ -144,6 +156,7 @@ const form = reactive({
   endDate: '',
   endTime: '10:00',
   rrule: '',
+  reminder: -1,
 })
 
 function dateInput(date: Date) {
@@ -183,6 +196,7 @@ function hydrate() {
       form.endTime = timeInput(end)
     }
     form.rrule = event.rrule || ''
+    form.reminder = event.reminders?.[0] ?? -1
     repeatChoice.value = ['FREQ=DAILY', 'FREQ=WEEKLY', 'FREQ=MONTHLY', 'FREQ=YEARLY'].includes(form.rrule)
       ? form.rrule
       : form.rrule
@@ -201,6 +215,7 @@ function hydrate() {
     form.endDate = dateInput(start)
     form.endTime = '10:00'
     form.rrule = ''
+    form.reminder = -1
     repeatChoice.value = 'NONE'
   }
 }
@@ -255,6 +270,7 @@ async function save() {
       end,
       allDay: form.allDay,
       rrule: form.rrule.trim(),
+      reminders: form.reminder >= 0 ? [form.reminder] : [],
       ...(props.event && props.event.recurring && scope.value === 'single'
         ? { recurrenceId: props.event.recurrenceId || props.event.start, scope: 'single' as const }
         : { scope: 'series' as const }),

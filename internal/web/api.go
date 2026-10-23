@@ -124,6 +124,7 @@ type apiEvent struct {
 	End           string `json:"end"`
 	AllDay        bool   `json:"allDay"`
 	Recurring     bool   `json:"recurring"`
+	Reminders     []int  `json:"reminders"`
 	Size          int64  `json:"size"`
 	ComponentType string `json:"componentType"`
 }
@@ -192,6 +193,7 @@ func eventDTO(cal *store.Calendar, obj *store.Object) apiEvent {
 	dto.Location = ical.UnescapeText(comp.Value("LOCATION"))
 	dto.Description = ical.UnescapeText(comp.Value("DESCRIPTION"))
 	dto.RRule = strings.TrimSpace(comp.Value("RRULE"))
+	dto.Reminders = parseEventReminders(comp)
 	start, end, allDay, err := parsed.ComponentTimes(comp)
 	if err == nil {
 		dto.AllDay = allDay
@@ -751,7 +753,7 @@ func (s *Server) apiCreateEvent(w http.ResponseWriter, r *http.Request, _ *store
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	data, uid, err := buildEventICS(cal, "", body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count)
+	data, uid, err := buildEventICS(cal, "", body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count, body.Reminders)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
@@ -851,7 +853,7 @@ func (s *Server) apiPatchEvent(w http.ResponseWriter, r *http.Request, _ *store.
 		writeAPIJSON(w, http.StatusOK, map[string]any{"event": eventDTO(cal, obj), "data": string(data)})
 		return
 	}
-	data, uid, err := buildEventICS(cal, obj.UID, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count)
+	data, uid, err := buildEventICS(cal, obj.UID, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count, body.Reminders)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1087,7 +1089,7 @@ func parseAPITimes(startRaw, endRaw string, allDay bool, loc *time.Location) (ti
 	return start, end, nil
 }
 
-func buildEventICS(cal *store.Calendar, uid, summary, location, description string, start, end time.Time, allDay bool, tzid, rrule string, count int) ([]byte, string, error) {
+func buildEventICS(cal *store.Calendar, uid, summary, location, description string, start, end time.Time, allDay bool, tzid, rrule string, count int, reminders []int) ([]byte, string, error) {
 	if strings.TrimSpace(uid) == "" {
 		uid = auth.RandomToken(12) + "@caldav-free"
 	}
@@ -1132,6 +1134,7 @@ func buildEventICS(cal *store.Calendar, uid, summary, location, description stri
 		}
 		ev.AddProp("RRULE", rule, nil)
 	}
+	addEventReminders(ev, summary, reminders)
 	root.AddChild(ev)
 	return []byte(root.Encode()), uid, nil
 }

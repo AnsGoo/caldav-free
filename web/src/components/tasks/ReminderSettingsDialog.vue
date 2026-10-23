@@ -55,8 +55,80 @@
           </div>
         </section>
 
+        <section class="tw-reminder-card">
+          <span class="tw-reminder-icon"><TaskIcon name="mail" :size="18" /></span>
+          <div class="tw-reminder-main">
+            <div class="tw-reminder-title">
+              <h3>邮件提醒</h3>
+              <span class="tw-reminder-badge" :class="{ on: email.enabled }">{{ email.enabled ? '已开启' : '未开启' }}</span>
+            </div>
+            <p>服务端在提醒时刻通过 SMTP 发送邮件。收件人使用当前账号邮箱。</p>
+            <p v-if="email.recipientEmail" class="tw-reminder-meta">收件人：{{ email.recipientEmail }}</p>
+            <p v-else class="tw-reminder-warning">当前账号没有邮箱，请先在管理后台用户资料中填写。</p>
+
+            <div class="tw-reminder-form">
+              <label class="tw-reminder-check">
+                <input v-model="email.enabled" type="checkbox" />
+                <span>启用邮件提醒</span>
+              </label>
+              <div class="tw-reminder-grid">
+                <label class="tw-reminder-field">
+                  <span>SMTP 服务器</span>
+                  <input v-model="email.host" class="tw-dialog-input" placeholder="smtp.example.com" />
+                </label>
+                <label class="tw-reminder-field tw-reminder-field-sm">
+                  <span>端口</span>
+                  <input v-model.number="email.port" class="tw-dialog-input" type="number" min="1" max="65535" />
+                </label>
+              </div>
+              <div class="tw-reminder-grid">
+                <label class="tw-reminder-field">
+                  <span>用户名</span>
+                  <input v-model="email.username" class="tw-dialog-input" autocomplete="username" placeholder="可选" />
+                </label>
+                <label class="tw-reminder-field">
+                  <span>密码 / 授权码</span>
+                  <input
+                    v-model="email.password"
+                    class="tw-dialog-input"
+                    type="password"
+                    autocomplete="new-password"
+                    :placeholder="email.passwordSet ? '已保存，留空不修改' : '可选'"
+                  />
+                </label>
+              </div>
+              <div class="tw-reminder-grid">
+                <label class="tw-reminder-field">
+                  <span>发件人</span>
+                  <input v-model="email.from" class="tw-dialog-input" placeholder="CalDAV <caldav@example.com>" />
+                </label>
+                <label class="tw-reminder-field">
+                  <span>加密方式</span>
+                  <select v-model="email.security" class="tw-dialog-input">
+                    <option value="starttls">STARTTLS（587）</option>
+                    <option value="tls">SSL/TLS（465）</option>
+                    <option value="none">无加密</option>
+                  </select>
+                </label>
+              </div>
+              <label v-if="email.passwordSet" class="tw-reminder-check">
+                <input v-model="email.clearPassword" type="checkbox" />
+                <span>清除已保存的密码</span>
+              </label>
+              <div class="tw-reminder-actions">
+                <button class="tw-reminder-action primary" :disabled="emailBusy" @click="saveEmail">
+                  {{ emailBusy ? '保存中…' : '保存邮件设置' }}
+                </button>
+                <button class="tw-reminder-action" :disabled="emailTestBusy || !email.enabled" @click="sendTestEmail">
+                  {{ emailTestBusy ? '发送中…' : '发送测试邮件' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <p class="tw-reminder-note">
-          后台提醒由 caldav-free 服务端定时检查任务，并通过浏览器推送服务发送。若浏览器完全退出，通知可能延迟到下次启动。
+          后台提醒由 caldav-free 服务端定时检查任务，并通过浏览器推送服务或 SMTP 发送。若浏览器完全退出，通知可能延迟到下次启动。
         </p>
         <p v-if="message" class="tw-reminder-warning">{{ message }}</p>
       </div>
@@ -69,13 +141,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import {
   deletePushSubscription,
+  fetchEmailSettings,
   fetchPushPublicKey,
   fetchPushSubscriptions,
+  saveEmailSettings,
   savePushSubscription,
+  testEmail,
 } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
@@ -94,6 +169,20 @@ const busy = ref(false)
 const subscribed = ref(false)
 const serverCount = ref(0)
 const message = ref('')
+const emailBusy = ref(false)
+const emailTestBusy = ref(false)
+const email = reactive({
+  enabled: false,
+  host: '',
+  port: 587,
+  username: '',
+  password: '',
+  from: '',
+  security: 'starttls' as 'starttls' | 'tls' | 'none',
+  passwordSet: false,
+  recipientEmail: '',
+  clearPassword: false,
+})
 
 function base64Key(value: string) {
   const padding = '='.repeat((4 - (value.length % 4)) % 4)
@@ -200,7 +289,73 @@ async function sendTest() {
   }
 }
 
+async function loadEmail() {
+  try {
+    const settings = await fetchEmailSettings()
+    email.enabled = settings.enabled
+    email.host = settings.host
+    email.port = settings.port || 587
+    email.username = settings.username
+    email.from = settings.from
+    email.security = settings.security || 'starttls'
+    email.password = ''
+    email.passwordSet = settings.passwordSet
+    email.recipientEmail = settings.recipientEmail
+    email.clearPassword = false
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '读取邮件设置失败'
+  }
+}
+
+async function saveEmail() {
+  emailBusy.value = true
+  message.value = ''
+  try {
+    const settings = await saveEmailSettings({
+      enabled: email.enabled,
+      host: email.host,
+      port: email.port,
+      username: email.username,
+      password: email.password,
+      clearPassword: email.clearPassword,
+      from: email.from,
+      security: email.security,
+    })
+    email.enabled = settings.enabled
+    email.host = settings.host
+    email.port = settings.port || 587
+    email.username = settings.username
+    email.from = settings.from
+    email.security = settings.security || 'starttls'
+    email.password = ''
+    email.passwordSet = settings.passwordSet
+    email.recipientEmail = settings.recipientEmail
+    email.clearPassword = false
+    Message.success('邮件设置已保存')
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '保存邮件设置失败'
+    Message.error(message.value)
+  } finally {
+    emailBusy.value = false
+  }
+}
+
+async function sendTestEmail() {
+  emailTestBusy.value = true
+  message.value = ''
+  try {
+    const result = await testEmail()
+    Message.success(`测试邮件已发送到 ${result.to}`)
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '测试邮件发送失败'
+    Message.error(message.value)
+  } finally {
+    emailTestBusy.value = false
+  }
+}
+
 onMounted(() => {
   void refresh()
+  void loadEmail()
 })
 </script>

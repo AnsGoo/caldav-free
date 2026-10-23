@@ -29,6 +29,19 @@ type ReminderDelivery struct {
 	Error   string    `gorm:"size:500;not null;default:''"`
 }
 
+// ReminderAttempt tracks failed deliveries so the scheduler can back off
+// instead of retrying a broken SMTP or push endpoint every tick.
+type ReminderAttempt struct {
+	ID            int64     `gorm:"primaryKey"`
+	TaskID        int64     `gorm:"not null;uniqueIndex:idx_reminder_attempt_key,priority:1"`
+	Key           string    `gorm:"size:100;not null;uniqueIndex:idx_reminder_attempt_key,priority:2"`
+	Channel       string    `gorm:"size:16;not null;uniqueIndex:idx_reminder_attempt_key,priority:3"`
+	Attempts      int       `gorm:"not null;default:1"`
+	NextAttemptAt time.Time `gorm:"not null;index:idx_reminder_attempt_next"`
+	LastError     string    `gorm:"size:500;not null;default:''"`
+	UpdatedAt     time.Time `gorm:"not null;autoUpdateTime"`
+}
+
 // ReminderCandidate joins a task with its owner for delivery.
 type ReminderCandidate struct {
 	Task  Task
@@ -128,4 +141,60 @@ func (s *Store) RecordReminderDelivery(ctx context.Context, taskID int64, key, c
 // PurgeReminderDeliveries removes old delivery records.
 func (s *Store) PurgeReminderDeliveries(ctx context.Context, before time.Time) error {
 	return s.db.WithContext(ctx).Where("sent_at < ?", before).Delete(&ReminderDelivery{}).Error
+}
+
+// ReminderAttemptState returns the retry state for a channel, or nil.
+func (s *Store) ReminderAttemptState(ctx context.Context, taskID int64, key, channel string) (*ReminderAttempt, error) {
+	var attempt ReminderAttempt
+	result := s.db.WithContext(ctx).
+		Where("task_id = ? AND key = ? AND channel = ?", taskID, key, channel).
+		Limit(1).Find(&attempt)
+	if result.Error != nil {
+		return nil, fmt.Errorf("read reminder attempt: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
+	}
+	return &attempt, nil
+}
+
+// RecordReminderFailure upserts the retry state after a failed delivery.
+func (s *Store) RecordReminderFailure(ctx context.Context, taskID int64, key, channel string, attempts int, next time.Time, failure string) error {
+	if attempts < 1 {
+		attempts = 1
+	}
+	next = next.UTC()
+	attempt := ReminderAttempt{
+		TaskID: taskID, Key: key, Channel: channel,
+		Attempts: attempts, NextAttemptAt: next, LastError: truncateString(failure, 500),
+	}
+	err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "task_id"}, {Name: "key"}, {Name: "channel"},
+		},
+		DoUpdates: clause.AssignmentColumns([]string{"attempts", "next_attempt_at", "last_error", "updated_at"}),
+	}).Create(&attempt).Error
+	if err != nil {
+		return fmt.Errorf("record reminder failure: %w", err)
+	}
+	return nil
+}
+
+// ClearReminderAttempt removes retry state after a successful delivery.
+func (s *Store) ClearReminderAttempt(ctx context.Context, taskID int64, key, channel string) error {
+	return s.db.WithContext(ctx).
+		Where("task_id = ? AND key = ? AND channel = ?", taskID, key, channel).
+		Delete(&ReminderAttempt{}).Error
+}
+
+// PurgeReminderAttempts removes stale retry state.
+func (s *Store) PurgeReminderAttempts(ctx context.Context, before time.Time) error {
+	return s.db.WithContext(ctx).Where("updated_at < ?", before).Delete(&ReminderAttempt{}).Error
+}
+
+func truncateString(value string, limit int) string {
+	if len(value) <= limit {
+		return value
+	}
+	return value[:limit]
 }

@@ -338,6 +338,51 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 
 服务端调度器由 `CALDAV_REMINDERS` 控制，默认每 `CALDAV_REMINDER_INTERVAL`（30 秒）检查一次。VAPID 联系人通过 `CALDAV_PUSH_SUBJECT` 配置。
 
+### GET /api/admin/tasks/notifications/email
+
+读取 SMTP 邮件提醒设置。密码只返回 `passwordSet`，不回传明文：
+
+```json
+{
+  "enabled": true,
+  "host": "smtp.example.com",
+  "port": 587,
+  "username": "caldav",
+  "from": "CalDAV <caldav@example.com>",
+  "security": "starttls",
+  "passwordSet": true,
+  "recipientEmail": "admin@example.com"
+}
+```
+
+### PUT /api/admin/tasks/notifications/email
+
+保存配置。`security` 为 `starttls` / `tls` / `none`。`password` 为空表示保留旧密码：
+
+```json
+{
+  "enabled": true,
+  "host": "smtp.example.com",
+  "port": 587,
+  "username": "caldav",
+  "password": "app-password",
+  "from": "CalDAV <caldav@example.com>",
+  "security": "starttls"
+}
+```
+
+传 `"clearPassword": true` 可清除已保存密码。
+
+### POST /api/admin/tasks/notifications/email/test
+
+向当前账号邮箱发送测试邮件：
+
+```json
+{ "sent": true, "to": "admin@example.com" }
+```
+
+SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 分钟、4 分钟……最长 2 小时退避重试，记录在 `reminder_attempts`。
+
 ## 7. 日历事件
 
 ### GET /api/admin/tasks/calendar?from=...&to=...

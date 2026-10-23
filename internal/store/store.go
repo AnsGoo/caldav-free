@@ -183,7 +183,7 @@ func Open(path string) (*Store, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
@@ -309,6 +309,9 @@ func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 			}
 		}
 		if err := tx.Where("task_id IN (SELECT id FROM tasks WHERE user_id = ?)", id).Delete(&ReminderDelivery{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("task_id IN (SELECT id FROM tasks WHERE user_id = ?)", id).Delete(&ReminderAttempt{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("user_id = ?", id).Delete(&Task{}).Error; err != nil {

@@ -12,7 +12,8 @@ internal/ical/         iCalendar 解析/序列化、时区、RRULE 展开
 internal/dav/          CalDAV/WebDAV HTTP 处理
 internal/tasks/        自然语言解析、下一次重复计算
 internal/tasksync/     任务 ↔ VTODO 双向同步
-internal/reminders/    服务端提醒调度器、VAPID、Web Push
+internal/reminders/    服务端提醒调度器、VAPID、Web Push、邮件
+internal/mailer/       SMTP 配置、邮件发送
 internal/web/          管理后台、任务 API、日历事件、统计、AI
 web/                   Vue 3 + Vite+ + Arco 管理后台
 ```
@@ -44,7 +45,8 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
-| `reminder_deliveries` | 服务端提醒去重记录；任务 + 到期时间 + 偏移 + 通道唯一 |
+| `reminder_deliveries` | 服务端提醒成功记录；任务 + 到期时间 + 偏移 + 通道唯一 |
+| `reminder_attempts` | 失败投递的尝试次数、下次重试时间与错误 |
 
 `tasks` 关键字段：
 
@@ -208,7 +210,10 @@ END:VALARM
   - 只补发最近 6 小时内到期的提醒。
   - 通过 `push_subscriptions` 中的 endpoint 调用 Web Push，payload 为 JSON（标题、正文、任务 URL）。
   - `reminder_deliveries` 以任务、到期时间、偏移、通道去重；推送服务返回 404/410 时删除失效订阅。
+  - 邮件通道使用 `internal/mailer`，支持 STARTTLS、隐式 TLS 和无加密；收件人为任务所有者邮箱。
+  - 失败投递写入 `reminder_attempts`，按 1 分钟、2 分钟、4 分钟……最长 2 小时退避；成功后删除尝试记录。
 - VAPID 密钥首次启动自动生成，保存在 `settings`（`push.vapid_public` / `push.vapid_private`），私钥不通过 API 返回。
+- SMTP 配置保存在 `settings`（`smtp.*`），可用 `CALDAV_SMTP_*` 环境变量兜底；密码不通过 API 返回但以明文存 SQLite。
 - Service Worker 位于 `/admin/sw.js`，通知点击后聚焦或打开对应任务。
 - 可通过 `CALDAV_REMINDERS=off` 关闭调度器；`CALDAV_PUSH_SUBJECT` 配置 VAPID 联系人。
 
@@ -321,7 +326,7 @@ create_list
 ### 10.4 安全边界
 
 - AI 设置接口仅管理员可用。
-- API Key 不回传，但以明文存 SQLite。
+- API Key 与 SMTP 密码不回传，但以明文存 SQLite。
 - 工具只能操作当前用户数据。
 - 工具参数大小限制 64 KiB。
 - 删除工具依赖模型遵循“先确认”的系统提示，不是硬性拦截。

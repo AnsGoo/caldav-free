@@ -113,7 +113,7 @@ func main() {
 	reminderCtx, stopReminders := context.WithCancel(context.Background())
 	defer stopReminders()
 	if os.Getenv("CALDAV_REMINDERS") != "off" {
-		if scheduler, err := reminders.New(st, logger); err != nil {
+		if scheduler, err := reminders.New(st, logger, base); err != nil {
 			logger.Warn("reminder scheduler unavailable", "error", err)
 		} else {
 			go scheduler.Run(reminderCtx)

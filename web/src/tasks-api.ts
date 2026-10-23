@@ -257,3 +257,34 @@ export function optimizeSummary(title: string, text: string) {
     body: JSON.stringify({ title, text }),
   })
 }
+
+export interface EmailNotificationSettings {
+  enabled: boolean
+  host: string
+  port: number
+  username: string
+  from: string
+  security: 'starttls' | 'tls' | 'none'
+  passwordSet: boolean
+  recipientEmail: string
+}
+
+export interface EmailNotificationSettingsInput extends Omit<EmailNotificationSettings, 'passwordSet' | 'recipientEmail'> {
+  password?: string
+  clearPassword?: boolean
+}
+
+export function fetchEmailSettings() {
+  return api<EmailNotificationSettings>('/tasks/notifications/email')
+}
+
+export function saveEmailSettings(settings: EmailNotificationSettingsInput) {
+  return api<EmailNotificationSettings>('/tasks/notifications/email', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  })
+}
+
+export function testEmail() {
+  return api<{ sent: boolean; to: string }>('/tasks/notifications/email/test', { method: 'POST' })
+}

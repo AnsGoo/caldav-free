@@ -291,8 +291,10 @@
             @open="openTask"
             @open-event="openCalendarEvent"
             @calendars="calendarSources = $event"
+            :focus="calendarFocus"
             @reschedule-task="rescheduleTask"
             @reschedule-event="rescheduleEvent"
+            @focus-opened="clearCalendarFocus"
             @create="createFromCalendar"
             @change-view="calendarView = $event"
             @prev="stepCalendar(-1)"
@@ -768,6 +770,7 @@ const calendarSources = ref<CalendarSource[]>([])
 const calendarReload = ref(0)
 const eventDialogOpen = ref(false)
 const editingEvent = ref<CalendarEvent | null>(null)
+const calendarFocus = ref<{ calendarId: number; href: string; occurrence: string } | null>(null)
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
@@ -1340,6 +1343,10 @@ function stepCalendar(delta: number) {
 function openCalendarEvent(event: CalendarEvent) {
   editingEvent.value = event
   eventDialogOpen.value = true
+}
+
+function clearCalendarFocus() {
+  calendarFocus.value = null
 }
 
 function openEventCreator() {
@@ -1918,6 +1925,12 @@ function hydrateFromRoute() {
   const nextMode = typeof q.mode === 'string' ? q.mode : 'list'
   mode.value = view.value === 'shared' ? 'list' : (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
   if (view.value === 'trash') mode.value = 'list' 
+  const focusCalendar = typeof q.calendar === 'string' ? Number(q.calendar) : 0
+  const focusEvent = typeof q.event === 'string' ? q.event : ''
+  const focusOccurrence = typeof q.occurrence === 'string' ? q.occurrence : ''
+  calendarFocus.value = focusCalendar && focusEvent
+    ? { calendarId: focusCalendar, href: focusEvent, occurrence: focusOccurrence }
+    : null
   const taskId = typeof q.task === 'string' ? Number(q.task) : 0
   if (taskId) selectedId.value = taskId
   if (typeof q.q === 'string') {

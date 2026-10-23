@@ -272,6 +272,7 @@ const props = defineProps<{
   cursor: Date
   viewMode: 'month' | 'week' | 'day' | 'agenda'
   reloadKey?: number
+  focus?: { calendarId: number; href: string; occurrence: string } | null
 }>()
 
 const emit = defineEmits<{
@@ -285,6 +286,7 @@ const emit = defineEmits<{
   (event: 'calendars', value: CalendarSource[]): void
   (event: 'reschedule-task', payload: { task: TaskItem; due: string; allDay: boolean }): void
   (event: 'reschedule-event', payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }): void
+  (event: 'focus-opened'): void
 }>()
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -766,6 +768,7 @@ async function loadEvents() {
     events.value = data.events
     sources.value = data.calendars
     emit('calendars', data.calendars)
+    openFocusEvent()
   } catch {
     if (current === requestId) {
       events.value = []
@@ -774,6 +777,20 @@ async function loadEvents() {
   } finally {
     if (current === requestId) eventsLoading.value = false
   }
+}
+
+function openFocusEvent() {
+  const focus = props.focus
+  if (!focus) return
+  const candidates = events.value.filter((event) => event.calendarId === focus.calendarId && event.href === focus.href)
+  const target = candidates.find((event) => sameInstant(event.start, focus.occurrence)) || candidates[0]
+  if (!target) return
+  emit('open-event', target)
+  emit('focus-opened')
+}
+
+function sameInstant(left: string, right: string) {
+  return new Date(left).getTime() === new Date(right).getTime()
 }
 
 async function scrollToMorning() {

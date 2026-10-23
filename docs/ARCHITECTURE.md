@@ -264,6 +264,7 @@ END:VALARM
 - `reminders` 写入 `VALARM`；浏览器端在页面打开时轮询 2 天内的日程并按提醒偏移通知
 - 服务端调度器扫描有 VALARM 的日历对象，展开重复实例，并按实例开始时间计算提醒；成功写入 `event_reminder_deliveries`
 - 日程提醒复用 Web Push 和 SMTP，失败通过 `reminder_attempts` 退避重试
+- 推送/邮件链接携带 `calendar`、`event`、`occurrence`，工作台加载日历后匹配实例并自动打开编辑弹窗
 - 原始 ICS 仍可在管理后台事件编辑页修改
 
 ## 10. 统计

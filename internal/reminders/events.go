@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -70,7 +71,7 @@ func (s *Scheduler) tickEvents(ctx context.Context, now time.Time, mailConfig ma
 						uid = object.UID
 					}
 					key := eventReminderKey(calendar.ID, uid, instance.Start, offset)
-					if s.deliverEventReminder(ctx, calendar, byID[calendar.UserID], instance, start, key, offset, now, mailConfig) {
+					if s.deliverEventReminder(ctx, calendar, byID[calendar.UserID], object.Href, instance, start, key, offset, now, mailConfig) {
 						sent++
 					}
 				}
@@ -81,7 +82,7 @@ func (s *Scheduler) tickEvents(ctx context.Context, now time.Time, mailConfig ma
 	return sent
 }
 
-func (s *Scheduler) deliverEventReminder(ctx context.Context, calendar *store.Calendar, owner *store.User, instance ical.Instance, start time.Time, key string, offset int, now time.Time, cfg mailer.Config) bool {
+func (s *Scheduler) deliverEventReminder(ctx context.Context, calendar *store.Calendar, owner *store.User, href string, instance ical.Instance, start time.Time, key string, offset int, now time.Time, cfg mailer.Config) bool {
 	if owner == nil {
 		return false
 	}
@@ -94,7 +95,8 @@ func (s *Scheduler) deliverEventReminder(ctx context.Context, calendar *store.Ca
 		whenLabel = start.Format("1月2日") + " 全天"
 	}
 	body := fmt.Sprintf("%s · %s", title, whenLabel)
-	url := s.baseURL + "/admin/tasks?view=all&mode=calendar"
+	eventURL := fmt.Sprintf("%s/admin/tasks?view=all&mode=calendar&calendar=%d&event=%s&occurrence=%s",
+		s.baseURL, calendar.ID, url.QueryEscape(href), url.QueryEscape(instance.Start.Format(time.RFC3339)))
 	sentAny := false
 	// Web Push
 	delivered, _ := s.store.HasEventReminderDelivery(ctx, calendar.ID, key, "push")
@@ -102,7 +104,7 @@ func (s *Scheduler) deliverEventReminder(ctx context.Context, calendar *store.Ca
 		attempt, ready := s.retryReady(ctx, 0, key, "push", now)
 		if ready {
 			count, err := NotifyUser(ctx, s.store, s.logger, owner.ID, PushMessage{
-				Title: "日程提醒", Body: body, Tag: "event-" + key, URL: url,
+				Title: "日程提醒", Body: body, Tag: "event-" + key, URL: eventURL,
 			})
 			if count > 0 {
 				_ = s.store.RecordEventReminderDelivery(ctx, calendar.ID, key, "push", "")
@@ -119,7 +121,7 @@ func (s *Scheduler) deliverEventReminder(ctx context.Context, calendar *store.Ca
 		if !delivered {
 			attempt, ready := s.retryReady(ctx, 0, key, "email", now)
 			if ready {
-				content := "日程提醒\n\n" + title + "\n时间：" + whenLabel + "\n"
+				content := "日程提醒\n\n" + title + "\n时间：" + whenLabel + "\n打开日程：" + eventURL + "\n"
 				if err := cfg.Send(ctx, owner.Email, "日程提醒："+title, content); err != nil {
 					s.logger.Warn("event reminder email", "calendar", calendar.ID, "error", err)
 					s.recordFailure(ctx, 0, key, "email", attempt, now, err.Error())

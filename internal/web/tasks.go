@@ -592,6 +592,20 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	previousAssignee := task.Assignee
 	previousCompleted := task.Completed
+	previousTitle := task.Title
+	previousNotes := task.Notes
+	previousPriority := task.Priority
+	previousRecurrence := task.Recurrence
+	previousChecklist := task.Checklist
+	previousTags := append([]string(nil), task.Tags...)
+	previousReminders := task.ReminderValues()
+	previousAllDay := task.AllDay
+	previousListID := task.ListID
+	var previousDue time.Time
+	hasPreviousDue := task.DueAt != nil
+	if hasPreviousDue {
+		previousDue = *task.DueAt
+	}
 	if body.Title != nil {
 		task.Title = strings.TrimSpace(*body.Title)
 	}
@@ -674,6 +688,41 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
 	}
 	s.notifyAssignment(ctx, r, current, previousAssignee, task)
+	changed := make([]string, 0, 6)
+	if previousTitle != task.Title {
+		changed = append(changed, "标题")
+	}
+	if previousNotes != task.Notes {
+		changed = append(changed, "备注")
+	}
+	if previousPriority != task.Priority {
+		changed = append(changed, "优先级")
+	}
+	if previousRecurrence != task.Recurrence {
+		changed = append(changed, "重复规则")
+	}
+	if previousChecklist != task.Checklist {
+		changed = append(changed, "子任务")
+	}
+	if strings.Join(previousTags, "\x00") != strings.Join(task.Tags, "\x00") {
+		changed = append(changed, "标签")
+	}
+	if fmt.Sprint(previousReminders) != fmt.Sprint(task.ReminderValues()) {
+		changed = append(changed, "提醒")
+	}
+	if previousListID != task.ListID {
+		changed = append(changed, "清单")
+	}
+	dueChanged := hasPreviousDue != (task.DueAt != nil)
+	if !dueChanged && hasPreviousDue && task.DueAt != nil {
+		dueChanged = !previousDue.Equal(*task.DueAt) || previousAllDay != task.AllDay
+	}
+	if dueChanged {
+		changed = append(changed, "日期")
+	}
+	if len(changed) > 0 {
+		_ = s.store.CreateTaskActivity(ctx, task.ID, current.ID, "update", "修改了"+strings.Join(changed, "、"))
+	}
 	if !strings.EqualFold(previousAssignee, task.Assignee) {
 		detail := "取消指派"
 		if task.Assignee != "" {

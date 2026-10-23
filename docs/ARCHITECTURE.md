@@ -25,6 +25,7 @@ web/src/components/tasks/TaskRow.vue
 web/src/components/tasks/TaskDetail.vue
 web/src/components/tasks/TaskCalendar.vue
 web/src/components/tasks/TaskStatsPanel.vue
+web/src/components/tasks/TaskSummaryPanel.vue
 web/src/components/tasks/TaskAIPanel.vue
 ```
 
@@ -229,7 +230,32 @@ END:VALARM
 
 统计不是基于历史事件日志，清空垃圾桶或彻底删除会丢失对应历史。
 
-## 10. AI 助手
+## 10. 摘要
+
+摘要页不持久化服务端文档，而是按条件生成内容：
+
+```text
+筛选条件
+  -> GET /api/admin/tasks/summary
+      -> 已完成：CompletedAt ∈ [from, to)
+      -> 未完成：DueAt ∈ [from, to)，无日期时用 CreatedAt
+      -> 下一周期：DueAt ∈ 下一段等长范围
+  -> 前端按分组/显示字段生成 HTML
+  -> contenteditable 编辑器允许继续修改
+```
+
+前端 `TaskSummaryPanel`：
+
+- 日期预设与自定义范围
+- 分组：状态/清单/完成时间/任务时间/标签/优先级
+- 显示字段：完成时间、任务时间、标签、清单、优先级、详细内容
+- 富文本工具栏基于 `document.execCommand`
+- 模板/历史文档存 localStorage
+- 导出：剪贴板、HTML、打印/PDF、mailto
+
+服务端只返回任务快照，不保存编辑后的文档。
+
+## 11. AI 助手
 
 ### 10.1 配置
 
@@ -287,7 +313,7 @@ create_list
 - 删除工具依赖模型遵循“先确认”的系统提示，不是硬性拦截。
 - 模型调用不是流式，超时 90 秒。
 
-## 11. 测试
+## 12. 测试
 
 ```bash
 go test ./...
@@ -305,7 +331,7 @@ cd web && npx vue-tsc --noEmit
 - 统计聚合
 - AI 配置、工具调用、Mock OpenAI 上游
 
-## 12. 设计限制
+## 13. 设计限制
 
 - 任务与 CalDAV 的同步是懒对账，不是实时。
 - 清单与日历没有一对一映射。

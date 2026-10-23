@@ -385,7 +385,66 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 }
 ```
 
-## 9. 清单与文件夹
+## 9. 摘要
+
+### GET /api/admin/tasks/summary
+
+查询参数：
+
+| 参数 | 说明 |
+| --- | --- |
+| `from` / `to` | 时间范围，RFC3339 或 `YYYY-MM-DD`；`to` 为开区间 |
+| `listId` | 可选，限定清单 |
+| `status` | `all`、`completed`、`open` |
+| `priority` | 1–3，可选 |
+| `tag` | 标签名，可选 |
+| `includeNext` | `1` 时追加下一周期任务 |
+
+示例：
+
+```text
+/api/admin/tasks/summary?from=2026-09-01T00:00:00%2B08:00&to=2026-10-01T00:00:00%2B08:00&status=all
+```
+
+响应：
+
+```json
+{
+  "title": "9月1日-9月30日",
+  "from": "2026-09-01T00:00:00+08:00",
+  "to": "2026-10-01T00:00:00+08:00",
+  "tasks": [
+    {
+      "id": 12,
+      "title": "研发日报",
+      "listId": 1,
+      "listName": "收集箱",
+      "listColor": "#4772fa",
+      "completed": true,
+      "completedAt": "2026-09-04T10:00:00+08:00",
+      "priority": 0,
+      "tags": [],
+      "notes": "",
+      "checklist": [],
+      "createdAt": "2026-09-03T09:00:00+08:00"
+    }
+  ],
+  "nextTasks": [],
+  "counts": {
+    "completed": 8,
+    "open": 2
+  }
+}
+```
+
+规则：
+
+- 已完成任务按 `completedAt` 是否落在范围内筛选
+- 未完成任务按 `due` 是否落在范围内筛选；没有到期时间时按 `createdAt`
+- 已完成条目排在未完成之前，已完成按完成时间倒序
+- `includeNext=1` 时，返回下一段等长范围内到期的未完成任务
+
+## 10. 清单与文件夹
 
 ### POST /api/admin/task-lists
 
@@ -427,7 +486,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 
 删除文件夹，其中的清单回到根目录。
 
-## 10. 标签
+## 11. 标签
 
 ### GET /api/admin/task-tags
 
@@ -456,7 +515,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 
 两个接口都返回更新后的标签列表。
 
-## 11. 保存过滤器
+## 12. 保存过滤器
 
 ### GET /api/admin/task-filters
 
@@ -499,7 +558,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 
 返回 `204`。
 
-## 12. AI 助手
+## 13. AI 助手
 
 ### GET /api/admin/tasks/ai/settings
 
@@ -574,7 +633,7 @@ delete_task
 create_list
 ```
 
-## 13. 状态码
+## 14. 状态码
 
 | 状态码 | 说明 |
 | --- | --- |

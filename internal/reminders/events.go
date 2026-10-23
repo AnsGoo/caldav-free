@@ -190,3 +190,45 @@ func eventReminderOffsets(comp *ical.Component) []int {
 	}
 	return out
 }
+
+func (s *Scheduler) tickSnoozes(ctx context.Context, now time.Time, cfg mailer.Config) int {
+	items, err := s.store.ListDueEventSnoozes(ctx, now.UTC(), 100)
+	if err != nil {
+		s.logger.Warn("list event snoozes", "error", err)
+		return 0
+	}
+	sent := 0
+	for _, item := range items {
+		owner, err := s.store.GetUser(ctx, item.UserID)
+		if err != nil {
+			_ = s.store.MarkEventSnoozeSent(ctx, item.ID)
+			continue
+		}
+		title := item.Title
+		if title == "" {
+			title = "日程提醒"
+		}
+		if _, err := s.store.CreateNotification(ctx, &store.Notification{
+			UserID: item.UserID, Type: "event", Title: title, Body: item.Body, URL: item.URL,
+		}); err != nil {
+			s.logger.Warn("snooze notification", "user", item.UserID, "error", err)
+			continue
+		}
+		absoluteURL := s.baseURL + "/admin" + item.URL
+		if _, err := NotifyUser(ctx, s.store, s.logger, item.UserID, PushMessage{
+			Title: title, Body: item.Body, Tag: "snooze-" + fmt.Sprint(item.ID), URL: absoluteURL,
+		}); err != nil {
+			s.logger.Warn("snooze push", "user", item.UserID, "error", err)
+		}
+		if cfg.Enabled && owner.Email != "" {
+			if err := cfg.Send(ctx, owner.Email, title, item.Body+"\n\n打开日程："+absoluteURL+"\n"); err != nil {
+				s.logger.Warn("snooze email", "user", item.UserID, "error", err)
+			}
+		}
+		if err := s.store.MarkEventSnoozeSent(ctx, item.ID); err != nil {
+			s.logger.Warn("mark snooze sent", "id", item.ID, "error", err)
+		}
+		sent++
+	}
+	return sent
+}

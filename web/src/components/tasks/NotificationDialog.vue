@@ -12,13 +12,16 @@
       </header>
       <div class="tw-dialog-body tw-notification-body">
         <div v-if="loading" class="tw-share-empty">加载中…</div>
-        <button
+        <div
           v-for="item in notifications"
           v-else
           :key="item.id"
           class="tw-notification-row"
           :class="{ unread: !item.read }"
+          role="button"
+          tabindex="0"
           @click="open(item)"
+          @keydown.enter="open(item)"
         >
           <span class="tw-notification-dot" />
           <span class="tw-notification-copy">
@@ -26,7 +29,15 @@
             <span>{{ item.body }}</span>
             <small>{{ formatTime(item.createdAt) }}</small>
           </span>
-        </button>
+          <button
+            v-if="item.type === 'event'"
+            class="tw-notification-snooze"
+            :disabled="snoozing === item.id"
+            @click.stop="snooze(item)"
+          >
+            {{ snoozing === item.id ? '处理中…' : '稍后 10 分钟' }}
+          </button>
+        </div>
         <div v-if="!loading && !notifications.length" class="tw-notification-empty">
           <TaskIcon name="bell" :size="24" />
           <p>暂时没有新通知</p>
@@ -39,8 +50,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import type { AppNotification } from '../../types'
-import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '../../tasks-api'
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead, snoozeEventNotification } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const emit = defineEmits<{
@@ -53,6 +65,7 @@ const notifications = ref<AppNotification[]>([])
 const unread = ref(0)
 const loading = ref(true)
 const busy = ref(false)
+const snoozing = ref(0)
 const error = ref('')
 
 function formatTime(value: string) {
@@ -91,6 +104,22 @@ async function open(item: AppNotification) {
   }
   if (item.url) emit('open', item.url)
   else emit('close')
+}
+
+async function snooze(item: AppNotification) {
+  if (snoozing.value || item.type !== 'event') return
+  snoozing.value = item.id
+  try {
+    const result = await snoozeEventNotification(item.id, 10)
+    item.read = true
+    unread.value = result.unread
+    emit('changed', result.unread)
+    Message.success('已安排 10 分钟后提醒')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '稍后提醒失败'
+  } finally {
+    snoozing.value = 0
+  }
 }
 
 async function readAll() {

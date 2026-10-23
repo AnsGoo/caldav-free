@@ -623,6 +623,23 @@ GET /api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}
 
 返回 `{ "unread": 0 }`。
 
+### POST /api/admin/notifications/{id}/snooze
+
+仅对 `type=event` 的日程通知有效：
+
+```json
+{ "minutes": 10 }
+```
+
+服务端会创建一条延迟提醒，返回：
+
+```json
+{
+  "snooze": { "id": 1, "remindAt": "2026-10-24T00:40:00Z" },
+  "unread": 0
+}
+```
+
 ### GET /api/admin/task-lists/{id}/members
 
 返回所有者与共享成员，用于指派人选择：

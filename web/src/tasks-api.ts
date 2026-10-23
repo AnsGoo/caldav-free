@@ -139,6 +139,13 @@ export function markNotificationRead(id: number) {
   })
 }
 
+export function snoozeEventNotification(id: number, minutes = 10) {
+  return api<{ snooze: { id: number; remindAt: string }; unread: number }>(`/notifications/${id}/snooze`, {
+    method: 'POST',
+    body: JSON.stringify({ minutes }),
+  })
+}
+
 export function markAllNotificationsRead() {
   return api<{ unread: number }>('/notifications/read', {
     method: 'POST',

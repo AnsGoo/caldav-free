@@ -67,3 +67,12 @@ func (s *Store) MarkAllNotificationsRead(ctx context.Context, userID int64) erro
 		Where("user_id = ? AND read = ?", userID, false).
 		Update("read", true).Error
 }
+
+// GetNotification returns one notification for a user.
+func (s *Store) GetNotification(ctx context.Context, userID, id int64) (*Notification, error) {
+	var notification Notification
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).First(&notification).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	return &notification, nil
+}

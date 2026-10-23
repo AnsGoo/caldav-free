@@ -2,6 +2,9 @@ package web
 
 import (
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"caldav-free/internal/store"
@@ -38,6 +41,69 @@ func (s *Server) apiNotifications(w http.ResponseWriter, r *http.Request, curren
 		})
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"notifications": rows, "unread": unread})
+}
+
+func (s *Server) apiSnoozeNotification(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	notificationID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "通知不存在")
+		return
+	}
+	notification, err := s.store.GetNotification(r.Context(), current.ID, notificationID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "通知不存在")
+		return
+	}
+	if notification.Type != "event" {
+		writeAPIError(w, http.StatusBadRequest, "该通知不支持稍后提醒")
+		return
+	}
+	var body struct {
+		Minutes int `json:"minutes"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if body.Minutes <= 0 {
+		body.Minutes = 10
+	}
+	if body.Minutes > 1440 {
+		writeAPIError(w, http.StatusBadRequest, "稍后提醒不能超过 24 小时")
+		return
+	}
+	parsed, err := url.Parse(notification.URL)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "通知链接无效")
+		return
+	}
+	query := parsed.Query()
+	calendarID, _ := strconv.ParseInt(query.Get("calendar"), 10, 64)
+	href := strings.TrimSpace(query.Get("event"))
+	if calendarID <= 0 || href == "" {
+		writeAPIError(w, http.StatusBadRequest, "通知缺少日程信息")
+		return
+	}
+	calendar, err := s.store.GetCalendar(r.Context(), calendarID)
+	if err != nil || calendar.UserID != current.ID {
+		writeAPIError(w, http.StatusForbidden, "无权操作该日程")
+		return
+	}
+	snooze, err := s.store.CreateEventSnooze(r.Context(), &store.EventSnooze{
+		UserID: current.ID, CalendarID: calendarID, Href: href,
+		Occurrence: strings.TrimSpace(query.Get("occurrence")),
+		Title:      "日程提醒", Body: notification.Body, URL: notification.URL,
+		RemindAt: time.Now().UTC().Add(time.Duration(body.Minutes) * time.Minute),
+	})
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	_ = s.store.MarkNotificationRead(r.Context(), current.ID, notificationID)
+	unread, _ := s.store.CountUnreadNotifications(r.Context(), current.ID)
+	writeAPIJSON(w, http.StatusOK, map[string]any{
+		"snooze": map[string]any{"id": snooze.ID, "remindAt": snooze.RemindAt.Format(time.RFC3339)},
+		"unread": unread,
+	})
 }
 
 func (s *Server) apiNotificationsRead(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {

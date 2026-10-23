@@ -155,6 +155,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if eventSent > 0 {
 		s.logger.Info("sent calendar reminders", "count", eventSent)
 	}
+	snoozeSent := s.tickSnoozes(ctx, now, mailConfig)
+	if snoozeSent > 0 {
+		s.logger.Info("sent calendar snoozes", "count", snoozeSent)
+	}
 	_ = s.store.PurgeReminderDeliveries(ctx, now.AddDate(0, 0, -30))
 	_ = s.store.PurgeReminderAttempts(ctx, now.AddDate(0, 0, -30))
 }

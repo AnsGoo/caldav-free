@@ -5314,3 +5314,21 @@ button.tw-side-link {
   border: 1px solid var(--tw-border);
   object-fit: contain;
 }
+
+.tw-notification-snooze {
+  flex: none;
+  align-self: center;
+  height: 25px;
+  padding: 0 7px;
+  border: 1px solid var(--tw-border);
+  border-radius: 6px;
+  background: var(--tw-bg);
+  color: var(--tw-accent);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.tw-notification-snooze:disabled {
+  opacity: 0.55;
+  cursor: default;
+}

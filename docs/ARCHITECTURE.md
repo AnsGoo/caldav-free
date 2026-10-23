@@ -45,6 +45,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
 | `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态 |
+| `event_snoozes` | 日程稍后提醒：目标日历/事件、原通知、提醒时间、发送状态 |
 | `task_comments` | 任务评论：任务、作者、正文、创建时间 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
@@ -267,6 +268,7 @@ END:VALARM
 - 结构化更新会重建 VEVENT 标准字段
 - `reminders` 写入 `VALARM`；浏览器端在页面打开时轮询 2 天内的日程并按提醒偏移通知
 - 服务端调度器扫描有 VALARM 的日历对象，展开重复实例，并按实例开始时间计算提醒；写入站内通知并成功投递后记录 `event_reminder_deliveries`
+- 日程通知的“稍后提醒”写入 `event_snoozes`，调度器按 UTC 时间到期后重新生成通知并尝试推送/邮件
 - 日程提醒复用 Web Push 和 SMTP，失败通过 `reminder_attempts` 退避重试
 - 推送/邮件链接携带 `calendar`、`event`、`occurrence`，工作台加载日历后匹配实例并自动打开编辑弹窗
 - 原始 ICS 仍可在管理后台事件编辑页修改

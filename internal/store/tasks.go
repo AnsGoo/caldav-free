@@ -45,11 +45,14 @@ type Task struct {
 	// list; when it is non-empty it is authoritative.
 	ReminderOffset  int        `gorm:"not null;default:-1"`
 	ReminderOffsets StringList `gorm:"column:reminder_offsets;type:text;not null;default:''"`
-	Completed       bool       `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
-	CompletedAt     *time.Time
-	Tags            StringList `gorm:"not null"`
-	Checklist       string     `gorm:"type:text;not null;default:''"`
-	Order           int        `gorm:"column:order_index;not null;default:0"`
+	// Assignee is the username of the list owner or a shared member. Empty
+	// means unassigned.
+	Assignee    string `gorm:"size:190;not null;default:''"`
+	Completed   bool   `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
+	CompletedAt *time.Time
+	Tags        StringList `gorm:"not null"`
+	Checklist   string     `gorm:"type:text;not null;default:''"`
+	Order       int        `gorm:"column:order_index;not null;default:0"`
 	// VTODO fields link a task to its CalDAV object. SyncPending is set on
 	// local changes and cleared once the VTODO has been written.
 	VTODOUID    string `gorm:"column:vtodo_uid;size:255;not null;default:'';index:idx_task_vtodo_uid"`
@@ -506,6 +509,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 		"recurrence":       task.Recurrence,
 		"reminder_offset":  task.ReminderOffset,
 		"reminder_offsets": task.ReminderOffsets,
+		"assignee":         task.Assignee,
 		"all_day":          task.AllDay,
 		"completed":        task.Completed,
 		"completed_at":     task.CompletedAt,

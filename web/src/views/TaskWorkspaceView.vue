@@ -351,6 +351,7 @@
       v-if="selectedTask"
       :task="selectedTask"
       :lists="detailLists"
+      :members="taskMembers"
       :readonly="sharedReadonly"
       :list-locked="view === 'shared'"
       @close="selectedId = 0"
@@ -667,7 +668,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskTagCount, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   createSavedFilter,
@@ -681,6 +682,7 @@ import {
   deleteTaskTag,
   emptyTaskTrash,
   fetchSharedTasks,
+  fetchTaskListMembers,
   fetchTaskReminders,
   fetchTaskWorkspace,
   purgeTask,
@@ -876,6 +878,20 @@ const groups = computed(() => {
   return groupTasks(filteredTasks.value, view.value === 'shared' ? 'all' : view.value)
 })
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedId.value))
+const taskMembers = ref<TaskListMember[]>([])
+watch(
+  () => [selectedTask.value?.id, selectedTask.value?.listId],
+  () => {
+    const task = selectedTask.value
+    if (!task) {
+      taskMembers.value = []
+      return
+    }
+    void fetchTaskListMembers(task.listId)
+      .then((result) => { taskMembers.value = result.members })
+      .catch(() => { taskMembers.value = [] })
+  },
+)
 const detailLists = computed<TaskList[]>(() => {
   const shared = view.value === 'shared' ? activeSharedList.value : undefined
   if (!shared || lists.value.some((list) => list.id === shared.listId)) return lists.value

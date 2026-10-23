@@ -200,3 +200,41 @@ func (s *Store) ListSharedTasks(ctx context.Context, userID, listID int64) ([]*T
 func (s *Store) deleteTaskListSharesTx(tx *gorm.DB, listID int64) error {
 	return tx.Where("list_id = ?", listID).Delete(&TaskListShare{}).Error
 }
+
+// TaskListMember is an owner or shared member eligible for assignment.
+type TaskListMember struct {
+	Username    string
+	DisplayName string
+	Role        string
+}
+
+// ListTaskListMembers returns the owner and members of an accessible list.
+func (s *Store) ListTaskListMembers(ctx context.Context, userID, listID int64) ([]TaskListMember, error) {
+	var ownerID int64
+	if list, err := s.GetTaskList(ctx, userID, listID); err == nil {
+		ownerID = list.UserID
+	} else {
+		list, _, shareErr := s.GetSharedTaskList(ctx, userID, listID)
+		if shareErr != nil {
+			return nil, ErrNotFound
+		}
+		ownerID = list.UserID
+	}
+	owner, err := s.GetUser(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	members := []TaskListMember{{
+		Username: owner.Username, DisplayName: owner.DisplayName, Role: "owner",
+	}}
+	shares, err := s.ListTaskListShares(ctx, ownerID, listID)
+	if err != nil {
+		return nil, err
+	}
+	for _, share := range shares {
+		members = append(members, TaskListMember{
+			Username: share.Username, DisplayName: share.DisplayName, Role: share.Role,
+		})
+	}
+	return members, nil
+}

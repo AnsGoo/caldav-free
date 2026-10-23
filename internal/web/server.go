@@ -175,6 +175,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/task-filters", s.apiAdmin(s.apiCreateSavedFilter))
 	mux.HandleFunc("PATCH /api/admin/task-filters/{id}", s.apiAdmin(s.apiUpdateSavedFilter))
 	mux.HandleFunc("DELETE /api/admin/task-filters/{id}", s.apiAdmin(s.apiDeleteSavedFilter))
+	mux.HandleFunc("GET /api/admin/task-lists/{id}/members", s.apiAdmin(s.apiTaskListMembers))
 	mux.HandleFunc("GET /api/admin/task-lists/{id}/shares", s.apiAdmin(s.apiTaskListShares))
 	mux.HandleFunc("POST /api/admin/task-lists/{id}/shares", s.apiAdmin(s.apiTaskListShares))
 	mux.HandleFunc("DELETE /api/admin/task-lists/{id}/shares/{userId}", s.apiAdmin(s.apiTaskListShare))

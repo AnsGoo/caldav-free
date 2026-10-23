@@ -2498,6 +2498,10 @@ button.tw-side-link {
   gap: 10px;
 }
 
+.tw-field-wide {
+  grid-column: 1 / -1;
+}
+
 .tw-field {
   display: grid;
   gap: 5px;
@@ -2684,6 +2688,15 @@ button.tw-side-link {
 }
 
 .tw-row-flag,
+.tw-row-assignee {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tw-accent);
+  font-size: 10.5px;
+}
+
 .tw-row-bell {
   display: inline-flex;
   color: var(--tw-text-3);

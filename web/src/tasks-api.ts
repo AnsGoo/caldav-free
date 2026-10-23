@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared'
 
@@ -34,6 +34,7 @@ export interface TaskDraft {
   recurrence?: string
   reminderOffset?: number
   reminderOffsets?: number[]
+  assignee?: string
   timezone?: string
 }
 
@@ -129,6 +130,10 @@ export function deleteTaskList(id: number) {
 
 export function fetchSharedTasks(listId: number) {
   return api<{ list: SharedTaskList; tasks: TaskItem[] }>(`/tasks/shared?listId=${listId}`)
+}
+
+export function fetchTaskListMembers(listId: number) {
+  return api<{ members: TaskListMember[] }>(`/task-lists/${listId}/members`)
 }
 
 export function fetchTaskListShares(listId: number) {

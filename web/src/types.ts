@@ -108,6 +108,7 @@ export interface TaskItem {
   recurrence: string
   reminderOffset: number
   reminderOffsets: number[]
+  assignee: string
   completed: boolean
   completedAt?: string
   deletedAt?: string
@@ -183,6 +184,12 @@ export interface TaskListShare {
   displayName: string
   role: 'viewer' | 'editor'
   createdAt: string
+}
+
+export interface TaskListMember {
+  username: string
+  displayName: string
+  role: 'owner' | 'viewer' | 'editor'
 }
 
 export interface TaskWorkspaceData {

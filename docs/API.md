@@ -138,6 +138,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
   "recurrence": "FREQ=WEEKLY",
   "reminderOffset": 60,
   "reminderOffsets": [0, 15, 60],
+  "assignee": "bob",
   "completed": false,
   "completedAt": "",
   "deletedAt": "",
@@ -159,6 +160,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
 | `recurrence` | RRULE 主体，如 `FREQ=DAILY`；空表示不重复 |
 | `reminderOffset` | 单个提醒的兼容字段；多提醒时等于最早的一个（最大偏移） |
 | `reminderOffsets` | 提醒偏移数组，按分钟升序；为空表示不提醒，最多 10 个。写入时优先于 `reminderOffset` |
+| `assignee` | 指派人用户名；必须是清单所有者或共享成员，空表示未指派 |
 | `allDay` | 全天任务 |
 | `checklist` | 子任务列表 |
 
@@ -175,6 +177,7 @@ CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
   "recurrence": "FREQ=WEEKLY",
   "reminderOffset": 60,
   "reminderOffsets": [0, 15, 60],
+  "assignee": "bob",
   "checklist": [{ "id": "c1", "title": "整理数据", "done": false }],
   "timezone": "Asia/Shanghai"
 }
@@ -493,6 +496,19 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 ### DELETE /api/admin/task-lists/{id}/shares/{userId}
 
 移除共享成员，返回 `204`。
+
+### GET /api/admin/task-lists/{id}/members
+
+返回所有者与共享成员，用于指派人选择：
+
+```json
+{
+  "members": [
+    { "username": "admin", "displayName": "Administrator", "role": "owner" },
+    { "username": "bob", "displayName": "Bob", "role": "editor" }
+  ]
+}
+```
 
 ### GET /api/admin/tasks/shared?listId=...
 

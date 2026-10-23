@@ -55,6 +55,10 @@
           <TaskIcon name="bell" :size="14" />
           {{ reminderSummary }}
         </span>
+        <span v-if="draft.assignee" class="tw-pill">
+          <TaskIcon name="share" :size="14" />
+          @{{ draft.assignee }}
+        </span>
         <span v-if="draft.tags.length" class="tw-pill">
           <TaskIcon name="tag" :size="14" />
           {{ draft.tags.length }} 个标签
@@ -153,6 +157,15 @@
             </div>
           </div>
         </div>
+        <label v-if="(members?.length || 0) > 1 || draft.assignee" class="tw-field tw-field-wide">
+          <span>指派人</span>
+          <select v-model="draft.assignee" class="tw-field-select" :disabled="readonly" @change="save">
+            <option value="">未指派</option>
+            <option v-for="member in members" :key="member.username" :value="member.username">
+              {{ member.displayName || member.username }} (@{{ member.username }})
+            </option>
+          </select>
+        </label>
         <input
           v-if="recurrenceChoice === 'custom'"
           v-model="customRule"
@@ -223,12 +236,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, TaskItem, TaskList } from '../../types'
+import type { ChecklistItem, TaskItem, TaskList, TaskListMember } from '../../types'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
 import { updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ task: TaskItem; lists: TaskList[]; readonly?: boolean; listLocked?: boolean }>()
+const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; readonly?: boolean; listLocked?: boolean }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', task: TaskItem): void
@@ -247,6 +260,7 @@ interface Draft {
   completed: boolean
   recurrence: string
   reminderOffsets: number[]
+  assignee: string
   tags: string[]
   checklist: ChecklistItem[]
 }
@@ -262,6 +276,7 @@ const draft = reactive<Draft>({
   completed: false,
   recurrence: '',
   reminderOffsets: [],
+  assignee: '',
   tags: [],
   checklist: [],
 })
@@ -301,6 +316,7 @@ function hydrate() {
     : props.task.reminderOffset >= 0
       ? [props.task.reminderOffset]
       : []
+  draft.assignee = props.task.assignee || ''
   const preset = RECURRENCE_OPTIONS.some((option) => option.value === props.task.recurrence && option.value !== 'custom')
   recurrenceChoice.value = props.task.recurrence ? (preset ? props.task.recurrence : 'custom') : ''
   customRule.value = preset ? '' : props.task.recurrence || ''
@@ -359,6 +375,7 @@ function snapshotDraft() {
     completed: draft.completed,
     recurrence: draft.recurrence,
     reminderOffsets: draft.reminderOffsets,
+    assignee: draft.assignee,
     tags: draft.tags,
     checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
   })
@@ -433,6 +450,7 @@ async function save() {
     completed: draft.completed,
     recurrence: draft.recurrence,
     reminderOffsets: draft.reminderOffsets,
+    assignee: draft.assignee,
     tags: draft.tags,
     checklist: draft.checklist.filter((item) => item.title.trim() !== ''),
   }

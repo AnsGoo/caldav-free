@@ -41,7 +41,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | --- | --- |
 | `task_folders` | 清单文件夹 |
 | `task_lists` | 清单；每用户一个收集箱；`folder_id` 归属文件夹 |
-| `tasks` | 任务、日期、重复、提醒、软删除、VTODO 同步字段 |
+| `tasks` | 任务、日期、重复、提醒、指派人、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
@@ -66,6 +66,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `order_index` | 手动排序 |
 | `deleted` / `deleted_at` | 垃圾桶 |
 | `vtodo_uid` / `vtodo_href` / `vtodo_etag` | CalDAV 身份 |
+| `assignee` | 指派人用户名；仅工作台共享协作使用 |
 | `sync_pending` | 本地变更待推送 |
 
 ### 已有 CalDAV 表
@@ -200,6 +201,7 @@ name:   任务
 - 共享任务保留所有者 `user_id`，因此 CalDAV 同步、提醒、统计仍归所有者；编辑者的修改也会推送到所有者的 CalDAV。
 - 接收方侧栏显示“共享给我”；viewer 使用 `inert` 只读展示，editor 可编辑任务但清单下拉锁定。
 - 删除清单或用户时清理对应共享记录。
+- `assignee` 只允许清单所有者或共享成员；不写入 VTODO，由工作台展示。
 
 ## 8. 提醒
 

@@ -147,3 +147,29 @@ func sharedTaskListDTO(item store.SharedTaskList) apiSharedTaskList {
 		OwnerDisplay: item.OwnerDisplay, Role: item.Role, Count: item.Count,
 	}
 }
+
+type apiTaskListMember struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	Role        string `json:"role"`
+}
+
+func (s *Server) apiTaskListMembers(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	listID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "清单不存在")
+		return
+	}
+	members, err := s.store.ListTaskListMembers(r.Context(), current.ID, listID)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "清单不存在")
+		return
+	}
+	rows := make([]apiTaskListMember, 0, len(members))
+	for _, member := range members {
+		rows = append(rows, apiTaskListMember{
+			Username: member.Username, DisplayName: member.DisplayName, Role: member.Role,
+		})
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"members": rows})
+}

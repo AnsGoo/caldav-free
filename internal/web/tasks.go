@@ -62,6 +62,7 @@ type apiTask struct {
 	Recurrence      string             `json:"recurrence"`
 	ReminderOffset  int                `json:"reminderOffset"`
 	ReminderOffsets []int              `json:"reminderOffsets"`
+	Assignee        string             `json:"assignee"`
 	DeletedAt       string             `json:"deletedAt,omitempty"`
 	Tags            []string           `json:"tags"`
 	Checklist       []apiChecklistItem `json:"checklist"`
@@ -84,6 +85,7 @@ type taskPatch struct {
 	Recurrence      *string             `json:"recurrence"`
 	ReminderOffset  *int                `json:"reminderOffset"`
 	ReminderOffsets *[]int              `json:"reminderOffsets"`
+	Assignee        *string             `json:"assignee"`
 	Timezone        string              `json:"timezone"`
 }
 
@@ -145,6 +147,7 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 		Recurrence:      task.Recurrence,
 		ReminderOffset:  task.ReminderOffset,
 		ReminderOffsets: task.ReminderValues(),
+		Assignee:        task.Assignee,
 		Tags:            append([]string(nil), task.Tags...),
 		Checklist:       decodeChecklist(task.Checklist),
 		Order:           task.Order,
@@ -384,6 +387,28 @@ func (s *Server) taskTags(ctx context.Context, userID int64) []string {
 	return out
 }
 
+func (s *Server) applyTaskAssignee(ctx context.Context, task *store.Task, body taskPatch) error {
+	if body.Assignee == nil {
+		return nil
+	}
+	value := strings.ToLower(strings.TrimSpace(*body.Assignee))
+	if value == "" {
+		task.Assignee = ""
+		return nil
+	}
+	members, err := s.store.ListTaskListMembers(ctx, task.UserID, task.ListID)
+	if err != nil {
+		return errors.New("清单不存在")
+	}
+	for _, member := range members {
+		if strings.EqualFold(member.Username, value) {
+			task.Assignee = member.Username
+			return nil
+		}
+	}
+	return errors.New("指派人必须是清单成员")
+}
+
 func applyTaskReminders(task *store.Task, body taskPatch) error {
 	if body.ReminderOffsets != nil {
 		offsets, err := store.NormalizeReminderOffsets(*body.ReminderOffsets)
@@ -456,6 +481,10 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		task.Recurrence = rule
 	}
 	if err := applyTaskReminders(task, body); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.applyTaskAssignee(ctx, task, body); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -580,6 +609,10 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		task.Recurrence = rule
 	}
 	if err := applyTaskReminders(task, body); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.applyTaskAssignee(ctx, task, body); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}

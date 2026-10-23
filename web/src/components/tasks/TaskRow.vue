@@ -56,6 +56,7 @@
         <i :style="{ background: task.listColor || '#4772fa' }" />
         {{ task.listName }}
       </span>
+      <span v-if="task.assignee" class="tw-row-assignee" :title="`指派给 @${task.assignee}`">@{{ task.assignee }}</span>
       <span v-if="taskReminderOffsets(task).length && !trashMode" class="tw-row-bell" :title="taskReminderOffsets(task).map(reminderLabel).join('、')">
         <TaskIcon name="bell" :size="12" />
       </span>

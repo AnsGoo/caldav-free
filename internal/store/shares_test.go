@@ -24,8 +24,19 @@ func TestTaskListSharing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ShareTaskList(ctx, aliceID, list.ID, "bob", "viewer"); err != nil {
+	if _, err := s.ShareTaskList(ctx, aliceID, list.ID, "bob", "editor"); err != nil {
 		t.Fatal(err)
+	}
+	members, err := s.ListTaskListMembers(ctx, bob.ID, list.ID)
+	if err != nil || len(members) != 2 || members[0].Username != "alice" || members[1].Username != "bob" {
+		t.Fatalf("members = %+v (%v)", members, err)
+	}
+	task.Assignee = "bob"
+	if err := s.UpdateTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	if assigned, _ := s.GetTask(ctx, aliceID, task.ID); assigned.Assignee != "bob" {
+		t.Fatalf("assignee = %q", assigned.Assignee)
 	}
 	shared, err := s.ListSharedTaskLists(ctx, bob.ID)
 	if err != nil || len(shared) != 1 || shared[0].ListID != list.ID || shared[0].Count != 1 {

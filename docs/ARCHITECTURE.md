@@ -44,6 +44,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `tasks` | 任务、日期、重复、提醒、指派人、软删除、VTODO 同步字段 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
+| `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
 | `reminder_deliveries` | 服务端提醒成功记录；任务 + 到期时间 + 偏移 + 通道唯一 |
@@ -202,6 +203,8 @@ name:   任务
 - 接收方侧栏显示“共享给我”；viewer 使用 `inert` 只读展示，editor 可编辑任务但清单下拉锁定。
 - 删除清单或用户时清理对应共享记录。
 - `assignee` 只允许清单所有者或共享成员；不写入 VTODO，由工作台展示。
+- 指派变更时写入 `notifications`，并异步尝试 Web Push / SMTP；失败不影响任务保存。
+- 前端每 60 秒拉取未读数；点击通知按 `url` 进入共享或普通任务。
 
 ## 8. 提醒
 

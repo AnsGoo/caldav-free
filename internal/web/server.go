@@ -120,6 +120,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/me", s.apiAdmin(s.apiMe))
 	mux.HandleFunc("POST /api/admin/logout", s.apiAdmin(s.apiLogout))
 	mux.HandleFunc("GET /api/admin/dashboard", s.apiAdmin(s.apiDashboard))
+	mux.HandleFunc("GET /api/admin/notifications", s.apiAdmin(s.apiNotifications))
+	mux.HandleFunc("POST /api/admin/notifications/read", s.apiAdmin(s.apiNotificationsRead))
 	mux.HandleFunc("GET /api/admin/users", s.apiAdmin(s.apiUsers))
 	mux.HandleFunc("POST /api/admin/users", s.apiAdmin(s.apiCreateUser))
 	mux.HandleFunc("GET /api/admin/users/{id}", s.apiAdmin(s.apiUserDetail))

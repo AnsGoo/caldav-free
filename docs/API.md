@@ -497,6 +497,44 @@ SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 
 
 移除共享成员，返回 `204`。
 
+### GET /api/admin/notifications
+
+返回最近 50 条站内通知和未读数：
+
+```json
+{
+  "notifications": [
+    {
+      "id": 3,
+      "type": "assignment",
+      "title": "任务指派",
+      "body": "Administrator 将任务「写周报」指派给你",
+      "url": "/tasks?view=shared&shared=2&task=8",
+      "taskId": 8,
+      "read": false,
+      "createdAt": "2026-10-23T16:01:28Z"
+    }
+  ],
+  "unread": 1
+}
+```
+
+### POST /api/admin/notifications/read
+
+单条：
+
+```json
+{ "id": 3 }
+```
+
+全部：
+
+```json
+{ "all": true }
+```
+
+返回 `{ "unread": 0 }`。
+
 ### GET /api/admin/task-lists/{id}/members
 
 返回所有者与共享成员，用于指派人选择：

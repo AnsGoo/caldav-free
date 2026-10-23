@@ -56,6 +56,7 @@
       :active-list-id="activeListId"
       :active-filter-id="activeFilterId"
       :active-shared-list-id="activeSharedListId"
+      :unread-notifications="unreadNotifications"
       :active-tag="activeTag"
       :user-name="auth.user?.username || ''"
       :display-name="auth.user?.displayName || ''"
@@ -77,6 +78,7 @@
       @select-tag="selectTag"
       @manage-tags="openTagManager"
       @open-reminders="reminderSettingsOpen = true"
+      @open-notifications="notificationDialogOpen = true"
       @close="sidebarOpen = false"
       @logout="handleLogout"
     />
@@ -638,6 +640,13 @@
       </div>
     </div>
 
+    <NotificationDialog
+      v-if="notificationDialogOpen"
+      @changed="unreadNotifications = $event"
+      @open="openNotification"
+      @close="notificationDialogOpen = false"
+    />
+
     <TaskListShareDialog
       v-if="shareDialogOpen && sharingList"
       :list="sharingList"
@@ -681,6 +690,7 @@ import {
   deleteTaskList,
   deleteTaskTag,
   emptyTaskTrash,
+  fetchNotifications,
   fetchSharedTasks,
   fetchTaskListMembers,
   fetchTaskReminders,
@@ -716,6 +726,7 @@ import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
 import TaskSummaryPanel from '../components/tasks/TaskSummaryPanel.vue'
 import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
 import CalendarEventDialog from '../components/tasks/CalendarEventDialog.vue'
+import NotificationDialog from '../components/tasks/NotificationDialog.vue'
 import TaskListShareDialog from '../components/tasks/TaskListShareDialog.vue'
 import ReminderSettingsDialog from '../components/tasks/ReminderSettingsDialog.vue'
 import TaskIcon from '../components/tasks/TaskIcon.vue'
@@ -769,9 +780,12 @@ const moveTargetId = ref(0)
 const batchBusy = ref(false)
 const remindersEnabled = ref(false)
 const reminderSettingsOpen = ref(false)
+const notificationDialogOpen = ref(false)
+const unreadNotifications = ref(0)
 const reminderTasks = ref<TaskItem[]>([])
 const NOTIFY_KEY = 'caldav-task-notified'
 let reminderTimer: ReturnType<typeof setInterval> | undefined
+let notificationTimer: ReturnType<typeof setInterval> | undefined
 
 const quickInputEl = ref<HTMLInputElement | null>(null)
 const searchInputEl = ref<HTMLInputElement | null>(null)
@@ -1841,6 +1855,26 @@ async function toggleReminders() {
   Message.success('已开启浏览器提醒，页面保持打开时生效')
 }
 
+async function refreshNotifications() {
+  try {
+    const data = await fetchNotifications()
+    unreadNotifications.value = data.unread
+  } catch {
+    /* notification badge is best-effort */
+  }
+}
+
+async function openNotification(url: string) {
+  notificationDialogOpen.value = false
+  const target = url.startsWith('/admin/') ? url.slice('/admin'.length) : url
+  if (target) {
+    await router.push(target)
+    hydrateFromRoute()
+    await loadWorkspace()
+  }
+  void refreshNotifications()
+}
+
 function hydrateFromRoute() {
   const q = route.query
   const nextView = typeof q.view === 'string' ? q.view : 'all'
@@ -1886,6 +1920,8 @@ onMounted(async () => {
     startReminderTimer()
   }
   await loadWorkspace()
+  void refreshNotifications()
+  notificationTimer = setInterval(() => { void refreshNotifications() }, 60000)
   initialized = true
   window.addEventListener('keydown', onKeydown)
 })
@@ -1894,6 +1930,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   if (searchTimer) clearTimeout(searchTimer)
   if (refreshTimer) clearTimeout(refreshTimer)
+  if (notificationTimer) clearInterval(notificationTimer)
   stopReminderTimer()
 })
 

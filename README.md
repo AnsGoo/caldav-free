@@ -39,6 +39,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 多提醒：一个任务可设置最多 10 个提醒（准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天或客户端自定义），每个提醒写入独立 CalDAV `VALARM`；同时支持页面内浏览器提醒、服务端 Web Push 与 SMTP 邮件提醒
 - 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
 - 清单共享：按用户名把清单共享给其他管理员，可授予只读或编辑权限；编辑者可在共享清单中新建、修改、完成、删除和指派任务
+- 协作通知：任务被指派时生成站内通知，并尽力通过 Web Push / SMTP 邮件提醒被指派人
 - 保存过滤器：按清单、标签、优先级、日期、状态、关键词组合筛选并命名保存
 - 标签管理：重命名或删除标签，变更会回写到所有任务与 VTODO `CATEGORIES`
 - 垃圾桶：删除后可恢复、单条彻底删除或清空垃圾桶
@@ -245,6 +246,8 @@ docker run -d --name caldav \
 | `/api/admin/task-lists/{id}/shares` | 清单共享成员与角色管理 |
 | `/api/admin/task-lists/{id}/members` | 清单所有者与成员列表（用于指派） |
 | `/api/admin/tasks/shared` | 共享清单任务列表 |
+| `/api/admin/notifications` | 站内通知列表与未读数 |
+| `/api/admin/notifications/read` | 单条或全部标记已读 |
 | `/api/admin/task-folders` | 清单文件夹 CRUD |
 | `/api/admin/task-filters` | 保存过滤器 CRUD |
 | `/api/admin/task-tags` | 标签统计、重命名、删除 |
@@ -312,6 +315,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `task_filters`：保存的过滤器条件（JSON）
 - `task_list_shares`：清单共享成员与角色（viewer/editor）
 - `tasks.assignee`：指派人用户名
+- `notifications`：站内协作通知（指派等）
 - `summary_documents`：摘要模板与历史文档
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
@@ -512,7 +516,9 @@ go vet ./...
 - 工作日历中的多日定时事件只在开始日显示；跨天片段暂不拆分。
 - 工作台支持日程的结构化新建、编辑、删除和拖拽改期；编辑或拖拽重复日程会修改整个系列，暂不支持单次例外。
 - 结构化编辑会重建 VEVENT 的标准字段，客户端额外写入的自定义属性或参与者可能丢失；需要保留原始 ICS 时使用管理后台事件编辑页。
-- 清单共享支持只读和编辑，并支持清单内任务指派；指派人不会写入 CalDAV，也没有指派通知、评论和协作动态。
+- 清单共享支持只读和编辑，并支持清单内任务指派；指派人不会写入 CalDAV。
+- 指派通知包含站内消息、Web Push 和邮件，但推送/邮件依赖设备订阅和 SMTP 配置；通知不是实时推送，前端每 60 秒刷新未读数。
+- 还没有评论、@提醒和协作动态。
 - 日历事件查询窗口一次最多 120 天，最多返回 2000 个实例。
 - 统计基于当前仍保留的任务数据；彻底删除或清空垃圾桶会移除对应历史。
 - 统计不含习惯打卡、番茄专注与 CalDAV 事件时长，仅覆盖任务工作台数据。

@@ -138,6 +138,11 @@
       <path d="M18 9.5a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6Z" />
       <path d="M10 19.5a2.2 2.2 0 0 0 4 0" />
     </template>
+    <template v-else-if="name === 'notice'">
+      <path d="M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6Z" />
+      <path d="M10 19.5a2.2 2.2 0 0 0 4 0" />
+      <circle cx="18.5" cy="5" r="2.5" fill="currentColor" stroke="none" />
+    </template>
     <template v-else-if="name === 'mail'">
       <rect x="3.5" y="5.5" width="17" height="13" rx="2.5" />
       <path d="m4.5 7 7.5 6 7.5-6" />

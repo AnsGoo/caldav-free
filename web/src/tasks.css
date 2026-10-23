@@ -4939,3 +4939,120 @@ button.tw-side-link {
 .tw-tg-col:has(.tw-tg-block[draggable='true']:active) {
   cursor: grabbing;
 }
+
+/* ------------------------------------------------------ notifications */
+.tw-side-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--tw-danger);
+  color: #fff;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.tw-notification-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-notification-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tw-notification-readall {
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tw-accent);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.tw-notification-readall:hover {
+  background: var(--tw-accent-soft);
+}
+
+.tw-notification-body {
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.tw-notification-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--tw-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tw-notification-row:hover {
+  background: var(--tw-hover);
+}
+
+.tw-notification-row.unread {
+  border-color: var(--tw-border);
+  background: var(--tw-surface);
+}
+
+.tw-notification-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.tw-notification-row.unread .tw-notification-dot {
+  background: var(--tw-accent);
+}
+
+.tw-notification-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tw-notification-copy strong {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.tw-notification-copy span {
+  color: var(--tw-text-2);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.tw-notification-copy small {
+  color: var(--tw-text-3);
+  font-size: 10px;
+}
+
+.tw-notification-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 30px 0;
+  color: var(--tw-text-3);
+  font-size: 12px;
+}

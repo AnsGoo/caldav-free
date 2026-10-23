@@ -541,6 +541,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	if err := s.taskSync.PushTask(ctx, created.UserID, created); err != nil {
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", created.ID, "error", err)
 	}
+	s.notifyAssignment(ctx, r, current, "", created)
 	list, _ := s.store.GetTaskList(ctx, created.UserID, created.ListID)
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"task": apiTaskDTO(created, list)})
 }
@@ -588,6 +589,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, "共享任务不能移动到其他清单")
 		return
 	}
+	previousAssignee := task.Assignee
 	if body.Title != nil {
 		task.Title = strings.TrimSpace(*body.Title)
 	}
@@ -669,6 +671,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
 	}
+	s.notifyAssignment(ctx, r, current, previousAssignee, task)
 	if list == nil {
 		list, _ = s.store.GetTaskList(ctx, task.UserID, task.ListID)
 	}

@@ -185,7 +185,7 @@ func Open(path string) (*Store, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
@@ -335,6 +335,9 @@ func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 			return err
 		}
 		if err := tx.Where("user_id = ?", id).Delete(&PushSubscription{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", id).Delete(&Notification{}).Error; err != nil {
 			return err
 		}
 		res := tx.Delete(&User{}, id)

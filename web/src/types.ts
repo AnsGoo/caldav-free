@@ -186,6 +186,17 @@ export interface TaskListShare {
   createdAt: string
 }
 
+export interface AppNotification {
+  id: number
+  type: string
+  title: string
+  body: string
+  url: string
+  taskId: number
+  read: boolean
+  createdAt: string
+}
+
 export interface TaskListMember {
   username: string
   displayName: string

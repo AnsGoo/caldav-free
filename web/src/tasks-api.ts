@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { AIChatReply, AISettings, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, SavedFilter, SharedTaskList, SummaryDocument, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared'
 
@@ -126,6 +126,24 @@ export function deleteTaskTag(tag: string) {
 
 export function deleteTaskList(id: number) {
   return api<void>(`/task-lists/${id}`, { method: 'DELETE' })
+}
+
+export function fetchNotifications() {
+  return api<{ notifications: AppNotification[]; unread: number }>('/notifications')
+}
+
+export function markNotificationRead(id: number) {
+  return api<{ unread: number }>('/notifications/read', {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+  })
+}
+
+export function markAllNotificationsRead() {
+  return api<{ unread: number }>('/notifications/read', {
+    method: 'POST',
+    body: JSON.stringify({ all: true }),
+  })
 }
 
 export function fetchSharedTasks(listId: number) {

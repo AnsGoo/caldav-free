@@ -182,6 +182,11 @@
         <TaskIcon name="check" :size="13" />
         CalDAV VTODO 同步
       </p>
+      <button class="tw-side-link" @click="$emit('open-notifications')">
+        <TaskIcon name="notice" :size="16" />
+        <span>通知</span>
+        <span v-if="unreadNotifications" class="tw-side-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span>
+      </button>
       <button class="tw-side-link" @click="$emit('open-reminders')">
         <TaskIcon name="bell" :size="16" />
         <span>提醒设置</span>
@@ -221,6 +226,7 @@ const props = defineProps<{
   activeFilterId: number
   activeTag: string
   activeSharedListId: number
+  unreadNotifications: number
   userName: string
   displayName: string
   open: boolean
@@ -244,6 +250,7 @@ const emit = defineEmits<{
   (event: 'share-list', list: TaskList): void
   (event: 'manage-tags'): void
   (event: 'open-reminders'): void
+  (event: 'open-notifications'): void
   (event: 'logout'): void
   (event: 'close'): void
 }>()

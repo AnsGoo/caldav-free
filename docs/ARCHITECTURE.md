@@ -253,7 +253,7 @@ END:VALARM
 - 富文本工具栏基于 `document.execCommand`
 - 模板/历史文档存服务端 `summary_documents`
 - 内容优化：调用 AI 文本接口，将摘要重写为 Markdown 后转换成 HTML
-- 导出：剪贴板、HTML、打印/PDF、mailto
+- 导出：剪贴板、HTML、PNG（SVG foreignObject + canvas）、打印/PDF、mailto
 
 服务端只返回任务快照，不保存编辑后的文档。
 

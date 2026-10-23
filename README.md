@@ -490,7 +490,7 @@ go vet ./...
 - 摘要编辑器为浏览器 contenteditable，格式能力为基础富文本；模板与历史文档保存在服务端 SQLite。
 - 摘要“下一周期任务”追加的是当前范围之后同等长度时间段内到期的未完成任务，不是重复任务实例展开。
 - 摘要暂不支持指派人、专注数据、进度等字段；AI 内容优化需要先配置模型。
-- 摘要导出支持 HTML、打印/PDF、邮件（mailto），暂不支持直接导出图片。
+- 摘要导出支持 HTML、PNG 图片、打印/PDF、邮件（mailto）；图片通过 SVG foreignObject + canvas 在浏览器端生成。
 - AI 助手需要兼容 OpenAI Chat Completions 且支持 tools/function calling 的接口；Ollama 等本地接口也需开启对应能力。
 - AI 对话为非流式请求，回复期间显示“思考中”；对话记录只保存在浏览器 localStorage，不写入服务端。
 - AI 会按你的指令直接创建/修改/完成任务；删除任务会进入垃圾桶，但模型是否先确认取决于其遵循系统提示的程度。

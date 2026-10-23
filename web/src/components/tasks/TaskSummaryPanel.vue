@@ -72,6 +72,7 @@
           <div v-if="saveMenuOpen" class="tw-summary-menu">
             <button @click="saveHistory">保存到历史</button>
             <button @click="exportHtml">导出 HTML</button>
+            <button @click="exportImage">导出图片</button>
             <button @click="printSummary">打印 / PDF</button>
             <button @click="emailSummary">发送邮件</button>
           </div>
@@ -190,6 +191,36 @@
 
       <button class="tw-summary-aside-close" @click="asideOpen = false">收起设置</button>
     </aside>
+
+    <div v-if="templateDialogOpen" class="tw-dialog-scrim" @click.self="templateDialogOpen = false">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="保存为模板" @keydown.esc="templateDialogOpen = false">
+        <header class="tw-dialog-head">
+          <h2>保存为模板</h2>
+          <button class="tw-icon-button" title="关闭" @click="templateDialogOpen = false">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body">
+          <label class="tw-modal-label">
+            模板名称
+            <input
+              ref="templateNameInput"
+              v-model="templateName"
+              class="tw-dialog-input"
+              maxlength="80"
+              placeholder="例如：本周工作摘要"
+              @keydown.enter="confirmSaveTemplate"
+            />
+          </label>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="templateDialogOpen = false">取消</button>
+          <button class="tw-dialog-ok" :disabled="templateBusy" @click="confirmSaveTemplate">
+            {{ templateBusy ? '保存中…' : '保存' }}
+          </button>
+        </footer>
+      </div>
+    </div>
   </section>
 </template>
 
@@ -224,6 +255,8 @@ const displayOptions = [
   { value: 'tags', label: '标签' },
   { value: 'list', label: '所属清单' },
   { value: 'priority', label: '优先级' },
+  { value: 'status', label: '状态' },
+  { value: 'progress', label: '进度' },
   { value: 'details', label: '详细内容' },
 ]
 
@@ -254,6 +287,12 @@ const templates = ref<SummaryDocument[]>([])
 const aiConfigured = ref(false)
 const optimize = ref(false)
 const optimizing = ref(false)
+const templateDialogOpen = ref(false)
+const templateName = ref('')
+const templateBusy = ref(false)
+const templateNameInput = ref<HTMLInputElement | null>(null)
+const imageBusy = ref(false)
+let optimizeSeq = 0
 
 let loadTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -418,6 +457,11 @@ function taskHtml(task: SummaryTask) {
   }
   if (fields.value.includes('list')) extras.push(`<span class="tw-summary-extra">· ${escapeHtml(task.listName)}</span>`)
   if (fields.value.includes('priority') && task.priority) extras.push(`<span class="tw-summary-extra">· ${priorityLabel(task.priority)}</span>`)
+  if (fields.value.includes('status')) extras.push(`<span class="tw-summary-extra">· ${task.completed ? '已完成' : '未完成'}</span>`)
+  if (fields.value.includes('progress') && task.checklist.length) {
+    const done = task.checklist.filter((item) => item.done).length
+    extras.push(`<span class="tw-summary-extra">· 进度 ${done}/${task.checklist.length}</span>`)
+  }
   let details = ''
   if (fields.value.includes('details')) {
     const parts: string[] = []
@@ -579,8 +623,6 @@ function markdownToHtml(markdown: string) {
   return out.join('')
 }
 
-let optimizeSeq = 0
-
 async function applyOptimization() {
   if (!data.value) return
   const text = readText().trim()
@@ -633,15 +675,28 @@ async function removeHistory(id: number) {
   }
 }
 
-async function saveAsTemplate() {
-  const name = window.prompt('模板名称', data.value?.title || '摘要模板')
-  if (!name) return
+function saveAsTemplate() {
+  templateName.value = data.value?.title || '摘要模板'
+  templateDialogOpen.value = true
+  void nextTick(() => templateNameInput.value?.focus())
+}
+
+async function confirmSaveTemplate() {
+  const name = templateName.value.trim()
+  if (!name) {
+    Message.warning('请填写模板名称')
+    return
+  }
+  templateBusy.value = true
   try {
     const { document } = await createSummaryDocument({ kind: 'template', name, content: readHtml() })
     templates.value = [document, ...templates.value].slice(0, 50)
+    templateDialogOpen.value = false
     Message.success('模板已保存')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '保存模板失败')
+  } finally {
+    templateBusy.value = false
   }
 }
 
@@ -681,6 +736,70 @@ function exportHtml() {
   const html = buildDocument(readHtml())
   download('summary.html', html, 'text/html;charset=utf-8')
   saveMenuOpen.value = false
+}
+
+async function exportImage() {
+  const content = readHtml()
+  const width = 980
+  const wrapper = document.createElement('div')
+  wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml')
+  wrapper.style.width = '980px'
+  wrapper.style.padding = '40px'
+  wrapper.style.background = '#ffffff'
+  wrapper.style.color = '#1f2329'
+  wrapper.style.fontFamily = '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif'
+  wrapper.style.fontSize = '14px'
+  wrapper.style.lineHeight = '1.75'
+  wrapper.style.boxSizing = 'border-box'
+  wrapper.innerHTML = `<style>
+    h2{font-size:24px;margin:0 0 16px;color:#111827}h3{font-size:16px;margin:22px 0 8px;color:#111827}
+    h4{font-size:15px;margin:18px 0 6px;color:#111827}ul,ol{padding-left:24px;margin:6px 0}li{margin:5px 0}
+    .tw-summary-date{color:#6b7280}.tw-summary-tag{color:#4772fa}.tw-summary-extra{color:#6b7280;font-size:12px}
+    .tw-summary-detail{color:#6b7280;font-size:11.5px}blockquote{border-left:3px solid #4772fa;margin:10px 0;padding:4px 12px;color:#5c626b;background:#f3f3f5}
+    pre{background:#f3f3f5;border-radius:7px;padding:8px 10px;font-size:12px;overflow-x:auto}
+  </style>${content}`
+  wrapper.style.position = 'fixed'
+  wrapper.style.left = '-10000px'
+  wrapper.style.top = '0'
+  document.body.appendChild(wrapper)
+  const height = Math.max(wrapper.getBoundingClientRect().height, 200)
+  document.body.removeChild(wrapper)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${Math.ceil(height)}">
+    <foreignObject width="100%" height="100%">${new XMLSerializer().serializeToString(wrapper)}</foreignObject>
+  </svg>`
+  imageBusy.value = true
+  try {
+    const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+    const image = new Image()
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve()
+      image.onerror = () => reject(new Error('图片渲染失败'))
+      image.src = url
+    })
+    const scale = 2
+    const canvas = document.createElement('canvas')
+    canvas.width = width * scale
+    canvas.height = Math.ceil(height) * scale
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('无法创建画布')
+    context.scale(scale, scale)
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, width, height)
+    context.drawImage(image, 0, 0)
+    const png = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+    if (!png) throw new Error('图片生成失败')
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(png)
+    link.download = 'summary.png'
+    link.click()
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000)
+    saveMenuOpen.value = false
+    Message.success('图片已导出')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '导出图片失败')
+  } finally {
+    imageBusy.value = false
+  }
 }
 
 function printSummary() {

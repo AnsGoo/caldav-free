@@ -172,14 +172,21 @@
               :key="item.key"
               class="tw-tg-block"
               :class="item.kind"
-              :style="item.style"
+              :style="[item.style, resizeStyle(item)]"
               :title="`${item.title}${item.timeLabel ? ' · ' + item.timeLabel : ''}`"
               draggable="true"
               @dragstart="startDrag(item, $event)"
-              @click="item.kind === 'task' ? $emit('open', item.task!) : $emit('open-event', item.event!)"
+              @click="onBlockClick(item)"
             >
               <strong>{{ item.title }}</strong>
               <small v-if="item.height > 34">{{ item.timeLabel }}</small>
+              <span
+                v-if="item.kind === 'event' && item.event && !item.event.allDay"
+                class="tw-tg-resize"
+                title="拖动调整时长"
+                @pointerdown.stop.prevent="startResize(item, $event)"
+                @click.stop
+              />
             </div>
             <div v-if="day.key === todayKey" class="tw-tg-now" :style="{ top: `${nowTop}px` }">
               <i />
@@ -254,7 +261,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { CalendarEvent, CalendarSource, TaskItem } from '../../types'
 import { dayKey, startOfToday, taskDayKey } from '../../tasks-utils'
 import { fetchCalendarEvents } from '../../tasks-api'
@@ -597,6 +604,8 @@ function layoutItems(key: string): LayoutItem[] {
 }
 
 const dragItem = ref<CalItem | null>(null)
+const suppressClick = ref(false)
+const resizeState = ref<{ item: CalItem; startY: number; start: number; end: number; nextEnd: number } | null>(null)
 
 function startDrag(item: CalItem, event: DragEvent) {
   dragItem.value = item
@@ -694,6 +703,59 @@ function dropOnTime(key: string, hour: number) {
   const end = new Date(start.getTime() + duration)
   emit('reschedule-event', { event, start: formatLocal(start), end: formatLocal(end), allDay: false })
 }
+
+function startResize(item: CalItem, event: PointerEvent) {
+  if (!item.event || item.event.allDay) return
+  const start = new Date(item.event.start).getTime()
+  const end = new Date(item.event.end).getTime()
+  resizeState.value = { item, startY: event.clientY, start, end, nextEnd: end }
+  window.addEventListener('pointermove', moveResize)
+  window.addEventListener('pointerup', finishResize, { once: true })
+}
+
+function moveResize(event: PointerEvent) {
+  const state = resizeState.value
+  if (!state) return
+  const deltaMinutes = Math.round((event.clientY - state.startY) / (HOUR_HEIGHT / 60) / 15) * 15
+  const next = Math.max(state.start + 15 * 60000, state.end + deltaMinutes * 60000)
+  state.nextEnd = next
+  resizeState.value = { ...state }
+}
+
+function finishResize() {
+  const state = resizeState.value
+  resizeState.value = null
+  window.removeEventListener('pointermove', moveResize)
+  if (!state || state.nextEnd === state.end) return
+  suppressClick.value = true
+  window.setTimeout(() => { suppressClick.value = false }, 0)
+  emit('reschedule-event', {
+    event: state.item.event!,
+    start: formatLocal(new Date(state.start)),
+    end: formatLocal(new Date(state.nextEnd)),
+    allDay: false,
+  })
+}
+
+function onBlockClick(item: CalItem) {
+  if (suppressClick.value) return
+  if (item.kind === 'task') emit('open', item.task!)
+  else emit('open-event', item.event!)
+}
+
+function resizeStyle(item: CalItem) {
+  const state = resizeState.value
+  if (!state || state.item.key !== item.key) return {}
+  const height = Math.max(18, ((state.nextEnd - state.start) / 3600000) * HOUR_HEIGHT)
+  return { height: `${height}px`, zIndex: 3 }
+}
+
+function cleanupResize() {
+  window.removeEventListener('pointermove', moveResize)
+  resizeState.value = null
+}
+
+onBeforeUnmount(cleanupResize)
 
 async function loadEvents() {
   const current = ++requestId

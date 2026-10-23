@@ -5196,3 +5196,29 @@ button.tw-side-link {
   border-radius: 8px;
   background: var(--tw-surface);
 }
+
+.tw-tg-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 7px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.tw-tg-resize::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 22px;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tw-text-2) 45%, transparent);
+  opacity: 0;
+}
+
+.tw-tg-block:hover .tw-tg-resize::after {
+  opacity: 1;
+}

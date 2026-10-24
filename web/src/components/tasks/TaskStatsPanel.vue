@@ -149,7 +149,7 @@
           <header class="tw-stats-panel-head">
             <div><h3>标签</h3><small>点击标签筛选任务</small></div>
           </header>
-          <div v-if="stats.tags.length" class="tw-stat-tags">
+          <div v-if="stats.tags?.length" class="tw-stat-tags">
             <button
               v-for="tag in stats.tags.slice(0, 12)"
               :key="tag.name"

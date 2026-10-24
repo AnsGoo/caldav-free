@@ -16,7 +16,7 @@
           <IconDashboard :size="18" />
           <span>控制台</span>
         </router-link>
-        <router-link class="nav-item" :class="{ active: route.name === 'tasks' }" to="/tasks">
+        <router-link class="nav-item" :class="{ active: String(route.name || '').startsWith('tasks') }" to="/tasks">
           <IconCheckSquare :size="18" />
           <span>任务工作台</span>
         </router-link>

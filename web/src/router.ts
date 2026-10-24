@@ -16,11 +16,7 @@ const router = createRouter({
       name: 'dashboard',
       component: () => import('./views/DashboardView.vue'),
     },
-    {
-      path: '/tasks',
-      name: 'tasks',
-      component: () => import('./views/TaskWorkspaceView.vue'),
-    },
+    ...taskWorkspaceRoutes(),
     {
       path: '/users',
       name: 'users',
@@ -61,3 +57,25 @@ router.beforeEach((to) => {
 })
 
 export default router
+
+
+function taskWorkspaceRoutes() {
+  const component = () => import('./views/TaskWorkspaceView.vue')
+  return [
+    { path: '/tasks', name: 'tasks', component, meta: { view: 'all' } },
+    { path: '/tasks/today', name: 'tasks-today', component, meta: { view: 'today' } },
+    { path: '/tasks/next7', name: 'tasks-next7', component, meta: { view: 'next7' } },
+    { path: '/tasks/inbox', name: 'tasks-inbox', component, meta: { view: 'inbox' } },
+    { path: '/tasks/completed', name: 'tasks-completed', component, meta: { view: 'completed' } },
+    { path: '/tasks/trash', name: 'tasks-trash', component, meta: { view: 'trash' } },
+    { path: '/tasks/matrix', name: 'tasks-matrix', component, meta: { view: 'matrix' } },
+    { path: '/tasks/stats', name: 'tasks-stats', component, meta: { view: 'stats' } },
+    { path: '/tasks/summary', name: 'tasks-summary', component, meta: { view: 'summary' } },
+    { path: '/tasks/ai', name: 'tasks-ai', component, meta: { view: 'ai' } },
+    { path: '/tasks/calendar', name: 'tasks-calendar', component, meta: { view: 'all', mode: 'calendar' } },
+    { path: '/tasks/board', name: 'tasks-board', component, meta: { view: 'all', mode: 'board' } },
+    { path: '/tasks/list/:listId', name: 'tasks-list', component, meta: { view: 'list' } },
+    { path: '/tasks/filter/:filterId', name: 'tasks-filter', component, meta: { view: 'filter' } },
+    { path: '/tasks/shared/:sharedId', name: 'tasks-shared', component, meta: { view: 'shared' } },
+  ]
+}

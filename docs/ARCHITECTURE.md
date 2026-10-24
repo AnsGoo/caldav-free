@@ -18,6 +18,8 @@ internal/web/          管理后台、任务 API、日历事件、统计、AI
 web/                   Vue 3 + Vite+ + Arco 管理后台
 ```
 
+工作台路由：智能视图、四象限、统计、日历等使用独立路径（`/tasks/today`、`/tasks/matrix`、`/tasks/calendar`、`/tasks/list/:id` 等），共用 `TaskWorkspaceView` 外壳；路由 meta 决定视图和模式，详情/搜索等临时状态仍使用查询参数。旧版 `?view=` 链接会自动迁移。
+
 任务工作台前端组件：
 
 ```text

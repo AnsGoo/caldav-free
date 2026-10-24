@@ -79,7 +79,7 @@ func (s *Store) ComputeTaskStats(ctx context.Context, userID int64, days int) (*
 	periodStart := todayStart.AddDate(0, 0, -(days - 1))
 	tomorrow := todayStart.AddDate(0, 0, 1)
 
-	stats := &TaskStats{Days: days}
+	stats := &TaskStats{Days: days, Lists: []TaskListStat{}, Tags: []TaskTagStat{}, Priorities: []TaskPriorityStat{}}
 	daily := make(map[string]*TaskDailyStat, days)
 	for index := 0; index < days; index++ {
 		date := periodStart.AddDate(0, 0, index)

@@ -11,10 +11,10 @@
         <button class="tw-rail-button" :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
           <TaskIcon name="list" :size="21" />
         </button>
-        <button class="tw-rail-button" :class="{ active: mode === 'board' }" title="看板" @click="switchMode('board')">
+        <button class="tw-rail-button" :class="{ active: mode === 'board' }" title="看板" @click="openModePage('board')">
           <TaskIcon name="board" :size="21" />
         </button>
-        <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="switchMode('calendar')">
+        <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="openModePage('calendar')">
           <TaskIcon name="calendar" :size="21" />
         </button>
         <button class="tw-rail-button" :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
@@ -1164,17 +1164,39 @@ function scheduleRefresh() {
   }, 250)
 }
 
+function taskRoutePath() {
+  if (view.value === 'list') return activeListId.value ? `/tasks/list/${activeListId.value}` : '/tasks'
+  if (view.value === 'filter') return activeFilterId.value ? `/tasks/filter/${activeFilterId.value}` : '/tasks'
+  if (view.value === 'shared') return activeSharedListId.value ? `/tasks/shared/${activeSharedListId.value}` : '/tasks'
+  if (view.value === 'all' && mode.value === 'calendar') return '/tasks/calendar'
+  if (view.value === 'all' && mode.value === 'board') return '/tasks/board'
+  return view.value === 'all' ? '/tasks' : `/tasks/${view.value}`
+}
+
 function syncURL() {
-  const next: Record<string, string> = { view: view.value }
-  if (view.value === 'list' && activeListId.value) next.list = String(activeListId.value)
-  if (view.value === 'filter' && activeFilterId.value) next.filter = String(activeFilterId.value)
-  if (view.value === 'shared' && activeSharedListId.value) next.shared = String(activeSharedListId.value)
-  if (mode.value !== 'list') next.mode = mode.value
+  const path = taskRoutePath()
+  const next: Record<string, string> = {}
+  const dedicatedMode = view.value === 'all' && (mode.value === 'calendar' || mode.value === 'board')
+  if (!dedicatedMode && mode.value !== 'list') next.mode = mode.value
   if (selectedId.value) next.task = String(selectedId.value)
   if (query.value) next.q = query.value
+  if (calendarFocus.value) {
+    next.calendar = String(calendarFocus.value.calendarId)
+    next.event = calendarFocus.value.href
+    if (calendarFocus.value.occurrence) next.occurrence = calendarFocus.value.occurrence
+  }
   const current = route.query
-  const same = Object.keys(next).every((key) => current[key] === next[key]) && Object.keys(current).length === Object.keys(next).length
-  if (!same) void router.replace({ path: '/tasks', query: next })
+  const sameQuery = Object.keys(next).every((key) => current[key] === next[key]) && Object.keys(current).length === Object.keys(next).length
+  const currentMode = typeof current.mode === 'string' ? current.mode : (typeof route.meta.mode === 'string' ? route.meta.mode : 'list')
+  const targetMode = next.mode || (dedicatedMode ? mode.value : 'list')
+  const identityChanged = route.path !== path || currentMode !== targetMode
+  if (!identityChanged) {
+    if (!sameQuery) void router.replace({ path, query: next })
+    return
+  }
+  const target = { path, query: next }
+  if (initialized) void router.push(target)
+  else void router.replace(target)
 }
 
 function selectView(nextView: string) {
@@ -1247,14 +1269,32 @@ function selectTagFromStats(tag: string) {
   activeTag.value = tag
 }
 
+function resetWorkspaceToAll() {
+  view.value = 'all'
+  activeListId.value = 0
+  activeFilterId.value = 0
+  activeSharedListId.value = 0
+  activeTag.value = ''
+  selectedId.value = 0
+  sidebarOpen.value = false
+  clearSelection()
+}
+
 function switchMode(next: Mode) {
   if (view.value === 'trash' || view.value === 'shared') return
-  if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai') selectView('all')
+  if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix') resetWorkspaceToAll()
   clearSelection()
   mode.value = next
   if (next === 'calendar') {
     cursor.value = new Date()
   }
+  syncURL()
+}
+
+function openModePage(next: Mode) {
+  if (view.value !== 'all') resetWorkspaceToAll()
+  mode.value = next
+  if (next === 'calendar') cursor.value = new Date()
   syncURL()
 }
 
@@ -2281,22 +2321,34 @@ async function openNotification(url: string) {
   void refreshNotifications()
 }
 
+function routeParamID(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value
+  const id = Number(raw)
+  return Number.isFinite(id) && id > 0 ? id : 0
+}
+
 function hydrateFromRoute() {
   const q = route.query
-  const nextView = typeof q.view === 'string' ? q.view : 'all'
-  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix'].includes(nextView) ? nextView : 'all') as TaskView
-  const listId = typeof q.list === 'string' ? Number(q.list) : 0
+  const validViews: TaskView[] = ['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix']
+  const queryView = typeof q.view === 'string' && validViews.includes(q.view as TaskView) ? q.view as TaskView : null
+  const metaView = typeof route.meta.view === 'string' && validViews.includes(route.meta.view as TaskView) ? route.meta.view as TaskView : null
+  view.value = queryView || metaView || 'all'
+
+  const listId = routeParamID(route.params.listId) || (typeof q.list === 'string' ? Number(q.list) : 0)
   if (view.value === 'list' && listId) activeListId.value = listId
   else if (view.value === 'list') view.value = 'all'
-  const filterId = typeof q.filter === 'string' ? Number(q.filter) : 0
+  const filterId = routeParamID(route.params.filterId) || (typeof q.filter === 'string' ? Number(q.filter) : 0)
   if (view.value === 'filter' && filterId) activeFilterId.value = filterId
   else if (view.value === 'filter') view.value = 'all'
-  const sharedId = typeof q.shared === 'string' ? Number(q.shared) : 0
+  const sharedId = routeParamID(route.params.sharedId) || (typeof q.shared === 'string' ? Number(q.shared) : 0)
   if (view.value === 'shared' && sharedId) activeSharedListId.value = sharedId
   else if (view.value === 'shared') view.value = 'all'
-  const nextMode = typeof q.mode === 'string' ? q.mode : 'list'
+
+  const metaMode = typeof route.meta.mode === 'string' ? route.meta.mode : ''
+  const queryMode = typeof q.mode === 'string' ? q.mode : ''
+  const nextMode = metaMode || queryMode || 'list'
   mode.value = view.value === 'shared' ? 'list' : (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
-  if (view.value === 'trash') mode.value = 'list' 
+  if (view.value === 'trash') mode.value = 'list'
   const focusCalendar = typeof q.calendar === 'string' ? Number(q.calendar) : 0
   const focusEvent = typeof q.event === 'string' ? q.event : ''
   const focusOccurrence = typeof q.occurrence === 'string' ? q.occurrence : ''
@@ -2327,6 +2379,7 @@ onMounted(async () => {
     /* ignore */
   }
   hydrateFromRoute()
+  syncURL()
   if (remindersEnabled.value) {
     await checkReminders()
     startReminderTimer()
@@ -2357,6 +2410,11 @@ onBeforeUnmount(() => {
 watch([view, activeListId, activeFilterId, query], () => {
   if (!initialized) return
   void loadWorkspace()
+})
+
+watch(() => route.fullPath, () => {
+  if (!String(route.name || '').startsWith('tasks')) return
+  hydrateFromRoute()
 })
 
 watch(selectedId, () => {

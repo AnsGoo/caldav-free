@@ -26,6 +26,15 @@
           <button :class="{ active: rule === 'complex' }" @click="$emit('change-rule', 'complex')">优先级 + 日期</button>
           <button v-if="activeViewId" :class="{ active: rule === 'custom' }" @click="$emit('change-rule', 'custom')">自定义</button>
         </div>
+        <button
+          class="tw-matrix-completed-toggle"
+          :class="{ active: showCompleted }"
+          :title="showCompleted ? '隐藏已完成任务' : '显示已完成任务'"
+          @click="$emit('toggle-completed')"
+        >
+          <TaskIcon name="check" :size="11" />
+          已完成
+        </button>
         <span class="tw-matrix-total">{{ tasks.length }} 项</span>
       </div>
     </header>
@@ -117,6 +126,7 @@ const props = defineProps<{
   lists: TaskList[]
   tags: string[]
   assignees: string[]
+  showCompleted: boolean
 }>()
 
 const emit = defineEmits<{
@@ -128,6 +138,7 @@ const emit = defineEmits<{
   (event: 'create-view'): void
   (event: 'manage-views'): void
   (event: 'edit-rules'): void
+  (event: 'toggle-completed'): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)

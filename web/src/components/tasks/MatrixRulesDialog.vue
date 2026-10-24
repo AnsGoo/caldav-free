@@ -13,7 +13,15 @@
       <div class="tw-dialog-body tw-matrix-rules-body">
         <div class="tw-matrix-rules-toolbar">
           <span>条件组内部为“且”；条件组之间可按“任意/全部”组合。按 Q1 → Q4 顺序匹配，未匹配任务归入 Q4。</span>
-          <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">恢复内置规则与配色</button>
+          <div class="tw-matrix-rules-tools">
+            <select v-model="template" class="tw-matrix-template-select" @change="applyTemplate">
+              <option value="">套用模板…</option>
+              <option value="priority">按优先级分组</option>
+              <option value="eisenhower">优先级 + 日期</option>
+              <option value="empty">清空全部条件</option>
+            </select>
+            <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">恢复内置规则与配色</button>
+          </div>
         </div>
 
         <section v-for="quadrant in MATRIX_QUADRANTS" :key="quadrant.id" class="tw-matrix-rule-card" :style="{ '--matrix-color': form[quadrant.id].color }">
@@ -113,9 +121,13 @@
             <p v-if="conditionEmpty(group)" class="tw-matrix-rule-hint">空白条件组会匹配全部任务。</p>
           </div>
 
-          <button class="tw-matrix-add-group" :disabled="form[quadrant.id].groups.length >= 12" @click="addConditionGroup(quadrant.id)">
-            + 添加条件组（OR）
-          </button>
+          <div class="tw-matrix-rule-actions">
+            <button class="tw-matrix-add-group" :disabled="form[quadrant.id].groups.length >= 12" @click="addConditionGroup(quadrant.id)">
+              + 添加条件组（OR）
+            </button>
+            <button class="tw-matrix-rule-action" @click="copyConditions(quadrant.id)">复制条件</button>
+            <button class="tw-matrix-rule-action" :disabled="!copiedConditions" @click="pasteConditions(quadrant.id)">粘贴条件</button>
+          </div>
           <p v-if="quadrant.id === 'q4'" class="tw-matrix-rule-hint">未匹配 Q1–Q3 的任务会自动归入此象限。</p>
         </section>
 
@@ -131,6 +143,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { Message } from '@arco-design/web-vue'
 import type { MatrixCondition, MatrixQuadrantKey, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
 import { clearMatrixConditions, defaultMatrixRules, emptyMatrixCondition, MATRIX_QUADRANTS, matchesMatrixCondition, matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
 import { updateMatrixView } from '../../tasks-api'
@@ -154,6 +167,8 @@ const busy = ref(false)
 const error = ref('')
 const groupDrag = ref<{ quadrant: MatrixQuadrantKey; index: number } | null>(null)
 const groupOver = ref(-1)
+const template = ref('')
+const copiedConditions = ref<{ match: 'all' | 'any'; groups: MatrixCondition[] } | null>(null)
 
 const quadrantCounts = computed(() => {
   const counts: Record<MatrixQuadrantKey, number> = { q1: 0, q2: 0, q3: 0, q4: 0 }
@@ -184,6 +199,46 @@ function togglePriority(quadrant: MatrixQuadrantKey, groupIndex: number, priorit
   group.priorities = group.priorities.includes(priority)
     ? group.priorities.filter((value) => value !== priority)
     : [...group.priorities, priority]
+}
+
+function cloneCondition(condition: MatrixCondition): MatrixCondition {
+  return { ...condition, priorities: [...condition.priorities] }
+}
+
+function applyTemplate() {
+  const selected = template.value
+  template.value = ''
+  if (!selected) return
+  const priorities: Record<MatrixQuadrantKey, number[]> = { q1: [3], q2: [2], q3: [1], q4: [0] }
+  const presets = selected === 'eisenhower' ? defaultMatrixRules() : null
+  for (const quadrant of MATRIX_QUADRANTS) {
+    const rule = form.value[quadrant.id]
+    if (selected === 'priority') {
+      rule.match = 'all'
+      rule.groups = [{ ...emptyMatrixCondition(), priorities: priorities[quadrant.id] }]
+    } else if (presets) {
+      rule.match = presets[quadrant.id].match
+      rule.groups = presets[quadrant.id].groups.map(cloneCondition)
+    } else {
+      rule.match = 'all'
+      rule.groups = [emptyMatrixCondition()]
+    }
+  }
+}
+
+function copyConditions(quadrant: MatrixQuadrantKey) {
+  const rule = form.value[quadrant]
+  copiedConditions.value = { match: rule.match, groups: rule.groups.map(cloneCondition) }
+  Message.success(`已复制「${rule.name}」的条件`)
+}
+
+function pasteConditions(quadrant: MatrixQuadrantKey) {
+  const copied = copiedConditions.value
+  if (!copied) return
+  const rule = form.value[quadrant]
+  rule.match = copied.match
+  rule.groups = copied.groups.map(cloneCondition)
+  Message.success(`已粘贴到「${rule.name}」`)
 }
 
 function conditionEmpty(condition: MatrixCondition) {

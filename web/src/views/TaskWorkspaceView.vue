@@ -159,11 +159,12 @@
 
       <TaskMatrixPanel
         v-if="view === 'matrix'"
-        :tasks="filteredTasks"
+        :tasks="matrixTasks"
         :rule="matrixRule"
         :views="matrixViews"
         :active-view-id="activeMatrixViewId"
         :custom-rules="matrixCustomRules"
+        :show-completed="matrixShowCompleted"
         :lists="lists"
         :tags="tags"
         :assignees="matrixAssignees"
@@ -175,6 +176,7 @@
         @create-view="openMatrixViewDialog"
         @manage-views="matrixViewManagerOpen = true"
         @edit-rules="openMatrixRules"
+        @toggle-completed="toggleMatrixCompleted"
       />
       <div v-else class="tw-scroll">
         <div class="tw-content">
@@ -686,7 +688,7 @@
       :lists="lists"
       :tags="tags"
       :assignees="matrixAssignees"
-      :tasks="filteredTasks"
+      :tasks="matrixTasks"
       @saved="onMatrixRulesSaved"
       @close="matrixRulesDialogOpen = false"
     />
@@ -877,6 +879,12 @@ const matrixViewName = ref('')
 const matrixViewMode = ref<MatrixRuleMode>('simple')
 const matrixViewManagerOpen = ref(false)
 const matrixRulesDialogOpen = ref(false)
+const matrixShowCompleted = ref(true)
+try {
+  matrixShowCompleted.value = localStorage.getItem('caldav-matrix-show-completed') !== '0'
+} catch {
+  /* ignore */
+}
 const matrixViewBusy = ref(false)
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
@@ -1543,11 +1551,23 @@ async function rescheduleEvent(payload: { event: CalendarEvent; start: string; e
   }
 }
 
+const matrixTasks = computed(() =>
+  matrixShowCompleted.value ? filteredTasks.value : filteredTasks.value.filter((task) => !task.completed),
+)
 const activeMatrixView = computed(() => matrixViews.value.find((item) => item.id === activeMatrixViewId.value))
 const matrixCustomRules = computed(() => activeMatrixView.value?.rules)
 const matrixAssignees = computed(() =>
   Array.from(new Set(tasks.value.map((task) => task.assignee).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh')),
 )
+
+function toggleMatrixCompleted() {
+  matrixShowCompleted.value = !matrixShowCompleted.value
+  try {
+    localStorage.setItem('caldav-matrix-show-completed', matrixShowCompleted.value ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
 
 function openMatrixRules() {
   if (!activeMatrixViewId.value) return

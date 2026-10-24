@@ -6197,3 +6197,73 @@ button.tw-side-link {
   outline-offset: 3px;
   border-radius: 6px;
 }
+
+.tw-matrix-rules-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.tw-matrix-template-select {
+  height: 24px;
+  border: 1px solid var(--tw-border);
+  border-radius: 7px;
+  padding: 0 6px;
+  color: var(--tw-text-2);
+  background: var(--tw-bg);
+  font-size: 10.5px;
+}
+
+.tw-matrix-rule-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.tw-matrix-rule-actions .tw-matrix-add-group {
+  flex: 1;
+  width: auto;
+  margin-top: 0;
+}
+
+.tw-matrix-rule-action {
+  flex: none;
+  border: 1px solid var(--tw-border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: var(--tw-text-3);
+  background: transparent;
+  font-size: 10.5px;
+}
+
+.tw-matrix-rule-action:hover:not(:disabled) {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+}
+
+.tw-matrix-rule-action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tw-matrix-completed-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  border: 1px solid var(--tw-border);
+  border-radius: 7px;
+  padding: 0 8px;
+  color: var(--tw-text-3);
+  background: transparent;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.tw-matrix-completed-toggle.active {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 9%, transparent);
+}

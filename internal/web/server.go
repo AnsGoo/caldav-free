@@ -197,6 +197,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/task-tags/delete", s.apiAdmin(s.apiDeleteTaskTag))
 	mux.HandleFunc("GET /api/admin/countdowns", s.apiAdmin(s.apiCountdowns))
 	mux.HandleFunc("POST /api/admin/countdowns", s.apiAdmin(s.apiCountdowns))
+	mux.HandleFunc("POST /api/admin/countdowns/reorder", s.apiAdmin(s.apiCountdownReorder))
 	mux.HandleFunc("PATCH /api/admin/countdowns/{id}", s.apiAdmin(s.apiCountdown))
 	mux.HandleFunc("DELETE /api/admin/countdowns/{id}", s.apiAdmin(s.apiCountdown))
 	mux.HandleFunc("GET /api/admin/focus", s.apiAdmin(s.apiFocus))

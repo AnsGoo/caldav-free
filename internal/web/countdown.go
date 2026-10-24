@@ -64,3 +64,17 @@ func (s *Server) apiCountdown(w http.ResponseWriter, r *http.Request, current *s
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"countdown": item})
 }
+
+func (s *Server) apiCountdownReorder(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if err := s.store.SetCountdownOrder(r.Context(), current.ID, body.IDs); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

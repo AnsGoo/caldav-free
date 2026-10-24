@@ -33,12 +33,18 @@
         v-for="item in filteredItems"
         :key="item.id"
         class="tw-countdown-card"
-        :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past' }]"
+        :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past', dragging: draggingId === item.id, 'drag-over': dragOverId === item.id && draggingId !== item.id }]"
         :style="cardStyle(item)"
+        :draggable="!archived && filter === 'all'"
         role="button"
         tabindex="0"
-        @click="detailItem = item"
-        @keydown.enter="detailItem = item"
+        @click="onCardClick(item)"
+        @keydown.enter="onCardClick(item)"
+        @dragstart="startDrag(item, $event)"
+        @dragover.prevent="dragOverId = item.id"
+        @dragleave="dragOverId = 0"
+        @drop.prevent="dropOn(item)"
+        @dragend="endDrag"
       >
         <div class="tw-countdown-card-pin" v-if="item.pinned"><TaskIcon name="flag" :size="13" /></div>
         <header>
@@ -155,6 +161,12 @@
             </div>
           </div>
           <div class="tw-countdown-form-section">
+            <span>背景</span>
+            <div class="tw-countdown-backgrounds">
+              <button v-for="background in backgroundPresets" :key="background.value" class="tw-countdown-background" :class="{ active: form.background === background.value }" :style="background.style" :title="background.label" @click="form.background = background.value">{{ background.label }}</button>
+            </div>
+          </div>
+          <div class="tw-countdown-form-section">
             <span>样式</span>
             <div class="tw-countdown-style-row">
               <button v-for="style in styleOptions" :key="style.value" class="tw-countdown-style" :class="{ active: form.style === style.value }" @click="form.style = style.value">{{ style.label }}</button>
@@ -178,7 +190,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { CountdownDraft, CountdownItem, CountdownRepeat, CountdownType } from '../../types'
-import { createCountdown, deleteCountdown, fetchCountdowns, updateCountdown } from '../../tasks-api'
+import { createCountdown, deleteCountdown, fetchCountdowns, reorderCountdowns, updateCountdown } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const tabs: Array<{ value: 'all' | CountdownType; label: string }> = [
@@ -202,6 +214,13 @@ const reminderOptions = [
   { value: 7, label: '提前 7 天' },
 ]
 const colors = ['#92D0FF', '#FDB368', '#FF8F9C', '#B58BFF', '#97E38B', '#5ED4C5', '#F4C95D', '#A2A8B8']
+const backgroundPresets = [
+  { value: '', label: '无', style: {} },
+  { value: 'aurora', label: '极光', style: { background: 'linear-gradient(135deg, #e0c3fc, #8ec5fc)' } },
+  { value: 'sunset', label: '晚霞', style: { background: 'linear-gradient(135deg, #ffecd2, #fcb69f)' } },
+  { value: 'mint', label: '薄荷', style: { background: 'linear-gradient(135deg, #d4fc79, #96e6a1)' } },
+  { value: 'rose', label: '玫瑰', style: { background: 'linear-gradient(135deg, #fbc2eb, #a6c1ee)' } },
+]
 const festivalPresets = [
   { name: '元旦', month: 1, day: 1, icon: '🎊', color: '#92D0FF' },
   { name: '情人节', month: 2, day: 14, icon: '❤️', color: '#FF8F9C' },
@@ -226,6 +245,9 @@ const loading = ref(true)
 const archived = ref(false)
 const filter = ref<'all' | CountdownType>('all')
 const viewMenuOpen = ref(false)
+const draggingId = ref(0)
+const dragOverId = ref(0)
+const suppressClick = ref(false)
 const dialogOpen = ref(false)
 const detailItem = ref<CountdownItem | null>(null)
 const editingId = ref(0)
@@ -313,10 +335,64 @@ function parseReminders(raw: string) {
 }
 
 function cardStyle(item: CountdownItem) {
-  if (item.style === 'color') return { backgroundColor: item.color, borderColor: item.color }
-  if (item.style === 'soft') return { backgroundColor: `${item.color}22`, borderColor: `${item.color}55` }
-  if (item.style === 'outline') return { borderColor: item.color }
-  return undefined
+  const style: Record<string, string> = {}
+  const background = backgroundPresets.find((preset) => preset.value === item.background)
+  if (background?.style.background) style.background = background.style.background
+  if (item.style === 'color') {
+    style.backgroundColor = item.color
+    style.borderColor = item.color
+  } else if (item.style === 'soft') {
+    style.backgroundColor = `${item.color}22`
+    style.borderColor = `${item.color}55`
+  } else if (item.style === 'outline') {
+    style.borderColor = item.color
+  }
+  return Object.keys(style).length ? style : undefined
+}
+
+function startDrag(item: CountdownItem, event: DragEvent) {
+  if (archived.value || filter.value !== 'all') return
+  draggingId.value = item.id
+  dragOverId.value = 0
+  suppressClick.value = true
+  event.dataTransfer?.setData('text/plain', String(item.id))
+}
+
+function endDrag() {
+  draggingId.value = 0
+  dragOverId.value = 0
+  setTimeout(() => { suppressClick.value = false }, 80)
+}
+
+async function dropOn(target: CountdownItem) {
+  const sourceId = draggingId.value
+  if (!sourceId || sourceId === target.id) {
+    endDrag()
+    return
+  }
+  const from = items.value.findIndex((item) => item.id === sourceId)
+  const to = items.value.findIndex((item) => item.id === target.id)
+  if (from < 0 || to < 0) {
+    endDrag()
+    return
+  }
+  const next = [...items.value]
+  const [moved] = next.splice(from, 1)
+  next.splice(to, 0, moved)
+  items.value = next
+  try {
+    await reorderCountdowns(next.map((item) => item.id))
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存排序失败')
+    await load()
+  } finally {
+    endDrag()
+  }
+}
+
+function onCardClick(item: CountdownItem) {
+  if (suppressClick.value) return
+  detailItem.value = item
 }
 
 async function load() {

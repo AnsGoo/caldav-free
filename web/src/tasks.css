@@ -7570,3 +7570,9 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-countdown-detail-reminders small { flex: none; color: var(--tw-accent); }
 .tw-countdown-detail-foot { justify-content: flex-end; flex-wrap: wrap; }
 .tw-countdown-detail-foot .tw-danger-link { margin-left: auto; }
+.tw-countdown-card[draggable='true'] { cursor: grab; }
+.tw-countdown-card.dragging { opacity: 0.45; }
+.tw-countdown-card.drag-over { box-shadow: 0 0 0 2px var(--tw-accent); }
+.tw-countdown-backgrounds { display: flex; gap: 6px; flex-wrap: wrap; }
+.tw-countdown-background { min-width: 44px; height: 24px; padding: 0 7px; border: 2px solid var(--tw-border); border-radius: 7px; color: #1d2129; font-size: 9px; cursor: pointer; }
+.tw-countdown-background.active { border-color: var(--tw-accent); box-shadow: 0 0 0 2px var(--tw-accent-soft); }

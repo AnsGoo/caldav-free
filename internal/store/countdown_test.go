@@ -109,6 +109,22 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 		t.Fatalf("unexpected past countdown: %+v", past)
 	}
 
+	activeItems, err := s.ListCountdowns(ctx, userID, false)
+	if err != nil || len(activeItems) < 2 {
+		t.Fatalf("active items = %d (%v)", len(activeItems), err)
+	}
+	ids := make([]int64, 0, len(activeItems))
+	for index := len(activeItems) - 1; index >= 0; index-- {
+		ids = append(ids, activeItems[index].ID)
+	}
+	if err := s.SetCountdownOrder(ctx, userID, ids); err != nil {
+		t.Fatal(err)
+	}
+	reordered, err := s.ListCountdowns(ctx, userID, false)
+	if err != nil || len(reordered) < 2 || reordered[0].ID != ids[0] {
+		t.Fatalf("reordered countdowns = %+v (%v)", reordered, err)
+	}
+
 	if err := s.DeleteCountdown(ctx, userID, item.ID); err != nil {
 		t.Fatal(err)
 	}

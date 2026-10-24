@@ -444,3 +444,18 @@ func (s *Store) ListCountdownReminderCandidates(ctx context.Context) ([]*Countdo
 func CountdownOccurrenceTime(stamp int) (time.Time, bool) {
 	return parseCountdownDate(stamp)
 }
+
+func (s *Store) SetCountdownOrder(ctx context.Context, userID int64, ids []int64) error {
+	if len(ids) > 500 {
+		return fmt.Errorf("一次最多排序 500 个倒数日")
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for index, id := range ids {
+			if err := tx.Model(&CountdownEvent{}).Where("id = ? AND user_id = ?", id, userID).
+				Update("sort_order", index+1).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

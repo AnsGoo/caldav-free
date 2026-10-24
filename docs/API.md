@@ -1369,6 +1369,15 @@ create_list
 `repeat`：`none`、`yearly`、`monthly`、`weekly`、`weekend`
 `reminderTime`：`HH:mm`，默认 `09:00`
 `lunarMonth` / `lunarDay` / `lunarLeap`：农历日期字段
+`background`：`''`、`aurora`、`sunset`、`mint`、`rose` 等背景预设
+
+### POST /api/admin/countdowns/reorder
+
+```json
+{ "ids": [3, 1, 2] }
+```
+
+按数组顺序更新当前用户的 `sort_order`。
 
 ### PATCH /api/admin/countdowns/{id}
 

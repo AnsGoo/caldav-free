@@ -637,3 +637,7 @@ export function updateCountdown(id: number, patch: Partial<CountdownDraft>) {
 export function deleteCountdown(id: number) {
   return api<void>(`/countdowns/${id}`, { method: 'DELETE' })
 }
+
+export function reorderCountdowns(ids: number[]) {
+  return api<void>('/countdowns/reorder', { method: 'POST', body: JSON.stringify({ ids }) })
+}

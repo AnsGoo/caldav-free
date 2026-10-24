@@ -46,7 +46,10 @@ func (s *Store) CreateMatrixView(ctx context.Context, userID int64, name, mode s
 }
 
 func (s *Store) UpdateMatrixView(ctx context.Context, userID, id int64, name, mode string, order int) (*MatrixView, error) {
-	updates := map[string]any{"mode": normalizeMatrixMode(mode), "order_index": order}
+	updates := map[string]any{"mode": normalizeMatrixMode(mode)}
+	if order > 0 {
+		updates["order_index"] = order
+	}
 	if trimmed := strings.TrimSpace(name); trimmed != "" {
 		updates["name"] = trimmed
 	}

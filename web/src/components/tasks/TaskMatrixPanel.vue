@@ -14,6 +14,15 @@
           <button title="新建四象限视图" @click="$emit('create-view')">
             <TaskIcon name="plus" :size="13" />
           </button>
+          <button v-if="activeViewId" title="重命名或修改规则" @click="$emit('edit-view', activeViewId)">
+            <TaskIcon name="edit" :size="13" />
+          </button>
+          <button v-if="activeViewId" title="上移视图" @click="$emit('move-view', activeViewId, -1)">
+            <TaskIcon name="chevron" :size="12" style="transform: rotate(-90deg)" />
+          </button>
+          <button v-if="activeViewId" title="下移视图" @click="$emit('move-view', activeViewId, 1)">
+            <TaskIcon name="chevron" :size="12" style="transform: rotate(90deg)" />
+          </button>
           <button v-if="activeViewId" title="删除当前视图" @click="$emit('delete-view', activeViewId)">
             <TaskIcon name="trash" :size="13" />
           </button>
@@ -113,6 +122,8 @@ const emit = defineEmits<{
   (event: 'select-view', id: number): void
   (event: 'create-view'): void
   (event: 'delete-view', id: number): void
+  (event: 'edit-view', id: number): void
+  (event: 'move-view', id: number, direction: -1 | 1): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)

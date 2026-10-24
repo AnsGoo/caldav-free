@@ -169,6 +169,8 @@
         @change-rule="setMatrixRule"
         @select-view="selectMatrixView"
         @create-view="openMatrixViewDialog"
+        @edit-view="openEditMatrixView"
+        @move-view="moveMatrixView"
         @delete-view="confirmDeleteMatrixView"
       />
       <div v-else class="tw-scroll">
@@ -677,7 +679,7 @@
     <div v-if="matrixViewDialogOpen" class="tw-dialog-scrim" @click.self="matrixViewDialogOpen = false">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="新建四象限视图" @keydown.esc="matrixViewDialogOpen = false">
         <header class="tw-dialog-head">
-          <h2>新建四象限视图</h2>
+          <h2>{{ matrixViewEditingId ? '编辑四象限视图' : '新建四象限视图' }}</h2>
           <button class="tw-icon-button" title="关闭" @click="matrixViewDialogOpen = false">
             <TaskIcon name="close" :size="16" />
           </button>
@@ -698,7 +700,7 @@
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="matrixViewDialogOpen = false">取消</button>
           <button class="tw-dialog-ok" :disabled="matrixViewBusy || !matrixViewName.trim()" @click="saveMatrixView">
-            {{ matrixViewBusy ? '创建中…' : '创建' }}
+            {{ matrixViewBusy ? '保存中…' : matrixViewEditingId ? '保存' : '创建' }}
           </button>
         </footer>
       </div>
@@ -848,6 +850,7 @@ const activeMatrixViewId = ref(0)
 const matrixViewDialogOpen = ref(false)
 const matrixViewName = ref('')
 const matrixViewMode = ref<'simple' | 'complex'>('simple')
+const matrixViewEditingId = ref(0)
 const matrixViewBusy = ref(false)
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
@@ -1542,10 +1545,43 @@ function selectMatrixView(id: number) {
 }
 
 function openMatrixViewDialog() {
+  matrixViewEditingId.value = 0
   matrixViewName.value = `四象限视图 ${matrixViews.value.length + 1}`
   matrixViewMode.value = matrixRule.value
   matrixViewBusy.value = false
   matrixViewDialogOpen.value = true
+}
+
+function openEditMatrixView(id: number) {
+  const view = matrixViews.value.find((item) => item.id === id)
+  if (!view) return
+  matrixViewEditingId.value = id
+  matrixViewName.value = view.name
+  matrixViewMode.value = view.mode
+  matrixViewBusy.value = false
+  matrixViewDialogOpen.value = true
+}
+
+async function moveMatrixView(id: number, direction: -1 | 1) {
+  const index = matrixViews.value.findIndex((item) => item.id === id)
+  const target = index + direction
+  if (index < 0 || target < 0 || target >= matrixViews.value.length) return
+  const current = matrixViews.value[index]
+  const other = matrixViews.value[target]
+  try {
+    await Promise.all([
+      updateMatrixView(current.id, { name: current.name, mode: current.mode, order: other.order }),
+      updateMatrixView(other.id, { name: other.name, mode: other.mode, order: current.order }),
+    ])
+    matrixViews.value = matrixViews.value.map((item) => {
+      if (item.id === current.id) return { ...item, order: other.order }
+      if (item.id === other.id) return { ...item, order: current.order }
+      return item
+    }).sort((a, b) => a.order - b.order || a.id - b.id)
+    Message.success('视图顺序已更新')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '调整视图顺序失败')
+  }
 }
 
 async function saveMatrixView() {
@@ -1553,13 +1589,21 @@ async function saveMatrixView() {
   if (!name || matrixViewBusy.value) return
   matrixViewBusy.value = true
   try {
-    const { view } = await createMatrixView(name, matrixViewMode.value)
-    matrixViews.value = [...matrixViews.value, view]
-    selectMatrixView(view.id)
-    matrixViewDialogOpen.value = false
-    Message.success('四象限视图已创建')
+    if (matrixViewEditingId.value) {
+      const { view } = await updateMatrixView(matrixViewEditingId.value, { name, mode: matrixViewMode.value })
+      matrixViews.value = matrixViews.value.map((item) => item.id === view.id ? view : item)
+      if (activeMatrixViewId.value === view.id) matrixRule.value = view.mode
+      matrixViewDialogOpen.value = false
+      Message.success('四象限视图已保存')
+    } else {
+      const { view } = await createMatrixView(name, matrixViewMode.value)
+      matrixViews.value = [...matrixViews.value, view]
+      selectMatrixView(view.id)
+      matrixViewDialogOpen.value = false
+      Message.success('四象限视图已创建')
+    }
   } catch (error) {
-    Message.error(error instanceof Error ? error.message : '创建四象限视图失败')
+    Message.error(error instanceof Error ? error.message : '保存四象限视图失败')
   } finally {
     matrixViewBusy.value = false
   }

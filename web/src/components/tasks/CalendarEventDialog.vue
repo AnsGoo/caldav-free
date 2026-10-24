@@ -1,14 +1,51 @@
 <template>
   <div class="tw-dialog-scrim" @click.self="$emit('close')">
-    <div class="tw-dialog tw-event-dialog" role="dialog" aria-modal="true" aria-label="编辑日程">
+    <div class="tw-dialog tw-event-dialog" role="dialog" aria-modal="true" :aria-label="readonly ? '日程详情' : '编辑日程'">
       <header class="tw-dialog-head">
-        <h2>{{ editing ? '编辑日程' : '新建日程' }}</h2>
+        <h2>{{ readonly ? '日程详情' : editing ? '编辑日程' : '新建日程' }}</h2>
         <button class="tw-icon-button" title="关闭" @click="$emit('close')">
           <TaskIcon name="close" :size="16" />
         </button>
       </header>
 
-      <div class="tw-dialog-body tw-event-body">
+      <div v-if="readonly" class="tw-dialog-body tw-event-body tw-event-readonly">
+        <div class="tw-event-readonly-title">
+          <h3>{{ form.summary || '未命名事件' }}</h3>
+          <span class="tw-event-readonly-badge">只读</span>
+        </div>
+        <div class="tw-event-readonly-grid">
+          <div>
+            <span>日历</span>
+            <strong><i :style="{ background: calendarColor }" />{{ calendarName }}</strong>
+          </div>
+          <div>
+            <span>时间</span>
+            <strong>{{ readonlyTimeLabel }}</strong>
+          </div>
+          <div v-if="form.location">
+            <span>地点</span>
+            <strong>{{ form.location }}</strong>
+          </div>
+          <div v-if="form.attendees">
+            <span>参与人</span>
+            <strong>{{ form.attendees }}</strong>
+          </div>
+          <div v-if="repeatLabel">
+            <span>重复</span>
+            <strong>{{ repeatLabel }}</strong>
+          </div>
+          <div v-if="form.reminder >= 0">
+            <span>提醒</span>
+            <strong>{{ reminderText }}</strong>
+          </div>
+        </div>
+        <div v-if="form.description" class="tw-event-readonly-description">
+          <span>描述</span>
+          <p>{{ form.description }}</p>
+        </div>
+      </div>
+
+      <div v-else class="tw-dialog-body tw-event-body">
         <div class="tw-event-field">
           <span>标题</span>
           <a-input ref="titleInput" v-model="form.summary" class="tw-dialog-input" :max-length="300" placeholder="日程标题" @keydown.enter.prevent="save" />
@@ -104,12 +141,12 @@
       </div>
 
       <footer class="tw-dialog-foot tw-event-foot">
-        <button v-if="editing" class="tw-event-delete" :disabled="busy" @click="remove">
+        <button v-if="editing && !readonly" class="tw-event-delete" :disabled="busy" @click="remove">
           {{ deleteArmed ? '确认删除' : '删除日程' }}
         </button>
         <span class="tw-event-foot-spacer" />
-        <button class="tw-dialog-cancel" :disabled="busy" @click="$emit('close')">取消</button>
-        <button class="tw-dialog-ok" :disabled="busy || !form.calendarId" @click="save">
+        <button class="tw-dialog-cancel" :disabled="busy" @click="$emit('close')">{{ readonly ? '关闭' : '取消' }}</button>
+        <button v-if="!readonly" class="tw-dialog-ok" :disabled="busy || !form.calendarId" @click="save">
           {{ busy ? '保存中…' : '保存' }}
         </button>
       </footer>
@@ -135,6 +172,40 @@ const emit = defineEmits<{
 }>()
 
 const editing = computed(() => Boolean(props.event))
+const readonly = computed(() => Boolean(props.event?.readonly))
+const calendarName = computed(() => {
+  const calendar = props.calendars.find((item) => item.id === form.calendarId)
+  if (calendar) return calendar.name
+  return form.calendarId === 0 ? '节假日' : '订阅日历'
+})
+const calendarColor = computed(() => props.calendars.find((item) => item.id === form.calendarId)?.color || '#f0a020')
+const repeatLabel = computed(() => {
+  if (!form.rrule) return ''
+  const labels: Record<string, string> = {
+    'FREQ=DAILY': '每天',
+    'FREQ=WEEKLY': '每周',
+    'FREQ=MONTHLY': '每月',
+    'FREQ=YEARLY': '每年',
+  }
+  return labels[form.rrule] || form.rrule
+})
+const reminderText = computed(() => {
+  if (form.reminder < 0) return '不提醒'
+  if (form.reminder === 0) return '准时提醒'
+  if (form.reminder % 1440 === 0) return `提前 ${form.reminder / 1440} 天`
+  if (form.reminder % 60 === 0) return `提前 ${form.reminder / 60} 小时`
+  return `提前 ${form.reminder} 分钟`
+})
+const readonlyTimeLabel = computed(() => {
+  if (form.allDay) {
+    if (form.endDate && form.endDate !== form.startDate) return `${form.startDate} 至 ${form.endDate} · 全天`
+    return `${form.startDate} · 全天`
+  }
+  if (form.endDate && form.endDate !== form.startDate) {
+    return `${form.startDate} ${form.startTime} 至 ${form.endDate} ${form.endTime}`
+  }
+  return `${form.startDate} ${form.startTime} - ${form.endTime}`
+})
 const busy = ref(false)
 const error = ref('')
 const deleteArmed = ref(false)
@@ -316,6 +387,6 @@ async function remove() {
 
 onMounted(() => {
   hydrate()
-  void nextTick(() => titleInput.value?.focus?.())
+  if (!readonly.value) void nextTick(() => titleInput.value?.focus?.())
 })
 </script>

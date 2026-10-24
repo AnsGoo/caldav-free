@@ -176,7 +176,7 @@
         <div class="tw-field-grid">
           <div class="tw-field">
             <span>重复</span>
-            <a-select v-model="recurrenceChoice" class="tw-field-select" @change="onRecurrenceChoice">
+            <a-select v-model="recurrenceChoice" class="tw-field-select" :trigger-props="{ contentClass: 'tw-recurrence-popup' }" @change="onRecurrenceChoice">
               <a-option v-for="option in RECURRENCE_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</a-option>
             </a-select>
           </div>

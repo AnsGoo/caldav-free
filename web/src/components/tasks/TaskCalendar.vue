@@ -106,7 +106,7 @@
                 :title="item.title"
                 :draggable="!item.event!.readonly"
                 @dragstart="!item.event!.readonly && startDrag(item, $event)"
-                @click="!item.event!.readonly && $emit('open-event', item.event!)"
+                @click="$emit('open-event', item.event!)"
               >
                 <i :style="{ background: item.color }" />
                 <span>{{ item.title }}</span>
@@ -172,7 +172,7 @@
               :title="item.title"
               :draggable="!item.event!.readonly"
               @dragstart="!item.event!.readonly && startDrag(item, $event)"
-              @click="!item.event!.readonly && $emit('open-event', item.event!)"
+              @click="$emit('open-event', item.event!)"
             >
               {{ item.title }}
             </button>
@@ -1064,7 +1064,7 @@ function openDay(key: string) {
 function openCalendarItem(item: CalItem) {
   if (item.kind === 'task' && item.task) emit('open', item.task)
   else if (item.kind === 'habit' && item.habitId) emit('open-habit', item.habitId)
-  else if (item.event && !item.event.readonly) emit('open-event', item.event)
+  else if (item.event) emit('open-event', item.event)
 }
 
 function openDayItem(item: CalItem) {

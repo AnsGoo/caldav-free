@@ -160,7 +160,7 @@
         </button>
       </div>
 
-      <HabitPanel v-if="view === 'habit'" />
+      <HabitPanel v-if="view === 'habit'" :focus-habit-id="habitFocusId" @open-detail="onHabitDetailOpened" @close-detail="onHabitDetailClosed" />
       <TaskMatrixPanel
         v-else-if="view === 'matrix'"
         :tasks="matrixTasks"
@@ -1192,6 +1192,7 @@ function taskRoutePath() {
   if (view.value === 'shared') return activeSharedListId.value ? `/tasks/shared/${activeSharedListId.value}` : '/tasks'
   if (view.value === 'all' && mode.value === 'calendar') return '/tasks/calendar'
   if (view.value === 'all' && mode.value === 'board') return '/tasks/board'
+  if (view.value === 'habit' && route.params.habitId) return `/tasks/habit/${route.params.habitId}`
   return view.value === 'all' ? '/tasks' : `/tasks/${view.value}`
 }
 
@@ -1569,8 +1570,18 @@ function stepCalendar(delta: number) {
   }
 }
 
-function openHabitFromCalendar(_id: number) {
+function openHabitFromCalendar(id: number) {
   selectView('habit')
+  void router.replace({ path: `/tasks/habit/${id}` })
+}
+
+function onHabitDetailOpened(id: number) {
+  if (view.value !== 'habit') return
+  if (String(route.params.habitId || '') !== String(id)) void router.replace({ path: `/tasks/habit/${id}` })
+}
+
+function onHabitDetailClosed() {
+  if (view.value === 'habit' && route.params.habitId) void router.replace({ path: '/tasks/habit' })
 }
 
 function openCalendarEvent(event: CalendarEvent) {
@@ -1624,6 +1635,8 @@ async function rescheduleEvent(payload: { event: CalendarEvent; start: string; e
     Message.error(error instanceof Error ? error.message : '日程改期失败')
   }
 }
+
+const habitFocusId = computed(() => Number(route.params.habitId) || 0)
 
 const matrixTasks = computed(() =>
   matrixShowCompleted.value ? filteredTasks.value : filteredTasks.value.filter((task) => !task.completed),

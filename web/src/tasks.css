@@ -6984,3 +6984,14 @@ button.tw-side-link {
 .tw-habit-target-bar { height: 5px; margin-top: 7px; border-radius: 999px; background: var(--tw-hover); overflow: hidden; }
 .tw-habit-target-bar i { display: block; height: 100%; border-radius: inherit; background: var(--tw-accent); }
 .tw-habit-target small { display: block; margin-top: 5px; color: var(--tw-text-3); font-size: 9.5px; }
+
+.tw-habit-focus-dialog { width: min(420px, calc(100vw - 32px)); }
+.tw-habit-focus-body { align-items: center; text-align: center; }
+.tw-habit-focus-time { margin: 8px 0 14px; color: var(--tw-text); font-size: 48px; font-weight: 650; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+.tw-habit-focus-time.done { color: var(--tw-accent); }
+.tw-habit-focus-presets { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; }
+.tw-habit-focus-presets button { border: 1px solid var(--tw-border); border-radius: 999px; padding: 5px 10px; color: var(--tw-text-3); background: transparent; font-size: 10.5px; }
+.tw-habit-focus-presets button.active { border-color: var(--tw-accent); color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 9%, transparent); }
+.tw-habit-focus-presets button:disabled { opacity: .45; }
+.tw-habit-focus-actions { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+.tw-habit-focus-actions button { height: 32px; padding: 0 14px; font-size: 12px; }

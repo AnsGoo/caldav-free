@@ -89,6 +89,7 @@
             <strong>{{ selectedHabit.name }}</strong>
           </div>
           <div class="tw-habit-detail-actions">
+            <button v-if="!archived" class="tw-icon-button" title="开始专注" @click="focusHabit = selectedHabit"><TaskIcon name="clock" :size="16" /></button>
             <button v-if="archived" class="tw-icon-button" title="恢复习惯" @click="restoreHabit"><TaskIcon name="restore" :size="16" /></button>
             <button v-else class="tw-icon-button" title="编辑习惯" @click="openEdit(selectedHabit)"><TaskIcon name="edit" :size="16" /></button>
             <button v-if="!archived" class="tw-icon-button" :title="selectedHabit.style === 'icon' ? '打卡样式：习惯图标' : '打卡样式：对勾'" @click="toggleHabitStyle">
@@ -283,6 +284,8 @@
       </div>
     </div>
 
+    <HabitFocusDialog v-if="focusHabit" :habit="focusHabit" @close="focusHabit = null" />
+
     <HabitLogDialog v-if="logTarget" :habit="logTarget.habit" :stamp="logTarget.stamp" @saved="onLogSaved" @close="logTarget = null" />
 
     <div v-if="checkinDialog" class="tw-dialog-scrim" @click.self="checkinDialog = null">
@@ -335,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { HabitCheckin, HabitDetail, HabitFrequency, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection } from '../../types'
 import {
@@ -356,6 +359,13 @@ import {
 } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 import HabitLogDialog from './HabitLogDialog.vue'
+import HabitFocusDialog from './HabitFocusDialog.vue'
+
+const props = defineProps<{ focusHabitId?: number }>()
+const emit = defineEmits<{
+  (event: 'open-detail', id: number): void
+  (event: 'close-detail'): void
+}>()
 
 const loading = ref(true)
 const habits = ref<HabitItem[]>([])
@@ -374,6 +384,7 @@ const checkinDialog = ref<{ habit: HabitItem; stamp: number; value: number } | n
 const logComposerOpen = ref(false)
 const logContent = ref('')
 const logTarget = ref<{ habit: HabitItem; stamp: number } | null>(null)
+const focusHabit = ref<HabitItem | null>(null)
 const editingLogId = ref(0)
 const editingLogContent = ref('')
 const newSectionName = ref('')
@@ -457,7 +468,14 @@ const monthTitle = computed(() => {
   return `${year}年${month}月`
 })
 
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (props.focusHabitId) await openDetailById(props.focusHabitId)
+})
+
+watch(() => props.focusHabitId, async (id) => {
+  if (id && id !== selectedHabitId.value) await openDetailById(id)
+})
 
 async function load() {
   loading.value = true
@@ -652,11 +670,18 @@ async function saveCheckin() {
 async function openDetail(habit: HabitItem) {
   selectedHabitId.value = habit.id
   await loadDetail(habit.id)
+  emit('open-detail', habit.id)
+}
+
+async function openDetailById(id: number) {
+  const habit = habits.value.find((item) => item.id === id)
+  if (habit) await openDetail(habit)
 }
 
 function closeDetail() {
   selectedHabitId.value = 0
   detail.value = null
+  emit('close-detail')
 }
 
 async function loadDetail(habitId: number) {

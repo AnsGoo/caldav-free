@@ -89,7 +89,7 @@ func (s *Scheduler) deliverHabitInApp(ctx context.Context, habit *store.Habit, d
 		Type:   "habit",
 		Title:  "习惯提醒",
 		Body:   habit.Name + " 今天还没有打卡",
-		URL:    "/tasks/habit",
+		URL:    fmt.Sprintf("/tasks/habit/%d", habit.ID),
 	}); err != nil {
 		s.logger.Warn("habit reminder notification", "habit", habit.ID, "error", err)
 		return false
@@ -111,7 +111,7 @@ func (s *Scheduler) deliverHabitPush(ctx context.Context, habit *store.Habit, us
 		Title: "习惯提醒",
 		Body:  habit.Name + " 今天还没有打卡",
 		Tag:   fmt.Sprintf("habit-%d", habit.ID),
-		URL:   "/admin/tasks/habit",
+		URL:   fmt.Sprintf("/admin/tasks/habit/%d", habit.ID),
 	})
 	if sent > 0 {
 		_ = s.store.RecordReminderDelivery(ctx, deliveryID, key, "push", "")
@@ -133,7 +133,7 @@ func (s *Scheduler) deliverHabitEmail(ctx context.Context, habit *store.Habit, e
 	if !ready {
 		return false
 	}
-	link := strings.TrimRight(s.baseURL, "/") + "/admin/tasks/habit"
+	link := fmt.Sprintf("%s/admin/tasks/habit/%d", strings.TrimRight(s.baseURL, "/"), habit.ID)
 	body := "习惯提醒\n\n" + habit.Name + " 今天还没有打卡\n\n打开习惯：" + link + "\n"
 	if err := cfg.Send(ctx, email, "习惯提醒："+habit.Name, body); err != nil {
 		s.recordFailure(ctx, deliveryID, key, "email", attempt, now, err.Error())

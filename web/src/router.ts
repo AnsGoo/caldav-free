@@ -70,6 +70,7 @@ function taskWorkspaceRoutes() {
     { path: '/tasks/trash', name: 'tasks-trash', component, meta: { view: 'trash' } },
     { path: '/tasks/matrix', name: 'tasks-matrix', component, meta: { view: 'matrix' } },
     { path: '/tasks/habit', name: 'tasks-habit', component, meta: { view: 'habit' } },
+    { path: '/tasks/habit/:habitId', name: 'tasks-habit-detail', component, meta: { view: 'habit' } },
     { path: '/tasks/stats', name: 'tasks-stats', component, meta: { view: 'stats' } },
     { path: '/tasks/summary', name: 'tasks-summary', component, meta: { view: 'summary' } },
     { path: '/tasks/ai', name: 'tasks-ai', component, meta: { view: 'ai' } },

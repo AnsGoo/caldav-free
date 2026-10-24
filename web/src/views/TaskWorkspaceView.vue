@@ -336,6 +336,7 @@
             :reload-key="calendarReload"
             @open="openTask"
             @open-event="openCalendarEvent"
+            @open-habit="openHabitFromCalendar"
             @calendars="calendarSources = $event"
             :focus="calendarFocus"
             @reschedule-task="rescheduleTask"
@@ -1566,6 +1567,10 @@ function stepCalendar(delta: number) {
   } else {
     cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 30)
   }
+}
+
+function openHabitFromCalendar(_id: number) {
+  selectView('habit')
 }
 
 function openCalendarEvent(event: CalendarEvent) {

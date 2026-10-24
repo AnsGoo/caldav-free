@@ -29,13 +29,14 @@
       </div>
     </header>
 
-    <div v-if="sources.length" class="tw-cal-legend">
+    <div v-if="sources.length || habitEntries.length" class="tw-cal-legend">
       <span v-for="source in sources" :key="source.id">
         <i :style="{ background: source.color || '#4772fa' }" />
         {{ source.name }}
       </span>
       <span class="tw-cal-legend-gap" />
       <span class="tw-cal-legend-tasks"><i />任务</span>
+      <span class="tw-cal-legend-habits"><i />习惯</span>
       <span v-if="eventsLoading" class="tw-cal-loading">事件加载中…</span>
     </div>
 
@@ -84,6 +85,17 @@
                 @click="$emit('open', item.task!)"
               >
                 <i :style="{ background: item.task!.listColor || '#4772fa' }" />
+                <span>{{ item.title }}</span>
+              </button>
+              <button
+                v-else-if="item.kind === 'habit'"
+                class="tw-calendar-task tw-calendar-habit"
+                :class="{ done: item.habitDone }"
+                :style="{ borderLeftColor: item.color }"
+                :title="item.title"
+                @click="$emit('open-habit', item.habitId!)"
+              >
+                <i :style="{ background: item.color }" />
                 <span>{{ item.title }}</span>
               </button>
               <button
@@ -139,6 +151,16 @@
               draggable="true"
               @dragstart="startDrag(item, $event)"
               @click="$emit('open', item.task!)"
+            >
+              {{ item.title }}
+            </button>
+            <button
+              v-else-if="item.kind === 'habit'"
+              class="tw-tg-allday-chip habit"
+              :class="{ done: item.habitDone }"
+              :style="{ borderLeftColor: item.color }"
+              :title="item.title"
+              @click="$emit('open-habit', item.habitId!)"
             >
               {{ item.title }}
             </button>
@@ -207,13 +229,13 @@
           v-for="item in group.items"
           :key="item.key"
           class="tw-agenda-row"
-          @click="item.kind === 'task' ? $emit('open', item.task!) : $emit('open-event', item.event!)"
+          @click="openCalendarItem(item)"
         >
           <span class="tw-agenda-time">{{ item.timeLabel || '全天' }}</span>
           <i :style="{ background: item.color }" />
-          <span class="tw-agenda-title" :class="{ done: item.task?.completed }">{{ item.title }}</span>
+          <span class="tw-agenda-title" :class="{ done: item.task?.completed || item.habitDone }">{{ item.title }}</span>
           <small v-if="item.location">{{ item.location }}</small>
-          <span class="tw-agenda-kind">{{ item.kind === 'task' ? '任务' : item.event?.calendarName }}</span>
+          <span class="tw-agenda-kind">{{ item.kind === 'task' ? '任务' : item.kind === 'habit' ? '习惯' : item.event?.calendarName }}</span>
         </button>
       </section>
       <div v-if="!agendaGroups.length" class="tw-agenda-empty">
@@ -245,8 +267,8 @@
                 <path d="m4.5 10.2 3.6 3.7 7.4-8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </span>
-            <i v-else :style="{ background: item.color }" class="tw-day-event-dot" />
-            <span class="tw-day-title" :class="{ done: item.task?.completed }">{{ item.title }}</span>
+            <i v-else :style="{ background: item.color }" class="tw-day-event-dot" :class="{ habit: item.kind === 'habit', done: item.habitDone }" />
+            <span class="tw-day-title" :class="{ done: item.task?.completed || item.habitDone }">{{ item.title }}</span>
             <small>{{ item.allDay ? '全天' : item.timeLabel }}</small>
           </button>
           <p v-if="!dayItems.length" class="tw-day-empty">这一天还没有安排</p>
@@ -262,9 +284,9 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import type { CalendarEvent, CalendarSource, TaskItem } from '../../types'
+import type { CalendarEvent, CalendarSource, HabitCalendarEntry, TaskItem } from '../../types'
 import { dayKey, startOfToday, taskDayKey } from '../../tasks-utils'
-import { fetchCalendarEvents } from '../../tasks-api'
+import { fetchCalendarEvents, fetchHabitCalendar } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
@@ -278,6 +300,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'open', task: TaskItem): void
   (event: 'open-event', item: CalendarEvent): void
+  (event: 'open-habit', id: number): void
   (event: 'create', payload: { date: string; title: string }): void
   (event: 'prev'): void
   (event: 'next'): void
@@ -300,6 +323,7 @@ const HOUR_HEIGHT = 56
 
 const todayKey = dayKey(startOfToday())
 const events = ref<CalendarEvent[]>([])
+const habitEntries = ref<HabitCalendarEntry[]>([])
 const sources = ref<CalendarSource[]>([])
 const eventsLoading = ref(false)
 const editingDay = ref('')
@@ -312,7 +336,7 @@ let requestId = 0
 
 interface CalItem {
   key: string
-  kind: 'task' | 'event'
+  kind: 'task' | 'event' | 'habit'
   title: string
   color: string
   allDay: boolean
@@ -322,6 +346,8 @@ interface CalItem {
   location?: string
   task?: TaskItem
   event?: CalendarEvent
+  habitId?: number
+  habitDone?: boolean
 }
 
 interface LayoutItem extends CalItem {
@@ -451,6 +477,18 @@ const itemsByDay = computed(() => {
       end: task.allDay ? undefined : new Date(start.getTime() + 30 * 60000),
       timeLabel: task.allDay ? '全天' : timeText(start),
       task,
+    })
+  }
+  for (const entry of habitEntries.value) {
+    push(entry.date, {
+      key: `habit-${entry.habitId}-${entry.date}`,
+      kind: 'habit',
+      title: `${entry.icon || '✓'} ${entry.name}`,
+      color: entry.color || '#97E38B',
+      allDay: true,
+      timeLabel: '全天',
+      habitId: entry.habitId,
+      habitDone: entry.done,
     })
   }
   for (const event of events.value) {
@@ -763,15 +801,20 @@ async function loadEvents() {
   const current = ++requestId
   eventsLoading.value = true
   try {
-    const data = await fetchCalendarEvents(range.value.start, range.value.end)
+    const [data, habitData] = await Promise.all([
+      fetchCalendarEvents(range.value.start, range.value.end),
+      fetchHabitCalendar(dayKey(range.value.start), dayKey(range.value.end)).catch(() => ({ entries: [] })),
+    ])
     if (current !== requestId) return
     events.value = data.events
+    habitEntries.value = habitData.entries || []
     sources.value = data.calendars
     emit('calendars', data.calendars)
     openFocusEvent()
   } catch {
     if (current === requestId) {
       events.value = []
+      habitEntries.value = []
       sources.value = []
     }
   } finally {
@@ -813,10 +856,15 @@ function openDay(key: string) {
   dayTitleInput.value = ''
 }
 
+function openCalendarItem(item: CalItem) {
+  if (item.kind === 'task' && item.task) emit('open', item.task)
+  else if (item.kind === 'habit' && item.habitId) emit('open-habit', item.habitId)
+  else if (item.event) emit('open-event', item.event)
+}
+
 function openDayItem(item: CalItem) {
   dayOpen.value = ''
-  if (item.kind === 'task' && item.task) emit('open', item.task)
-  else if (item.event) emit('open-event', item.event)
+  openCalendarItem(item)
 }
 
 async function startCreate(key: string) {

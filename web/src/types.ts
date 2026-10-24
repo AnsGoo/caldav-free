@@ -531,6 +531,9 @@ export interface HabitDailyStat {
 }
 
 export interface HabitStats {
+  targetDays: number
+  targetProgress: number
+  completedCycles: number
   monthCheckinDays: number
   totalCheckinDays: number
   monthCompletionRate: number
@@ -552,4 +555,16 @@ export interface HabitListData {
   sections: HabitSection[]
   preferences: HabitPreference
   checkins: Record<string, HabitCheckin[]>
+}
+
+export interface HabitCalendarEntry {
+  habitId: number
+  name: string
+  icon: string
+  color: string
+  date: string
+  stamp: number
+  value: number
+  goal: number
+  done: boolean
 }

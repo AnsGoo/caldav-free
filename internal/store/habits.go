@@ -105,6 +105,9 @@ type HabitDailyStat struct {
 }
 
 type HabitStats struct {
+	TargetDays           int              `json:"targetDays"`
+	TargetProgress       int              `json:"targetProgress"`
+	CompletedCycles      int              `json:"completedCycles"`
 	MonthCheckinDays     int              `json:"monthCheckinDays"`
 	TotalCheckinDays     int              `json:"totalCheckinDays"`
 	MonthCompletionRate  float64          `json:"monthCompletionRate"`
@@ -112,6 +115,18 @@ type HabitStats struct {
 	MonthCompletionCount float64          `json:"monthCompletionCount"`
 	TotalCompletionCount float64          `json:"totalCompletionCount"`
 	Daily                []HabitDailyStat `json:"daily"`
+}
+
+type HabitCalendarEntry struct {
+	HabitID int64   `json:"habitId"`
+	Name    string  `json:"name"`
+	Icon    string  `json:"icon"`
+	Color   string  `json:"color"`
+	Date    string  `json:"date"`
+	Stamp   int     `json:"stamp"`
+	Value   float64 `json:"value"`
+	Goal    float64 `json:"goal"`
+	Done    bool    `json:"done"`
 }
 
 type HabitDetail struct {
@@ -459,6 +474,84 @@ func (s *Store) SaveHabitPreference(ctx context.Context, pref *HabitPreference) 
 	return pref, nil
 }
 
+func (s *Store) HabitCalendar(ctx context.Context, userID int64, from, to time.Time) ([]HabitCalendarEntry, error) {
+	preference, err := s.GetHabitPreference(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !preference.ShowInCalendar {
+		return []HabitCalendarEntry{}, nil
+	}
+	habits, err := s.ListHabits(ctx, userID, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(habits) == 0 {
+		return []HabitCalendarEntry{}, nil
+	}
+	fromStamp, toStamp := stampOf(from), stampOf(to)
+	ids := make([]int64, 0, len(habits))
+	for _, habit := range habits {
+		ids = append(ids, habit.ID)
+	}
+	checkins, err := s.ListHabitCheckins(ctx, userID, ids, fromStamp)
+	if err != nil {
+		return nil, err
+	}
+	habitByID := make(map[int64]*Habit, len(habits))
+	for _, habit := range habits {
+		habitByID[habit.ID] = habit
+	}
+	entries := make([]HabitCalendarEntry, 0)
+	for _, habit := range habits {
+		rows := checkins[habit.ID]
+		for _, checkin := range rows {
+			if checkin.Stamp < fromStamp || checkin.Stamp > toStamp {
+				continue
+			}
+			entries = append(entries, HabitCalendarEntry{
+				HabitID: habit.ID,
+				Name:    habit.Name,
+				Icon:    habit.Icon,
+				Color:   habit.Color,
+				Date:    habitDateString(checkin.Stamp),
+				Stamp:   checkin.Stamp,
+				Value:   checkin.Value,
+				Goal:    checkin.Goal,
+				Done:    habitDone(checkin),
+			})
+		}
+		today := time.Now()
+		todayStamp := stampOf(today)
+		if todayStamp >= fromStamp && todayStamp <= toStamp {
+			found := false
+			for _, checkin := range rows {
+				if checkin.Stamp == todayStamp {
+					found = true
+					break
+				}
+			}
+			if !found && HabitDueToday(habit, rows, today) {
+				entries = append(entries, HabitCalendarEntry{
+					HabitID: habit.ID, Name: habit.Name, Icon: habit.Icon, Color: habit.Color,
+					Date: habitDateString(todayStamp), Stamp: todayStamp, Goal: habit.Goal,
+				})
+			}
+		}
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].Stamp != entries[j].Stamp {
+			return entries[i].Stamp < entries[j].Stamp
+		}
+		return habitByID[entries[i].HabitID].SortOrder < habitByID[entries[j].HabitID].SortOrder
+	})
+	return entries, nil
+}
+
+func habitDateString(stamp int) string {
+	return fmt.Sprintf("%04d-%02d-%02d", stamp/10000, stamp/100%100, stamp%100)
+}
+
 func (s *Store) HabitDetail(ctx context.Context, userID, habitID int64, month string) (*HabitDetail, error) {
 	habit, err := s.GetHabit(ctx, userID, habitID)
 	if err != nil {
@@ -717,7 +810,7 @@ func startOfHabitWeek(day time.Time) time.Time {
 
 func computeHabitStats(habit *Habit, checkins []*HabitCheckin, monthStart, monthEnd time.Time) HabitStats {
 	byStamp := make(map[int]*HabitCheckin, len(checkins))
-	stats := HabitStats{Daily: make([]HabitDailyStat, 0, 31)}
+	stats := HabitStats{Daily: make([]HabitDailyStat, 0, 31), TargetDays: habit.TargetDays}
 	for _, checkin := range checkins {
 		byStamp[checkin.Stamp] = checkin
 		if habitDone(checkin) {
@@ -762,6 +855,10 @@ func computeHabitStats(habit *Habit, checkins []*HabitCheckin, monthStart, month
 				scheduled += freq.DaysPerWeek
 			}
 		}
+	}
+	if stats.TargetDays > 0 {
+		stats.CompletedCycles = stats.TotalCheckinDays / stats.TargetDays
+		stats.TargetProgress = stats.TotalCheckinDays % stats.TargetDays
 	}
 	if scheduled > 0 {
 		stats.MonthCompletionRate = float64(stats.MonthCheckinDays) / float64(scheduled) * 100

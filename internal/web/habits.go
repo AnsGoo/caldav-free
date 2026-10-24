@@ -168,6 +168,32 @@ func (s *Server) apiHabitCheckinsQuery(w http.ResponseWriter, r *http.Request, c
 	writeAPIJSON(w, http.StatusOK, map[string]any{"checkins": checkins})
 }
 
+func (s *Server) apiHabitCalendar(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	now := time.Now()
+	from := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	to := from.AddDate(0, 1, -1)
+	if raw := strings.TrimSpace(r.URL.Query().Get("from")); raw != "" {
+		if parsed, err := time.ParseInLocation("2006-01-02", raw, now.Location()); err == nil {
+			from = parsed
+		}
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("to")); raw != "" {
+		if parsed, err := time.ParseInLocation("2006-01-02", raw, now.Location()); err == nil {
+			to = parsed
+		}
+	}
+	if to.Before(from) || to.Sub(from) > 92*24*time.Hour {
+		writeAPIError(w, http.StatusBadRequest, "日期范围无效")
+		return
+	}
+	entries, err := s.store.HabitCalendar(r.Context(), current.ID, from, to)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"entries": entries})
+}
+
 func (s *Server) apiHabitDetail(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	id, ok := habitID(r, "id")
 	if !ok {

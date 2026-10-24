@@ -100,6 +100,15 @@
           </div>
         </header>
 
+        <div v-if="detail.habit.targetDays > 0" class="tw-habit-target">
+          <div>
+            <span>坚持目标</span>
+            <strong>{{ detail.stats.targetProgress }}/{{ detail.habit.targetDays }} 天</strong>
+          </div>
+          <div class="tw-habit-target-bar"><i :style="{ width: `${Math.min(100, detail.stats.targetProgress / detail.habit.targetDays * 100)}%` }" /></div>
+          <small v-if="detail.stats.completedCycles">已完成 {{ detail.stats.completedCycles }} 轮</small>
+        </div>
+
         <div class="tw-habit-stat-grid">
           <article><span>月打卡</span><strong>{{ detail.stats.monthCheckinDays }}<small>天</small></strong></article>
           <article><span>总打卡</span><strong>{{ detail.stats.totalCheckinDays }}<small>天</small></strong></article>

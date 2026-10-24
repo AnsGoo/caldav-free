@@ -6968,3 +6968,19 @@ button.tw-side-link {
 .tw-habit-today-check.done { border-color: var(--tw-accent); color: #fff; background: var(--tw-accent); }
 .tw-habit-today-check:disabled { opacity: .45; }
 .tw-habit-log-input { width: 100%; resize: vertical; min-height: 96px; padding: 8px 10px; line-height: 1.5; font-family: inherit; }
+
+.tw-calendar-habit { border-left: 2px solid var(--tw-border); background: color-mix(in srgb, var(--tw-accent) 4%, transparent); }
+.tw-calendar-habit.done { opacity: .62; }
+.tw-calendar-habit.done span { text-decoration: line-through; }
+.tw-tg-allday-chip.habit { border-left: 2px solid; background: color-mix(in srgb, var(--tw-accent) 6%, transparent); }
+.tw-tg-allday-chip.habit.done { opacity: .62; text-decoration: line-through; }
+.tw-day-event-dot.habit { border-radius: 50%; }
+.tw-day-event-dot.habit.done { opacity: .55; }
+.tw-cal-legend-habits i { background: #97e38b; }
+
+.tw-habit-target { margin: 0 18px 10px; padding: 10px 12px; border: 1px solid var(--tw-border); border-radius: 9px; background: var(--tw-bg); }
+.tw-habit-target > div:first-child { display: flex; align-items: center; justify-content: space-between; color: var(--tw-text-3); font-size: 10.5px; }
+.tw-habit-target strong { color: var(--tw-text-2); font-size: 11.5px; }
+.tw-habit-target-bar { height: 5px; margin-top: 7px; border-radius: 999px; background: var(--tw-hover); overflow: hidden; }
+.tw-habit-target-bar i { display: block; height: 100%; border-radius: inherit; background: var(--tw-accent); }
+.tw-habit-target small { display: block; margin-top: 5px; color: var(--tw-text-3); font-size: 9.5px; }

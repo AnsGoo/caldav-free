@@ -4,7 +4,7 @@
       <label class="tw-detail-list">
         <i :style="{ background: currentList?.color || '#4772fa' }" />
         <select v-model.number="draft.listId" :disabled="readonly || listLocked" @change="save">
-          <option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</option>
+          <option v-for="list in taskListOptions" :key="list.id" :value="list.id">{{ list.name }}</option>
         </select>
       </label>
       <div class="tw-detail-head-actions">
@@ -498,6 +498,12 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined
 let lastSaved = ''
 
 const currentList = computed(() => props.lists.find((list) => list.id === draft.listId))
+const taskListOptions = computed(() => {
+  const taskLists = props.lists.filter((list) => list.kind !== 'NOTE')
+  const active = props.lists.find((list) => list.id === props.task.listId)
+  if (active && active.kind === 'NOTE') return [active, ...taskLists]
+  return taskLists
+})
 const priorityMeta = computed(() => PRIORITIES.find((item) => item.value === draft.priority))
 const reminderChoices = REMINDER_OPTIONS.filter((option) => option.value >= 0)
 const reminderSummary = computed(() => {

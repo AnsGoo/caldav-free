@@ -171,6 +171,7 @@
         @open="openTask"
         @toggle="toggleTask"
         @move="moveTaskToQuadrant"
+        @move-custom="moveTaskToCustomQuadrant"
         @change-rule="setMatrixRule"
         @select-view="selectMatrixView"
         @create-view="openMatrixViewDialog"
@@ -769,7 +770,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   createSavedFilter,
@@ -814,6 +815,7 @@ import {
   startOfToday,
   taskReminderOffsets,
 } from '../tasks-utils'
+import { normalizeMatrixRules, planMatrixDrop } from '../matrix-utils'
 import { tagColor, tagTint } from '../tag-colors'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
@@ -1649,6 +1651,26 @@ async function saveMatrixView() {
     Message.error(error instanceof Error ? error.message : '创建四象限视图失败')
   } finally {
     matrixViewBusy.value = false
+  }
+}
+
+async function moveTaskToCustomQuadrant(payload: { task: TaskItem; quadrant: MatrixQuadrantKey }) {
+  const rules = normalizeMatrixRules(matrixCustomRules.value)
+  const patch = planMatrixDrop(payload.task, rules, payload.quadrant)
+  if (patch === null) {
+    Message.warning('目标象限条件无法通过拖拽自动满足')
+    return
+  }
+  if (Object.keys(patch).length === 0) {
+    Message.info('任务已符合目标象限条件')
+    return
+  }
+  try {
+    const { task } = await updateTask(payload.task.id, patch)
+    replaceTask(task)
+    Message.success('已按目标象限规则调整任务')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '自动调整任务条件失败')
   }
 }
 

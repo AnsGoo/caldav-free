@@ -3,7 +3,7 @@
     <header class="tw-matrix-head">
       <div>
         <h2>四象限</h2>
-        <p>{{ rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组' }}</p>
+        <p>{{ rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
       </div>
       <div class="tw-matrix-head-actions">
         <div class="tw-matrix-view-picker">
@@ -39,14 +39,14 @@
       </div>
     </header>
 
-    <div class="tw-matrix-grid">
+    <div class="tw-matrix-grid" :class="gridCollapseClass">
       <article
         v-for="quadrant in quadrants"
         :key="quadrant.id"
         class="tw-matrix-card"
-        :class="{ 'drag-over': dragOver === quadrant.id }"
+        :class="{ 'drag-over': dragOver === quadrant.id, collapsed: collapsedQuadrants.has(quadrant.id) }"
         :style="{ '--matrix-color': quadrant.color }"
-        @dragover.prevent="dragTask && rule === 'simple' ? (dragOver = quadrant.id) : null"
+        @dragover.prevent="dragTask && rule !== 'complex' ? (dragOver = quadrant.id) : null"
         @dragleave="dragOver = ''"
         @drop.prevent="dropOnQuadrant(quadrant.id)"
       >
@@ -56,9 +56,16 @@
           </span>
           <strong>{{ quadrant.label }}</strong>
           <span class="tw-matrix-count">{{ quadrant.tasks.length }}</span>
+          <button
+            class="tw-matrix-collapse"
+            :title="collapsedQuadrants.has(quadrant.id) ? '展开象限' : '折叠象限'"
+            @click.stop="toggleCollapse(quadrant.id)"
+          >
+            <TaskIcon name="chevron" :size="13" />
+          </button>
         </header>
 
-        <div v-if="quadrant.tasks.length" class="tw-matrix-body">
+        <div v-if="!collapsedQuadrants.has(quadrant.id) && quadrant.tasks.length" class="tw-matrix-body">
           <section
             v-for="group in quadrant.groups"
             :key="group.key"
@@ -74,7 +81,7 @@
                 :key="task.id"
                 class="tw-matrix-row"
                 :class="{ done: task.completed }"
-                :draggable="rule === 'simple'"
+                :draggable="rule !== 'complex'"
                 @dragstart="startDrag(task, $event)"
                 @dragend="dragTask = null; dragOver = ''"
                 @click="$emit('open', task)"
@@ -104,15 +111,15 @@
             </div>
           </section>
         </div>
-        <div v-else class="tw-matrix-empty">没有任务</div>
+        <div v-else-if="!collapsedQuadrants.has(quadrant.id)" class="tw-matrix-empty">没有任务</div>
       </article>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { MatrixRuleMode, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
+import { computed, onMounted, ref, watch } from 'vue'
+import type { MatrixQuadrantKey, MatrixRuleMode, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
 import { dayKey, formatDue, isOverdue, recurrenceLabel, startOfToday } from '../../tasks-utils'
 import { matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
 import TaskIcon from './TaskIcon.vue'
@@ -133,6 +140,7 @@ const emit = defineEmits<{
   (event: 'open', task: TaskItem): void
   (event: 'toggle', task: TaskItem): void
   (event: 'move', payload: { task: TaskItem; priority: number }): void
+  (event: 'move-custom', payload: { task: TaskItem; quadrant: MatrixQuadrantKey }): void
   (event: 'change-rule', rule: MatrixRuleMode): void
   (event: 'select-view', id: number): void
   (event: 'create-view'): void
@@ -143,6 +151,37 @@ const emit = defineEmits<{
 
 const dragTask = ref<TaskItem | null>(null)
 const dragOver = ref('')
+const collapsedQuadrants = ref<Set<string>>(new Set())
+
+const collapseStorageKey = computed(() => `caldav-matrix-collapsed-${props.activeViewId}`)
+const gridCollapseClass = computed(() => ({
+  'top-collapsed': collapsedQuadrants.value.has('q1') && collapsedQuadrants.value.has('q2'),
+  'bottom-collapsed': collapsedQuadrants.value.has('q3') && collapsedQuadrants.value.has('q4'),
+}))
+
+function loadCollapsed() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(collapseStorageKey.value) || '[]')
+    collapsedQuadrants.value = new Set(Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [])
+  } catch {
+    collapsedQuadrants.value = new Set()
+  }
+}
+
+function toggleCollapse(quadrant: string) {
+  const next = new Set(collapsedQuadrants.value)
+  if (next.has(quadrant)) next.delete(quadrant)
+  else next.add(quadrant)
+  collapsedQuadrants.value = next
+  try {
+    localStorage.setItem(collapseStorageKey.value, JSON.stringify([...next]))
+  } catch {
+    /* ignore */
+  }
+}
+
+onMounted(loadCollapsed)
+watch(() => props.activeViewId, loadCollapsed)
 
 const customRules = computed(() => normalizeMatrixRules(props.customRules))
 
@@ -175,7 +214,7 @@ const quadrants = computed(() => {
 })
 
 function startDrag(task: TaskItem, event: DragEvent) {
-  if (props.rule !== 'simple') return
+  if (props.rule === 'complex') return
   dragTask.value = task
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
@@ -187,7 +226,11 @@ function dropOnQuadrant(quadrant: string) {
   const task = dragTask.value
   dragTask.value = null
   dragOver.value = ''
-  if (!task || props.rule !== 'simple') return
+  if (!task || props.rule === 'complex') return
+  if (props.rule === 'custom') {
+    emit('move-custom', { task, quadrant: quadrant as MatrixQuadrantKey })
+    return
+  }
   const priority = quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0
   if (task.priority !== priority) emit('move', { task, priority })
 }

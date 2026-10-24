@@ -6267,3 +6267,48 @@ button.tw-side-link {
   color: var(--tw-accent);
   background: color-mix(in srgb, var(--tw-accent) 9%, transparent);
 }
+
+.tw-matrix-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 5px;
+  color: var(--tw-text-3);
+  background: transparent;
+}
+
+.tw-matrix-collapse:hover {
+  color: var(--tw-text);
+  background: var(--tw-surface);
+}
+
+.tw-matrix-collapse svg {
+  transition: transform 0.15s ease;
+  transform: rotate(90deg);
+}
+
+.tw-matrix-card.collapsed {
+  align-self: start;
+}
+
+.tw-matrix-card.collapsed .tw-matrix-collapse svg {
+  transform: rotate(0deg);
+}
+
+@media (min-width: 561px) {
+  .tw-matrix-grid.top-collapsed {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .tw-matrix-grid.bottom-collapsed {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .tw-matrix-grid.top-collapsed.bottom-collapsed {
+    grid-template-rows: auto auto;
+    align-content: start;
+  }
+}

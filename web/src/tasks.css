@@ -7938,3 +7938,23 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 
 .tw-countdown-number small, .tw-countdown-detail-number small { margin-left: 4px; color: var(--tw-text-3); font-size: 10px; font-weight: 500; letter-spacing: 0; }
 .tw-countdown-card.has-image .tw-countdown-number small, .tw-countdown-detail-body.has-image .tw-countdown-detail-number small { color: rgba(255,255,255,0.72); }
+
+.tw-countdown-card.has-preset > header strong,
+.tw-countdown-card.has-preset .tw-countdown-number,
+.tw-countdown-card.has-preset .tw-countdown-number.past { color: #1d2129; }
+.tw-countdown-card.has-preset .tw-countdown-subtitle,
+.tw-countdown-card.has-preset .tw-countdown-lunar-label,
+.tw-countdown-card.has-preset .tw-countdown-age,
+.tw-countdown-card.has-preset .tw-countdown-card-pin { color: rgba(29, 33, 41, 0.64); }
+.tw-countdown-card.has-preset .tw-countdown-card-actions .tw-icon-button { color: #1d2129; background: rgba(255, 255, 255, 0.72); }
+.tw-countdown-card.has-preset .tw-countdown-card-actions .tw-icon-button:hover { background: #fff; }
+.tw-countdown-detail-body.has-preset { color: #1d2129; }
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-number,
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-date,
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-lunar,
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-age { color: #1d2129; }
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-date,
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-lunar,
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-age { color: rgba(29, 33, 41, 0.64); }
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-note { background: rgba(255, 255, 255, 0.5); color: rgba(29, 33, 41, 0.78); }
+.tw-countdown-detail-body.has-preset .tw-countdown-detail-reminders { border-top-color: rgba(29, 33, 41, 0.18); color: rgba(29, 33, 41, 0.64); }

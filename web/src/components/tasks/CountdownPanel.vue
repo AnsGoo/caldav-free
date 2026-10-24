@@ -33,7 +33,7 @@
         v-for="item in filteredItems"
         :key="item.id"
         class="tw-countdown-card"
-        :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past', 'has-image': !!item.backgroundUrl, dragging: draggingId === item.id, 'drag-over': dragOverId === item.id && draggingId !== item.id }]"
+        :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past', 'has-image': !!item.backgroundUrl, 'has-preset': !!item.background && !item.backgroundUrl, dragging: draggingId === item.id, 'drag-over': dragOverId === item.id && draggingId !== item.id }]"
         :style="cardStyle(item)"
         :draggable="!archived && filter === 'all'"
         role="button"
@@ -82,7 +82,7 @@
           <h2>{{ detailItem.name }}</h2>
           <button class="tw-icon-button" title="关闭" @click="detailItem = null"><TaskIcon name="close" :size="16" /></button>
         </header>
-        <div class="tw-countdown-detail-body" :class="{ 'has-image': !!detailItem.backgroundUrl }" :style="cardStyle(detailItem)">
+        <div class="tw-countdown-detail-body" :class="{ 'has-image': !!detailItem.backgroundUrl, 'has-preset': !!detailItem.background && !detailItem.backgroundUrl }" :style="cardStyle(detailItem)">
           <div class="tw-countdown-detail-icon" :style="{ backgroundColor: detailItem.color }">{{ detailItem.icon || '⏳' }}</div>
           <div class="tw-countdown-detail-number" :class="detailItem.state">
             <template v-if="detailItem.state === 'today'">今天</template>

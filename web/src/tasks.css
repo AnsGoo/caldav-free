@@ -9364,3 +9364,117 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   background: var(--tw-danger) !important;
   border-color: var(--tw-danger) !important;
 }
+
+/* Rich text notes */
+.tw-note-toolbar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 0 5px;
+  border-bottom: 1px solid var(--tw-border);
+}
+
+.tw-note-toolbar button {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--tw-text-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tw-note-toolbar button:hover {
+  background: var(--tw-hover);
+  color: var(--tw-text);
+}
+
+.tw-note-toolbar-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+  background: var(--tw-border);
+}
+
+.tw-note-rich {
+  overflow: auto;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.tw-note-rich:empty::before {
+  content: attr(data-placeholder);
+  color: var(--tw-text-3);
+  pointer-events: none;
+}
+
+.tw-note-rich p {
+  margin: 0 0 8px;
+}
+
+.tw-note-rich h2 {
+  margin: 12px 0 6px;
+  font-family: inherit;
+  font-size: 18px;
+  color: var(--tw-text);
+}
+
+.tw-note-rich h3 {
+  margin: 10px 0 5px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--tw-text);
+}
+
+.tw-note-rich blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid var(--tw-accent);
+  color: var(--tw-text-2);
+  background: var(--tw-surface);
+}
+
+.tw-note-rich pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--tw-surface);
+  color: var(--tw-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+}
+
+.tw-note-rich ul,
+.tw-note-rich ol {
+  margin: 6px 0;
+  padding-left: 22px;
+}
+
+.tw-note-rich li {
+  margin: 2px 0;
+}
+
+.tw-note-rich a {
+  color: var(--tw-accent);
+  text-decoration: underline;
+}
+
+.tw-note-rich mark {
+  background: #fff3a3;
+  color: #1f2329;
+}
+
+.tw-note-hl {
+  display: inline-block;
+  padding: 0 2px;
+  border-radius: 2px;
+  background: #fff3a3;
+  color: #1f2329;
+  font-weight: 600;
+  line-height: 14px;
+}

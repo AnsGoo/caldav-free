@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+
+	"caldav-free/internal/richtext"
 )
 
 // TaskList is a user-defined list (project) that groups tasks. Every user has
@@ -43,19 +45,21 @@ type TaskSection struct {
 // checklists; Deleted is a soft-delete flag so recently removed tasks can be
 // inspected before a future purge.
 type Task struct {
-	ID         int64      `gorm:"primaryKey"`
-	UserID     int64      `gorm:"not null;index:idx_task_user_completed,priority:1;index:idx_task_user_due,priority:1"`
-	ListID     int64      `gorm:"not null;index:idx_task_list_completed,priority:1"`
-	ParentID   int64      `gorm:"not null;default:0;index:idx_task_parent"`
-	SectionID  int64      `gorm:"not null;default:0;index:idx_task_section"`
-	Title      string     `gorm:"size:500;not null"`
-	Notes      string     `gorm:"type:text;not null;default:''"`
-	Kind       string     `gorm:"size:16;not null;default:'TASK'"`
-	Priority   int        `gorm:"not null;default:0"`
-	StartAt    *time.Time `gorm:"index:idx_task_start"`
-	DueAt      *time.Time `gorm:"index:idx_task_user_due,priority:2"`
-	AllDay     bool       `gorm:"not null;default:false"`
-	Recurrence string     `gorm:"size:255;not null;default:''"`
+	ID          int64      `gorm:"primaryKey"`
+	UserID      int64      `gorm:"not null;index:idx_task_user_completed,priority:1;index:idx_task_user_due,priority:1"`
+	ListID      int64      `gorm:"not null;index:idx_task_list_completed,priority:1"`
+	ParentID    int64      `gorm:"not null;default:0;index:idx_task_parent"`
+	SectionID   int64      `gorm:"not null;default:0;index:idx_task_section"`
+	Title       string     `gorm:"size:500;not null"`
+	Notes       string     `gorm:"type:text;not null;default:''"`
+	NotesFormat string     `gorm:"size:16;not null;default:'text'"`
+	NotesText   string     `gorm:"type:text;not null;default:''"`
+	Kind        string     `gorm:"size:16;not null;default:'TASK'"`
+	Priority    int        `gorm:"not null;default:0"`
+	StartAt     *time.Time `gorm:"index:idx_task_start"`
+	DueAt       *time.Time `gorm:"index:idx_task_user_due,priority:2"`
+	AllDay      bool       `gorm:"not null;default:false"`
+	Recurrence  string     `gorm:"size:255;not null;default:''"`
 	// ReminderOffset is the legacy single reminder (minutes before due; -1
 	// means none). ReminderOffsets stores all offsets as a comma-separated
 	// list; when it is non-empty it is authoritative.
@@ -351,7 +355,7 @@ func (s *Store) taskQuery(ctx context.Context, userID int64, filter TaskFilter, 
 	}
 	if filter.Query != "" {
 		like := "%" + strings.ReplaceAll(strings.ReplaceAll(filter.Query, "%", `\%`), "_", `\_`) + "%"
-		query = query.Where(`(title LIKE ? ESCAPE '\' OR notes LIKE ? ESCAPE '\')`, like, like)
+		query = query.Where(`(title LIKE ? ESCAPE '\' OR notes_text LIKE ? ESCAPE '\')`, like, like)
 	}
 	return query
 }
@@ -449,6 +453,48 @@ func (s *Store) GetTask(ctx context.Context, userID, id int64) (*Task, error) {
 	return &task, nil
 }
 
+func backfillTaskNotesText(ctx context.Context, db *gorm.DB) error {
+	for {
+		var tasks []*Task
+		if err := db.WithContext(ctx).
+			Where("notes <> '' AND (notes_text IS NULL OR notes_text = '')").
+			Limit(500).Find(&tasks).Error; err != nil {
+			return fmt.Errorf("load notes for backfill: %w", err)
+		}
+		if len(tasks) == 0 {
+			return nil
+		}
+		for _, task := range tasks {
+			if err := db.WithContext(ctx).Model(&Task{}).
+				Where("id = ?", task.ID).
+				UpdateColumn("notes_text", richtext.Plain(task.Notes)).Error; err != nil {
+				return fmt.Errorf("backfill notes text: %w", err)
+			}
+		}
+	}
+}
+
+func normalizeTaskNotes(task *Task) error {
+	if task.NotesFormat == "" {
+		if task.Kind == "NOTE" {
+			task.NotesFormat = "html"
+		} else {
+			task.NotesFormat = "text"
+		}
+	}
+	if task.NotesFormat != "html" {
+		task.NotesFormat = "text"
+	}
+	if task.NotesFormat == "html" {
+		if len(task.Notes) > richtext.MaxNoteHTML {
+			return errors.New("笔记内容过长")
+		}
+		task.Notes = richtext.Sanitize(task.Notes)
+	}
+	task.NotesText = richtext.Plain(task.Notes)
+	return nil
+}
+
 func normalizeTaskTimes(task *Task) {
 	if task.DueAt != nil {
 		value := task.DueAt.UTC()
@@ -474,6 +520,9 @@ func (s *Store) CreateTask(ctx context.Context, task *Task) (*Task, error) {
 	if task.Completed && task.CompletedAt == nil {
 		now := time.Now().UTC()
 		task.CompletedAt = &now
+	}
+	if err := normalizeTaskNotes(task); err != nil {
+		return nil, err
 	}
 	task.SyncPending = true
 	task.SetReminderValues(task.ReminderValues())
@@ -516,6 +565,9 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	if task.ReminderOffset < -1 || task.ReminderOffset > 10080 {
 		return errors.New("invalid reminder offset")
 	}
+	if err := normalizeTaskNotes(task); err != nil {
+		return err
+	}
 	if _, err := s.GetTaskList(ctx, task.UserID, task.ListID); err != nil {
 		return err
 	}
@@ -533,6 +585,8 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 		"section_id":       task.SectionID,
 		"title":            task.Title,
 		"notes":            task.Notes,
+		"notes_format":     task.NotesFormat,
+		"notes_text":       task.NotesText,
 		"kind":             task.Kind,
 		"priority":         task.Priority,
 		"due_at":           task.DueAt,
@@ -997,6 +1051,8 @@ func (s *Store) CopyTaskList(ctx context.Context, userID, sourceID int64, newNam
 			SectionID:      sectionMap[task.SectionID],
 			Title:          task.Title,
 			Notes:          task.Notes,
+			NotesFormat:    task.NotesFormat,
+			NotesText:      task.NotesText,
 			Kind:           task.Kind,
 			Priority:       task.Priority,
 			StartAt:        task.StartAt,

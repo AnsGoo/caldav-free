@@ -103,6 +103,8 @@ export interface TaskItem {
   listColor: string
   title: string
   notes: string
+  notesFormat: 'text' | 'html'
+  notesText: string
   kind: 'TASK' | 'NOTE'
   priority: number
   start?: string

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"caldav-free/internal/richtext"
 	"caldav-free/internal/store"
 	taskparse "caldav-free/internal/tasks"
 )
@@ -66,6 +67,8 @@ type apiTask struct {
 	Title           string             `json:"title"`
 	Notes           string             `json:"notes"`
 	Kind            string             `json:"kind"`
+	NotesFormat     string             `json:"notesFormat"`
+	NotesText       string             `json:"notesText"`
 	Priority        int                `json:"priority"`
 	Start           string             `json:"start,omitempty"`
 	Due             string             `json:"due,omitempty"`
@@ -93,6 +96,7 @@ type taskPatch struct {
 	SectionID       *int64              `json:"sectionId"`
 	Notes           *string             `json:"notes"`
 	Kind            *string             `json:"kind"`
+	NotesFormat     *string             `json:"notesFormat"`
 	Priority        *int                `json:"priority"`
 	Start           *string             `json:"start"`
 	Due             *string             `json:"due"`
@@ -162,6 +166,8 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 		Title:           task.Title,
 		Notes:           task.Notes,
 		Kind:            task.Kind,
+		NotesFormat:     task.NotesFormat,
+		NotesText:       task.NotesText,
 		Priority:        task.Priority,
 		AllDay:          task.AllDay,
 		Completed:       task.Completed,
@@ -670,9 +676,26 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		kind = parsedKind
 	}
+	if body.NotesFormat != nil {
+		format := strings.ToLower(strings.TrimSpace(*body.NotesFormat))
+		if format != "text" && format != "html" {
+			writeAPIError(w, http.StatusBadRequest, "无效的备注格式")
+			return
+		}
+		task.NotesFormat = format
+	}
 	task.Kind = kind
 	if kind == "NOTE" {
 		clearNoteSchedule(task)
+		if task.NotesFormat != "html" {
+			task.Notes = richtext.FromPlain(task.Notes)
+			task.NotesFormat = "html"
+		}
+	} else {
+		if task.NotesFormat == "html" {
+			task.Notes = richtext.Plain(task.Notes)
+		}
+		task.NotesFormat = "text"
 	}
 	if task.StartAt != nil && task.DueAt != nil && task.StartAt.After(*task.DueAt) {
 		writeAPIError(w, http.StatusBadRequest, "开始时间不能晚于结束时间")
@@ -936,8 +959,25 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if task.Kind == "" {
 		task.Kind = "TASK"
 	}
+	if body.NotesFormat != nil {
+		format := strings.ToLower(strings.TrimSpace(*body.NotesFormat))
+		if format != "text" && format != "html" {
+			writeAPIError(w, http.StatusBadRequest, "无效的备注格式")
+			return
+		}
+		task.NotesFormat = format
+	}
 	if task.Kind == "NOTE" {
 		clearNoteSchedule(task)
+		if task.NotesFormat != "html" {
+			task.Notes = richtext.FromPlain(task.Notes)
+			task.NotesFormat = "html"
+		}
+	} else {
+		if task.NotesFormat == "html" {
+			task.Notes = richtext.Plain(task.Notes)
+		}
+		task.NotesFormat = "text"
 	}
 	if previousKind != "NOTE" && task.Kind == "NOTE" {
 		if err := s.taskSync.DeleteTask(ctx, task.UserID, task); err != nil {

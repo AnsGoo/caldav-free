@@ -81,6 +81,10 @@
     <template v-else-if="name === 'pin'">
       <path d="M9.5 3.5h5l-.8 5.2 3.1 3.1v1.7h-4.3V21l-1 1-1-1v-7.5H6.2v-1.7l3.1-3.1-.8-5.2Z" />
     </template>
+    <template v-else-if="name === 'link'">
+      <path d="M10 13.5a4.2 4.2 0 0 0 6 0l2-2a4.2 4.2 0 0 0-6-6l-1.1 1.1" />
+      <path d="M14 10.5a4.2 4.2 0 0 0-6 0l-2 2a4.2 4.2 0 0 0 6 6l1.1-1.1" />
+    </template>
     <template v-else-if="name === 'palette'">
       <path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-1-.8-1.6-.8-2.5 0-.8.7-1.5 1.6-1.5h1.8A4.1 4.1 0 0 0 20.5 11c0-4.1-3.8-7.5-8.5-7.5Z" />
       <circle cx="8" cy="10" r="1.1" fill="currentColor" stroke="none" />

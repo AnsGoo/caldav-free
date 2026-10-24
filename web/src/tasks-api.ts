@@ -27,6 +27,7 @@ export interface TaskDraft {
   listId?: number
   sectionId?: number
   notes?: string
+  notesFormat?: 'text' | 'html'
   kind?: 'TASK' | 'NOTE'
   priority?: number
   start?: string

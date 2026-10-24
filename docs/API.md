@@ -286,6 +286,8 @@ docker run -d --name caldav \
 - `range` 使用 `dateFrom` / `dateTo`（`YYYY-MM-DD`，含首尾），可只传一端。
 - 创建清单可传 `kind: "NOTE"`；在笔记清单中创建任务默认 `kind: "NOTE"`，服务端会忽略日期、提醒、重复和完成态。
 - PATCH 任务传 `{"kind":"NOTE"}` 可把任务转换为笔记，并删除对应 VTODO；笔记不参与 VTODO 同步。
+- 富文本笔记提交 `{"notes":"<p>…</p>","notesFormat":"html"}`；服务端按白名单清洗标签/属性（脚本、iframe、事件属性、`javascript:` 链接会被移除），并自动维护 `notesText` 纯文本镜像用于搜索。
+- 普通任务备注强制为 `notesFormat=text`；任务转笔记时纯文本会转成安全段落 HTML。
 - PATCH 任务传 `{"sectionId":123}` 可移动到看板分组，传 `0` 回到未分组；分组必须属于任务所在清单。
 - `POST /api/admin/task-lists/{id}/copy` 接受 `{"name":"副本名","mode":"open|keep|all"}`：`open` 只复制未完成，`keep` 复制全部并保留完成状态，`all` 复制全部但不保留完成状态。
 
@@ -365,7 +367,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
 - `reminder_attempts`：失败投递的退避重试状态
-- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、`section_id` 看板分组、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
+- `tasks`：任务、备注、`notes_format`（`text` / `html`）、`notes_text` 纯文本镜像、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、`section_id` 看板分组、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
 

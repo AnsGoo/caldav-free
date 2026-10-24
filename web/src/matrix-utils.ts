@@ -144,6 +144,8 @@ export function blankTaskForMatrix(title: string): TaskItem {
     listColor: '',
     title,
     notes: '',
+    notesFormat: 'text',
+    notesText: '',
     kind: 'TASK',
     priority: 0,
     allDay: false,

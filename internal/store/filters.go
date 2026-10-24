@@ -460,7 +460,7 @@ func (s *Store) ListFilteredTasks(ctx context.Context, userID int64, cond TaskFi
 	}
 	if keyword := strings.TrimSpace(cond.Keyword); keyword != "" {
 		like := "%" + strings.ReplaceAll(strings.ReplaceAll(keyword, "%", `\%`), "_", `\_`) + "%"
-		query = query.Where(`(title LIKE ? ESCAPE '\' OR notes LIKE ? ESCAPE '\')`, like, like)
+		query = query.Where(`(title LIKE ? ESCAPE '\' OR notes_text LIKE ? ESCAPE '\')`, like, like)
 	}
 	var tasks []*Task
 	if err := query.Order("CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END, pinned_at DESC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, order_index ASC, id DESC").

@@ -46,10 +46,19 @@ defineEmits<{
 }>()
 
 const preview = computed(() => {
-  const text = props.task.notes.replace(/\s+/g, ' ').trim()
+  const raw = props.task.notesText || plainText(props.task.notes)
+  const text = raw.replace(/\s+/g, ' ').trim()
   if (!text) return ''
   return text.length > 120 ? `${text.slice(0, 120)}…` : text
 })
+
+function plainText(value: string) {
+  if (!value) return ''
+  if (!value.includes('<')) return value
+  const el = document.createElement('div')
+  el.innerHTML = value
+  return el.textContent || ''
+}
 
 const modified = computed(() => {
   const date = new Date(props.task.modifiedAt)

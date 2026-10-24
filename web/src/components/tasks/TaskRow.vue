@@ -129,7 +129,13 @@ const dueLabel = computed(() => formatDue(props.task))
 const priorityColor = computed(() => PRIORITIES.find((item) => item.value === props.task.priority)?.color || '#4772fa')
 const doneCount = computed(() => props.task.checklist.filter((item) => item.done).length)
 const notesPreview = computed(() => {
-  const text = props.task.notes.replace(/\s+/g, ' ').trim()
+  let raw = props.task.notesText || props.task.notes
+  if (raw.includes('<')) {
+    const el = document.createElement('div')
+    el.innerHTML = raw
+    raw = el.textContent || ''
+  }
+  const text = raw.replace(/\s+/g, ' ').trim()
   return text.length > 32 ? `${text.slice(0, 32)}…` : text
 })
 const hasDetails = computed(() => props.task.checklist.length > 0 || props.task.notes.trim().length > 0)

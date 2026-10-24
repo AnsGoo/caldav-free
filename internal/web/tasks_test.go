@@ -20,6 +20,9 @@ type taskResponse struct {
 		ID              int64    `json:"id"`
 		ListID          int64    `json:"listId"`
 		Title           string   `json:"title"`
+		Notes           string   `json:"notes"`
+		NotesFormat     string   `json:"notesFormat"`
+		NotesText       string   `json:"notesText"`
 		Kind            string   `json:"kind"`
 		SectionID       int64    `json:"sectionId"`
 		ParentID        int64    `json:"parentId"`
@@ -951,5 +954,51 @@ func TestTaskSectionsAndCopyListAPI(t *testing.T) {
 	status, body = env.request(t, "DELETE", "/api/admin/task-sections/"+itoa(section.Section.ID)+"?strategy=move&moveTo=0", nil, env.csrf)
 	if status != http.StatusNoContent {
 		t.Fatalf("delete section = %d: %s", status, body)
+	}
+}
+
+func TestRichNoteSanitizeAndSearch(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{
+		"name": "富文本笔记", "kind": "NOTE",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID int64 `json:"id"`
+		} `json:"list"`
+	}](t, body)
+
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "会议纪要", "listId": list.List.ID, "kind": "NOTE", "notesFormat": "html",
+		"notes": `<p>Hello <strong>World</strong><script>alert(1)</script>` +
+			`<a href="javascript:alert(1)">bad</a></p>`,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create rich note = %d: %s", status, body)
+	}
+	note := decode[taskResponse](t, body)
+	if note.Task.NotesFormat != "html" {
+		t.Fatalf("notes format = %q", note.Task.NotesFormat)
+	}
+	if strings.Contains(note.Task.Notes, "script") || strings.Contains(note.Task.Notes, "javascript:") {
+		t.Fatalf("unsafe note HTML = %s", note.Task.Notes)
+	}
+	if note.Task.NotesText != "Hello Worldbad" {
+		t.Fatalf("notes text = %q", note.Task.NotesText)
+	}
+	if !strings.Contains(note.Task.Notes, "<strong>World</strong>") {
+		t.Fatalf("formatting lost: %s", note.Task.Notes)
+	}
+
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(list.List.ID)+"&q=World", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("search note = %d: %s", status, body)
+	}
+	ws := decode[workspaceResponse](t, body)
+	if len(ws.Tasks) != 1 || ws.Tasks[0].ID != note.Task.ID {
+		t.Fatalf("note search results = %+v", ws.Tasks)
 	}
 }

@@ -7864,3 +7864,11 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   .tw-stat-cards-five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tw-stats-focus-bars.tall, .tw-stats-completion-bars { height: 130px; }
 }
+
+.tw-habit-day.future { opacity: .28; cursor: not-allowed; }
+.tw-habit-week-day.future .tw-habit-week-dot { opacity: .35; }
+.tw-habit-exdates { display: grid; gap: 7px; }
+.tw-habit-exdates small { color: var(--tw-text-3); font-size: 9.5px; }
+.tw-habit-exdate-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.tw-habit-exdate-chips button { height: 24px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border: 1px solid var(--tw-border); border-radius: 999px; background: var(--tw-bg); color: var(--tw-text-2); font-size: 10px; cursor: pointer; }
+.tw-habit-exdate-chips button:hover { border-color: var(--tw-danger); color: var(--tw-danger); }

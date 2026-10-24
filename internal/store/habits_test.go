@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"testing"
@@ -142,5 +143,57 @@ func TestToggleHabitCheckinConcurrentToggleStable(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("toggle twice left %d rows, want 0", count)
+	}
+}
+
+func TestHabitCheckinDateRules(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	today := habitTodayStamp()
+	start := stampOf(time.Now().AddDate(0, 0, -3))
+	habit, err := s.CreateHabit(ctx, &Habit{
+		UserID: userID, Name: "补卡规则", Frequency: `{"type":"daily","weekdays":[0,1,2,3,4,5,6]}`,
+		StartDate: start,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, today+1, nil); err == nil {
+		t.Fatal("future check-in was accepted")
+	}
+	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, start-1, nil); err == nil {
+		t.Fatal("check-in before start date was accepted")
+	}
+	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, start, nil); err != nil {
+		t.Fatalf("past make-up check-in failed: %v", err)
+	}
+
+	exDate := today - 1
+	if _, err := s.UpdateHabit(ctx, userID, habit.ID, &Habit{ExDates: fmt.Sprintf("[%d]", exDate)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, exDate, nil); err == nil {
+		t.Fatal("exception date check-in was accepted")
+	}
+}
+
+func TestHabitWeeklyQuotaAndExceptionDates(t *testing.T) {
+	habit := &Habit{
+		StartDate: 20260101,
+		Frequency: `{"type":"weekly","daysPerWeek":2}`,
+	}
+	today := time.Now()
+	monday := startOfHabitWeek(today)
+	checkins := []*HabitCheckin{
+		{Stamp: stampOf(monday), Value: 1, Goal: 1, Status: 2},
+		{Stamp: stampOf(monday.AddDate(0, 0, 1)), Value: 1, Goal: 1, Status: 2},
+	}
+	if HabitDueToday(habit, checkins, today) {
+		t.Fatal("weekly habit still due after reaching its quota")
+	}
+	exDate := monday.AddDate(0, 0, 2)
+	habit.ExDates = fmt.Sprintf("[%d]", stampOf(exDate))
+	if habitScheduledOn(habit, exDate) {
+		t.Fatal("exception date was still scheduled")
 	}
 }

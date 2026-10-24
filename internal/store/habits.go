@@ -383,6 +383,9 @@ func (s *Store) ToggleHabitCheckin(ctx context.Context, userID, habitID int64, s
 	if stamp == 0 {
 		stamp = habitTodayStamp()
 	}
+	if err := validateHabitCheckinDate(habit, stamp); err != nil {
+		return nil, nil, err
+	}
 	var existing HabitCheckin
 	found := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habitID, stamp).
 		First(&existing).Error == nil
@@ -442,6 +445,25 @@ func (s *Store) ToggleHabitCheckin(ctx context.Context, userID, habitID int64, s
 		return nil, nil, err
 	}
 	return &stored, habit, nil
+}
+
+func validateHabitCheckinDate(habit *Habit, stamp int) error {
+	if stamp <= 0 {
+		return fmt.Errorf("打卡日期无效")
+	}
+	if _, err := time.ParseInLocation(habitDayLayout, fmt.Sprintf("%08d", stamp), time.Local); err != nil {
+		return fmt.Errorf("打卡日期无效")
+	}
+	if stamp > habitTodayStamp() {
+		return fmt.Errorf("不能给未来日期打卡")
+	}
+	if habit.StartDate > 0 && stamp < habit.StartDate {
+		return fmt.Errorf("不能早于习惯开始日期打卡")
+	}
+	if parseHabitExDates(habit.ExDates)[stamp] {
+		return fmt.Errorf("该日期是例外日期，不能打卡")
+	}
+	return nil
 }
 
 func (s *Store) ListHabitCheckins(ctx context.Context, userID int64, habitIDs []int64, afterStamp int) (map[int64][]*HabitCheckin, error) {

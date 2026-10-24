@@ -68,8 +68,9 @@
                   v-for="day in weekDays"
                   :key="day.stamp"
                   class="tw-habit-day"
-                  :class="{ done: isDone(habit.id, day.stamp), partial: isPartial(habit.id, day.stamp), today: day.isToday }"
-                  :title="`${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
+                  :class="{ done: isDone(habit.id, day.stamp), partial: isPartial(habit.id, day.stamp), today: day.isToday, future: day.future }"
+                  :disabled="day.future"
+                  :title="day.future ? '未来日期不能打卡' : `${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
                   @click.stop="startCheckin(habit, day.stamp)"
                 >
                   <TaskIcon v-if="isDone(habit.id, day.stamp) && habit.style !== 'icon'" name="check" :size="11" />
@@ -266,6 +267,19 @@
 
           <label class="tw-modal-label">开始日期
             <a-date-picker v-model="form.startDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
+          </label>
+
+          <label class="tw-modal-label">例外日期
+            <div class="tw-habit-exdates">
+              <a-date-picker v-model="exDateInput" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="选择需要跳过的日期" @change="addExDate" />
+              <div v-if="form.exDates.length" class="tw-habit-exdate-chips">
+                <button v-for="stamp in form.exDates" :key="stamp" type="button" @click="removeExDate(stamp)">
+                  {{ formatStamp(stamp) }}
+                  <TaskIcon name="close" :size="10" />
+                </button>
+              </div>
+              <small>例外日期不会进入打卡和连续统计，也不能补卡。</small>
+            </div>
           </label>
 
           <label class="tw-modal-label">坚持天数
@@ -484,7 +498,9 @@ const form = reactive({
   goalMode: 'completion' as 'completion' | 'quantity', goal: 1,
   startDate: new Date().toISOString().slice(0, 10), durationMode: 'forever' as 'forever' | 'days', targetDays: 30,
   sectionId: 0, reminders: [] as string[], recordEnable: false, style: 'check' as 'check' | 'icon',
+  exDates: [] as number[],
 })
+const exDateInput = ref('')
 
 const selectedHabit = computed(() => habits.value.find((habit) => habit.id === selectedHabitId.value) || null)
 const displayType = computed<'list' | 'card'>(() => preferences.value.displayType === 'card' ? 'card' : 'list')
@@ -502,6 +518,7 @@ const weekDays = computed(() => {
       day: date.getDate(),
       dateLabel: date.toLocaleDateString('zh-CN'),
       isToday: stampOf(date) === stampOf(today),
+      future: stampOf(date) > stampOf(today),
     }
   })
 })
@@ -636,8 +653,10 @@ function openCreate() {
     weekdays: [0, 1, 2, 3, 4, 5, 6], daysPerWeek: 2, interval: 2,
     goalMode: 'completion', goal: 1, startDate: new Date().toISOString().slice(0, 10),
     durationMode: 'forever', targetDays: 30, sectionId: preferences.value.defaultSectionId || 0,
-    reminders: [], recordEnable: false, style: 'check',
+    reminders: [], recordEnable: false, style: 'check', exDates: [],
   })
+  exDateInput.value = ''
+
   dialogOpen.value = true
 }
 
@@ -645,6 +664,7 @@ function openEdit(habit: HabitItem) {
   editingHabitId.value = habit.id
   const frequency = parseFrequency(habit.frequency)
   const reminders: string[] = safeParse(habit.reminders, [])
+  const exDates = safeParse<number[]>(habit.exDates, []).filter((stamp) => Number.isFinite(stamp) && stamp > 0)
   Object.assign(form, {
     name: habit.name, icon: habit.icon || '😊', color: habit.color || colors[0],
     frequencyType: frequency.type, weekdays: frequency.weekdays?.length ? frequency.weekdays : [0, 1, 2, 3, 4, 5, 6],
@@ -652,8 +672,9 @@ function openEdit(habit: HabitItem) {
     goalMode: habit.goal > 1 ? 'quantity' : 'completion', goal: habit.goal || 1,
     startDate: formatStamp(habit.startDate || stampOf(new Date())), durationMode: habit.targetDays > 0 ? 'days' : 'forever',
     targetDays: habit.targetDays || 30, sectionId: habit.sectionId || 0, reminders,
-    recordEnable: habit.recordEnable, style: habit.style === 'icon' ? 'icon' : 'check',
+    recordEnable: habit.recordEnable, style: habit.style === 'icon' ? 'icon' : 'check', exDates,
   })
+  exDateInput.value = ''
   dialogOpen.value = true
 }
 
@@ -669,6 +690,18 @@ function parseFrequency(raw: string): HabitFrequency {
 
 function safeParse<T>(raw: string, fallback: T): T {
   try { return JSON.parse(raw) as T } catch { return fallback }
+}
+
+function addExDate(value: unknown) {
+  const raw = typeof value === 'string' ? value : exDateInput.value
+  const stamp = Number(String(raw || '').replaceAll('-', ''))
+  if (!stamp) return
+  if (!form.exDates.includes(stamp)) form.exDates = [...form.exDates, stamp].sort((a, b) => a - b)
+  exDateInput.value = ''
+}
+
+function removeExDate(stamp: number) {
+  form.exDates = form.exDates.filter((value) => value !== stamp)
 }
 
 function toggleWeekday(index: number) {
@@ -703,6 +736,7 @@ async function saveHabit() {
     startDate: Number(start),
     targetDays: form.durationMode === 'days' ? Math.max(1, form.targetDays) : 0,
     style: form.style,
+    exDates: JSON.stringify([...new Set(form.exDates)].sort((a, b) => a - b)),
   }
   busy.value = true
   try {
@@ -725,6 +759,10 @@ async function saveHabit() {
 }
 
 function startCheckin(habit: HabitItem, stamp: number) {
+  if (stamp > stampOf(new Date())) {
+    Message.info('未来日期不能打卡')
+    return
+  }
   if (habit.goal > 1) {
     checkinDialog.value = { habit, stamp, value: checkinValue(habit.id, stamp) || habit.step }
     return

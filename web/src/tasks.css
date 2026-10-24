@@ -7918,3 +7918,17 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-habit-day.blocked,
 .tw-habit-calendar-day.blocked { opacity: .25; cursor: not-allowed; }
 .tw-habit-day.blocked:hover { border-color: var(--tw-border); background: transparent; }
+
+.tw-habits-title { position: relative; }
+.tw-habits-view-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: 140px; padding: 5px; border: 1px solid var(--tw-border); border-radius: 9px; background: var(--tw-bg); box-shadow: var(--tw-shadow); }
+.tw-habits-view-menu button { width: 100%; height: 30px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: var(--tw-text-2); font-size: 11px; text-align: left; cursor: pointer; }
+.tw-habits-view-menu button:hover, .tw-habits-view-menu button.active { background: var(--tw-accent-soft); color: var(--tw-accent); }
+.tw-habit-batch-toggle { height: 27px; font-size: 10.5px; }
+.tw-habit-select { width: 18px; height: 18px; flex: none; display: inline-flex; align-items: center; justify-content: center; border: 1.3px solid var(--tw-text-3); border-radius: 5px; background: transparent; color: #fff; cursor: pointer; }
+.tw-habit-select.checked { border-color: var(--tw-accent); background: var(--tw-accent); }
+.tw-habit-item.batch-selected { border-color: color-mix(in srgb, var(--tw-accent) 48%, var(--tw-border)); background: color-mix(in srgb, var(--tw-accent) 6%, var(--tw-bg)); }
+.tw-habit-batch-bar { flex: none; display: flex; align-items: center; gap: 8px; margin: 0 22px 14px; padding: 8px 10px; border: 1px solid color-mix(in srgb, var(--tw-accent) 35%, var(--tw-border)); border-radius: 10px; background: var(--tw-bg); box-shadow: var(--tw-shadow); }
+.tw-habit-batch-bar > span { flex: 1; color: var(--tw-text-2); font-size: 11px; }
+.tw-habit-batch-bar .tw-ghost-button { height: 27px; font-size: 10.5px; }
+.tw-habit-batch-bar .tw-ghost-button.danger { border-color: color-mix(in srgb, var(--tw-danger) 40%, var(--tw-border)); color: var(--tw-danger); }
+.tw-habit-batch-bar button:disabled { opacity: .4; cursor: not-allowed; }

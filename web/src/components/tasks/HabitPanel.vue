@@ -2,15 +2,20 @@
   <section class="tw-habits">
     <header class="tw-habits-head">
       <div class="tw-habits-title">
-        <button class="tw-habits-view-switch" @click="archived = !archived; load()">
+        <button class="tw-habits-view-switch" @click="archiveMenuOpen = !archiveMenuOpen">
           {{ archived ? '已归档习惯' : '习惯' }}
           <TaskIcon name="chevron" :size="12" />
         </button>
+        <div v-if="archiveMenuOpen" class="tw-habits-view-menu">
+          <button :class="{ active: !archived }" @click="setArchived(false)">活跃习惯</button>
+          <button :class="{ active: archived }" @click="setArchived(true)">已归档</button>
+        </div>
       </div>
       <div class="tw-habits-actions">
         <button class="tw-icon-button" :title="displayType === 'card' ? '列表视图' : '卡片视图'" @click="toggleDisplayType">
           <TaskIcon :name="displayType === 'card' ? 'list' : 'board'" :size="18" />
         </button>
+        <button v-if="archived && habits.length" class="tw-ghost-button tw-habit-batch-toggle" @click="toggleArchivedSelection">{{ archivedSelectionMode ? '取消多选' : '批量管理' }}</button>
         <button v-if="!archived" class="tw-icon-button" title="添加习惯" @click="openCreate">
           <TaskIcon name="plus" :size="20" />
         </button>
@@ -46,15 +51,18 @@
               v-for="habit in group.habits"
               :key="habit.id"
               class="tw-habit-item"
-              :class="{ selected: selectedHabitId === habit.id, dragging: draggingHabitId === habit.id, 'drag-over': dragOverHabitId === habit.id && draggingHabitId !== habit.id }"
+              :class="{ selected: selectedHabitId === habit.id, dragging: draggingHabitId === habit.id, 'drag-over': dragOverHabitId === habit.id && draggingHabitId !== habit.id, 'batch-selected': archivedSelectionMode && archivedSelected.has(habit.id) }"
               :draggable="!archived && !preferences.groupByCompleted"
-              @click="openDetail(habit)"
+              @click="archivedSelectionMode ? toggleArchivedSelect(habit.id) : openDetail(habit)"
               @dragstart="startHabitDrag(habit, $event)"
               @dragover.prevent="dragOverHabitId = habit.id"
               @dragleave="dragOverHabitId = 0"
               @drop.prevent="dropHabit(habit)"
               @dragend="draggingHabitId = 0; dragOverHabitId = 0"
             >
+              <button v-if="archivedSelectionMode" class="tw-habit-select" :class="{ checked: archivedSelected.has(habit.id) }" :title="archivedSelected.has(habit.id) ? '取消选择' : '选择习惯'" @click.stop="toggleArchivedSelect(habit.id)">
+                <TaskIcon v-if="archivedSelected.has(habit.id)" name="check" :size="11" />
+              </button>
               <div class="tw-habit-icon" :style="{ backgroundColor: habit.color || '#97E38B' }">{{ habit.icon || '😊' }}</div>
               <div class="tw-habit-info">
                 <strong>{{ habit.name }}</strong>
@@ -329,6 +337,14 @@
 
     <HabitFocusDialog v-if="focusHabit" :habit="focusHabit" @completed="onFocusCompleted" @close="focusHabit = null" />
 
+    <div v-if="archived && archivedSelectionMode" class="tw-habit-batch-bar">
+      <button class="tw-ghost-button" @click="toggleSelectAllArchived">{{ allArchivedSelected ? '取消全选' : '全选' }}</button>
+      <span>已选 {{ archivedSelected.size }} 个</span>
+      <button class="tw-ghost-button" :disabled="!archivedSelected.size || archivedBatchBusy" @click="restoreSelectedHabits">恢复</button>
+      <button class="tw-ghost-button danger" :disabled="!archivedSelected.size || archivedBatchBusy" @click="deleteSelectedHabits">删除</button>
+      <button class="tw-icon-button" title="退出多选" @click="toggleArchivedSelection"><TaskIcon name="close" :size="14" /></button>
+    </div>
+
     <HabitLogDialog v-if="logTarget" :habit="logTarget.habit" :stamp="logTarget.stamp" @saved="onLogSaved" @close="logTarget = null" />
 
     <div v-if="shareDialog" class="tw-dialog-scrim" @click.self="shareDialog = null">
@@ -479,6 +495,10 @@ const preferences = ref<HabitPreference>({ showInToday: true, showInCalendar: tr
 const archived = ref(false)
 const settingsOpen = ref(false)
 const selectedHabitId = ref(0)
+const archiveMenuOpen = ref(false)
+const archivedSelectionMode = ref(false)
+const archivedSelected = ref<Set<number>>(new Set())
+const archivedBatchBusy = ref(false)
 const detail = ref<HabitDetail | null>(null)
 const detailMonth = ref(new Date().toISOString().slice(0, 7))
 const dialogOpen = ref(false)
@@ -526,6 +546,7 @@ const form = reactive({
 const exDateInput = ref('')
 
 const selectedHabit = computed(() => habits.value.find((habit) => habit.id === selectedHabitId.value) || null)
+const allArchivedSelected = computed(() => habits.value.length > 0 && habits.value.every((habit) => archivedSelected.value.has(habit.id)))
 const displayType = computed<'list' | 'card'>(() => preferences.value.displayType === 'card' ? 'card' : 'list')
 
 const weekDays = computed(() => {
@@ -910,6 +931,69 @@ async function stopShare() {
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '停止分享失败')
   }
+}
+
+function setArchived(value: boolean) {
+  archived.value = value
+  archiveMenuOpen.value = false
+  archivedSelectionMode.value = false
+  archivedSelected.value = new Set()
+  closeDetail()
+  void load()
+}
+
+function toggleArchivedSelection() {
+  archivedSelectionMode.value = !archivedSelectionMode.value
+  archivedSelected.value = new Set()
+  if (archivedSelectionMode.value) closeDetail()
+}
+
+function toggleArchivedSelect(id: number) {
+  const next = new Set(archivedSelected.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  archivedSelected.value = next
+}
+
+function toggleSelectAllArchived() {
+  archivedSelected.value = allArchivedSelected.value ? new Set() : new Set(habits.value.map((habit) => habit.id))
+}
+
+async function restoreSelectedHabits() {
+  if (!archivedSelected.value.size || archivedBatchBusy.value) return
+  archivedBatchBusy.value = true
+  const selected = habits.value.filter((habit) => archivedSelected.value.has(habit.id))
+  const results = await Promise.allSettled(selected.map((habit) => updateHabit(habit.id, { ...habit, status: 0 })))
+  const failed = results.filter((item) => item.status === 'rejected').length
+  archivedBatchBusy.value = false
+  archivedSelectionMode.value = false
+  archivedSelected.value = new Set()
+  if (failed) Message.warning(`已恢复 ${selected.length - failed} 个，${failed} 个失败`)
+  else Message.success(`已恢复 ${selected.length} 个习惯`)
+  await load()
+}
+
+function deleteSelectedHabits() {
+  if (!archivedSelected.value.size || archivedBatchBusy.value) return
+  const selected = habits.value.filter((habit) => archivedSelected.value.has(habit.id))
+  Modal.confirm({
+    title: '批量删除习惯',
+    content: `确定永久删除选中的 ${selected.length} 个习惯吗？打卡、日志和专注记录也会删除。`,
+    okText: '删除',
+    cancelText: '取消',
+    okButtonProps: { status: 'danger' },
+    async onOk() {
+      archivedBatchBusy.value = true
+      const results = await Promise.allSettled(selected.map((habit) => deleteHabit(habit.id)))
+      const failed = results.filter((item) => item.status === 'rejected').length
+      archivedBatchBusy.value = false
+      archivedSelectionMode.value = false
+      archivedSelected.value = new Set()
+      if (failed) Message.warning(`已删除 ${selected.length - failed} 个，${failed} 个失败`)
+      else Message.success(`已删除 ${selected.length} 个习惯`)
+      await load()
+    },
+  })
 }
 
 function startHabitDrag(habit: HabitItem, event: DragEvent) {

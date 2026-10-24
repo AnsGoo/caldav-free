@@ -7999,3 +7999,8 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   .tw-year-grid { grid-template-columns: 1fr; padding: 6px 12px 24px; gap: 10px; }
   .tw-year-cell { height: 32px; }
 }
+
+.tw-calendar.mode-2week .tw-timegrid-wrap { overflow-x: auto; }
+.tw-calendar.mode-2week .tw-tg-head,
+.tw-calendar.mode-2week .tw-tg-allday,
+.tw-calendar.mode-2week .tw-tg-body { min-width: 980px; }

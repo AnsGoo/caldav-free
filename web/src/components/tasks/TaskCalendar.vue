@@ -124,7 +124,7 @@
     </div>
 
     <!-- week / day time grid -->
-    <div v-else-if="viewMode === 'week' || viewMode === '3day' || viewMode === 'day'" class="tw-timegrid-wrap">
+    <div v-else-if="viewMode === 'week' || viewMode === '2week' || viewMode === '3day' || viewMode === 'day'" class="tw-timegrid-wrap">
       <div class="tw-tg-head" :style="{ gridTemplateColumns: `46px repeat(${visibleDays.length}, minmax(0, 1fr))` }">
         <span class="tw-tg-gutter" />
         <button
@@ -318,7 +318,7 @@ import TaskIcon from './TaskIcon.vue'
 const props = defineProps<{
   tasks: TaskItem[]
   cursor: Date
-  viewMode: 'month' | 'week' | '3day' | 'day' | 'agenda' | 'year'
+  viewMode: 'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'
   reloadKey?: number
   focus?: { calendarId: number; href: string; occurrence: string } | null
 }>()
@@ -331,7 +331,7 @@ const emit = defineEmits<{
   (event: 'prev'): void
   (event: 'next'): void
   (event: 'today'): void
-  (event: 'change-view', value: 'month' | 'week' | '3day' | 'day' | 'agenda' | 'year'): void
+  (event: 'change-view', value: 'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'): void
   (event: 'calendars', value: CalendarSource[]): void
   (event: 'reschedule-task', payload: { task: TaskItem; due: string; allDay: boolean }): void
   (event: 'reschedule-event', payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }): void
@@ -342,6 +342,7 @@ const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '�
 const viewOptions = [
   { value: 'month', label: '月' },
   { value: 'week', label: '周' },
+  { value: '2week', label: '2 周' },
   { value: '3day', label: '3 日' },
   { value: 'day', label: '日' },
   { value: 'agenda', label: '日程' },
@@ -397,6 +398,14 @@ const weekStart = computed(() => {
 })
 
 const visibleDays = computed(() => {
+  if (props.viewMode === '2week') {
+    const start = weekStart.value
+    return Array.from({ length: 14 }, (_, index) => {
+      const date = new Date(start)
+      date.setDate(start.getDate() + index)
+      return { key: dayKey(date), date }
+    })
+  }
   if (props.viewMode === 'day' || props.viewMode === '3day') {
     const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
     const count = props.viewMode === 'day' ? 1 : 3
@@ -427,6 +436,12 @@ const range = computed(() => {
     end.setDate(start.getDate() + 42)
     return { start, end }
   }
+  if (props.viewMode === '2week') {
+    const start = new Date(weekStart.value)
+    const end = new Date(start)
+    end.setDate(start.getDate() + 14)
+    return { start, end }
+  }
   if (props.viewMode === '3day') {
     const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
     const end = new Date(start)
@@ -454,6 +469,12 @@ const range = computed(() => {
 const rangeTitle = computed(() => {
   if (props.viewMode === 'year') return `${props.cursor.getFullYear()} 年`
   if (props.viewMode === 'month') return `${props.cursor.getFullYear()} 年 ${props.cursor.getMonth() + 1} 月`
+  if (props.viewMode === '2week') {
+    const start = weekStart.value
+    const end = new Date(start)
+    end.setDate(start.getDate() + 13)
+    return `${start.getMonth() + 1} 月 ${start.getDate()} 日 - ${end.getMonth() + 1} 月 ${end.getDate()} 日`
+  }
   if (props.viewMode === '3day') {
     const start = new Date(props.cursor.getFullYear(), props.cursor.getMonth(), props.cursor.getDate())
     const end = new Date(start)
@@ -1020,14 +1041,14 @@ async function scrollToMorning() {
 
 watch([() => props.viewMode, () => props.cursor, () => props.reloadKey], () => {
   void loadEvents()
-  if (props.viewMode === 'week' || props.viewMode === '3day' || props.viewMode === 'day') void scrollToMorning()
+  if (props.viewMode === 'week' || props.viewMode === '2week' || props.viewMode === '3day' || props.viewMode === 'day') void scrollToMorning()
 })
 
 restoreCalendarVisibility()
 
 onMounted(() => {
   void loadEvents()
-  if (props.viewMode === 'week' || props.viewMode === '3day' || props.viewMode === 'day') void scrollToMorning()
+  if (props.viewMode === 'week' || props.viewMode === '2week' || props.viewMode === '3day' || props.viewMode === 'day') void scrollToMorning()
 })
 
 function openDay(key: string) {

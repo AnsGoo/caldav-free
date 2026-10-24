@@ -7813,3 +7813,54 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
     padding: 6px 12px 24px;
   }
 }
+
+/* --------------------------------------------------------- global stats */
+.tw-stats-tabs { width: max-content; display: flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--tw-surface); }
+.tw-stats-tabs button { height: 28px; padding: 0 15px; border: 0; border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 11px; cursor: pointer; }
+.tw-stats-tabs button:hover { color: var(--tw-text); }
+.tw-stats-tabs button.active { background: var(--tw-bg); color: var(--tw-text); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.tw-stat-cards-five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.tw-stats-link { color: var(--tw-accent); font-size: 10.5px; text-decoration: none; white-space: nowrap; }
+.tw-stats-link:hover { text-decoration: underline; }
+.tw-stats-panel-value { color: var(--tw-text-2); font-size: 11px; font-weight: 500; }
+.tw-stats-focus-body { display: grid; gap: 12px; }
+.tw-stats-focus-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--tw-border); border-radius: 9px; background: var(--tw-border); }
+.tw-stats-focus-kpis div { display: grid; gap: 2px; padding: 9px 10px; background: var(--tw-bg); }
+.tw-stats-focus-kpis span { color: var(--tw-text-3); font-size: 9.5px; }
+.tw-stats-focus-kpis strong { color: var(--tw-text); font-size: 19px; font-weight: 650; line-height: 1.1; letter-spacing: -0.03em; }
+.tw-stats-focus-kpis small { margin-left: 2px; color: var(--tw-text-3); font-size: 9px; font-weight: 400; }
+.tw-stats-focus-bars { height: 96px; display: flex; align-items: flex-end; gap: 2px; padding-top: 4px; }
+.tw-stats-focus-bars.tall { height: 180px; padding-top: 12px; }
+.tw-stats-focus-bar { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.tw-stats-focus-bar i { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--tw-accent) 76%, transparent); }
+.tw-stats-focus-rows { display: grid; gap: 0; }
+.tw-stats-focus-rows > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--tw-border); }
+.tw-stats-focus-rows > div:last-child { border-bottom: 0; }
+.tw-stats-focus-rows span { overflow: hidden; color: var(--tw-text-2); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.tw-stats-focus-rows strong { color: var(--tw-text-3); font-size: 10px; font-weight: 500; }
+.tw-stats-focus-rows > div > div { grid-column: 1 / -1; height: 5px; overflow: hidden; border-radius: 999px; background: var(--tw-surface); }
+.tw-stats-focus-rows > div > div i { display: block; height: 100%; border-radius: inherit; background: var(--tw-accent); }
+.tw-stats-focus-rows small { grid-column: 1 / -1; color: var(--tw-text-3); font-size: 9px; }
+.tw-stats-focus-sessions { display: grid; gap: 0; }
+.tw-stats-focus-sessions article { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--tw-border); font-size: 10.5px; }
+.tw-stats-focus-sessions article:last-child { border-bottom: 0; }
+.tw-stats-focus-sessions time { flex: none; color: var(--tw-text-3); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.tw-stats-focus-sessions span { flex: 1; min-width: 0; overflow: hidden; color: var(--tw-text-2); text-overflow: ellipsis; white-space: nowrap; }
+.tw-stats-focus-sessions strong { flex: none; color: var(--tw-text-3); font-size: 9.5px; font-weight: 500; }
+.tw-stats-completion-bars { height: 180px; display: flex; align-items: flex-end; gap: 2px; padding-top: 12px; }
+.tw-stats-completion-bars > div { flex: 1; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.tw-stats-completion-bars i { width: 100%; min-height: 2px; border-radius: 3px 3px 0 0; background: color-mix(in srgb, var(--tw-accent) 76%, transparent); }
+.tw-stats-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+@media (max-width: 1180px) {
+  .tw-stat-cards-five { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .tw-stats-grid-two { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .tw-stats-tabs { width: 100%; overflow-x: auto; }
+  .tw-stats-tabs button { flex: 1; padding: 0 8px; }
+  .tw-stat-cards-five { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tw-stats-focus-bars.tall, .tw-stats-completion-bars { height: 130px; }
+}

@@ -6426,3 +6426,138 @@ button.tw-side-link {
   border-style: dashed;
   background: transparent;
 }
+
+.tw-matrix-batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 7px 10px;
+  border: 1px solid var(--tw-border);
+  border-radius: 10px;
+  background: var(--tw-surface);
+  color: var(--tw-text-2);
+  font-size: 11.5px;
+}
+
+.tw-matrix-batch-bar > span {
+  color: var(--tw-text-3);
+  white-space: nowrap;
+}
+
+.tw-matrix-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+
+.tw-matrix-batch-actions button {
+  height: 26px;
+  border: 1px solid var(--tw-border);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--tw-text-2);
+  background: var(--tw-bg);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.tw-matrix-batch-actions button:hover:not(:disabled) {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 8%, transparent);
+}
+
+.tw-matrix-batch-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tw-matrix-select {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.3px solid var(--tw-text-3);
+  border-radius: 5px;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tw-matrix-select.checked {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent);
+}
+
+.tw-matrix-row.selected {
+  background: color-mix(in srgb, var(--tw-accent) 9%, transparent);
+}
+
+.tw-matrix-row.selected:hover {
+  background: color-mix(in srgb, var(--tw-accent) 13%, transparent);
+}
+
+.tw-matrix-quick {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 10px 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--tw-accent) 35%, var(--tw-border));
+  border-radius: 8px;
+  background: var(--tw-surface);
+}
+
+.tw-matrix-quick > svg {
+  flex: none;
+  color: var(--tw-accent);
+}
+
+.tw-matrix-quick input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--tw-text);
+  font-size: 12.5px;
+}
+
+.tw-matrix-quick input::placeholder {
+  color: var(--tw-text-3);
+}
+
+.tw-matrix-quick button {
+  flex: none;
+  height: 24px;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 10.5px;
+}
+
+.tw-matrix-quick button[type='submit'] {
+  border: 0;
+  background: var(--tw-accent);
+  color: #fff;
+}
+
+.tw-matrix-quick button[type='submit']:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tw-matrix-quick button[type='button'] {
+  border: 1px solid var(--tw-border);
+  background: transparent;
+  color: var(--tw-text-3);
+}
+
+.tw-matrix-quick button[type='button']:hover {
+  border-color: var(--tw-danger);
+  color: var(--tw-danger);
+}

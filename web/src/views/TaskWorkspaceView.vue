@@ -166,6 +166,8 @@
         :custom-rules="matrixCustomRules"
         :show-completed="matrixShowCompleted"
         :manual-sort="matrixManualSort"
+        :selection-mode="matrixSelectionMode"
+        :selected-ids="matrixSelectedIds"
         :lists="lists"
         :tags="tags"
         :assignees="matrixAssignees"
@@ -182,6 +184,11 @@
         @toggle-completed="toggleMatrixCompleted"
         @toggle-manual-sort="toggleMatrixManualSort"
         @reorder="onMatrixReorder"
+        @toggle-selection="toggleMatrixSelection"
+        @toggle-select="toggleMatrixSelect"
+        @clear-selection="clearMatrixSelection"
+        @batch-move="batchMoveMatrix"
+        @quick-add="quickAddMatrixTask"
       />
       <div v-else class="tw-scroll">
         <div class="tw-content">
@@ -819,7 +826,7 @@ import {
   startOfToday,
   taskReminderOffsets,
 } from '../tasks-utils'
-import { normalizeMatrixRules, planComplexDrop, planMatrixDrop } from '../matrix-utils'
+import { blankTaskForMatrix, normalizeMatrixRules, planComplexDrop, planMatrixDrop } from '../matrix-utils'
 import { tagColor, tagTint } from '../tag-colors'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
@@ -887,6 +894,8 @@ const matrixViewManagerOpen = ref(false)
 const matrixRulesDialogOpen = ref(false)
 const matrixShowCompleted = ref(true)
 const matrixManualSort = ref(false)
+const matrixSelectionMode = ref(false)
+const matrixSelectedIds = ref(new Set<number>())
 try {
   matrixShowCompleted.value = localStorage.getItem('caldav-matrix-show-completed') !== '0'
   matrixManualSort.value = localStorage.getItem('caldav-matrix-manual-sort') === '1'
@@ -1608,7 +1617,81 @@ const matrixAssignees = computed(() =>
   Array.from(new Set(tasks.value.map((task) => task.assignee).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh')),
 )
 
+function clearMatrixSelection() {
+  matrixSelectedIds.value = new Set()
+}
+
+function toggleMatrixSelection() {
+  matrixSelectionMode.value = !matrixSelectionMode.value
+  clearMatrixSelection()
+}
+
+function toggleMatrixSelect(task: TaskItem) {
+  const next = new Set(matrixSelectedIds.value)
+  if (next.has(task.id)) next.delete(task.id)
+  else next.add(task.id)
+  matrixSelectedIds.value = next
+}
+
+function matrixPatchForTask(task: TaskItem, quadrant: MatrixQuadrantKey) {
+  if (matrixRule.value === 'custom') {
+    return planMatrixDrop(task, normalizeMatrixRules(matrixCustomRules.value), quadrant)
+  }
+  if (matrixRule.value === 'complex') return planComplexDrop(task, quadrant)
+  return { priority: quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0 }
+}
+
+async function batchMoveMatrix(quadrant: string) {
+  const target = quadrant as MatrixQuadrantKey
+  const selected = matrixTasks.value.filter((task) => matrixSelectedIds.value.has(task.id))
+  if (!selected.length) return
+  const plans = selected.map((task) => ({ task, patch: matrixPatchForTask(task, target) }))
+  const valid = plans.filter((item): item is { task: TaskItem; patch: NonNullable<typeof item.patch> } => item.patch !== null)
+  let updated = 0
+  let failed = plans.length - valid.length
+  await Promise.all(valid.map(async ({ task, patch }) => {
+    try {
+      const { task: next } = await updateTask(task.id, patch)
+      replaceTask(next)
+      updated += 1
+    } catch {
+      failed += 1
+    }
+  }))
+  if (updated) Message.success(`已移动 ${updated} 个任务`)
+  if (failed) Message.warning(`${failed} 个任务未能移动`)
+  clearMatrixSelection()
+  await loadWorkspace(true)
+}
+
+async function quickAddMatrixTask(payload: { quadrant: string; title: string }) {
+  const title = payload.title.trim()
+  const target = payload.quadrant as MatrixQuadrantKey
+  if (!title) return
+  const shell = blankTaskForMatrix(title)
+  let patch: { priority?: number; due?: string; listId?: number; tags?: string[]; assignee?: string } | null = null
+  if (matrixRule.value === 'custom') {
+    patch = planMatrixDrop(shell, normalizeMatrixRules(matrixCustomRules.value), target)
+    if (patch === null) {
+      Message.warning('目标象限条件无法自动满足')
+      return
+    }
+  } else if (matrixRule.value === 'complex') {
+    patch = planComplexDrop(shell, target)
+  } else {
+    patch = { priority: target === 'q1' ? 3 : target === 'q2' ? 2 : target === 'q3' ? 1 : 0 }
+  }
+  try {
+    await createTask({ title, ...patch })
+    await loadWorkspace(true)
+    Message.success('任务已添加')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '创建任务失败')
+  }
+}
+
 function toggleMatrixCompleted() {
+  clearMatrixSelection()
   matrixShowCompleted.value = !matrixShowCompleted.value
   try {
     localStorage.setItem('caldav-matrix-show-completed', matrixShowCompleted.value ? '1' : '0')
@@ -1618,6 +1701,7 @@ function toggleMatrixCompleted() {
 }
 
 function toggleMatrixManualSort() {
+  clearMatrixSelection()
   matrixManualSort.value = !matrixManualSort.value
   try {
     localStorage.setItem('caldav-matrix-manual-sort', matrixManualSort.value ? '1' : '0')
@@ -1663,6 +1747,7 @@ function onMatrixRulesSaved(view: MatrixView) {
 }
 
 async function setMatrixRule(rule: MatrixRuleMode) {
+  clearMatrixSelection()
   matrixRule.value = rule
   try {
     localStorage.setItem('caldav-matrix-rule', rule)
@@ -1681,6 +1766,7 @@ async function setMatrixRule(rule: MatrixRuleMode) {
 }
 
 function selectMatrixView(id: number) {
+  clearMatrixSelection()
   activeMatrixViewId.value = id
   const view = matrixViews.value.find((item) => item.id === id)
   matrixRule.value = view?.mode || 'simple'

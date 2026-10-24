@@ -28,6 +28,15 @@
         </div>
         <button
           class="tw-matrix-completed-toggle"
+          :class="{ active: selectionMode }"
+          :title="selectionMode ? '退出多选' : '多选任务'"
+          @click="$emit('toggle-selection')"
+        >
+          <TaskIcon name="select" :size="11" />
+          多选
+        </button>
+        <button
+          class="tw-matrix-completed-toggle"
           :class="{ active: manualSort }"
           :title="manualSort ? '关闭手动排序' : '开启手动排序（拖动任务调整顺序）'"
           @click="$emit('toggle-manual-sort')"
@@ -48,6 +57,17 @@
       </div>
     </header>
 
+    <div v-if="selectionMode" class="tw-matrix-batch-bar">
+      <span>已选 {{ selectedIds.size }} 项</span>
+      <div class="tw-matrix-batch-actions">
+        <button v-for="item in quadrants" :key="item.id" :disabled="!selectedIds.size" @click="$emit('batch-move', item.id)">
+          移到 {{ item.label }}
+        </button>
+        <button :disabled="!selectedIds.size" @click="$emit('clear-selection')">清空</button>
+        <button @click="$emit('toggle-selection')">退出多选</button>
+      </div>
+    </div>
+
     <div class="tw-matrix-grid" :class="gridCollapseClass">
       <article
         v-for="quadrant in quadrants"
@@ -65,6 +85,9 @@
           </span>
           <strong>{{ quadrant.label }}</strong>
           <span class="tw-matrix-count">{{ quadrant.tasks.length }}</span>
+          <button class="tw-matrix-collapse tw-matrix-add" title="快速添加任务" @click.stop="openQuickAdd(quadrant.id)">
+            <TaskIcon name="plus" :size="13" />
+          </button>
           <button
             class="tw-matrix-collapse"
             :class="{ active: collapsedQuadrants.has(quadrant.id) }"
@@ -76,6 +99,19 @@
             <TaskIcon name="chevron" :size="13" />
           </button>
         </header>
+
+        <form v-if="quickQuadrant === quadrant.id && !collapsedQuadrants.has(quadrant.id)" class="tw-matrix-quick" @submit.prevent="submitQuickAdd">
+          <TaskIcon name="plus" :size="13" />
+          <input
+            ref="quickInput"
+            v-model="quickTitle"
+            maxlength="500"
+            :placeholder="`添加到「${quadrant.label}」`"
+            @keydown.esc="cancelQuickAdd"
+          />
+          <button type="submit" :disabled="!quickTitle.trim()">添加</button>
+          <button type="button" @click="cancelQuickAdd">取消</button>
+        </form>
 
         <div v-if="!collapsedQuadrants.has(quadrant.id) && quadrant.tasks.length" class="tw-matrix-body">
           <section
@@ -92,16 +128,26 @@
                 v-for="task in group.tasks"
                 :key="task.id"
                 class="tw-matrix-row"
-                :class="{ done: task.completed, 'sort-over': manualSort && sortOver === task.id }"
-                :draggable="manualSort ? !task.completed : rule !== 'complex'"
+                :class="{ done: task.completed, selected: selectionMode && selectedIds.has(task.id), 'sort-over': manualSort && sortOver === task.id }"
+                :draggable="!selectionMode && (manualSort ? !task.completed : rule !== 'complex')"
                 @dragstart="startDrag(task, $event)"
                 @dragover.prevent="manualSort && !task.completed ? (sortOver = task.id) : null"
                 @dragleave="sortOver = 0"
                 @drop.prevent="onRowDrop(quadrant.id, task, $event)"
                 @dragend="endDrag"
-                @click="$emit('open', task)"
+                @click="onRowClick(task)"
               >
                 <span
+                  v-if="selectionMode"
+                  class="tw-matrix-select"
+                  :class="{ checked: selectedIds.has(task.id) }"
+                  :title="selectedIds.has(task.id) ? '取消选择' : '选择任务'"
+                  @click.stop="$emit('toggle-select', task)"
+                >
+                  <TaskIcon v-if="selectedIds.has(task.id)" name="check" :size="10" />
+                </span>
+                <span
+                  v-else
                   class="tw-matrix-check"
                   :class="{ checked: task.completed }"
                   :title="task.completed ? '标记为未完成' : '标记为完成'"
@@ -126,14 +172,14 @@
             </div>
           </section>
         </div>
-        <div v-else-if="!collapsedQuadrants.has(quadrant.id)" class="tw-matrix-empty">没有任务</div>
+        <div v-else-if="!collapsedQuadrants.has(quadrant.id) && quickQuadrant !== quadrant.id" class="tw-matrix-empty">没有任务</div>
       </article>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { MatrixQuadrantKey, MatrixRuleMode, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
 import { dayKey, formatDue, isOverdue, recurrenceLabel, startOfToday } from '../../tasks-utils'
 import { matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
@@ -150,6 +196,8 @@ const props = defineProps<{
   assignees: string[]
   showCompleted: boolean
   manualSort: boolean
+  selectionMode: boolean
+  selectedIds: Set<number>
 }>()
 
 const emit = defineEmits<{
@@ -166,12 +214,20 @@ const emit = defineEmits<{
   (event: 'toggle-completed'): void
   (event: 'toggle-manual-sort'): void
   (event: 'reorder', ids: number[]): void
+  (event: 'toggle-selection'): void
+  (event: 'toggle-select', task: TaskItem): void
+  (event: 'clear-selection'): void
+  (event: 'batch-move', quadrant: string): void
+  (event: 'quick-add', payload: { quadrant: string; title: string }): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)
 const dragOver = ref('')
 const sortTask = ref<TaskItem | null>(null)
 const sortOver = ref(0)
+const quickQuadrant = ref('')
+const quickTitle = ref('')
+const quickInput = ref<HTMLInputElement | null>(null)
 const collapsedQuadrants = ref<Set<string>>(new Set())
 
 const collapseStorageKey = computed(() => `caldav-matrix-collapsed-${props.activeViewId}`)
@@ -236,6 +292,31 @@ const quadrants = computed(() => {
     { id: 'q4', label: customRules.value.q4.name, color: customRules.value.q4.color, tasks: buckets.q4, groups: groupsFor(buckets.q4) },
   ]
 })
+
+function onRowClick(task: TaskItem) {
+  if (props.selectionMode) emit('toggle-select', task)
+  else emit('open', task)
+}
+
+function openQuickAdd(quadrant: string) {
+  if (collapsedQuadrants.value.has(quadrant)) toggleCollapse(quadrant)
+  quickQuadrant.value = quadrant
+  quickTitle.value = ''
+  nextTick(() => quickInput.value?.focus())
+}
+
+function submitQuickAdd() {
+  const title = quickTitle.value.trim()
+  if (!title) return
+  emit('quick-add', { quadrant: quickQuadrant.value, title })
+  quickQuadrant.value = ''
+  quickTitle.value = ''
+}
+
+function cancelQuickAdd() {
+  quickQuadrant.value = ''
+  quickTitle.value = ''
+}
 
 function startDrag(task: TaskItem, event: DragEvent) {
   if (props.manualSort) {

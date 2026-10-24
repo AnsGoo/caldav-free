@@ -135,6 +135,29 @@ export function matchesMatrixRule(task: TaskItem, rule: MatrixQuadrantRule, prio
   return groups.every((group) => matchesCondition(task, group, priority, today))
 }
 
+export function blankTaskForMatrix(title: string): TaskItem {
+  return {
+    id: 0,
+    listId: 0,
+    listName: '',
+    listColor: '',
+    title,
+    notes: '',
+    priority: 0,
+    allDay: false,
+    recurrence: '',
+    reminderOffset: -1,
+    reminderOffsets: [],
+    assignee: '',
+    completed: false,
+    tags: [],
+    checklist: [],
+    order: 0,
+    createdAt: '',
+    modifiedAt: '',
+  }
+}
+
 export interface MatrixDropPatch {
   priority?: number
   due?: string
@@ -225,9 +248,13 @@ export function planMatrixDrop(
     ? groups
     : [mergeConditions(groups)].filter((group): group is MatrixCondition => group !== null)
   for (const condition of candidates) {
-    const patch = patchForCondition(task, condition, today)
-    const next = applyDropPatch(task, patch)
-    if (matrixQuadrant(next, rules, today) === target) return patch
+    const patches = [patchForCondition(task, condition, today)]
+    if (target === 'q2') patches.push({ ...patches[0], due: '' })
+    if (target === 'q3' || target === 'q4') patches.push({ ...patches[0], priority: 0, due: '' })
+    for (const patch of patches) {
+      const next = applyDropPatch(task, patch)
+      if (matrixQuadrant(next, rules, today) === target) return patch
+    }
   }
   return null
 }

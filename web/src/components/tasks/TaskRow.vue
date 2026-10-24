@@ -101,6 +101,7 @@ import { computed } from 'vue'
 import type { TaskItem } from '../../types'
 import { PRIORITIES, formatDeleted, formatDue, isOverdue, recurrenceLabel, reminderLabel, taskReminderOffsets } from '../../tasks-utils'
 import { tagColor, tagTint } from '../../tag-colors'
+import { markdownToPlain } from '../../markdown'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
@@ -130,6 +131,9 @@ const priorityColor = computed(() => PRIORITIES.find((item) => item.value === pr
 const doneCount = computed(() => props.task.checklist.filter((item) => item.done).length)
 const notesPreview = computed(() => {
   let raw = props.task.notesText || props.task.notes
+  if (props.task.notesFormat === 'markdown') {
+    raw = markdownToPlain(raw)
+  }
   if (raw.includes('<')) {
     const el = document.createElement('div')
     el.innerHTML = raw

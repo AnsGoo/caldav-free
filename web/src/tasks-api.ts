@@ -27,7 +27,7 @@ export interface TaskDraft {
   listId?: number
   sectionId?: number
   notes?: string
-  notesFormat?: 'text' | 'html'
+  notesFormat?: 'text' | 'html' | 'markdown'
   kind?: 'TASK' | 'NOTE'
   priority?: number
   start?: string
@@ -447,14 +447,14 @@ export function fetchSummaryDocuments(kind?: 'template' | 'history') {
   return api<{ documents: SummaryDocument[] }>(`/task-summary-documents${query}`)
 }
 
-export function createSummaryDocument(payload: { kind: 'template' | 'history'; name: string; content: string }) {
+export function createSummaryDocument(payload: { kind: 'template' | 'history'; name: string; content: string; format: 'markdown' | 'html' }) {
   return api<{ document: SummaryDocument }>('/task-summary-documents', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
 }
 
-export function updateSummaryDocument(id: number, payload: { name?: string; content: string }) {
+export function updateSummaryDocument(id: number, payload: { name?: string; content: string; format: 'markdown' | 'html' }) {
   return api<{ document: SummaryDocument }>(`/task-summary-documents/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),

@@ -103,7 +103,7 @@ export interface TaskItem {
   listColor: string
   title: string
   notes: string
-  notesFormat: 'text' | 'html'
+  notesFormat: 'text' | 'html' | 'markdown'
   notesText: string
   kind: 'TASK' | 'NOTE'
   priority: number
@@ -507,6 +507,7 @@ export interface SummaryDocument {
   kind: 'template' | 'history'
   name: string
   content: string
+  format: 'markdown' | 'html'
   createdAt: string
   modifiedAt: string
 }

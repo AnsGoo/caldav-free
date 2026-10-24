@@ -37,7 +37,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 倒数纪念日：独立 `/tasks/countdown` 路由，支持纪念日/倒数日/生日/节日、今天与剩余天数、年度/月度/每周/周末重复、公历与农历日期、农历节日预设、生日年龄、置顶、归档、备注、卡片详情、样式/颜色/背景预设、自定义背景图、拖拽排序、提醒偏移与自定义提醒时间，以及站内通知/Web Push/邮件提醒
 - 专注页：独立 `/tasks/focus` 路由，支持番茄计时 / 正计时、开始暂停继续结束、圆形进度、今日与累计统计、专注记录分组与删除、手动补记、任务/习惯关联、专注笔记、番茄与休息节奏、自动开始、提示音、标签页倒计时、7 天趋势、最佳专注时段和年度热力图、独立 7/30/90/365 天统计页、多端计时状态同步
 - 统计页：未完成/已完成/逾期/完成率、每日新建与完成趋势、到期折线、按清单/标签/优先级分布、7/30/90 天周期概览
-- 摘要页：按日期/清单/状态/优先级/标签生成可编辑富文本摘要；支持分组、显示字段、下一周期、AI 内容优化、服务端模板/历史、复制与导出
+- 摘要页：按日期/清单/状态/优先级/标签生成可编辑 Markdown 摘要；支持分组、显示字段、下一周期、AI 内容优化、服务端模板/历史、复制与导出
 - AI 助手：接入 OpenAI 兼容接口，通过 SSE 流式显示回复，通过工具调用查询/创建/修改/完成/删除任务、创建清单、读取统计；支持对话中切换模型
 - AI 语音输入：支持浏览器 Web Speech API 的浏览器可直接口述任务
 - AI 设置：选择服务商自动填充接口地址，填写 API Key 后可拉取模型，列表带推荐/工具调用/视觉/推理等标签；支持连接与工具调用测试、对话顶部切换模型、多候选自动回退、最近模型和耗时统计；也支持环境变量初始化
@@ -247,7 +247,7 @@ docker run -d --name caldav \
 | `/api/admin/tasks/stats` | 任务统计（天数可配置） |
 | `/api/admin/tasks/summary` | 按筛选条件生成摘要数据 |
 | `/api/admin/tasks/summary/optimize` | AI 润色摘要 |
-| `/api/admin/task-summary-documents` | 摘要模板/历史文档 CRUD |
+| `/api/admin/task-summary-documents` | 摘要模板/历史文档 CRUD（`content` + `format=markdown|html`） |
 | `/api/admin/tasks/ai/settings` | AI 模型配置（读取/保存，Key 不回传） |
 | `/api/admin/tasks/ai/models` | 使用当前接口和 Key 拉取可用模型（兼容 Ollama 原生列表） |
 | `/api/admin/tasks/ai/test` | 测试指定模型的对话连通性 |
@@ -286,8 +286,9 @@ docker run -d --name caldav \
 - `range` 使用 `dateFrom` / `dateTo`（`YYYY-MM-DD`，含首尾），可只传一端。
 - 创建清单可传 `kind: "NOTE"`；在笔记清单中创建任务默认 `kind: "NOTE"`，服务端会忽略日期、提醒、重复和完成态。
 - PATCH 任务传 `{"kind":"NOTE"}` 可把任务转换为笔记，并删除对应 VTODO；笔记不参与 VTODO 同步。
-- 富文本笔记提交 `{"notes":"<p>…</p>","notesFormat":"html"}`；服务端按白名单清洗标签/属性（脚本、iframe、事件属性、`javascript:` 链接会被移除），并自动维护 `notesText` 纯文本镜像用于搜索。
-- 普通任务备注强制为 `notesFormat=text`；任务转笔记时纯文本会转成安全段落 HTML。
+- 笔记提交 Markdown 内容并传 `{"notesFormat":"markdown"}`；服务端按 Markdown 原文保存，并维护 `notesText` 搜索镜像。
+- 旧版 HTML 笔记仍可传 `notesFormat="html"`，服务端会按白名单清洗；前端打开时会转换为 Markdown。
+- 普通任务备注强制为 `notesFormat=text`；任务转笔记时原文会作为 Markdown 保存。
 - PATCH 任务传 `{"sectionId":123}` 可移动到看板分组，传 `0` 回到未分组；分组必须属于任务所在清单。
 - `POST /api/admin/task-lists/{id}/copy` 接受 `{"name":"副本名","mode":"open|keep|all"}`：`open` 只复制未完成，`keep` 复制全部并保留完成状态，`all` 复制全部但不保留完成状态。
 
@@ -363,11 +364,11 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `habits` / `habit_sections` / `habit_checkins` / `habit_records` / `habit_preferences`：习惯、分组、打卡、日志和偏好
 - `task_comments`：任务评论与作者
 - `comment_attachments`：评论附件元数据与文件内容（SQLite BLOB）
-- `summary_documents`：摘要模板与历史文档
+- `summary_documents`：摘要模板与历史文档，`format` 为 `markdown` / `html`
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
 - `reminder_attempts`：失败投递的退避重试状态
-- `tasks`：任务、备注、`notes_format`（`text` / `html`）、`notes_text` 纯文本镜像、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、`section_id` 看板分组、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
+- `tasks`：任务、备注、`notes_format`（`text` / `html` / `markdown`）、`notes_text` 搜索镜像、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、`section_id` 看板分组、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
 
@@ -571,7 +572,7 @@ go vet ./...
 - 日历事件查询窗口一次最多 120 天，最多返回 2000 个实例。
 - 统计基于当前仍保留的任务数据；彻底删除或清空垃圾桶会移除对应历史。
 - 统计不含习惯打卡、番茄专注与 CalDAV 事件时长，仅覆盖任务工作台数据。
-- 摘要编辑器为浏览器 contenteditable，格式能力为基础富文本；模板与历史文档保存在服务端 SQLite。
+- 摘要编辑器为 Markdown 所见即所得（Tiptap）；模板与历史文档以 Markdown 保存在服务端 SQLite，`format` 为 `markdown` / `html`。
 - 摘要“下一周期任务”追加的是当前范围之后同等长度时间段内到期的未完成任务，不是重复任务实例展开。
 - 摘要暂不支持指派人、专注数据、进度等字段；AI 内容优化需要先配置模型。
 - 摘要导出支持 HTML、PNG 图片、打印/PDF、邮件（mailto）；图片通过 SVG foreignObject + canvas 在浏览器端生成。

@@ -34,33 +34,18 @@
         </div>
       </header>
 
-      <div class="tw-summary-toolbar" @mousedown.prevent>
-        <button title="标题" @click="exec('formatBlock', 'h3')"><b>H</b></button>
-        <button title="加粗" @click="exec('bold')"><b>B</b></button>
-        <button title="高亮" class="tw-md-highlight" @click="highlight">A</button>
-        <button title="插入复选框" @click="insertChecklist">☑</button>
-        <button title="无序列表" @click="exec('insertUnorderedList')">•</button>
-        <button title="有序列表" @click="exec('insertOrderedList')">1.</button>
-        <button title="减少缩进" @click="exec('outdent')">⇤</button>
-        <button title="增加缩进" @click="exec('indent')">⇥</button>
-        <span class="tw-md-divider" />
-        <button title="斜体" @click="exec('italic')"><i>I</i></button>
-        <button title="下划线" @click="exec('underline')"><u>U</u></button>
-        <button title="删除线" @click="exec('strikeThrough')"><s>S</s></button>
-        <label class="tw-md-color" title="文字颜色">
-          <span>A</span>
-          <input type="color" value="#4772fa" @input="setColor(($event.target as HTMLInputElement).value)" />
-        </label>
-        <button title="插入链接" @click="addLink"><TaskIcon name="link" :size="15" /></button>
-        <button title="行内代码" @click="exec('formatBlock', 'pre')">&lt;/&gt;</button>
-        <button title="引用" @click="exec('formatBlock', 'blockquote')">“”</button>
-        <span class="tw-md-divider" />
+      <div class="tw-summary-toolbar tw-summary-md-head">
+        <span class="tw-summary-format">Markdown</span>
         <button title="刷新摘要" @click="load"><TaskIcon name="refresh" :size="15" /></button>
       </div>
 
       <div class="tw-summary-editor-wrap">
         <div v-if="loading || optimizing" class="tw-summary-loading">{{ optimizing ? 'AI 优化中…' : '生成摘要中…' }}</div>
-        <div ref="editorRef" class="tw-summary-editor" contenteditable="true" spellcheck="false" @input="onEdit" />
+        <MarkdownEditor
+          v-model="summaryMarkdown"
+          class="tw-summary-md"
+          placeholder="用 Markdown 编辑摘要…"
+        />
       </div>
 
       <footer class="tw-summary-foot">
@@ -192,51 +177,6 @@
       <button class="tw-summary-aside-close" @click="asideOpen = false">收起设置</button>
     </aside>
 
-    <div v-if="linkDialogOpen" class="tw-dialog-scrim" @click.self="closeLinkDialog">
-      <div class="tw-dialog tw-link-dialog" role="dialog" aria-modal="true" aria-label="插入链接" @keydown.esc.stop="closeLinkDialog">
-        <header class="tw-dialog-head">
-          <div class="tw-link-title">
-            <span class="tw-link-title-icon"><TaskIcon name="link" :size="16" /></span>
-            <h2>插入链接</h2>
-          </div>
-          <button class="tw-icon-button" title="关闭" @click="closeLinkDialog">
-            <TaskIcon name="close" :size="16" />
-          </button>
-        </header>
-        <div class="tw-dialog-body tw-link-body">
-          <p v-if="linkSelectedText" class="tw-link-hint">
-            将应用到选中的文字：<strong>{{ linkSelectedText }}</strong>
-          </p>
-          <label class="tw-link-field">
-            <span>链接地址</span>
-            <input
-              ref="linkInput"
-              v-model="linkUrl"
-              class="tw-dialog-input"
-              placeholder="https://example.com"
-              spellcheck="false"
-              @keydown.enter.prevent="confirmLink"
-            />
-          </label>
-          <label v-if="!linkSelectedText" class="tw-link-field">
-            <span>显示文字 <small>可选</small></span>
-            <input
-              v-model="linkText"
-              class="tw-dialog-input"
-              placeholder="留空则显示链接地址"
-              maxlength="300"
-              @keydown.enter.prevent="confirmLink"
-            />
-          </label>
-          <p v-if="linkError" class="tw-link-error">{{ linkError }}</p>
-        </div>
-        <footer class="tw-dialog-foot">
-          <button class="tw-dialog-cancel" @click="closeLinkDialog">取消</button>
-          <button class="tw-dialog-ok" @click="confirmLink">插入链接</button>
-        </footer>
-      </div>
-    </div>
-
     <div v-if="templateDialogOpen" class="tw-dialog-scrim" @click.self="templateDialogOpen = false">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="保存为模板" @keydown.esc="templateDialogOpen = false">
         <header class="tw-dialog-head">
@@ -275,6 +215,8 @@ import { Message } from '@arco-design/web-vue'
 import type { SummaryDocument, SummaryTask, TaskList, TaskSummaryData, TaskTagCount } from '../../types'
 import { createSummaryDocument, deleteSummaryDocument, fetchAISettings, fetchSummaryDocuments, fetchTaskSummary, optimizeSummary } from '../../tasks-api'
 import { PRIORITIES } from '../../tasks-utils'
+import { htmlToMarkdown, markdownToPlain, renderMarkdown } from '../../markdown'
+import MarkdownEditor from './MarkdownEditor.vue'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ lists: TaskList[]; tags: TaskTagCount[] }>()
@@ -322,7 +264,7 @@ const fields = ref<string[]>(['completedAt'])
 
 const data = ref<TaskSummaryData | null>(null)
 const loading = ref(false)
-const editorRef = ref<HTMLElement | null>(null)
+const summaryMarkdown = ref('')
 const asideOpen = ref(false)
 const historyOpen = ref(false)
 const saveMenuOpen = ref(false)
@@ -332,19 +274,11 @@ const templates = ref<SummaryDocument[]>([])
 const aiConfigured = ref(false)
 const optimize = ref(false)
 const optimizing = ref(false)
-const linkDialogOpen = ref(false)
-const linkUrl = ref('')
-const linkText = ref('')
-const linkSelectedText = ref('')
-const linkError = ref('')
-const linkInput = ref<HTMLInputElement | null>(null)
-let savedLinkRange: Range | null = null
 
 const templateDialogOpen = ref(false)
 const templateName = ref('')
 const templateBusy = ref(false)
 const templateNameInput = ref<HTMLInputElement | null>(null)
-const imageBusy = ref(false)
 let optimizeSeq = 0
 
 let loadTimer: ReturnType<typeof setTimeout> | undefined
@@ -501,53 +435,55 @@ function hourKey(value: string) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-function taskHtml(task: SummaryTask) {
-  const date = taskDate(task)
-  const prefix = date ? `<span class="tw-summary-date">[${formatDate(date)}]</span> ` : ''
-  const extras: string[] = []
-  if (fields.value.includes('tags') && task.tags.length) {
-    extras.push(task.tags.map((tag) => `<span class="tw-summary-tag">#${escapeHtml(tag)}</span>`).join(' '))
-  }
-  if (fields.value.includes('list')) extras.push(`<span class="tw-summary-extra">· ${escapeHtml(task.listName)}</span>`)
-  if (fields.value.includes('priority') && task.priority) extras.push(`<span class="tw-summary-extra">· ${priorityLabel(task.priority)}</span>`)
-  if (fields.value.includes('status')) extras.push(`<span class="tw-summary-extra">· ${task.completed ? '已完成' : '未完成'}</span>`)
-  if (fields.value.includes('progress') && task.checklist.length) {
-    const done = task.checklist.filter((item) => item.done).length
-    extras.push(`<span class="tw-summary-extra">· 进度 ${done}/${task.checklist.length}</span>`)
-  }
-  let details = ''
-  if (fields.value.includes('details')) {
-    const parts: string[] = []
-    if (task.notes.trim()) parts.push(escapeHtml(task.notes.trim().replace(/\n+/g, ' ')))
-    if (task.checklist.length) parts.push(`子任务 ${task.checklist.filter((item) => item.done).length}/${task.checklist.length}`)
-    if (parts.length) details = `<div class="tw-summary-detail">${parts.join(' · ')}</div>`
-  }
-  return `<li>${prefix}${escapeHtml(task.title)}${extras.length ? ' ' + extras.join(' ') : ''}${details}</li>`
+function mdEscape(value: string) {
+  return value.replace(/([\\`*_[\]])/g, '\\$1')
 }
 
-function generateHtml() {
-  if (!data.value) return '<p>正在生成摘要…</p>'
-  let html = `<h2>${escapeHtml(data.value.title)}</h2>`
+function taskMarkdown(task: SummaryTask) {
+  const date = taskDate(task)
+  const parts: string[] = []
+  if (date) parts.push(`[${formatDate(date)}]`)
+  parts.push(mdEscape(task.title))
+  if (fields.value.includes('tags') && task.tags.length) {
+    parts.push(task.tags.map((tag) => `#${mdEscape(tag)}`).join(' '))
+  }
+  if (fields.value.includes('list')) parts.push(`· ${mdEscape(task.listName)}`)
+  if (fields.value.includes('priority') && task.priority) parts.push(`· ${priorityLabel(task.priority)}`)
+  if (fields.value.includes('status')) parts.push(`· ${task.completed ? '已完成' : '未完成'}`)
+  if (fields.value.includes('progress') && task.checklist.length) {
+    const done = task.checklist.filter((item) => item.done).length
+    parts.push(`· 进度 ${done}/${task.checklist.length}`)
+  }
+  if (fields.value.includes('details')) {
+    if (task.notes.trim()) parts.push(`· ${mdEscape(task.notes.trim().replace(/\n+/g, ' '))}`)
+    if (task.checklist.length) parts.push(`· 子任务 ${task.checklist.filter((item) => item.done).length}/${task.checklist.length}`)
+  }
+  return `${task.completed ? '- [x]' : '- [ ]'} ${parts.join(' ')}`
+}
+
+function generateMarkdown() {
+  if (!data.value) return '正在生成摘要…'
+  const lines: string[] = [`## ${mdEscape(data.value.title)}`, '']
   const groups = groupTasks(data.value.tasks)
   for (const group of groups) {
-    html += `<h3>${escapeHtml(group.label)}</h3><ul>${group.tasks.map(taskHtml).join('')}</ul>`
+    lines.push(`### ${mdEscape(group.label)}`, '')
+    for (const task of group.tasks) lines.push(taskMarkdown(task))
+    lines.push('')
   }
   if (data.value.nextTasks.length) {
-    html += `<h3>下一周期</h3><ul>${data.value.nextTasks.map(taskHtml).join('')}</ul>`
+    lines.push('### 下一周期', '')
+    for (const task of data.value.nextTasks) lines.push(taskMarkdown(task))
+    lines.push('')
   }
   if (!groups.length && !data.value.nextTasks.length) {
-    html += '<p>当前范围内没有符合条件的任务</p>'
+    lines.push('当前范围内没有符合条件的任务')
   }
-  return html
+  return lines.join('\n').trim() + '\n'
 }
 
 function renderEditor() {
-  void nextTick(() => {
-    if (editorRef.value) {
-      editorRef.value.innerHTML = generateHtml()
-      if (optimize.value && aiConfigured.value) void applyOptimization()
-    }
-  })
+  summaryMarkdown.value = generateMarkdown()
+  if (optimize.value && aiConfigured.value) void applyOptimization()
 }
 
 async function load() {
@@ -576,104 +512,6 @@ function scheduleLoad() {
   loadTimer = setTimeout(() => void load(), 180)
 }
 
-function exec(command: string, value?: string) {
-  editorRef.value?.focus()
-  document.execCommand(command, false, value)
-  onEdit()
-}
-
-function highlight() {
-  exec('hiliteColor', '#f0a020')
-}
-
-function setColor(color: string) {
-  exec('foreColor', color)
-}
-
-function addLink() {
-  const editor = editorRef.value
-  if (!editor) return
-  const selection = window.getSelection()
-  let range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
-  if (!range || !editor.contains(range.commonAncestorContainer)) {
-    range = document.createRange()
-    range.selectNodeContents(editor)
-    range.collapse(false)
-  }
-  savedLinkRange = range
-  linkSelectedText.value = range.toString().trim().slice(0, 100)
-  linkUrl.value = ''
-  linkText.value = ''
-  linkError.value = ''
-  linkDialogOpen.value = true
-  void nextTick(() => linkInput.value?.focus())
-}
-
-function closeLinkDialog() {
-  linkDialogOpen.value = false
-  linkError.value = ''
-  savedLinkRange = null
-  editorRef.value?.focus()
-}
-
-function normaliseLink(raw: string) {
-  let value = raw.trim()
-  if (!value) return ''
-  if (/^(javascript|data|vbscript):/i.test(value)) return ''
-  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value) && !value.startsWith('#') && !value.startsWith('/')) {
-    value = `https://${value}`
-  }
-  try {
-    if (!value.startsWith('#') && !value.startsWith('/')) new URL(value)
-  } catch {
-    return ''
-  }
-  return value
-}
-
-function escapeLinkHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[char] || char)
-}
-
-function confirmLink() {
-  const editor = editorRef.value
-  const url = normaliseLink(linkUrl.value)
-  if (!url) {
-    linkError.value = '请输入有效的链接地址'
-    return
-  }
-  if (!editor) return
-  const range = savedLinkRange
-  const selected = linkSelectedText.value
-  editor.focus()
-  const selection = window.getSelection()
-  if (range && selection) {
-    selection.removeAllRanges()
-    selection.addRange(range)
-  }
-  if (selected) {
-    document.execCommand('createLink', false, url)
-    const links = editor.querySelectorAll('a')
-    const anchor = links[links.length - 1] as HTMLAnchorElement | undefined
-    if (anchor) {
-      anchor.target = '_blank'
-      anchor.rel = 'noopener noreferrer'
-    }
-  } else {
-    const text = escapeLinkHtml(linkText.value.trim() || url)
-    document.execCommand('insertHTML', false, `<a href="${escapeLinkHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`)
-  }
-  linkDialogOpen.value = false
-  savedLinkRange = null
-  onEdit()
-}
-
-function insertChecklist() {
-  exec('insertHTML', '<div>☐&nbsp;</div>')
-}
-
 function toggleField(value: string) {
   const next = new Set(fields.value)
   if (next.has(value)) next.delete(value)
@@ -681,74 +519,12 @@ function toggleField(value: string) {
   fields.value = [...next]
 }
 
-function onEdit() {
-  /* content is read directly from the editor when copying or exporting */
-}
-
 function readHtml() {
-  return editorRef.value?.innerHTML || generateHtml()
+  return renderMarkdown(summaryMarkdown.value)
 }
 
 function readText() {
-  return editorRef.value?.innerText || ''
-}
-
-function markdownToHtml(markdown: string) {
-  let content = markdown.trim()
-  if (content.startsWith('```')) {
-    content = content.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '')
-  }
-  const inline = (value: string) => escapeHtml(value)
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-  const lines = content.split(/\r?\n/)
-  const out: string[] = []
-  let list: 'ul' | 'ol' | '' = ''
-  const closeList = () => {
-    if (list) {
-      out.push(`</${list}>`)
-      list = ''
-    }
-  }
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (!trimmed) {
-      closeList()
-      continue
-    }
-    const heading = trimmed.match(/^(#{1,4})\s+(.*)$/)
-    if (heading) {
-      closeList()
-      const level = Math.min(Math.max(heading[1].length + 1, 2), 4)
-      out.push(`<h${level}>${inline(heading[2])}</h${level}>`)
-      continue
-    }
-    const bullet = trimmed.match(/^[-*]\s+(.*)$/)
-    if (bullet) {
-      if (list !== 'ul') {
-        closeList()
-        list = 'ul'
-        out.push('<ul>')
-      }
-      out.push(`<li>${inline(bullet[1])}</li>`)
-      continue
-    }
-    const ordered = trimmed.match(/^\d+[.)]\s+(.*)$/)
-    if (ordered) {
-      if (list !== 'ol') {
-        closeList()
-        list = 'ol'
-        out.push('<ol>')
-      }
-      out.push(`<li>${inline(ordered[1])}</li>`)
-      continue
-    }
-    closeList()
-    out.push(`<p>${inline(trimmed)}</p>`)
-  }
-  closeList()
-  return out.join('')
+  return markdownToPlain(summaryMarkdown.value)
 }
 
 async function applyOptimization() {
@@ -760,9 +536,9 @@ async function applyOptimization() {
   try {
     const result = await optimizeSummary(data.value.title, text)
     if (seq !== optimizeSeq) return
-    if (result.markdown && editorRef.value) {
-      editorRef.value.innerHTML = markdownToHtml(result.markdown)
-    } else if (!result.markdown) {
+    if (result.markdown) {
+      summaryMarkdown.value = result.markdown.trim()
+    } else {
       Message.warning('AI 没有返回优化内容')
     }
   } catch (error) {
@@ -779,7 +555,8 @@ async function saveHistory() {
     const { document } = await createSummaryDocument({
       kind: 'history',
       name: data.value?.title || '摘要',
-      content: readHtml(),
+      content: summaryMarkdown.value,
+      format: 'markdown',
     })
     history.value = [document, ...history.value].slice(0, 50)
     saveMenuOpen.value = false
@@ -790,7 +567,7 @@ async function saveHistory() {
 }
 
 function loadDocument(doc: SummaryDocument) {
-  if (editorRef.value) editorRef.value.innerHTML = doc.content
+  summaryMarkdown.value = doc.format === 'markdown' ? doc.content : htmlToMarkdown(doc.content)
   historyOpen.value = false
 }
 
@@ -817,7 +594,7 @@ async function confirmSaveTemplate() {
   }
   templateBusy.value = true
   try {
-    const { document } = await createSummaryDocument({ kind: 'template', name, content: readHtml() })
+    const { document } = await createSummaryDocument({ kind: 'template', name, content: summaryMarkdown.value, format: 'markdown' })
     templates.value = [document, ...templates.value].slice(0, 50)
     templateDialogOpen.value = false
     Message.success('模板已保存')
@@ -829,7 +606,7 @@ async function confirmSaveTemplate() {
 }
 
 function loadTemplate(template: SummaryDocument) {
-  if (editorRef.value) editorRef.value.innerHTML = template.content
+  summaryMarkdown.value = template.format === 'markdown' ? template.content : htmlToMarkdown(template.content)
 }
 
 async function copySummary() {
@@ -882,9 +659,12 @@ async function exportImage() {
   wrapper.innerHTML = `<style>
     h2{font-size:24px;margin:0 0 16px;color:#111827}h3{font-size:16px;margin:22px 0 8px;color:#111827}
     h4{font-size:15px;margin:18px 0 6px;color:#111827}ul,ol{padding-left:24px;margin:6px 0}li{margin:5px 0}
-    .tw-summary-date{color:#6b7280}.tw-summary-tag{color:#4772fa}.tw-summary-extra{color:#6b7280;font-size:12px}
-    .tw-summary-detail{color:#6b7280;font-size:11.5px}blockquote{border-left:3px solid #4772fa;margin:10px 0;padding:4px 12px;color:#5c626b;background:#f3f3f5}
+    blockquote{border-left:3px solid #4772fa;margin:10px 0;padding:4px 12px;color:#5c626b;background:#f3f3f5}
     pre{background:#f3f3f5;border-radius:7px;padding:8px 10px;font-size:12px;overflow-x:auto}
+    code{background:#f3f3f5;border-radius:4px;padding:1px 4px;font-size:12px}pre code{padding:0;background:transparent}
+    a{color:#4772fa}hr{border:0;border-top:1px solid #e5e7eb;margin:14px 0}
+    table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+    th,td{border:1px solid #d9dce3;padding:5px 8px;text-align:left}th{background:#f3f4f6}
   </style>${content}`
   wrapper.style.position = 'fixed'
   wrapper.style.left = '-10000px'
@@ -895,7 +675,6 @@ async function exportImage() {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${Math.ceil(height)}">
     <foreignObject width="100%" height="100%">${new XMLSerializer().serializeToString(wrapper)}</foreignObject>
   </svg>`
-  imageBusy.value = true
   try {
     const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
     const image = new Image()
@@ -926,14 +705,13 @@ async function exportImage() {
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '导出图片失败')
   } finally {
-    imageBusy.value = false
   }
 }
 
 function printSummary() {
   const win = window.open('', '_blank')
   if (!win) return
-  win.document.write(buildDocument(readHtml(), true))
+  win.document.write(buildDocument(readHtml()))
   win.document.close()
   win.focus()
   win.print()
@@ -947,13 +725,17 @@ function emailSummary() {
   saveMenuOpen.value = false
 }
 
-function buildDocument(content: string, print = false) {
+function buildDocument(content: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(data.value?.title || '摘要')}</title><style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif;max-width:760px;margin:40px auto;padding:0 20px;line-height:1.7;color:#1f2329}
-    h2{font-size:24px;margin:0 0 16px}h3{font-size:16px;margin:22px 0 8px}ul{padding-left:22px}
-    .tw-summary-date{color:#6b7280}.tw-summary-tag{color:#4772fa}.tw-summary-extra{color:#6b7280}
-    .tw-summary-detail{color:#6b7280;font-size:12px}
-    @media print{body{margin:0;max-width:none}${print ? '' : ''}}
+    h2{font-size:24px;margin:0 0 16px}h3{font-size:16px;margin:22px 0 8px}ul,ol{padding-left:22px}
+    blockquote{margin:10px 0;padding:4px 12px;border-left:3px solid #4772fa;color:#5c626b;background:#f3f3f5}
+    pre{background:#f3f3f5;border-radius:7px;padding:8px 10px;font-size:12px;overflow-x:auto}
+    code{background:#f3f3f5;border-radius:4px;padding:1px 4px;font-size:12px}pre code{padding:0;background:transparent}
+    a{color:#4772fa}hr{border:0;border-top:1px solid #e5e7eb;margin:14px 0}
+    table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13px}
+    th,td{border:1px solid #d9dce3;padding:5px 8px;text-align:left}th{background:#f3f4f6}
+    @media print{body{margin:0;max-width:none}}
   </style></head><body>${content}</body></html>`
 }
 

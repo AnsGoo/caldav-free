@@ -105,18 +105,19 @@ func TestTaskAPISummaryNextCycle(t *testing.T) {
 func TestSummaryDocumentsAPI(t *testing.T) {
 	env := newAPIEnv(t)
 	status, body := env.request(t, "POST", "/api/admin/task-summary-documents", map[string]any{
-		"kind": "template", "name": "周报模板", "content": "<h2>周报</h2>",
+		"kind": "template", "name": "周报模板", "content": "## 周报", "format": "markdown",
 	}, env.csrf)
 	if status != http.StatusCreated {
 		t.Fatalf("create doc = %d: %s", status, body)
 	}
 	created := decode[struct {
 		Document struct {
-			ID   int64  `json:"id"`
-			Kind string `json:"kind"`
+			ID     int64  `json:"id"`
+			Kind   string `json:"kind"`
+			Format string `json:"format"`
 		} `json:"document"`
 	}](t, body)
-	if created.Document.ID == 0 || created.Document.Kind != "template" {
+	if created.Document.ID == 0 || created.Document.Kind != "template" || created.Document.Format != "markdown" {
 		t.Fatalf("unexpected doc: %+v", created.Document)
 	}
 	status, body = env.request(t, "GET", "/api/admin/task-summary-documents?kind=template", nil, "")
@@ -125,15 +126,16 @@ func TestSummaryDocumentsAPI(t *testing.T) {
 	}
 	list := decode[struct {
 		Documents []struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
+			ID     int64  `json:"id"`
+			Name   string `json:"name"`
+			Format string `json:"format"`
 		} `json:"documents"`
 	}](t, body)
-	if len(list.Documents) != 1 || list.Documents[0].Name != "周报模板" {
+	if len(list.Documents) != 1 || list.Documents[0].Name != "周报模板" || list.Documents[0].Format != "markdown" {
 		t.Fatalf("unexpected docs: %+v", list.Documents)
 	}
 	status, body = env.request(t, "PATCH", "/api/admin/task-summary-documents/"+itoa(created.Document.ID), map[string]any{
-		"name": "周报模板 2", "content": "<h2>新周报</h2>",
+		"name": "周报模板 2", "content": "## 新周报", "format": "markdown",
 	}, env.csrf)
 	if status != http.StatusOK {
 		t.Fatalf("update doc = %d: %s", status, body)
@@ -141,6 +143,22 @@ func TestSummaryDocumentsAPI(t *testing.T) {
 	status, _ = env.request(t, "DELETE", "/api/admin/task-summary-documents/"+itoa(created.Document.ID), nil, env.csrf)
 	if status != http.StatusNoContent {
 		t.Fatalf("delete doc = %d", status)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/task-summary-documents", map[string]any{
+		"kind": "template", "name": "旧模板", "content": "<h2>旧</h2>",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create legacy doc = %d: %s", status, body)
+	}
+	legacy := decode[struct {
+		Document struct {
+			ID     int64  `json:"id"`
+			Format string `json:"format"`
+		} `json:"document"`
+	}](t, body)
+	if legacy.Document.Format != "html" {
+		t.Fatalf("legacy format = %q", legacy.Document.Format)
 	}
 }
 

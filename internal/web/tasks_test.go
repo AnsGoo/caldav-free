@@ -1002,3 +1002,39 @@ func TestRichNoteSanitizeAndSearch(t *testing.T) {
 		t.Fatalf("note search results = %+v", ws.Tasks)
 	}
 }
+
+func TestMarkdownNote(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{
+		"name": "Markdown 笔记", "kind": "NOTE",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID int64 `json:"id"`
+		} `json:"list"`
+	}](t, body)
+
+	content := "## 会议\n\n- [x] 完成\n\n**重点**"
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "Markdown 笔记", "listId": list.List.ID, "kind": "NOTE", "notesFormat": "markdown", "notes": content,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create markdown note = %d: %s", status, body)
+	}
+	note := decode[taskResponse](t, body)
+	if note.Task.NotesFormat != "markdown" || note.Task.Notes != content || note.Task.NotesText != content {
+		t.Fatalf("unexpected markdown note: format=%q notes=%q text=%q", note.Task.NotesFormat, note.Task.Notes, note.Task.NotesText)
+	}
+
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(list.List.ID)+"&q=重点", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("search markdown note = %d: %s", status, body)
+	}
+	ws := decode[workspaceResponse](t, body)
+	if len(ws.Tasks) != 1 || ws.Tasks[0].ID != note.Task.ID {
+		t.Fatalf("markdown note search results = %+v", ws.Tasks)
+	}
+}

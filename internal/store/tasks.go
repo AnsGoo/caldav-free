@@ -465,9 +465,13 @@ func backfillTaskNotesText(ctx context.Context, db *gorm.DB) error {
 			return nil
 		}
 		for _, task := range tasks {
+			notesText := task.Notes
+			if task.NotesFormat != "markdown" {
+				notesText = richtext.Plain(task.Notes)
+			}
 			if err := db.WithContext(ctx).Model(&Task{}).
 				Where("id = ?", task.ID).
-				UpdateColumn("notes_text", richtext.Plain(task.Notes)).Error; err != nil {
+				UpdateColumn("notes_text", notesText).Error; err != nil {
 				return fmt.Errorf("backfill notes text: %w", err)
 			}
 		}
@@ -477,21 +481,27 @@ func backfillTaskNotesText(ctx context.Context, db *gorm.DB) error {
 func normalizeTaskNotes(task *Task) error {
 	if task.NotesFormat == "" {
 		if task.Kind == "NOTE" {
-			task.NotesFormat = "html"
+			task.NotesFormat = "markdown"
 		} else {
 			task.NotesFormat = "text"
 		}
 	}
-	if task.NotesFormat != "html" {
-		task.NotesFormat = "text"
-	}
-	if task.NotesFormat == "html" {
+	switch task.NotesFormat {
+	case "markdown":
+		if len(task.Notes) > richtext.MaxNoteHTML {
+			return errors.New("笔记内容过长")
+		}
+		task.NotesText = task.Notes
+	case "html":
 		if len(task.Notes) > richtext.MaxNoteHTML {
 			return errors.New("笔记内容过长")
 		}
 		task.Notes = richtext.Sanitize(task.Notes)
+		task.NotesText = richtext.Plain(task.Notes)
+	default:
+		task.NotesFormat = "text"
+		task.NotesText = richtext.Plain(task.Notes)
 	}
-	task.NotesText = richtext.Plain(task.Notes)
 	return nil
 }
 

@@ -197,6 +197,7 @@ type apiSummaryDocument struct {
 	Kind       string `json:"kind"`
 	Name       string `json:"name"`
 	Content    string `json:"content"`
+	Format     string `json:"format"`
 	CreatedAt  string `json:"createdAt"`
 	ModifiedAt string `json:"modifiedAt"`
 }
@@ -204,6 +205,7 @@ type apiSummaryDocument struct {
 func summaryDocumentDTO(document *store.SummaryDocument) apiSummaryDocument {
 	return apiSummaryDocument{
 		ID: document.ID, Kind: document.Kind, Name: document.Name, Content: document.Content,
+		Format:    document.Format,
 		CreatedAt: document.CreatedAt.Format(time.RFC3339), ModifiedAt: document.ModifiedAt.Format(time.RFC3339),
 	}
 }
@@ -232,6 +234,7 @@ func (s *Server) apiSummaryDocuments(w http.ResponseWriter, r *http.Request, cur
 		Kind    string `json:"kind"`
 		Name    string `json:"name"`
 		Content string `json:"content"`
+		Format  string `json:"format"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -244,7 +247,7 @@ func (s *Server) apiSummaryDocuments(w http.ResponseWriter, r *http.Request, cur
 		writeAPIError(w, http.StatusBadRequest, "文档名称或内容过大")
 		return
 	}
-	document, err := s.store.CreateSummaryDocument(ctx, current.ID, body.Kind, body.Name, body.Content)
+	document, err := s.store.CreateSummaryDocument(ctx, current.ID, body.Kind, body.Name, body.Content, body.Format)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
@@ -270,6 +273,7 @@ func (s *Server) apiSummaryDocument(w http.ResponseWriter, r *http.Request, curr
 	var body struct {
 		Name    string `json:"name"`
 		Content string `json:"content"`
+		Format  string `json:"format"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -278,7 +282,7 @@ func (s *Server) apiSummaryDocument(w http.ResponseWriter, r *http.Request, curr
 		writeAPIError(w, http.StatusBadRequest, "文档名称或内容过大")
 		return
 	}
-	document, err := s.store.UpdateSummaryDocument(ctx, current.ID, id, body.Name, body.Content)
+	document, err := s.store.UpdateSummaryDocument(ctx, current.ID, id, body.Name, body.Content, body.Format)
 	if err != nil {
 		if err == store.ErrNotFound {
 			writeAPIError(w, http.StatusNotFound, "文档不存在")

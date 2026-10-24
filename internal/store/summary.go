@@ -17,6 +17,7 @@ type SummaryDocument struct {
 	Kind       string    `gorm:"size:16;not null;index:idx_summary_doc_user_kind,priority:2"` // template | history
 	Name       string    `gorm:"size:190;not null"`
 	Content    string    `gorm:"type:text;not null"`
+	Format     string    `gorm:"size:16;not null;default:'html'"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
 }
@@ -48,7 +49,7 @@ func (s *Store) GetSummaryDocument(ctx context.Context, userID, id int64) (*Summ
 }
 
 // CreateSummaryDocument stores a template or history entry.
-func (s *Store) CreateSummaryDocument(ctx context.Context, userID int64, kind, name, content string) (*SummaryDocument, error) {
+func (s *Store) CreateSummaryDocument(ctx context.Context, userID int64, kind, name, content, format string) (*SummaryDocument, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	if kind != "template" && kind != "history" {
 		return nil, errors.New("invalid summary document kind")
@@ -57,7 +58,10 @@ func (s *Store) CreateSummaryDocument(ctx context.Context, userID int64, kind, n
 	if name == "" {
 		name = "未命名摘要"
 	}
-	document := SummaryDocument{UserID: userID, Kind: kind, Name: name, Content: content}
+	if format != "markdown" && format != "html" {
+		format = "html"
+	}
+	document := SummaryDocument{UserID: userID, Kind: kind, Name: name, Content: content, Format: format}
 	if err := s.db.WithContext(ctx).Create(&document).Error; err != nil {
 		return nil, fmt.Errorf("create summary document: %w", err)
 	}
@@ -65,7 +69,7 @@ func (s *Store) CreateSummaryDocument(ctx context.Context, userID int64, kind, n
 }
 
 // UpdateSummaryDocument updates name/content of a saved document.
-func (s *Store) UpdateSummaryDocument(ctx context.Context, userID, id int64, name, content string) (*SummaryDocument, error) {
+func (s *Store) UpdateSummaryDocument(ctx context.Context, userID, id int64, name, content, format string) (*SummaryDocument, error) {
 	document, err := s.GetSummaryDocument(ctx, userID, id)
 	if err != nil {
 		return nil, err
@@ -74,8 +78,12 @@ func (s *Store) UpdateSummaryDocument(ctx context.Context, userID, id int64, nam
 		document.Name = strings.TrimSpace(name)
 	}
 	document.Content = content
+	if format != "markdown" && format != "html" {
+		format = document.Format
+	}
+	document.Format = format
 	err = s.db.WithContext(ctx).Model(&SummaryDocument{}).Where("id = ? AND user_id = ?", id, userID).
-		Updates(map[string]any{"name": document.Name, "content": document.Content}).Error
+		Updates(map[string]any{"name": document.Name, "content": document.Content, "format": document.Format}).Error
 	if err != nil {
 		return nil, fmt.Errorf("update summary document: %w", err)
 	}

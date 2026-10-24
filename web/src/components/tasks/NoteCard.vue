@@ -30,6 +30,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { TaskItem } from '../../types'
+import { markdownToPlain } from '../../markdown'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
@@ -46,7 +47,10 @@ defineEmits<{
 }>()
 
 const preview = computed(() => {
-  const raw = props.task.notesText || plainText(props.task.notes)
+  const raw =
+    props.task.notesFormat === 'markdown'
+      ? markdownToPlain(props.task.notesText || props.task.notes)
+      : props.task.notesText || plainText(props.task.notes)
   const text = raw.replace(/\s+/g, ' ').trim()
   if (!text) return ''
   return text.length > 120 ? `${text.slice(0, 120)}…` : text

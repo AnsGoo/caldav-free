@@ -678,7 +678,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if body.NotesFormat != nil {
 		format := strings.ToLower(strings.TrimSpace(*body.NotesFormat))
-		if format != "text" && format != "html" {
+		if format != "text" && format != "html" && format != "markdown" {
 			writeAPIError(w, http.StatusBadRequest, "无效的备注格式")
 			return
 		}
@@ -688,8 +688,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	if kind == "NOTE" {
 		clearNoteSchedule(task)
 		if task.NotesFormat != "html" {
-			task.Notes = richtext.FromPlain(task.Notes)
-			task.NotesFormat = "html"
+			task.NotesFormat = "markdown"
 		}
 	} else {
 		if task.NotesFormat == "html" {
@@ -961,7 +960,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if body.NotesFormat != nil {
 		format := strings.ToLower(strings.TrimSpace(*body.NotesFormat))
-		if format != "text" && format != "html" {
+		if format != "text" && format != "html" && format != "markdown" {
 			writeAPIError(w, http.StatusBadRequest, "无效的备注格式")
 			return
 		}
@@ -970,8 +969,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if task.Kind == "NOTE" {
 		clearNoteSchedule(task)
 		if task.NotesFormat != "html" {
-			task.Notes = richtext.FromPlain(task.Notes)
-			task.NotesFormat = "html"
+			task.NotesFormat = "markdown"
 		}
 	} else {
 		if task.NotesFormat == "html" {

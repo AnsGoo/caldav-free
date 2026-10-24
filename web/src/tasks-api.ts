@@ -1,5 +1,5 @@
 import { api, apiForm, getCSRFToken, notifyUnauthorized } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, CalendarSubscription, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskAttachment, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, CalendarSubscription, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskAttachment, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskSection, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
 
@@ -25,6 +25,7 @@ export interface TaskDraft {
   text?: string
   parentId?: number
   listId?: number
+  sectionId?: number
   notes?: string
   kind?: 'TASK' | 'NOTE'
   priority?: number
@@ -71,6 +72,33 @@ export function updateTaskList(id: number, patch: { name?: string; color?: strin
   return api<{ list: TaskList }>(`/task-lists/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
+  })
+}
+
+export function createTaskSection(listId: number, name: string) {
+  return api<{ section: TaskSection }>('/task-sections', {
+    method: 'POST',
+    body: JSON.stringify({ listId, name }),
+  })
+}
+
+export function updateTaskSection(id: number, patch: { name?: string; order?: number }) {
+  return api<{ section: TaskSection }>(`/task-sections/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteTaskSection(id: number, strategy: 'move' | 'delete', moveTo = 0) {
+  const query = new URLSearchParams({ strategy })
+  if (strategy === 'move') query.set('moveTo', String(moveTo))
+  return api<void>(`/task-sections/${id}?${query.toString()}`, { method: 'DELETE' })
+}
+
+export function copyTaskList(id: number, payload: { name: string; mode: 'open' | 'all' | 'keep' }) {
+  return api<{ list: TaskList }>(`/task-lists/${id}/copy`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

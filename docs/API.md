@@ -258,6 +258,9 @@ docker run -d --name caldav \
 | `/api/admin/tasks/{id}/restore` | 从垃圾桶恢复 |
 | `/api/admin/tasks/{id}/purge` | 彻底删除垃圾桶任务 |
 | `/api/admin/task-lists` | 清单 CRUD（支持文件夹） |
+| `/api/admin/task-lists/{id}/copy` | 复制清单（`mode=open/all/keep`） |
+| `/api/admin/task-sections` | 看板分组列表与新建 |
+| `/api/admin/task-sections/{id}` | 重命名/排序/删除看板分组 |
 | `/api/admin/task-lists/{id}/shares` | 清单共享成员与角色管理 |
 | `/api/admin/task-lists/{id}/members` | 清单所有者与成员列表（用于指派） |
 | `/api/admin/tasks/shared` | 共享清单任务列表 |
@@ -283,6 +286,8 @@ docker run -d --name caldav \
 - `range` 使用 `dateFrom` / `dateTo`（`YYYY-MM-DD`，含首尾），可只传一端。
 - 创建清单可传 `kind: "NOTE"`；在笔记清单中创建任务默认 `kind: "NOTE"`，服务端会忽略日期、提醒、重复和完成态。
 - PATCH 任务传 `{"kind":"NOTE"}` 可把任务转换为笔记，并删除对应 VTODO；笔记不参与 VTODO 同步。
+- PATCH 任务传 `{"sectionId":123}` 可移动到看板分组，传 `0` 回到未分组；分组必须属于任务所在清单。
+- `POST /api/admin/task-lists/{id}/copy` 接受 `{"name":"副本名","mode":"open|keep|all"}`：`open` 只复制未完成，`keep` 复制全部并保留完成状态，`all` 复制全部但不保留完成状态。
 
 支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
 
@@ -343,6 +348,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `settings`：服务端设置
 - `task_folders`：清单文件夹
 - `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹，`pinned` 置顶，`kind` 为 `TASK` / `NOTE`）
+- `task_sections`：清单内的看板分组（名称、排序）
 - `task_filters`：保存的过滤器条件（JSON）、`pinned` 与排序
 - `task_list_shares`：清单共享成员与角色（viewer/editor）
 - `tasks.assignee`：指派人用户名
@@ -359,7 +365,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
 - `reminder_attempts`：失败投递的退避重试状态
-- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
+- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、`section_id` 看板分组、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
 

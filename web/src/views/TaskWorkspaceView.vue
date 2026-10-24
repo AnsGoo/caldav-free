@@ -89,6 +89,7 @@
       @edit-list="openEditList"
       @delete-list="confirmDeleteList"
       @pin-list="toggleListPin"
+      @copy-list="openCopyList"
       @create-folder="openCreateFolder"
       @edit-folder="openEditFolder"
       @delete-folder="confirmDeleteFolder"
@@ -432,30 +433,56 @@
           />
 
           <template v-else>
-            <div class="tw-board">
+            <div class="tw-board" :class="{ 'tw-board-sections': singleListBoard }">
               <section
                 v-for="column in boardColumns"
-                :key="column.list.id"
+                :key="column.key"
                 class="tw-board-column"
+                :draggable="singleListBoard && column.sectionId > 0"
+                @dragstart="startSectionDrag(column, $event)"
+                @dragend="sectionDragId = 0"
                 @dragover.prevent
-                @drop="dropOnList(column.list.id)"
+                @drop="onColumnDrop(column)"
               >
-                <header class="tw-board-head">
-                  <span class="tw-list-dot" :style="{ background: column.list.color || '#4772fa' }" />
-                  <strong>{{ column.list.name }}</strong>
+                <header class="tw-board-head" @dragover.prevent @drop.stop.prevent="dropSection(column)">
+                  <span class="tw-list-dot" :style="{ background: column.color }" />
+                  <template v-if="sectionRenameId === column.sectionId && column.sectionId > 0">
+                    <input
+                      ref="sectionRenameInput"
+                      v-model="sectionRenameName"
+                      class="tw-board-rename"
+                      maxlength="40"
+                      @click.stop
+                      @keydown.enter.prevent="saveSectionRename"
+                      @keydown.esc.prevent="sectionRenameId = 0"
+                      @blur="saveSectionRename"
+                    />
+                  </template>
+                  <strong v-else>{{ column.name }}</strong>
                   <span class="tw-board-count">{{ column.tasks.length }}</span>
-                  <button class="tw-icon-button" title="在此清单添加任务" @click="addToColumn(column.list.id)">
+                  <button class="tw-icon-button" title="在此分组添加任务" @click="addToColumn(column)">
                     <TaskIcon name="plus" :size="15" />
                   </button>
+                  <div v-if="singleListBoard" class="tw-board-col-action">
+                    <button class="tw-icon-button" title="分组菜单" @click.stop="toggleSectionMenu(column.sectionId)">
+                      <TaskIcon name="more" :size="15" />
+                    </button>
+                    <div v-if="sectionMenuId === column.sectionId" class="tw-board-col-menu" @click.stop>
+                      <button v-if="column.sectionId > 0" @click="startSectionRename(column)">重命名</button>
+                      <button @click="addSectionNear(column, 'left')">在左侧添加分组</button>
+                      <button @click="addSectionNear(column, 'right')">在右侧添加分组</button>
+                      <button v-if="column.sectionId > 0" class="danger" @click="openDeleteSection(column)">删除</button>
+                    </div>
+                  </div>
                 </header>
-                <div class="tw-board-body">
+                <div class="tw-board-body" @dragover.prevent @drop="onColumnDrop(column)">
                   <article
                     v-for="task in column.tasks"
                     :key="task.id"
                     class="tw-board-card"
                     :class="{ done: task.completed }"
                     draggable="true"
-                    @dragstart="dragId = task.id"
+                    @dragstart="startTaskDrag(task, $event)"
                     @dragend="dragId = 0"
                     @click="openTask(task)"
                   >
@@ -475,9 +502,15 @@
                       <TaskIcon name="check" :size="12" />
                     </button>
                   </article>
-                  <p v-if="!column.tasks.length" class="tw-board-empty">拖动任务到这里，或点击 + 新建</p>
+                  <p v-if="!column.tasks.length" class="tw-board-empty">
+                    {{ singleListBoard ? '拖动任务到这个分组，或点击 + 新建' : '拖动任务到这里，或点击 + 新建' }}
+                  </p>
                 </div>
               </section>
+              <button v-if="singleListBoard" class="tw-board-add-col" @click="addSection(null)">
+                <TaskIcon name="plus" :size="15" />
+                新分组
+              </button>
             </div>
           </template>
         </div>
@@ -944,6 +977,78 @@
       @close="reminderSettingsOpen = false"
     />
 
+    <div v-if="sectionDeleteTarget" class="tw-dialog-scrim" @click.self="sectionDeleteTarget = null">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="删除分组">
+        <header class="tw-dialog-head">
+          <h2>删除分组</h2>
+          <button class="tw-icon-button" title="关闭" @click="sectionDeleteTarget = null">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body tw-section-delete">
+          <p class="tw-dialog-hint">「{{ sectionDeleteTarget.name }}」中的任务如何处理？</p>
+          <label class="tw-radio-row">
+            <input v-model="sectionDeleteStrategy" type="radio" value="move" />
+            <span>移动任务到</span>
+          </label>
+          <select v-if="sectionDeleteStrategy === 'move'" v-model.number="sectionDeleteMoveTo" class="tw-field-select">
+            <option :value="0">未分组</option>
+            <option
+              v-for="section in activeSections.filter((item) => item.id !== sectionDeleteTarget?.sectionId)"
+              :key="section.id"
+              :value="section.id"
+            >
+              {{ section.name }}
+            </option>
+          </select>
+          <label class="tw-radio-row">
+            <input v-model="sectionDeleteStrategy" type="radio" value="delete" />
+            <span>删除分组和其中的任务</span>
+          </label>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="sectionDeleteTarget = null">取消</button>
+          <button class="tw-dialog-ok tw-danger-button" @click="confirmDeleteSection">删除</button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="copyListTarget" class="tw-dialog-scrim" @click.self="copyListTarget = null">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="复制清单">
+        <header class="tw-dialog-head">
+          <h2>复制清单</h2>
+          <button class="tw-icon-button" title="关闭" @click="copyListTarget = null">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body tw-copy-list">
+          <label class="tw-modal-label">
+            名称
+            <input v-model="copyListName" class="tw-dialog-input" maxlength="40" />
+          </label>
+          <p class="tw-dialog-hint">请选择复制范围</p>
+          <label class="tw-radio-row">
+            <input v-model="copyListMode" type="radio" value="open" />
+            <span>只复制未完成任务</span>
+          </label>
+          <label class="tw-radio-row">
+            <input v-model="copyListMode" type="radio" value="keep" />
+            <span>复制全部任务，保留已完成状态</span>
+          </label>
+          <label class="tw-radio-row">
+            <input v-model="copyListMode" type="radio" value="all" />
+            <span>复制全部任务，不保留已完成状态</span>
+          </label>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="copyListTarget = null">取消</button>
+          <button class="tw-dialog-ok" :disabled="copyBusy" @click="confirmCopyList">
+            {{ copyBusy ? '复制中…' : '确认' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
     <ThemePicker
       v-if="themeDialogOpen"
       :model-value="theme"
@@ -970,16 +1075,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskTemplate, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskSection, TaskTagCount, TaskTemplate, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
+  copyTaskList,
   createSavedFilter,
   createTask,
   createTaskFolder,
+  createTaskSection,
+  deleteTaskSection,
+  updateTaskSection,
   createMatrixView,
   createTaskList,
   createTaskTemplate,
@@ -1071,6 +1180,7 @@ const router = useRouter()
 const lists = ref<TaskList[]>([])
 const sharedLists = ref<SharedTaskList[]>([])
 const folders = ref<TaskFolder[]>([])
+const sections = ref<TaskSection[]>([])
 const filters = ref<SavedFilter[]>([])
 const tasks = ref<TaskItem[]>([])
 const tags = ref<string[]>([])
@@ -1142,6 +1252,18 @@ let sequenceBuffer = ''
 let sequenceTimer: ReturnType<typeof setTimeout> | undefined
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
+const quickSectionId = ref(0)
+const sectionMenuId = ref(-1)
+const sectionRenameId = ref(0)
+const sectionRenameName = ref('')
+const sectionDragId = ref(0)
+const sectionDeleteTarget = ref<BoardColumn | null>(null)
+const sectionDeleteStrategy = ref<'move' | 'delete'>('move')
+const sectionDeleteMoveTo = ref(0)
+const copyListTarget = ref<TaskList | null>(null)
+const copyListName = ref('')
+const copyListMode = ref<'open' | 'all' | 'keep'>('open')
+const copyBusy = ref(false)
 const manualSort = ref(false)
 const selectionMode = ref(false)
 const selectedIds = ref(new Set<number>())
@@ -1161,6 +1283,7 @@ let notificationTimer: ReturnType<typeof setInterval> | undefined
 let notificationSource: EventSource | null = null
 
 const quickInputEl = ref<HTMLInputElement | null>(null)
+const sectionRenameInput = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
 const searchInputEl = ref<HTMLInputElement | null>(null)
 const editNameInput = ref<HTMLInputElement | null>(null)
 
@@ -1327,15 +1450,66 @@ const emptyHint = computed(() => {
   return '按 N 或点击上方输入框，快速记下一件事。'
 })
 
-const boardColumns = computed(() => {
+const singleListBoard = computed(
+  () => mode.value === 'board' && view.value === 'list' && activeListId.value > 0 && activeList.value?.kind !== 'NOTE',
+)
+const activeSections = computed(() =>
+  sections.value
+    .filter((section) => section.listId === activeListId.value)
+    .sort((a, b) => a.order - b.order || a.id - b.id),
+)
+
+interface BoardColumn {
+  key: string
+  name: string
+  color: string
+  listId: number
+  sectionId: number
+  isSection: boolean
+  tasks: TaskItem[]
+}
+
+const boardColumns = computed<BoardColumn[]>(() => {
   const base = (view.value === 'completed'
     ? filteredTasks.value.filter((task) => task.completed)
     : filteredTasks.value.filter((task) => !task.completed)
   ).filter((task) => task.kind !== 'NOTE')
+  if (singleListBoard.value) {
+    const list = activeList.value
+    if (!list) return []
+    const columns: BoardColumn[] = [
+      {
+        key: `section-0`,
+        name: '未分组',
+        color: list.color || '#4772fa',
+        listId: list.id,
+        sectionId: 0,
+        isSection: true,
+        tasks: base.filter((task) => task.listId === list.id && !task.sectionId),
+      },
+    ]
+    for (const section of activeSections.value) {
+      columns.push({
+        key: `section-${section.id}`,
+        name: section.name,
+        color: list.color || '#4772fa',
+        listId: list.id,
+        sectionId: section.id,
+        isSection: true,
+        tasks: base.filter((task) => task.listId === list.id && task.sectionId === section.id),
+      })
+    }
+    return columns
+  }
   return lists.value
     .filter((list) => list.kind !== 'NOTE')
     .map((list) => ({
-      list,
+      key: `list-${list.id}`,
+      name: list.name,
+      color: list.color || '#4772fa',
+      listId: list.id,
+      sectionId: -1,
+      isSection: false,
       tasks: base.filter((task) => task.listId === list.id),
     }))
 })
@@ -1375,6 +1549,7 @@ async function loadWorkspace(silent = false) {
       }
     }
     folders.value = data.folders
+    sections.value = data.sections || []
     filters.value = data.filters
     tasks.value = data.tasks
     if (view.value === 'shared' && activeSharedListId.value) {
@@ -1471,6 +1646,7 @@ function syncURL() {
 function selectView(nextView: string) {
   view.value = nextView as TaskView
   activeListId.value = 0
+  quickSectionId.value = 0
   activeSharedListId.value = 0
   activeTag.value = ''
   selectedId.value = 0
@@ -1486,6 +1662,7 @@ function selectView(nextView: string) {
 function selectList(id: number) {
   view.value = 'list'
   activeListId.value = id
+  quickSectionId.value = 0
   if (lists.value.find((list) => list.id === id)?.kind === 'NOTE') mode.value = 'list'
   activeFilterId.value = 0
   activeTag.value = ''
@@ -1766,6 +1943,8 @@ async function submitQuick() {
     if (noteView.value) {
       const { task } = await createTask({ title: text, listId: activeListId.value, kind: 'NOTE' })
       quickText.value = ''
+      quickListId.value = 0
+      quickSectionId.value = 0
       await loadWorkspace(true)
       selectedId.value = task.id
       return
@@ -1773,9 +1952,11 @@ async function submitQuick() {
     const { task } = await createTask({
       text,
       listId: view.value === 'shared' ? activeSharedList.value?.listId : quickTargetList.value?.id,
+      sectionId: quickSectionId.value || undefined,
     })
     quickText.value = ''
     quickListId.value = 0
+    quickSectionId.value = 0
     await loadWorkspace(true)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建任务失败')
@@ -1802,15 +1983,222 @@ function createFromCalendar(payload: { date: string; title: string }) {
   })()
 }
 
-function addToColumn(listId: number) {
-  quickListId.value = listId
+function addToColumn(column: BoardColumn) {
+  quickListId.value = column.listId
+  quickSectionId.value = column.sectionId > 0 ? column.sectionId : 0
   quickInputEl.value?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   quickInputEl.value?.focus()
 }
 
 function focusQuick() {
+  if (mode.value === 'board') quickSectionId.value = 0
   mode.value = 'list'
   requestAnimationFrame(() => quickInputEl.value?.focus())
+}
+
+function startTaskDrag(task: TaskItem, event: DragEvent) {
+  dragId.value = task.id
+  sectionDragId.value = 0
+  event.stopPropagation()
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function startSectionDrag(column: BoardColumn, event: DragEvent) {
+  if (!singleListBoard.value || column.sectionId <= 0) return
+  sectionDragId.value = column.sectionId
+  dragId.value = 0
+  event.stopPropagation()
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function onColumnDrop(column: BoardColumn) {
+  if (sectionDragId.value) {
+    dropSection(column)
+    return
+  }
+  const id = dragId.value
+  dragId.value = 0
+  if (!id) return
+  const task = tasks.value.find((item) => item.id === id)
+  if (!task) return
+  if (column.isSection) {
+    if (task.listId === column.listId && task.sectionId === column.sectionId) return
+    const previousList = task.listId
+    const previousSection = task.sectionId
+    task.listId = column.listId
+    task.sectionId = column.sectionId
+    void updateTask(task.id, { listId: column.listId, sectionId: column.sectionId })
+      .then(({ task: updated }) => {
+        replaceTask(updated)
+        scheduleRefresh()
+      })
+      .catch((error) => {
+        task.listId = previousList
+        task.sectionId = previousSection
+        Message.error(error instanceof Error ? error.message : '移动任务失败')
+      })
+    return
+  }
+  dropOnList(column.listId)
+}
+
+function dropSection(target: BoardColumn) {
+  const sourceId = sectionDragId.value
+  sectionDragId.value = 0
+  if (!sourceId || target.sectionId <= 0 || sourceId === target.sectionId) return
+  const list = activeSections.value.slice()
+  const from = list.findIndex((section) => section.id === sourceId)
+  const to = list.findIndex((section) => section.id === target.sectionId)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  void reorderSections(list.map((section) => section.id))
+}
+
+async function reorderSections(ids: number[]) {
+  try {
+    await Promise.all(ids.map((id, index) => updateTaskSection(id, { order: index + 1 })))
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存分组排序失败')
+  }
+}
+
+function nextSectionName() {
+  const names = new Set(activeSections.value.map((section) => section.name))
+  if (!names.has('新分组')) return '新分组'
+  let index = 2
+  while (names.has(`新分组 ${index}`)) index += 1
+  return `新分组 ${index}`
+}
+
+async function addSection(after: BoardColumn | null) {
+  if (!activeListId.value) return
+  try {
+    const { section } = await createTaskSection(activeListId.value, nextSectionName())
+    if (after?.sectionId && after.sectionId > 0) {
+      const ids = activeSections.value.map((item) => item.id).filter((id) => id !== section.id)
+      const index = ids.indexOf(after.sectionId)
+      ids.splice(index >= 0 ? index + 1 : ids.length, 0, section.id)
+      await reorderSections(ids)
+    } else {
+      await loadWorkspace(true)
+    }
+    sectionRenameId.value = section.id
+    sectionRenameName.value = section.name
+    sectionMenuId.value = -1
+    await nextTick()
+    focusSectionRename()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '创建分组失败')
+  }
+}
+
+async function addSectionNear(column: BoardColumn, side: 'left' | 'right') {
+  if (!activeListId.value) return
+  try {
+    const { section } = await createTaskSection(activeListId.value, nextSectionName())
+    const ids = activeSections.value.map((item) => item.id).filter((id) => id !== section.id)
+    let index = column.sectionId > 0 ? ids.indexOf(column.sectionId) : -1
+    if (column.sectionId <= 0) index = side === 'left' ? 0 : ids.length
+    else if (index < 0) index = ids.length
+    ids.splice(side === 'left' ? index : index + 1, 0, section.id)
+    await reorderSections(ids)
+    sectionRenameId.value = section.id
+    sectionRenameName.value = section.name
+    sectionMenuId.value = -1
+    await nextTick()
+    focusSectionRename()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '创建分组失败')
+  }
+}
+
+function toggleSectionMenu(id: number) {
+  sectionMenuId.value = sectionMenuId.value === id ? -1 : id
+}
+
+function focusSectionRename(select = false) {
+  const raw = sectionRenameInput.value
+  const input = Array.isArray(raw) ? raw[0] : raw
+  const target = input || (document.querySelector('.tw-board-rename') as HTMLInputElement | null)
+  if (!target) return
+  target.focus()
+  if (select) target.select()
+}
+
+async function startSectionRename(column: BoardColumn) {
+  sectionRenameId.value = column.sectionId
+  sectionRenameName.value = column.name
+  sectionMenuId.value = -1
+  await nextTick()
+  focusSectionRename(true)
+}
+
+async function saveSectionRename() {
+  const id = sectionRenameId.value
+  if (!id) return
+  const name = sectionRenameName.value.trim() || '新分组'
+  sectionRenameId.value = 0
+  try {
+    await updateTaskSection(id, { name })
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '重命名分组失败')
+  }
+}
+
+function openDeleteSection(column: BoardColumn) {
+  sectionDeleteTarget.value = column
+  sectionDeleteStrategy.value = 'move'
+  const fallback = activeSections.value.find((section) => section.id !== column.sectionId)
+  sectionDeleteMoveTo.value = fallback?.id || 0
+  sectionMenuId.value = -1
+}
+
+async function confirmDeleteSection() {
+  const column = sectionDeleteTarget.value
+  if (!column) return
+  try {
+    await deleteTaskSection(
+      column.sectionId,
+      sectionDeleteStrategy.value,
+      sectionDeleteStrategy.value === 'move' ? sectionDeleteMoveTo.value : 0,
+    )
+    sectionDeleteTarget.value = null
+    await loadWorkspace(true)
+    void checkReminders()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除分组失败')
+  }
+}
+
+function openCopyList(list: TaskList) {
+  copyListTarget.value = list
+  copyListName.value = `${list.name} 副本`
+  copyListMode.value = 'open'
+}
+
+async function confirmCopyList() {
+  const list = copyListTarget.value
+  if (!list || copyBusy.value) return
+  const name = copyListName.value.trim()
+  if (!name) {
+    Message.warning('清单名称不能为空')
+    return
+  }
+  copyBusy.value = true
+  try {
+    const { list: copied } = await copyTaskList(list.id, { name, mode: copyListMode.value })
+    copyListTarget.value = null
+    await loadWorkspace(true)
+    selectList(copied.id)
+    Message.success('清单已复制')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '复制清单失败')
+  } finally {
+    copyBusy.value = false
+  }
 }
 
 async function createList(payload: { name: string; kind: 'TASK' | 'NOTE' }) {

@@ -9245,3 +9245,122 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   overflow: hidden;
   white-space: nowrap;
 }
+
+/* ------------------------------------------------------ custom board columns */
+.tw-board-sections {
+  align-items: flex-start;
+}
+
+.tw-board-sections .tw-board-column {
+  max-width: 340px;
+}
+
+.tw-board-col-action {
+  position: relative;
+  flex: none;
+}
+
+.tw-board-col-menu {
+  position: absolute;
+  right: 0;
+  top: 28px;
+  z-index: 40;
+  min-width: 168px;
+  padding: 5px;
+  border: 1px solid var(--tw-border);
+  border-radius: 8px;
+  background: var(--tw-bg);
+  box-shadow: var(--tw-shadow);
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-board-col-menu button {
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tw-text);
+  text-align: left;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.tw-board-col-menu button:hover {
+  background: var(--tw-hover);
+}
+
+.tw-board-col-menu button.danger {
+  color: var(--tw-danger);
+}
+
+.tw-board-rename {
+  flex: 1;
+  min-width: 40px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--tw-accent);
+  border-radius: 5px;
+  background: var(--tw-bg);
+  color: var(--tw-text);
+  font-size: 12.5px;
+  outline: none;
+}
+
+.tw-board-add-col {
+  flex: none;
+  width: 76px;
+  min-height: 42px;
+  border: 1px dashed var(--tw-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tw-text-3);
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tw-board-add-col:hover {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+  background: var(--tw-accent-soft);
+}
+
+.tw-radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  font-size: 13px;
+  color: var(--tw-text);
+  cursor: pointer;
+}
+
+.tw-radio-row input {
+  accent-color: var(--tw-accent);
+}
+
+.tw-dialog-hint {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  color: var(--tw-text-3);
+}
+
+.tw-section-delete .tw-field-select {
+  margin: 2px 0 8px 22px;
+  width: calc(100% - 22px);
+}
+
+.tw-copy-list .tw-dialog-input {
+  width: 100%;
+}
+
+.tw-danger-button {
+  background: var(--tw-danger) !important;
+  border-color: var(--tw-danger) !important;
+}

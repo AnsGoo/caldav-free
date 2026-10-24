@@ -139,6 +139,7 @@ export function blankTaskForMatrix(title: string): TaskItem {
   return {
     id: 0,
     listId: 0,
+    sectionId: 0,
     listName: '',
     listColor: '',
     title,

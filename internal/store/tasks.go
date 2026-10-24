@@ -28,6 +28,17 @@ type TaskList struct {
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
 }
 
+// TaskSection is a user-defined kanban column inside one task list.
+type TaskSection struct {
+	ID         int64     `gorm:"primaryKey"`
+	UserID     int64     `gorm:"not null;index:idx_tasksection_user"`
+	ListID     int64     `gorm:"not null;uniqueIndex:idx_tasksection_list_name,priority:1;index:idx_tasksection_list"`
+	Name       string    `gorm:"size:120;not null;uniqueIndex:idx_tasksection_list_name,priority:2"`
+	Order      int       `gorm:"column:order_index;not null;default:0"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
+	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
+}
+
 // Task is a single to-do item. Tasks may be nested one level deep for
 // checklists; Deleted is a soft-delete flag so recently removed tasks can be
 // inspected before a future purge.
@@ -36,6 +47,7 @@ type Task struct {
 	UserID     int64      `gorm:"not null;index:idx_task_user_completed,priority:1;index:idx_task_user_due,priority:1"`
 	ListID     int64      `gorm:"not null;index:idx_task_list_completed,priority:1"`
 	ParentID   int64      `gorm:"not null;default:0;index:idx_task_parent"`
+	SectionID  int64      `gorm:"not null;default:0;index:idx_task_section"`
 	Title      string     `gorm:"size:500;not null"`
 	Notes      string     `gorm:"type:text;not null;default:''"`
 	Kind       string     `gorm:"size:16;not null;default:'TASK'"`
@@ -281,8 +293,11 @@ func (s *Store) DeleteTaskList(ctx context.Context, userID, id int64) error {
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&Task{}).Where("user_id = ? AND list_id = ? AND deleted = ?", userID, id, false).
-			Updates(map[string]any{"list_id": inbox.ID, "sync_pending": true}).Error; err != nil {
+			Updates(map[string]any{"list_id": inbox.ID, "section_id": 0, "sync_pending": true}).Error; err != nil {
 			return fmt.Errorf("move tasks to inbox: %w", err)
+		}
+		if err := tx.Where("user_id = ? AND list_id = ?", userID, id).Delete(&TaskSection{}).Error; err != nil {
+			return fmt.Errorf("delete task sections: %w", err)
 		}
 		if err := s.deleteTaskListSharesTx(tx, id); err != nil {
 			return fmt.Errorf("delete task list shares: %w", err)
@@ -515,6 +530,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	normalizeTaskTimes(task)
 	updates := map[string]any{
 		"list_id":          task.ListID,
+		"section_id":       task.SectionID,
 		"title":            task.Title,
 		"notes":            task.Notes,
 		"kind":             task.Kind,
@@ -803,4 +819,224 @@ func (s *Store) SetTaskOrder(ctx context.Context, userID int64, ids []int64) err
 		}
 		return nil
 	})
+}
+
+// ---------------------------------------------------------------- sections
+
+// ListTaskSections returns all kanban sections for a user's lists.
+func (s *Store) ListTaskSections(ctx context.Context, userID int64) ([]*TaskSection, error) {
+	var sections []*TaskSection
+	err := s.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		Order("list_id ASC, order_index ASC, id ASC").
+		Find(&sections).Error
+	if err != nil {
+		return nil, fmt.Errorf("list task sections: %w", err)
+	}
+	return sections, nil
+}
+
+func (s *Store) GetTaskSection(ctx context.Context, userID, id int64) (*TaskSection, error) {
+	var section TaskSection
+	err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).First(&section).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get task section: %w", err)
+	}
+	return &section, nil
+}
+
+// CreateTaskSection appends a column to a list.
+func (s *Store) CreateTaskSection(ctx context.Context, userID, listID int64, name string) (*TaskSection, error) {
+	if _, err := s.GetTaskList(ctx, userID, listID); err != nil {
+		return nil, err
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.New("section name is required")
+	}
+	var maxOrder int
+	_ = s.db.WithContext(ctx).Model(&TaskSection{}).
+		Where("user_id = ? AND list_id = ?", userID, listID).
+		Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
+	section := &TaskSection{UserID: userID, ListID: listID, Name: name, Order: maxOrder + 1}
+	if err := s.db.WithContext(ctx).Create(section).Error; err != nil {
+		if errors.Is(translate(err), ErrConflict) {
+			return nil, ErrConflict
+		}
+		return nil, fmt.Errorf("create task section: %w", err)
+	}
+	return section, nil
+}
+
+func (s *Store) UpdateTaskSection(ctx context.Context, userID, id int64, name string, order int) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return errors.New("section name is required")
+	}
+	res := s.db.WithContext(ctx).Model(&TaskSection{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]any{"name": name, "order_index": order})
+	if res.Error != nil {
+		if errors.Is(translate(res.Error), ErrConflict) {
+			return ErrConflict
+		}
+		return fmt.Errorf("update task section: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListTasksInSection returns live tasks assigned to a section.
+func (s *Store) ListTasksInSection(ctx context.Context, userID, sectionID int64) ([]*Task, error) {
+	var tasks []*Task
+	err := s.db.WithContext(ctx).
+		Where("user_id = ? AND section_id = ? AND deleted = ?", userID, sectionID, false).
+		Find(&tasks).Error
+	if err != nil {
+		return nil, fmt.Errorf("list section tasks: %w", err)
+	}
+	return tasks, nil
+}
+
+// DeleteTaskSection deletes a column. strategy=move reassigns its tasks to
+// targetID (0 = ungrouped); strategy=delete soft-deletes its tasks.
+func (s *Store) DeleteTaskSection(ctx context.Context, userID, id int64, strategy string, targetID int64) error {
+	section, err := s.GetTaskSection(ctx, userID, id)
+	if err != nil {
+		return err
+	}
+	if strategy == "move" && targetID != 0 {
+		target, err := s.GetTaskSection(ctx, userID, targetID)
+		if err != nil {
+			return errors.New("目标分组不存在")
+		}
+		if target.ListID != section.ListID {
+			return errors.New("目标分组不属于同一清单")
+		}
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if strategy == "move" {
+			if err := tx.Model(&Task{}).
+				Where("user_id = ? AND section_id = ? AND deleted = ?", userID, id, false).
+				Update("section_id", targetID).Error; err != nil {
+				return fmt.Errorf("move section tasks: %w", err)
+			}
+		} else {
+			now := time.Now().UTC()
+			if err := tx.Model(&Task{}).
+				Where("user_id = ? AND section_id = ? AND deleted = ?", userID, id, false).
+				Updates(map[string]any{"deleted": true, "deleted_at": &now}).Error; err != nil {
+				return fmt.Errorf("delete section tasks: %w", err)
+			}
+		}
+		if err := tx.Where("id = ? AND user_id = ?", id, userID).Delete(&TaskSection{}).Error; err != nil {
+			return fmt.Errorf("delete task section: %w", err)
+		}
+		return nil
+	})
+}
+
+// CopyTaskList duplicates a list, its sections and tasks. mode is open
+// (unfinished only), all (all tasks, completed tasks copied as open) or
+// keep (all tasks with their completion state).
+func (s *Store) CopyTaskList(ctx context.Context, userID, sourceID int64, newName, mode string) (*TaskList, error) {
+	source, err := s.GetTaskList(ctx, userID, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		newName = source.Name + " 副本"
+	}
+	list, err := s.CreateTaskListKind(ctx, userID, newName, source.Color, source.Kind)
+	if err != nil {
+		return nil, err
+	}
+	if source.FolderID > 0 {
+		_ = s.SetTaskListFolder(ctx, userID, list.ID, source.FolderID)
+		list.FolderID = source.FolderID
+	}
+
+	var sourceSections []*TaskSection
+	if source.Kind != "NOTE" {
+		sourceSections, _ = s.ListTaskSections(ctx, userID)
+	}
+	sectionMap := map[int64]int64{}
+	for _, section := range sourceSections {
+		if section.ListID != sourceID {
+			continue
+		}
+		copied, err := s.CreateTaskSection(ctx, userID, list.ID, section.Name)
+		if err != nil {
+			continue
+		}
+		sectionMap[section.ID] = copied.ID
+	}
+
+	var tasks []*Task
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ? AND list_id = ? AND deleted = ?", userID, sourceID, false).
+		Order("order_index ASC, id ASC").
+		Find(&tasks).Error; err != nil {
+		return nil, fmt.Errorf("copy list tasks: %w", err)
+	}
+	keepCompleted := mode == "keep"
+	createdBySource := map[int64]int64{}
+	for _, task := range tasks {
+		if mode == "open" && task.Completed {
+			continue
+		}
+		copied := &Task{
+			UserID:         userID,
+			ListID:         list.ID,
+			SectionID:      sectionMap[task.SectionID],
+			Title:          task.Title,
+			Notes:          task.Notes,
+			Kind:           task.Kind,
+			Priority:       task.Priority,
+			StartAt:        task.StartAt,
+			DueAt:          task.DueAt,
+			AllDay:         task.AllDay,
+			Recurrence:     task.Recurrence,
+			ReminderOffset: -1,
+			Assignee:       task.Assignee,
+			Tags:           append(StringList(nil), task.Tags...),
+			Checklist:      task.Checklist,
+			Order:          task.Order,
+			SyncPending:    task.Kind != "NOTE",
+		}
+		if keepCompleted && task.Completed {
+			copied.Completed = true
+			copied.CompletedAt = task.CompletedAt
+		}
+		if offsets := task.ReminderValues(); len(offsets) > 0 {
+			copied.SetReminderValues(offsets)
+		}
+		created, err := s.CreateTask(ctx, copied)
+		if err != nil {
+			return nil, err
+		}
+		createdBySource[task.ID] = created.ID
+	}
+	for _, task := range tasks {
+		parentID := createdBySource[task.ParentID]
+		if parentID == 0 {
+			continue
+		}
+		childID := createdBySource[task.ID]
+		if childID == 0 {
+			continue
+		}
+		if err := s.db.WithContext(ctx).Model(&Task{}).
+			Where("id = ? AND user_id = ?", childID, userID).
+			Update("parent_id", parentID).Error; err != nil {
+			return nil, fmt.Errorf("copy task parent: %w", err)
+		}
+	}
+	return list, nil
 }

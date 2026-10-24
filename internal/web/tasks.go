@@ -40,6 +40,13 @@ type apiTaskFolder struct {
 	Order int    `json:"order"`
 }
 
+type apiTaskSection struct {
+	ID     int64  `json:"id"`
+	ListID int64  `json:"listId"`
+	Name   string `json:"name"`
+	Order  int    `json:"order"`
+}
+
 type apiSavedFilter struct {
 	ID         int64                      `json:"id"`
 	Name       string                     `json:"name"`
@@ -53,6 +60,7 @@ type apiTask struct {
 	ID              int64              `json:"id"`
 	ParentID        int64              `json:"parentId,omitempty"`
 	ListID          int64              `json:"listId"`
+	SectionID       int64              `json:"sectionId"`
 	ListName        string             `json:"listName"`
 	ListColor       string             `json:"listColor"`
 	Title           string             `json:"title"`
@@ -82,6 +90,7 @@ type taskPatch struct {
 	Title           *string             `json:"title"`
 	ParentID        *int64              `json:"parentId"`
 	ListID          *int64              `json:"listId"`
+	SectionID       *int64              `json:"sectionId"`
 	Notes           *string             `json:"notes"`
 	Kind            *string             `json:"kind"`
 	Priority        *int                `json:"priority"`
@@ -149,6 +158,7 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 		ID:              task.ID,
 		ParentID:        task.ParentID,
 		ListID:          task.ListID,
+		SectionID:       task.SectionID,
 		Title:           task.Title,
 		Notes:           task.Notes,
 		Kind:            task.Kind,
@@ -214,6 +224,10 @@ func apiTaskListDTO(list *store.TaskList, count int64) apiTaskList {
 
 func apiTaskFolderDTO(folder *store.TaskFolder) apiTaskFolder {
 	return apiTaskFolder{ID: folder.ID, Name: folder.Name, Order: folder.Order}
+}
+
+func apiTaskSectionDTO(section *store.TaskSection) apiTaskSection {
+	return apiTaskSection{ID: section.ID, ListID: section.ListID, Name: section.Name, Order: section.Order}
 }
 
 func apiSavedFilterDTO(filter *store.SavedFilter) apiSavedFilter {
@@ -387,10 +401,20 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	for _, view := range matrixViews {
 		matrixRows = append(matrixRows, matrixViewDTO(view))
 	}
+	sections, err := s.store.ListTaskSections(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	sectionRows := make([]apiTaskSection, 0, len(sections))
+	for _, section := range sections {
+		sectionRows = append(sectionRows, apiTaskSectionDTO(section))
+	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{
 		"lists":       listRows,
 		"sharedLists": sharedRows,
 		"folders":     folderRows,
+		"sections":    sectionRows,
 		"filters":     filterRows,
 		"tasks":       rows,
 		"counts":      counts,
@@ -512,6 +536,20 @@ func (s *Server) resolveTaskParent(ctx context.Context, current *store.User, tas
 	return parent, nil
 }
 
+func (s *Server) resolveTaskSection(ctx context.Context, userID, listID, sectionID int64) (int64, error) {
+	if sectionID <= 0 {
+		return 0, nil
+	}
+	section, err := s.store.GetTaskSection(ctx, userID, sectionID)
+	if err != nil {
+		return 0, errors.New("分组不存在")
+	}
+	if section.ListID != listID {
+		return 0, errors.New("分组不属于该清单")
+	}
+	return section.ID, nil
+}
+
 func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body taskPatch
 	if !readAPIJSON(w, r, &body) {
@@ -558,6 +596,14 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		task.ParentID = parent.ID
 		task.ListID = parent.ListID
 		task.UserID = parent.UserID
+	}
+	if body.SectionID != nil {
+		sectionID, err := s.resolveTaskSection(ctx, current.ID, task.ListID, *body.SectionID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		task.SectionID = sectionID
 	}
 	if body.Notes != nil {
 		task.Notes = *body.Notes
@@ -763,6 +809,17 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if body.Notes != nil {
 		task.Notes = *body.Notes
+	}
+	if task.ListID != previousListID {
+		task.SectionID = 0
+	}
+	if body.SectionID != nil {
+		sectionID, err := s.resolveTaskSection(ctx, task.UserID, task.ListID, *body.SectionID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		task.SectionID = sectionID
 	}
 	if body.Priority != nil {
 		task.Priority = *body.Priority
@@ -1220,6 +1277,9 @@ func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *
 		case "complete", "uncomplete":
 			applyTaskCompletion(task, body.Action == "complete")
 		case "move":
+			if task.ListID != body.ListID {
+				task.SectionID = 0
+			}
 			task.ListID = body.ListID
 		}
 		if err := s.store.UpdateTask(ctx, task); err != nil {
@@ -1755,4 +1815,157 @@ func (s *Server) apiTaskTagColor(w http.ResponseWriter, r *http.Request, current
 		return
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"tags": counts})
+}
+
+// ---------------------------------------------------------------- sections
+
+func (s *Server) apiTaskSections(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	sections, err := s.store.ListTaskSections(r.Context(), current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	rows := make([]apiTaskSection, 0, len(sections))
+	for _, section := range sections {
+		rows = append(rows, apiTaskSectionDTO(section))
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"sections": rows})
+}
+
+func (s *Server) apiCreateTaskSection(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		ListID int64  `json:"listId"`
+		Name   string `json:"name"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	section, err := s.store.CreateTaskSection(r.Context(), current.ID, body.ListID, body.Name)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "清单不存在")
+			return
+		}
+		if err == store.ErrConflict {
+			writeAPIError(w, http.StatusConflict, "同名分组已存在")
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusCreated, map[string]any{"section": apiTaskSectionDTO(section)})
+}
+
+func (s *Server) apiUpdateTaskSection(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "分组不存在")
+		return
+	}
+	existing, err := s.store.GetTaskSection(r.Context(), current.ID, id)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "分组不存在")
+		return
+	}
+	var body struct {
+		Name  string `json:"name"`
+		Order *int   `json:"order"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Name) == "" {
+		body.Name = existing.Name
+	}
+	order := existing.Order
+	if body.Order != nil {
+		order = *body.Order
+	}
+	if err := s.store.UpdateTaskSection(r.Context(), current.ID, id, body.Name, order); err != nil {
+		if err == store.ErrConflict {
+			writeAPIError(w, http.StatusConflict, "同名分组已存在")
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	updated, _ := s.store.GetTaskSection(r.Context(), current.ID, id)
+	writeAPIJSON(w, http.StatusOK, map[string]any{"section": apiTaskSectionDTO(updated)})
+}
+
+func (s *Server) apiDeleteTaskSection(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "分组不存在")
+		return
+	}
+	strategy := strings.TrimSpace(r.URL.Query().Get("strategy"))
+	if strategy == "" {
+		strategy = "move"
+	}
+	if strategy != "move" && strategy != "delete" {
+		writeAPIError(w, http.StatusBadRequest, "无效的删除方式")
+		return
+	}
+	targetID, _ := strconv.ParseInt(r.URL.Query().Get("moveTo"), 10, 64)
+	if strategy == "delete" {
+		tasks, listErr := s.store.ListTasksInSection(r.Context(), current.ID, id)
+		if listErr == nil {
+			for _, task := range tasks {
+				if err := s.taskSync.DeleteTask(r.Context(), current.ID, task); err != nil {
+					s.logger.Warn("delete section task VTODO", "task", task.ID, "error", err)
+				}
+			}
+		}
+	}
+	if err := s.store.DeleteTaskSection(r.Context(), current.ID, id, strategy, targetID); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
+		s.logger.Warn("sync after section delete", "user", current.Username, "error", err)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) apiCopyTaskList(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "清单不存在")
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+		Mode string `json:"mode"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	mode := strings.TrimSpace(body.Mode)
+	switch mode {
+	case "", "open":
+		mode = "open"
+	case "all", "keep":
+	default:
+		writeAPIError(w, http.StatusBadRequest, "无效的复制范围")
+		return
+	}
+	list, err := s.store.CopyTaskList(r.Context(), current.ID, id, body.Name, mode)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "清单不存在")
+			return
+		}
+		if err == store.ErrConflict {
+			writeAPIError(w, http.StatusConflict, "同名清单已存在")
+			return
+		}
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := s.taskSync.Sync(r.Context(), current.ID); err != nil {
+		s.logger.Warn("sync copied list", "user", current.Username, "error", err)
+	}
+	count, _ := s.store.CountTasksInList(r.Context(), current.ID, list.ID)
+	writeAPIJSON(w, http.StatusCreated, map[string]any{"list": apiTaskListDTO(list, count)})
 }

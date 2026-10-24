@@ -267,6 +267,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/task-lists/{id}/shares", s.apiAdmin(s.apiTaskListShares))
 	mux.HandleFunc("DELETE /api/admin/task-lists/{id}/shares/{userId}", s.apiAdmin(s.apiTaskListShare))
 	mux.HandleFunc("POST /api/admin/task-lists", s.apiAdmin(s.apiCreateTaskList))
+	mux.HandleFunc("POST /api/admin/task-lists/{id}/copy", s.apiAdmin(s.apiCopyTaskList))
+	mux.HandleFunc("GET /api/admin/task-sections", s.apiAdmin(s.apiTaskSections))
+	mux.HandleFunc("POST /api/admin/task-sections", s.apiAdmin(s.apiCreateTaskSection))
+	mux.HandleFunc("PATCH /api/admin/task-sections/{id}", s.apiAdmin(s.apiUpdateTaskSection))
+	mux.HandleFunc("DELETE /api/admin/task-sections/{id}", s.apiAdmin(s.apiDeleteTaskSection))
 	mux.HandleFunc("PATCH /api/admin/task-lists/{id}", s.apiAdmin(s.apiUpdateTaskList))
 	mux.HandleFunc("DELETE /api/admin/task-lists/{id}", s.apiAdmin(s.apiDeleteTaskList))
 

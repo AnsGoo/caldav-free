@@ -98,6 +98,7 @@ export interface TaskItem {
   id: number
   parentId?: number
   listId: number
+  sectionId: number
   listName: string
   listColor: string
   title: string
@@ -136,6 +137,13 @@ export interface TaskList {
 
 export interface TaskFolder {
   id: number
+  name: string
+  order: number
+}
+
+export interface TaskSection {
+  id: number
+  listId: number
   name: string
   order: number
 }
@@ -328,6 +336,7 @@ export interface TaskWorkspaceData {
   lists: TaskList[]
   sharedLists: SharedTaskList[]
   folders: TaskFolder[]
+  sections: TaskSection[]
   filters: SavedFilter[]
   tasks: TaskItem[]
   counts: TaskCounts

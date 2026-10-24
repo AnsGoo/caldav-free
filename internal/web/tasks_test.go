@@ -21,6 +21,7 @@ type taskResponse struct {
 		ListID          int64    `json:"listId"`
 		Title           string   `json:"title"`
 		Kind            string   `json:"kind"`
+		SectionID       int64    `json:"sectionId"`
 		ParentID        int64    `json:"parentId"`
 		Priority        int      `json:"priority"`
 		Start           string   `json:"start"`
@@ -48,6 +49,12 @@ type workspaceResponse struct {
 		ID   int64  `json:"id"`
 		Name string `json:"name"`
 	} `json:"folders"`
+	Sections []struct {
+		ID     int64  `json:"id"`
+		ListID int64  `json:"listId"`
+		Name   string `json:"name"`
+		Order  int    `json:"order"`
+	} `json:"sections"`
 	Tasks []struct {
 		ID        int64    `json:"id"`
 		Title     string   `json:"title"`
@@ -815,5 +822,134 @@ func TestNoteListAndNoteKind(t *testing.T) {
 	converted := decode[taskResponse](t, body)
 	if converted.Task.Kind != "NOTE" || converted.Task.Due != "" {
 		t.Fatalf("converted note = %+v", converted.Task)
+	}
+}
+
+func TestTaskSectionsAndCopyListAPI(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{"name": "分栏"}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID int64 `json:"id"`
+		} `json:"list"`
+	}](t, body)
+
+	status, body = env.request(t, "POST", "/api/admin/task-sections", map[string]any{
+		"listId": list.List.ID, "name": "进行中",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create section = %d: %s", status, body)
+	}
+	section := decode[struct {
+		Section struct {
+			ID int64 `json:"id"`
+		} `json:"section"`
+	}](t, body)
+
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "放进行中", "listId": list.List.ID, "sectionId": section.Section.ID,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create task = %d: %s", status, body)
+	}
+	task := decode[taskResponse](t, body)
+	if task.Task.SectionID != section.Section.ID {
+		t.Fatalf("task section = %d, want %d", task.Task.SectionID, section.Section.ID)
+	}
+
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(list.List.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("workspace = %d: %s", status, body)
+	}
+	ws := decode[workspaceResponse](t, body)
+	found := 0
+	for _, item := range ws.Sections {
+		if item.ListID == list.List.ID {
+			found++
+			if item.Name != "进行中" {
+				t.Fatalf("section name = %q", item.Name)
+			}
+		}
+	}
+	if found != 1 {
+		t.Fatalf("sections = %+v", ws.Sections)
+	}
+
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(task.Task.ID), map[string]any{"sectionId": 0}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("ungroup task = %d: %s", status, body)
+	}
+	if moved := decode[taskResponse](t, body); moved.Task.SectionID != 0 {
+		t.Fatalf("task not ungrouped: %+v", moved.Task)
+	}
+
+	// Copy only opens: the new list keeps the section but not completed tasks.
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(task.Task.ID), map[string]any{"completed": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("complete task = %d: %s", status, body)
+	}
+	status, body = env.request(t, "POST", "/api/admin/task-lists/"+itoa(list.List.ID)+"/copy", map[string]any{
+		"name": "分栏副本", "mode": "open",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("copy list = %d: %s", status, body)
+	}
+	copied := decode[struct {
+		List struct {
+			ID int64 `json:"id"`
+		} `json:"list"`
+	}](t, body)
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(copied.List.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("copied workspace = %d: %s", status, body)
+	}
+	copiedWS := decode[workspaceResponse](t, body)
+	if len(copiedWS.Tasks) != 0 {
+		t.Fatalf("open copy should not include completed task: %+v", copiedWS.Tasks)
+	}
+	copiedSections := 0
+	for _, item := range copiedWS.Sections {
+		if item.ListID == copied.List.ID {
+			copiedSections++
+		}
+	}
+	if copiedSections != 1 {
+		t.Fatalf("copied sections = %+v", copiedWS.Sections)
+	}
+
+	for _, testCase := range []struct {
+		mode      string
+		completed bool
+	}{
+		{mode: "keep", completed: true},
+		{mode: "all", completed: false},
+	} {
+		status, body = env.request(t, "POST", "/api/admin/task-lists/"+itoa(list.List.ID)+"/copy", map[string]any{
+			"name": "副本-" + testCase.mode, "mode": testCase.mode,
+		}, env.csrf)
+		if status != http.StatusCreated {
+			t.Fatalf("copy %s = %d: %s", testCase.mode, status, body)
+		}
+		row := decode[struct {
+			List struct {
+				ID int64 `json:"id"`
+			} `json:"list"`
+		}](t, body)
+		status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(row.List.ID), nil, "")
+		if status != http.StatusOK {
+			t.Fatalf("copy %s workspace = %d: %s", testCase.mode, status, body)
+		}
+		copiedData := decode[workspaceResponse](t, body)
+		if len(copiedData.Tasks) != 1 || copiedData.Tasks[0].Completed != testCase.completed {
+			t.Fatalf("copy %s tasks = %+v", testCase.mode, copiedData.Tasks)
+		}
+	}
+
+	status, body = env.request(t, "DELETE", "/api/admin/task-sections/"+itoa(section.Section.ID)+"?strategy=move&moveTo=0", nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete section = %d: %s", status, body)
 	}
 }

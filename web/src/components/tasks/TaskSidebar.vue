@@ -121,6 +121,9 @@
                 >
                   <TaskIcon name="pin" :size="14" />
                 </button>
+                <button v-if="!row.list!.isInbox" class="tw-icon-button" title="复制清单" @click.stop="$emit('copy-list', row.list!)">
+                  <TaskIcon name="copy" :size="14" />
+                </button>
                 <button v-if="!row.list!.isInbox" class="tw-icon-button" title="共享清单" @click.stop="$emit('share-list', row.list!)">
                   <TaskIcon name="share" :size="14" />
                 </button>
@@ -297,6 +300,7 @@ const emit = defineEmits<{
   (event: 'edit-list', list: TaskList): void
   (event: 'delete-list', list: TaskList): void
   (event: 'pin-list', list: TaskList): void
+  (event: 'copy-list', list: TaskList): void
   (event: 'create-folder'): void
   (event: 'edit-folder', folder: TaskFolder): void
   (event: 'delete-folder', folder: TaskFolder): void

@@ -6074,3 +6074,44 @@ button.tw-side-link {
     flex-direction: column;
   }
 }
+
+.tw-matrix-rule-name {
+  flex: 1;
+  min-width: 0;
+  max-width: 220px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 3px 6px;
+  color: var(--tw-text);
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.tw-matrix-rule-name:hover,
+.tw-matrix-rule-name:focus {
+  border-color: var(--tw-border);
+  background: var(--tw-bg);
+  outline: none;
+}
+
+.tw-matrix-rule-color {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--tw-border);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.tw-matrix-rule-color::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.tw-matrix-rule-color::-webkit-color-swatch {
+  border: 0;
+  border-radius: 999px;
+}

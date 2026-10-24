@@ -157,6 +157,8 @@ export type MatrixRuleMode = 'simple' | 'complex' | 'custom'
 export type MatrixDueRule = 'any' | 'urgent' | 'overdue' | 'today' | 'tomorrow' | 'next7' | 'later' | 'none'
 
 export interface MatrixQuadrantRule {
+  name: string
+  color: string
   priorities: number[]
   due: MatrixDueRule
   listId: number

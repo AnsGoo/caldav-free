@@ -529,8 +529,8 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
       "name": "工作矩阵",
       "mode": "custom",
       "rules": {
-        "q1": { "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
-        "q2": { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+        "q1": { "name": "立即去做", "color": "#e5484d", "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
+        "q2": { "name": "计划推进", "color": "#f2a900", "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
         "q3": {},
         "q4": {}
       },
@@ -547,8 +547,8 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
   "name": "工作矩阵",
   "mode": "custom",
   "rules": {
-    "q1": { "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
-    "q2": { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+    "q1": { "name": "立即去做", "color": "#e5484d", "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
+    "q2": { "name": "计划推进", "color": "#f2a900", "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
     "q3": {},
     "q4": {}
   }
@@ -558,6 +558,8 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 `mode` 为 `simple`、`complex` 或 `custom`。`rules` 仅在自定义模式使用，保存后原样返回。
 
 日期条件：`any`、`urgent`、`overdue`、`today`、`tomorrow`、`next7`、`later`、`none`。未填写的象限字段按任意处理；未匹配任何规则的任务归入 Q4。
+
+`name` 和 `color` 为象限显示名称与十六进制颜色，可省略，省略时使用内置名称/颜色。
 
 ### PATCH /api/admin/task-matrix-views/{id}
 

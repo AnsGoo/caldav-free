@@ -156,10 +156,10 @@ const quadrants = computed(() => {
     buckets[key].push(task)
   }
   return [
-    { id: 'q1', label: '重要且紧急', color: '#ff5f68', tasks: buckets.q1, groups: group(buckets.q1) },
-    { id: 'q2', label: '重要不紧急', color: '#ffb000', tasks: buckets.q2, groups: group(buckets.q2) },
-    { id: 'q3', label: '不重要但紧急', color: '#4772fa', tasks: buckets.q3, groups: group(buckets.q3) },
-    { id: 'q4', label: '不重要不紧急', color: '#0cce9c', tasks: buckets.q4, groups: group(buckets.q4) },
+    { id: 'q1', label: customRules.value.q1.name, color: customRules.value.q1.color, tasks: buckets.q1, groups: group(buckets.q1) },
+    { id: 'q2', label: customRules.value.q2.name, color: customRules.value.q2.color, tasks: buckets.q2, groups: group(buckets.q2) },
+    { id: 'q3', label: customRules.value.q3.name, color: customRules.value.q3.color, tasks: buckets.q3, groups: group(buckets.q3) },
+    { id: 'q4', label: customRules.value.q4.name, color: customRules.value.q4.color, tasks: buckets.q4, groups: group(buckets.q4) },
   ]
 })
 

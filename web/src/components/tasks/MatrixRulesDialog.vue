@@ -12,15 +12,22 @@
       </header>
       <div class="tw-dialog-body tw-matrix-rules-body">
         <div class="tw-matrix-rules-toolbar">
-          <span>同一象限内条件为“且”；按 Q1 → Q4 顺序匹配，未匹配任务归入 Q4。</span>
-          <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">恢复内置规则</button>
+          <span>同一象限内条件为“且”；按 Q1 → Q4 顺序匹配，未匹配任务归入 Q4。名称与颜色会随视图保存。</span>
+          <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">恢复内置规则与配色</button>
         </div>
 
-        <section v-for="quadrant in MATRIX_QUADRANTS" :key="quadrant.id" class="tw-matrix-rule-card" :style="{ '--matrix-color': quadrant.color }">
+        <section v-for="quadrant in MATRIX_QUADRANTS" :key="quadrant.id" class="tw-matrix-rule-card" :style="{ '--matrix-color': form[quadrant.id].color }">
           <header class="tw-matrix-rule-head">
             <span class="tw-matrix-rule-dot" />
-            <strong>{{ quadrant.label }}</strong>
-            <button v-if="quadrant.id !== 'q4'" class="tw-matrix-rule-clear" @click="Object.assign(form[quadrant.id], emptyMatrixRule())">清除条件</button>
+            <input
+              v-model="form[quadrant.id].name"
+              class="tw-matrix-rule-name"
+              maxlength="12"
+              aria-label="象限名称"
+              placeholder="象限名称"
+            />
+            <input v-model="form[quadrant.id].color" class="tw-matrix-rule-color" type="color" :title="`${form[quadrant.id].name}颜色`" />
+            <button v-if="quadrant.id !== 'q4'" class="tw-matrix-rule-clear" @click="clearMatrixConditions(form[quadrant.id])">清除条件</button>
           </header>
 
           <div class="tw-matrix-rule-line">
@@ -89,7 +96,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { MatrixQuadrantKey, MatrixView, MatrixViewRules, TaskList } from '../../types'
-import { defaultMatrixRules, emptyMatrixRule, MATRIX_QUADRANTS, normalizeMatrixRules } from '../../matrix-utils'
+import { clearMatrixConditions, defaultMatrixRules, MATRIX_QUADRANTS, normalizeMatrixRules } from '../../matrix-utils'
 import { updateMatrixView } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 

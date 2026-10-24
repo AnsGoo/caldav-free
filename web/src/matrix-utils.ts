@@ -9,16 +9,30 @@ export const MATRIX_QUADRANTS: { id: MatrixQuadrantKey; label: string; color: st
 ]
 
 export function emptyMatrixRule(): MatrixQuadrantRule {
-  return { priorities: [], due: 'any', listId: 0, tag: '', assignee: '' }
+  return { name: '', color: '', priorities: [], due: 'any', listId: 0, tag: '', assignee: '' }
+}
+
+export function clearMatrixConditions(rule: MatrixQuadrantRule) {
+  rule.priorities = []
+  rule.due = 'any'
+  rule.listId = 0
+  rule.tag = ''
+  rule.assignee = ''
 }
 
 export function defaultMatrixRules(): MatrixViewRules {
   return {
-    q1: { priorities: [2, 3], due: 'urgent', listId: 0, tag: '', assignee: '' },
-    q2: { priorities: [2, 3], due: 'any', listId: 0, tag: '', assignee: '' },
-    q3: { priorities: [0, 1], due: 'urgent', listId: 0, tag: '', assignee: '' },
-    q4: emptyMatrixRule(),
+    q1: { name: '重要且紧急', color: '#ff5f68', priorities: [2, 3], due: 'urgent', listId: 0, tag: '', assignee: '' },
+    q2: { name: '重要不紧急', color: '#ffb000', priorities: [2, 3], due: 'any', listId: 0, tag: '', assignee: '' },
+    q3: { name: '不重要但紧急', color: '#4772fa', priorities: [0, 1], due: 'urgent', listId: 0, tag: '', assignee: '' },
+    q4: { name: '不重要不紧急', color: '#0cce9c', priorities: [], due: 'any', listId: 0, tag: '', assignee: '' },
   }
+}
+
+function normalizeColor(value: unknown, fallback: string) {
+  if (typeof value !== 'string') return fallback
+  const color = value.trim()
+  return /^#[0-9a-f]{3,8}$/i.test(color) ? color : fallback
 }
 
 export function normalizeMatrixRules(input?: Partial<MatrixViewRules> | null): MatrixViewRules {
@@ -28,6 +42,8 @@ export function normalizeMatrixRules(input?: Partial<MatrixViewRules> | null): M
     const raw = input?.[key]
     const base = raw || fallback[key]
     output[key] = {
+      name: typeof base.name === 'string' && base.name.trim() ? base.name.trim().slice(0, 12) : fallback[key].name,
+      color: normalizeColor(base.color, fallback[key].color),
       priorities: Array.isArray(base.priorities)
         ? base.priorities.map(Number).filter((value) => value >= 0 && value <= 3)
         : [],

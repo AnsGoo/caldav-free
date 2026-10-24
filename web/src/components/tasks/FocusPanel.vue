@@ -237,7 +237,10 @@
             <div class="tw-focus-heatmap-legend"><span>少</span><i class="level-0" /><i class="level-1" /><i class="level-2" /><i class="level-3" /><i class="level-4" /><span>多</span></div>
           </section>
         </div>
-        <footer class="tw-dialog-foot"><button class="tw-dialog-ok" @click="statsOpen = false">完成</button></footer>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="openFullStats">查看完整统计</button>
+          <button class="tw-dialog-ok" @click="statsOpen = false">完成</button>
+        </footer>
       </div>
     </div>
   </section>
@@ -245,10 +248,13 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
-import type { FocusDashboard, FocusMode, FocusPreference, FocusSession, HabitItem, TaskItem } from '../../types'
-import { createFocusSession, deleteFocusSession, fetchFocusDashboard, fetchHabits, saveFocusPreferences } from '../../tasks-api'
+import type { FocusDashboard, FocusMode, FocusPreference, FocusSession, FocusTimerView, HabitItem, TaskItem } from '../../types'
+import { createFocusSession, deleteFocusSession, fetchFocusDashboard, fetchFocusTimer, fetchHabits, saveFocusPreferences, saveFocusTimer } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
+
+const router = useRouter()
 
 const props = defineProps<{ tasks: TaskItem[] }>()
 
@@ -273,6 +279,11 @@ const pauseStartedAt = ref(0)
 const note = ref('')
 const target = ref<FocusTarget | null>(null)
 const cyclePomodoros = ref(0)
+const sessionId = ref('')
+const serverRevision = ref(0)
+const serverTimerKnown = ref(false)
+const syncReady = ref(false)
+const applyingRemote = ref(false)
 const preferences = ref<FocusPreference>(defaultPreferences())
 
 const settingsOpen = ref(false)
@@ -295,8 +306,11 @@ const pickerQuery = ref('')
 const pickerFor = ref<'timer' | 'manual'>('timer')
 
 let ticker: ReturnType<typeof setInterval> | undefined
+let syncTicker: ReturnType<typeof setInterval> | undefined
+let syncDebounce: ReturnType<typeof setTimeout> | undefined
 let transitionTimer: ReturnType<typeof setTimeout> | undefined
 let audioContext: AudioContext | null = null
+let pushSequence = 0
 const originalTitle = document.title
 
 const currentYear = new Date().getFullYear()
@@ -475,6 +489,7 @@ function resetForFocus() {
   deadline.value = 0
   stopwatchBase.value = 0
   note.value = ''
+  sessionId.value = ''
   if (mode.value === 'stopwatch') {
     elapsed.value = 0
     phaseTotal.value = 0
@@ -509,7 +524,10 @@ function startTimer() {
   if (timerState.value === 'running') return
   if (phase.value === 'focus' && mode.value === 'pomodoro' && remaining.value <= 0) resetCountdown()
   if (phase.value === 'focus' && mode.value === 'stopwatch' && elapsed.value === 0) phaseTotal.value = 0
-  if (!sessionStartedAt.value && phase.value === 'focus') sessionStartedAt.value = new Date()
+  if (!sessionStartedAt.value && phase.value === 'focus') {
+    sessionStartedAt.value = new Date()
+    sessionId.value = newSessionID()
+  }
   timerState.value = 'running'
   if (phase.value === 'focus' && mode.value === 'stopwatch') {
     stopwatchBase.value = Date.now() - elapsed.value * 1000
@@ -654,6 +672,7 @@ async function saveSession(payload: {
   try {
     await createFocusSession({
       ...payload,
+      clientId: sessionId.value || undefined,
       taskId: target.value?.type === 'task' ? target.value.id : undefined,
       habitId: target.value?.type === 'habit' ? target.value.id : undefined,
     })
@@ -688,6 +707,11 @@ function playChime() {
   } catch {
     // Audio is optional; browsers may block it without a gesture.
   }
+}
+
+function openFullStats() {
+  statsOpen.value = false
+  void router.push('/tasks/focus/stats')
 }
 
 function openSettings() {
@@ -798,7 +822,17 @@ function timerSnapshot() {
     deadline: deadline.value, stopwatchBase: stopwatchBase.value,
     startedAt: sessionStartedAt.value?.toISOString() || '', pausedAccumMs: pausedAccumMs.value,
     note: note.value, target: target.value, cyclePomodoros: cyclePomodoros.value,
+    sessionId: sessionId.value, serverRevision: serverRevision.value,
   }
+}
+
+function newSessionID() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID().replaceAll('-', '')
+  } catch {
+    // Fall through to a time-based id.
+  }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`
 }
 
 function persistTimer() {
@@ -807,6 +841,119 @@ function persistTimer() {
   } catch {
     // localStorage may be unavailable in private mode.
   }
+}
+
+function schedulePushTimer() {
+  if (!syncReady.value || applyingRemote.value) return
+  if (syncDebounce) clearTimeout(syncDebounce)
+  syncDebounce = setTimeout(() => {
+    void pushTimerState()
+  }, 450)
+}
+
+function focusTimerDraft() {
+  return {
+    sessionId: sessionId.value,
+    mode: mode.value,
+    phase: phase.value,
+    status: timerState.value,
+    startedAt: sessionStartedAt.value?.toISOString() || '0001-01-01T00:00:00Z',
+    phaseTotalSeconds: phaseTotal.value,
+    remainingSeconds: remaining.value,
+    elapsedSeconds: elapsed.value,
+    pauseSeconds: Math.round(pausedAccumMs.value / 1000),
+    note: note.value,
+    taskId: target.value?.type === 'task' ? target.value.id : 0,
+    habitId: target.value?.type === 'habit' ? target.value.id : 0,
+    title: target.value?.title || '',
+    cyclePomodoros: cyclePomodoros.value,
+  }
+}
+
+async function pushTimerState() {
+  if (!syncReady.value || applyingRemote.value) return
+  const sequence = ++pushSequence
+  try {
+    const { timer } = await saveFocusTimer(focusTimerDraft())
+    if (sequence !== pushSequence) return
+    serverRevision.value = timer.revision
+    serverTimerKnown.value = true
+    if (!sessionId.value) sessionId.value = timer.sessionId
+  } catch {
+    // Offline or a transient server error must not stop the local timer.
+  }
+}
+
+function applyServerTimer(timer: FocusTimerView) {
+  applyingRemote.value = true
+  stopTicker()
+  mode.value = timer.mode
+  phase.value = timer.phase
+  timerState.value = timer.status
+  sessionId.value = timer.sessionId
+  serverRevision.value = timer.revision
+  serverTimerKnown.value = true
+  sessionStartedAt.value = timer.startedAt && !timer.startedAt.startsWith('0001-') ? new Date(timer.startedAt) : null
+  phaseTotal.value = timer.phaseTotalSeconds
+  pausedAccumMs.value = timer.pauseSeconds * 1000
+  pauseStartedAt.value = 0
+  note.value = timer.note || ''
+  cyclePomodoros.value = timer.cyclePomodoros || 0
+  if (timer.taskId) target.value = { type: 'task', id: timer.taskId, title: timer.title || '专注' }
+  else if (timer.habitId) target.value = { type: 'habit', id: timer.habitId, title: timer.title || '专注' }
+  else target.value = null
+  remaining.value = timer.remainingSeconds
+  elapsed.value = timer.elapsedSeconds
+  if (timer.status === 'running') {
+    if (timer.mode === 'stopwatch' && timer.phase === 'focus') {
+      stopwatchBase.value = Date.now() - timer.elapsedSeconds * 1000
+    } else {
+      deadline.value = Date.now() + timer.remainingSeconds * 1000
+    }
+    startTicker()
+  } else if (timer.status === 'idle' && timer.phase === 'focus' && timer.mode === 'pomodoro' && timer.remainingSeconds <= 0) {
+    resetCountdown()
+  }
+  persistTimer()
+  setTimeout(() => { applyingRemote.value = false }, 0)
+}
+
+async function syncFromServer() {
+  if (!syncReady.value || applyingRemote.value) return
+  try {
+    const { timer } = await fetchFocusTimer()
+    if (timer) {
+      if (timer.revision > serverRevision.value) applyServerTimer(timer)
+      return
+    }
+    if (serverTimerKnown.value && timerState.value !== 'idle') {
+      stopTicker()
+      resetForFocus()
+      serverTimerKnown.value = false
+      serverRevision.value = 0
+      await loadDashboard()
+    } else if (timerState.value !== 'idle') {
+      void pushTimerState()
+    }
+  } catch {
+    // Keep the local timer if the server cannot be reached.
+  }
+}
+
+function startTimerSync() {
+  stopTimerSync()
+  syncTicker = setInterval(() => { void syncFromServer() }, 10000)
+  document.addEventListener('visibilitychange', onFocusVisibility)
+}
+
+function stopTimerSync() {
+  if (syncTicker) clearInterval(syncTicker)
+  syncTicker = undefined
+  document.removeEventListener('visibilitychange', onFocusVisibility)
+}
+
+function onFocusVisibility() {
+  if (document.visibilityState === 'visible') void syncFromServer()
 }
 
 function restoreTimer() {
@@ -828,6 +975,8 @@ function restoreTimer() {
     note.value = state.note || ''
     target.value = state.target || null
     cyclePomodoros.value = state.cyclePomodoros || 0
+    sessionId.value = state.sessionId || ''
+    serverRevision.value = state.serverRevision || 0
     if (timerState.value === 'running') {
       if (phase.value === 'focus' && mode.value === 'stopwatch') {
         elapsed.value = Math.max(0, Math.floor((Date.now() - stopwatchBase.value) / 1000))
@@ -853,7 +1002,15 @@ function restoreTimer() {
   }
 }
 
-watch([note, target], persistTimer, { deep: true })
+watch([note, target], () => {
+  persistTimer()
+  schedulePushTimer()
+}, { deep: true })
+
+watch([timerState, phase, mode, sessionStartedAt, cyclePomodoros], () => {
+  persistTimer()
+  schedulePushTimer()
+})
 
 watch([timerState, timerDisplay, preferences], () => {
   if (preferences.value.tabTitleEnabled && timerState.value !== 'idle') {
@@ -866,15 +1023,34 @@ watch([timerState, timerDisplay, preferences], () => {
 
 onMounted(async () => {
   await Promise.all([loadDashboard(), loadHabits()])
-  if (!restoreTimer()) {
+  let adoptedServer = false
+  try {
+    const { timer } = await fetchFocusTimer()
+    if (timer) {
+      serverRevision.value = timer.revision
+      serverTimerKnown.value = true
+      if (timer.status !== 'idle' || timer.phase !== 'focus') {
+        applyServerTimer(timer)
+        adoptedServer = true
+      }
+    }
+  } catch {
+    // Fall back to the local snapshot.
+  }
+  if (!adoptedServer && !restoreTimer()) {
     resetCountdown()
   }
+  syncReady.value = true
+  if (!adoptedServer && timerState.value !== 'idle') void pushTimerState()
+  startTimerSync()
   loading.value = false
 })
 
 onBeforeUnmount(() => {
   stopTicker()
+  stopTimerSync()
   if (transitionTimer) clearTimeout(transitionTimer)
+  if (syncDebounce) clearTimeout(syncDebounce)
   document.title = originalTitle
   persistTimer()
 })

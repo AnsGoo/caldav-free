@@ -1,5 +1,5 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, FocusDashboard, FocusPreference, FocusSession, FocusSessionDraft, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus'
 
@@ -601,4 +601,22 @@ export function createFocusSession(payload: FocusSessionDraft) {
 
 export function deleteFocusSession(id: number) {
   return api<void>(`/focus/sessions/${id}`, { method: 'DELETE' })
+}
+
+
+export function fetchFocusTimer() {
+  return api<{ timer: FocusTimerView | null; serverNow: string }>('/focus/timer')
+}
+
+export function saveFocusTimer(payload: FocusTimerDraft) {
+  return api<{ timer: FocusTimerView; serverNow: string }>('/focus/timer', { method: 'PUT', body: JSON.stringify(payload) })
+}
+
+export function clearFocusTimer() {
+  return api<void>('/focus/timer', { method: 'DELETE' })
+}
+
+
+export function fetchFocusStats(days: number) {
+  return api<FocusRangeStats>(`/focus/stats?days=${days}`)
 }

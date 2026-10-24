@@ -691,6 +691,7 @@ export interface FocusDashboard {
 }
 
 export interface FocusSessionDraft {
+  clientId?: string
   taskId?: number
   habitId?: number
   mode: FocusMode
@@ -700,4 +701,73 @@ export interface FocusSessionDraft {
   durationSeconds?: number
   pomodoroCount?: number
   note?: string
+}
+
+export interface FocusTimerView {
+  sessionId: string
+  mode: FocusMode
+  phase: 'focus' | 'shortBreak' | 'longBreak'
+  status: 'idle' | 'running' | 'paused'
+  startedAt: string
+  phaseTotalSeconds: number
+  remainingSeconds: number
+  elapsedSeconds: number
+  pauseSeconds: number
+  note: string
+  taskId: number
+  habitId: number
+  title: string
+  cyclePomodoros: number
+  revision: number
+  updatedAt: string
+  serverNow: string
+}
+
+export interface FocusTimerDraft {
+  sessionId: string
+  mode: FocusMode
+  phase: 'focus' | 'shortBreak' | 'longBreak'
+  status: 'idle' | 'running' | 'paused'
+  startedAt: string
+  phaseTotalSeconds: number
+  remainingSeconds: number
+  elapsedSeconds: number
+  pauseSeconds: number
+  note: string
+  taskId?: number
+  habitId?: number
+  title?: string
+  cyclePomodoros: number
+}
+
+export interface FocusModeStat {
+  mode: FocusMode
+  seconds: number
+  minutes: number
+  count: number
+}
+
+export interface FocusTitleStat {
+  title: string
+  seconds: number
+  minutes: number
+  count: number
+}
+
+export interface FocusRangeStats {
+  days: number
+  from: string
+  to: string
+  totalPomodoroCount: number
+  totalFocusSeconds: number
+  totalFocusMinutes: number
+  sessionCount: number
+  activeDays: number
+  averageMinutes: number
+  bestDay: FocusDailyStat
+  daily: FocusDailyStat[]
+  hourly: FocusHourlyStat[]
+  byMode: FocusModeStat[]
+  byTitle: FocusTitleStat[]
+  sessions: FocusSession[]
 }

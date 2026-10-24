@@ -88,6 +88,7 @@ function taskWorkspaceRoutes() {
     { path: '/tasks/habit', name: 'tasks-habit', component, meta: { view: 'habit' } },
     { path: '/tasks/habit/:habitId', name: 'tasks-habit-detail', component, meta: { view: 'habit' } },
     { path: '/tasks/focus', name: 'tasks-focus', component, meta: { view: 'focus' } },
+    { path: '/tasks/focus/stats', name: 'tasks-focus-stats', component, meta: { view: 'focus' } },
     { path: '/tasks/stats', name: 'tasks-stats', component, meta: { view: 'stats' } },
     { path: '/tasks/summary', name: 'tasks-summary', component, meta: { view: 'summary' } },
     { path: '/tasks/ai', name: 'tasks-ai', component, meta: { view: 'ai' } },

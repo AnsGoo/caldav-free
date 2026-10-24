@@ -192,9 +192,19 @@ func Open(path string) (*Store, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}, &TaskComment{}, &CommentAttachment{}, &EventReminderDelivery{}, &EventSnooze{}, &TaskSnooze{}, &TaskActivity{}, &TaskTagColor{}, &MatrixView{}, &MatrixRuleTemplate{}, &Habit{}, &HabitSection{}, &HabitCheckin{}, &HabitRecord{}, &HabitPreference{}, &HabitFocusSession{}, &HabitShare{}, &FocusSession{}, &FocusPreference{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}, &TaskComment{}, &CommentAttachment{}, &EventReminderDelivery{}, &EventSnooze{}, &TaskSnooze{}, &TaskActivity{}, &TaskTagColor{}, &MatrixView{}, &MatrixRuleTemplate{}, &Habit{}, &HabitSection{}, &HabitCheckin{}, &HabitRecord{}, &HabitPreference{}, &HabitFocusSession{}, &HabitShare{}, &FocusSession{}, &FocusPreference{}, &FocusTimerState{}); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
+	}
+	// Existing focus sessions predate client-side idempotency. Give each one a
+	// stable client id before enforcing uniqueness for multi-tab completion.
+	if err := db.WithContext(ctx).Exec("UPDATE focus_sessions SET client_id = lower(hex(randomblob(12))) WHERE client_id = ''").Error; err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("backfill focus session client ids: %w", err)
+	}
+	if err := db.WithContext(ctx).Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_focus_session_client ON focus_sessions(client_id)").Error; err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("index focus session client ids: %w", err)
 	}
 	if path != ":memory:" && !strings.HasPrefix(path, "file:") {
 		// The database contains credentials and calendar data.
@@ -378,6 +388,9 @@ func (s *Store) DeleteUser(ctx context.Context, id int64) error {
 			return err
 		}
 		if err := tx.Where("user_id = ?", id).Delete(&FocusPreference{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ?", id).Delete(&FocusTimerState{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("user_id = ?", id).Delete(&SummaryDocument{}).Error; err != nil {

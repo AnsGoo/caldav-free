@@ -75,3 +75,51 @@ func (s *Server) apiFocusSession(w http.ResponseWriter, r *http.Request, current
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (s *Server) apiFocusTimer(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	if r.Method == http.MethodDelete {
+		if err := s.store.ClearFocusTimer(r.Context(), current.ID); err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if r.Method == http.MethodGet {
+		timer, err := s.store.GetFocusTimer(r.Context(), current.ID)
+		if err != nil {
+			if err == store.ErrNotFound {
+				writeAPIJSON(w, http.StatusOK, map[string]any{"timer": nil, "serverNow": time.Now()})
+				return
+			}
+			s.apiServerError(w, err)
+			return
+		}
+		writeAPIJSON(w, http.StatusOK, map[string]any{"timer": timer, "serverNow": timer.ServerNow})
+		return
+	}
+	var body store.FocusTimerState
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	body.UserID = current.ID
+	timer, err := s.store.SaveFocusTimer(r.Context(), current.ID, &body)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"timer": timer, "serverNow": timer.ServerNow})
+}
+
+func (s *Server) apiFocusStats(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	days, err := strconv.Atoi(r.URL.Query().Get("days"))
+	if err != nil || (days != 7 && days != 30 && days != 90 && days != 365) {
+		days = 30
+	}
+	stats, err := s.store.FocusStatsRange(r.Context(), current.ID, days)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, stats)
+}

@@ -74,8 +74,56 @@ func TestFocusAPI(t *testing.T) {
 		t.Fatalf("unexpected stats: %+v", dashboard.Stats)
 	}
 
+	status, body = env.request(t, "GET", "/api/admin/focus/stats?days=7", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("focus stats = %d: %s", status, body)
+	}
+	var rangeStats struct {
+		Days         int `json:"days"`
+		SessionCount int `json:"sessionCount"`
+	}
+	if err := json.Unmarshal(body, &rangeStats); err != nil {
+		t.Fatal(err)
+	}
+	if rangeStats.Days != 7 || rangeStats.SessionCount != 1 {
+		t.Fatalf("unexpected range stats: %+v", rangeStats)
+	}
+
 	status, body = env.request(t, "DELETE", "/api/admin/focus/sessions/"+strconv.FormatInt(created.Session.ID, 10), nil, env.csrf)
 	if status != http.StatusNoContent {
 		t.Fatalf("delete session = %d: %s", status, body)
+	}
+}
+
+func TestFocusTimerAPI(t *testing.T) {
+	env := newAPIEnv(t)
+	now := time.Now()
+	status, body := env.request(t, "PUT", "/api/admin/focus/timer", map[string]any{
+		"sessionId": "timer-api", "mode": "pomodoro", "phase": "focus", "status": "running",
+		"startedAt":         now.Add(-5 * time.Minute).Format(time.RFC3339Nano),
+		"phaseTotalSeconds": 1500, "remainingSeconds": 55, "note": "timer api",
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("save timer = %d: %s", status, body)
+	}
+	var saved struct {
+		Timer struct {
+			Revision         int64 `json:"revision"`
+			RemainingSeconds int   `json:"remainingSeconds"`
+		} `json:"timer"`
+	}
+	if err := json.Unmarshal(body, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.Timer.Revision != 1 || saved.Timer.RemainingSeconds < 53 {
+		t.Fatalf("unexpected timer: %+v", saved.Timer)
+	}
+	status, body = env.request(t, "GET", "/api/admin/focus/timer", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("get timer = %d: %s", status, body)
+	}
+	status, _ = env.request(t, "DELETE", "/api/admin/focus/timer", nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("clear timer = %d", status)
 	}
 }

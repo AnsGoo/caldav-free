@@ -164,6 +164,7 @@
       </div>
 
       <HabitPanel v-if="view === 'habit'" :focus-habit-id="habitFocusId" @open-detail="onHabitDetailOpened" @close-detail="onHabitDetailClosed" />
+      <FocusStatsPanel v-else-if="view === 'focus' && focusStatsPage" @back="router.push('/tasks/focus')" />
       <FocusPanel v-else-if="view === 'focus'" :tasks="tasks" />
       <TaskMatrixPanel
         v-else-if="view === 'matrix'"
@@ -848,6 +849,7 @@ import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import HabitPanel from '../components/tasks/HabitPanel.vue'
 import FocusPanel from '../components/tasks/FocusPanel.vue'
+import FocusStatsPanel from '../components/tasks/FocusStatsPanel.vue'
 import HabitTodayStrip from '../components/tasks/HabitTodayStrip.vue'
 import MatrixViewManagerDialog from '../components/tasks/MatrixViewManagerDialog.vue'
 import MatrixRulesDialog from '../components/tasks/MatrixRulesDialog.vue'
@@ -879,6 +881,7 @@ const counts = reactive<TaskCounts>({ all: 0, today: 0, next7: 0, inbox: 0, comp
 const inboxId = ref(0)
 
 const view = ref<TaskView>('all')
+const focusStatsPage = computed(() => route.name === 'tasks-focus-stats')
 const activeListId = ref(0)
 const activeFilterId = ref(0)
 const activeSharedListId = ref(0)
@@ -1200,6 +1203,7 @@ function taskRoutePath() {
   if (view.value === 'all' && mode.value === 'calendar') return '/tasks/calendar'
   if (view.value === 'all' && mode.value === 'board') return '/tasks/board'
   if (view.value === 'habit' && route.params.habitId) return `/tasks/habit/${route.params.habitId}`
+  if (view.value === 'focus' && route.name === 'tasks-focus-stats') return '/tasks/focus/stats'
   return view.value === 'all' ? '/tasks' : `/tasks/${view.value}`
 }
 

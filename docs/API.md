@@ -1321,6 +1321,26 @@ create_list
 
 删除当前用户的一条专注记录。
 
+### GET /api/admin/focus/stats?days=30
+
+返回 7/30/90/365 天专注统计：总量、活跃天数、日均、每日/小时趋势、模式拆分、专注对象拆分和记录列表。
+
+### GET /api/admin/focus/timer
+
+返回服务端当前计时状态；没有活动状态时返回：
+
+```json
+{ "timer": null, "serverNow": "..." }
+```
+
+### PUT /api/admin/focus/timer
+
+保存当前计时状态。服务端返回带 `revision`、`remainingSeconds`、`elapsedSeconds` 和 `serverNow` 的视图。
+
+### DELETE /api/admin/focus/timer
+
+清除服务端当前计时状态。
+
 ## 16. 状态码
 
 | 状态码 | 说明 |

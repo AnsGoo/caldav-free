@@ -62,6 +62,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `habit_shares` | 习惯只读分享：习惯、随机 token、创建时间 |
 | `focus_sessions` | 专注记录：任务/习惯快照、模式、起止时间、暂停、时长、笔记 |
 | `focus_preferences` | 专注设置：番茄/休息时长、间隔、每日目标、自动与提示音偏好 |
+| `focus_timer_states` | 服务端当前专注计时状态：模式、阶段、剩余/已用时间、revision |
 | `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
@@ -275,7 +276,8 @@ name:   任务
 - 番茄计时保存计划时长，正计时按实际累计秒数保存；结束时可保存部分专注，暂停时长单独记录。
 - 专注记录通过 `focus_sessions` 持久化，关联任务/习惯时保存标题快照，避免后续改名破坏历史。
 - 番茄完成后按 `focus_preferences.longBreakInterval` 进入短休息或长休息；可自动开始休息和下一个番茄。
-- 计时状态保存在浏览器 localStorage，刷新页面后恢复；提示音使用 Web Audio，标签页计时通过 `document.title`。
+- 计时状态同时保存在浏览器 localStorage 和服务端 `focus_timer_states`；前端每 10 秒轮询，按 revision 应用远端状态，`clientId` 保证多标签完成时只写一条记录。提示音使用 Web Audio，标签页计时通过 `document.title`。
+- 服务端发现番茄倒计时已过期时会自动补写 `focus_sessions` 并清除活动状态；正计时仍需用户结束。
 - 专注统计由 `FocusDashboard` 聚合：今日/累计番茄与时长、最近 7 天、当前年份热力图和 24 小时分布。
 - 工作台的日期与时间输入统一使用 Arco `DatePicker` / `TimePicker`，避免原生 picker 在深色主题和移动端上的交互差异。
 

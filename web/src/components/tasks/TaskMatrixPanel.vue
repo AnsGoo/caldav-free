@@ -58,7 +58,10 @@
           <span class="tw-matrix-count">{{ quadrant.tasks.length }}</span>
           <button
             class="tw-matrix-collapse"
+            :class="{ active: collapsedQuadrants.has(quadrant.id) }"
             :title="collapsedQuadrants.has(quadrant.id) ? '展开象限' : '折叠象限'"
+            :aria-label="collapsedQuadrants.has(quadrant.id) ? '展开象限' : '折叠象限'"
+            :aria-expanded="!collapsedQuadrants.has(quadrant.id)"
             @click.stop="toggleCollapse(quadrant.id)"
           >
             <TaskIcon name="chevron" :size="13" />

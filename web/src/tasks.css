@@ -5952,18 +5952,25 @@ button.tw-side-link {
 }
 
 .tw-matrix-rules-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
   flex: none;
   border: 1px solid var(--tw-border);
-  border-radius: 7px;
-  padding: 4px 9px;
+  border-radius: 999px;
+  padding: 0 10px;
   color: var(--tw-text-2);
-  background: transparent;
-  font-size: 11.5px;
+  background: var(--tw-bg);
+  font-size: 11px;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .tw-matrix-rules-reset:hover {
   border-color: var(--tw-accent);
   color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 8%, transparent);
 }
 
 .tw-matrix-rule-card {
@@ -5977,7 +5984,8 @@ button.tw-side-link {
 .tw-matrix-rule-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px 8px;
   margin-bottom: 8px;
 }
 
@@ -5993,14 +6001,25 @@ button.tw-side-link {
 }
 
 .tw-matrix-rule-clear {
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  flex: none;
+  border: 1px solid var(--tw-border);
+  border-radius: 999px;
+  padding: 0 9px;
   color: var(--tw-text-3);
-  font-size: 11px;
-  background: transparent;
+  background: var(--tw-bg);
+  font-size: 10.5px;
+  white-space: nowrap;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .tw-matrix-rule-clear:hover {
+  border-color: color-mix(in srgb, var(--tw-danger) 45%, var(--tw-border));
   color: var(--tw-danger);
+  background: color-mix(in srgb, var(--tw-danger) 8%, transparent);
 }
 
 .tw-matrix-rule-line {
@@ -6144,9 +6163,19 @@ button.tw-side-link {
 }
 
 .tw-matrix-condition-head button {
-  color: var(--tw-danger);
+  border: 0;
+  border-radius: 5px;
+  padding: 2px 6px;
+  color: var(--tw-text-3);
   background: transparent;
   font-size: 10.5px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.tw-matrix-condition-head button:hover {
+  color: var(--tw-danger);
+  background: color-mix(in srgb, var(--tw-danger) 9%, transparent);
 }
 
 .tw-matrix-add-group {
@@ -6272,17 +6301,31 @@ button.tw-side-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   flex: none;
-  border-radius: 5px;
+  border: 1px solid var(--tw-border);
+  border-radius: 7px;
   color: var(--tw-text-3);
-  background: transparent;
+  background: var(--tw-surface);
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 .tw-matrix-collapse:hover {
-  color: var(--tw-text);
-  background: var(--tw-surface);
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 8%, var(--tw-surface));
+}
+
+.tw-matrix-collapse:focus-visible {
+  outline: 2px solid var(--tw-accent);
+  outline-offset: 1px;
+}
+
+.tw-matrix-collapse.active {
+  border-color: color-mix(in srgb, var(--tw-accent) 40%, var(--tw-border));
+  color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 9%, var(--tw-surface));
 }
 
 .tw-matrix-collapse svg {

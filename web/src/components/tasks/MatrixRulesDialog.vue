@@ -20,7 +20,10 @@
               <option value="eisenhower">优先级 + 日期</option>
               <option value="empty">清空全部条件</option>
             </select>
-            <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">恢复内置规则与配色</button>
+            <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">
+              <TaskIcon name="restore" :size="11" />
+              恢复内置规则与配色
+            </button>
           </div>
         </div>
 
@@ -40,7 +43,10 @@
               <option value="any">满足任一条件组</option>
             </select>
             <span class="tw-matrix-rule-preview" title="按当前规则预览命中数量">{{ quadrantCounts[quadrant.id] }} 项</span>
-            <button class="tw-matrix-rule-clear" @click="clearMatrixConditions(form[quadrant.id])">重置条件</button>
+            <button class="tw-matrix-rule-clear" title="重置当前象限的全部条件" @click="clearMatrixConditions(form[quadrant.id])">
+              <TaskIcon name="refresh" :size="11" />
+              重置条件
+            </button>
           </header>
 
           <div

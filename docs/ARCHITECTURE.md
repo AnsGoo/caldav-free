@@ -63,6 +63,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `focus_sessions` | 专注记录：任务/习惯快照、模式、起止时间、暂停、时长、笔记 |
 | `focus_preferences` | 专注设置：番茄/休息时长、间隔、每日目标、自动与提示音偏好 |
 | `focus_timer_states` | 服务端当前专注计时状态：模式、阶段、剩余/已用时间、revision |
+| `countdown_events` | 倒数纪念日：类型、日期、重复、提醒、样式、置顶、归档 |
 | `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
@@ -280,6 +281,14 @@ name:   任务
 - 服务端发现番茄倒计时已过期时会自动补写 `focus_sessions` 并清除活动状态；正计时仍需用户结束。
 - 专注统计由 `FocusDashboard` 聚合：今日/累计番茄与时长、最近 7 天、当前年份热力图和 24 小时分布。
 - 工作台的日期与时间输入统一使用 Arco `DatePicker` / `TimePicker`，避免原生 picker 在深色主题和移动端上的交互差异。
+
+## 8.3 倒数纪念日
+
+- `/tasks/countdown` 使用 `CountdownPanel`，按类型筛选并支持记录中/已归档视图。
+- `countdown_events` 保存名称、类型、`YYYYMMDD` 日期、图标/颜色/样式、备注、提醒偏移、重复规则和置顶/归档状态。
+- 服务端返回下一次发生日期、`days`、`state`（today/future/past）和生日年龄；每年重复的 2 月 29 日会收敛到当月最后一天。
+- 提醒默认在应用时区 09:00 触发，复用站内通知、Web Push、SMTP 和现有重试退避；投递 key 绑定 occurrence 与 offset，避免重复。
+- 日期选择使用 Arco DatePicker，未使用原生日期控件。
 
 ## 9. 提醒
 

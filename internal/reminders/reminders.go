@@ -170,6 +170,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if habitSent > 0 {
 		s.logger.Info("sent habit reminders", "count", habitSent)
 	}
+	countdownSent := s.tickCountdowns(ctx, now, mailConfig)
+	if countdownSent > 0 {
+		s.logger.Info("sent countdown reminders", "count", countdownSent)
+	}
 	_ = s.store.PurgeReminderDeliveries(ctx, now.AddDate(0, 0, -30))
 	_ = s.store.PurgeReminderAttempts(ctx, now.AddDate(0, 0, -30))
 }

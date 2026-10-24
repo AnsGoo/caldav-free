@@ -186,6 +186,11 @@
       <circle cx="9" cy="17" r="1.2" fill="currentColor" stroke="none" />
       <circle cx="15" cy="17" r="1.2" fill="currentColor" stroke="none" />
     </template>
+    <template v-else-if="name === 'countdown'">
+      <path d="M7 4h10v3.2c0 2.2-2.5 4-5 5.3-2.5-1.3-5-3.1-5-5.3V4Z" />
+      <path d="M7 20h10v-3.2c0-2.2-2.5-4-5-5.3-2.5 1.3-5 3.1-5 5.3V20Z" />
+      <path d="M12 12.5v3" />
+    </template>
     <template v-else-if="name === 'sunrise'">
       <path d="M4 18h16M6.5 14a5.5 5.5 0 0 1 11 0M12 4v3M4.8 8.2l1.8 1.8M19.2 8.2l-1.8 1.8" />
     </template>

@@ -7426,3 +7426,120 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   .tw-focus-range-session-list article { grid-template-columns: 1fr 60px; }
   .tw-focus-range-session-list span { grid-column: span 2; }
 }
+
+/* ------------------------------------------------------------- countdown */
+.tw-countdown {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--tw-bg);
+}
+
+.tw-countdown-head {
+  height: 70px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 28px;
+}
+.tw-countdown-title-wrap { position: relative; }
+.tw-countdown-title {
+  display: inline-flex; align-items: center; gap: 7px; padding: 4px 0;
+  border: 0; background: transparent; color: var(--tw-text);
+  font-size: 22px; font-weight: 680; letter-spacing: -0.03em; cursor: pointer;
+}
+.tw-countdown-title svg { color: var(--tw-text-3); }
+.tw-countdown-view-menu {
+  position: absolute; top: 100%; left: 0; z-index: 20; min-width: 120px; padding: 5px;
+  border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-bg); box-shadow: var(--tw-shadow);
+}
+.tw-countdown-view-menu button { width: 100%; padding: 8px 10px; border: 0; border-radius: 7px; background: transparent; color: var(--tw-text-2); text-align: left; font-size: 11px; cursor: pointer; }
+.tw-countdown-view-menu button:hover, .tw-countdown-view-menu button.active { background: var(--tw-accent-soft); color: var(--tw-accent); }
+.tw-countdown-head-actions { margin-left: auto; display: flex; align-items: center; gap: 3px; }
+
+.tw-countdown-tabs { display: flex; align-items: center; gap: 3px; padding: 0 28px 16px; flex: none; }
+.tw-countdown-tabs button { height: 32px; padding: 0 16px; border: 0; border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 12px; cursor: pointer; }
+.tw-countdown-tabs button:hover { color: var(--tw-text-2); }
+.tw-countdown-tabs button.active { background: var(--tw-accent-soft); color: var(--tw-accent); }
+
+.tw-countdown-loading, .tw-countdown-empty { flex: 1; display: grid; place-items: center; text-align: center; }
+.tw-countdown-empty { align-content: center; gap: 8px; padding: 40px; }
+.tw-countdown-empty-icon { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 18px; background: var(--tw-surface); color: var(--tw-text-3); }
+.tw-countdown-empty h3 { margin: 5px 0 0; font-size: 17px; font-weight: 650; }
+.tw-countdown-empty p { margin: 0 0 8px; color: var(--tw-text-3); font-size: 11px; }
+
+.tw-countdown-grid {
+  flex: 1; min-height: 0; overflow: auto; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); align-content: start;
+  gap: 20px; padding: 8px 28px 36px;
+}
+.tw-countdown-card {
+  position: relative; min-height: 171px; display: flex; flex-direction: column; align-items: center;
+  padding: 27px 14px 14px; border: 1px solid var(--tw-border); border-radius: 13px;
+  background: var(--tw-bg); box-shadow: 0 0 6px rgba(25, 25, 25, 0.03);
+  overflow: hidden; transition: transform 150ms ease, box-shadow 150ms ease;
+}
+.tw-countdown-card:hover { transform: translateY(-2px); box-shadow: 0 14px 32px -22px rgba(20, 25, 35, 0.55); }
+.tw-countdown-card.style-soft { border-color: transparent; }
+.tw-countdown-card.style-outline { border-width: 1.5px; }
+.tw-countdown-card.style-color { color: #1d2129; }
+.tw-countdown-card.style-color .tw-countdown-subtitle, .tw-countdown-card.style-color .tw-countdown-card-pin { color: rgba(29, 33, 41, 0.62); }
+.tw-countdown-card > header { position: relative; z-index: 2; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.tw-countdown-icon { width: 23px; height: 23px; flex: none; display: grid; place-items: center; border-radius: 50%; font-size: 14px; }
+.tw-countdown-card > header strong { max-width: calc(100% - 30px); overflow: hidden; color: var(--tw-text); font-size: 15px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.tw-countdown-card.style-color > header strong { color: #1d2129; }
+.tw-countdown-number { position: relative; z-index: 2; margin: 9px 0 5px; color: var(--tw-accent); font-size: 41px; font-weight: 500; line-height: 1.2; letter-spacing: -0.045em; font-variant-numeric: tabular-nums; }
+.tw-countdown-card.style-color .tw-countdown-number { color: #1d2129; }
+.tw-countdown-number.today { font-size: 39px; }
+.tw-countdown-number.past { color: var(--tw-text-2); }
+.tw-countdown-card.style-color .tw-countdown-number.past { color: rgba(29, 33, 41, 0.65); }
+.tw-countdown-subtitle { position: relative; z-index: 2; max-width: 100%; margin: 0; overflow: hidden; color: var(--tw-text-3); font-size: 10px; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.tw-countdown-age { margin-top: 4px; color: var(--tw-text-3); font-size: 9px; }
+.tw-countdown-card-pin { position: absolute; top: 10px; right: 10px; z-index: 3; color: var(--tw-accent); transform: rotate(-12deg); }
+.tw-countdown-card-actions { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 3; display: flex; justify-content: flex-end; gap: 2px; opacity: 0; transition: opacity 120ms ease; }
+.tw-countdown-card:hover .tw-countdown-card-actions { opacity: 1; }
+.tw-countdown-card-actions .tw-icon-button { width: 24px; height: 24px; color: var(--tw-text-2); background: color-mix(in srgb, var(--tw-bg) 88%, transparent); backdrop-filter: blur(5px); }
+.tw-countdown-card-actions .tw-icon-button:hover { color: var(--tw-accent); background: var(--tw-bg); }
+.tw-countdown-card-actions .tw-icon-button.danger:hover { color: var(--tw-danger); }
+
+.tw-countdown-dialog { width: min(560px, calc(100vw - 28px)); }
+.tw-countdown-form { display: grid; gap: 13px; }
+.tw-countdown-form-top { display: flex; align-items: center; gap: 10px; }
+.tw-countdown-icon-editor { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border: 0; border-radius: 11px; font-size: 21px; cursor: pointer; }
+.tw-countdown-form-top .tw-dialog-input { flex: 1; }
+.tw-countdown-type-row { display: flex; gap: 5px; flex-wrap: wrap; }
+.tw-countdown-type { height: 28px; padding: 0 12px; border: 1px solid var(--tw-border); border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 10px; cursor: pointer; }
+.tw-countdown-type.active { border-color: var(--tw-accent); background: var(--tw-accent-soft); color: var(--tw-accent); }
+.tw-countdown-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tw-countdown-field { display: grid; gap: 5px; color: var(--tw-text-3); font-size: 10px; }
+.tw-countdown-field .tw-field-select { width: 100%; }
+.tw-countdown-field textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-surface); color: var(--tw-text); font: inherit; font-size: 11px; line-height: 1.5; outline: none; resize: vertical; }
+.tw-countdown-field textarea:focus { border-color: var(--tw-accent); background: var(--tw-bg); }
+.tw-countdown-form-section { display: grid; gap: 7px; }
+.tw-countdown-form-section > span { color: var(--tw-text-3); font-size: 10px; }
+.tw-countdown-checks { display: flex; flex-wrap: wrap; gap: 7px 14px; }
+.tw-countdown-check { display: inline-flex; align-items: center; gap: 5px; color: var(--tw-text-2); font-size: 10px; }
+.tw-countdown-check input { width: 14px; height: 14px; accent-color: var(--tw-accent); }
+.tw-countdown-style-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.tw-countdown-style { height: 26px; padding: 0 10px; border: 1px solid var(--tw-border); border-radius: 7px; background: transparent; color: var(--tw-text-3); font-size: 9px; cursor: pointer; }
+.tw-countdown-style.active { border-color: var(--tw-accent); color: var(--tw-accent); }
+.tw-countdown-colors { display: flex; gap: 7px; margin-top: 2px; }
+.tw-countdown-color { width: 20px; height: 20px; border: 2px solid transparent; border-radius: 50%; cursor: pointer; }
+.tw-countdown-color.active { border-color: var(--tw-text); box-shadow: 0 0 0 2px var(--tw-bg), 0 0 0 3px var(--tw-border); }
+
+@media (max-width: 860px) {
+  .tw-countdown-head { padding: 12px 18px; height: auto; }
+  .tw-countdown-tabs { padding: 0 18px 14px; overflow-x: auto; }
+  .tw-countdown-grid { padding: 5px 18px 28px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .tw-countdown-card { min-height: 155px; padding-top: 22px; }
+  .tw-countdown-number { font-size: 35px; }
+}
+@media (max-width: 480px) {
+  .tw-countdown-grid { grid-template-columns: 1fr; }
+  .tw-countdown-form-grid { grid-template-columns: 1fr; }
+}
+@media (hover: none) {
+  .tw-countdown-card-actions { opacity: 1; }
+}

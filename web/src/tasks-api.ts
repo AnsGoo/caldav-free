@@ -1,7 +1,7 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
 
 export function browserTimezone() {
   try {
@@ -619,4 +619,21 @@ export function clearFocusTimer() {
 
 export function fetchFocusStats(days: number) {
   return api<FocusRangeStats>(`/focus/stats?days=${days}`)
+}
+
+
+export function fetchCountdowns(archived = false) {
+  return api<{ countdowns: CountdownItem[] }>(`/countdowns${archived ? '?archived=1' : ''}`)
+}
+
+export function createCountdown(payload: CountdownDraft) {
+  return api<{ countdown: CountdownItem }>('/countdowns', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function updateCountdown(id: number, patch: Partial<CountdownDraft>) {
+  return api<{ countdown: CountdownItem }>(`/countdowns/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+}
+
+export function deleteCountdown(id: number) {
+  return api<void>(`/countdowns/${id}`, { method: 'DELETE' })
 }

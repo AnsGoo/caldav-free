@@ -1341,7 +1341,41 @@ create_list
 
 清除服务端当前计时状态。
 
-## 16. 状态码
+## 16. 倒数纪念日
+
+### GET /api/admin/countdowns
+
+返回当前用户的倒数日；`?archived=1` 只返回已归档记录。
+
+### POST /api/admin/countdowns
+
+```json
+{
+  "name": "产品发布日",
+  "type": "countdown",
+  "date": 20261103,
+  "icon": "⏳",
+  "color": "#92D0FF",
+  "style": "normal",
+  "repeat": "none",
+  "reminders": "[0,3]",
+  "dateDisplayFormat": "day",
+  "remark": ""
+}
+```
+
+`type`：`anniversary`、`countdown`、`birthday`、`festival`
+`repeat`：`none`、`yearly`、`monthly`、`weekly`
+
+### PATCH /api/admin/countdowns/{id}
+
+支持更新名称、日期、类型、图标、颜色、样式、备注、提醒、重复、归档状态和置顶。
+
+### DELETE /api/admin/countdowns/{id}
+
+删除当前用户的倒数记录。
+
+## 17. 状态码
 
 | 状态码 | 说明 |
 | --- | --- |

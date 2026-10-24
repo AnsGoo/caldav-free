@@ -771,3 +771,50 @@ export interface FocusRangeStats {
   byTitle: FocusTitleStat[]
   sessions: FocusSession[]
 }
+
+export type CountdownType = 'anniversary' | 'countdown' | 'birthday' | 'festival'
+export type CountdownRepeat = 'none' | 'yearly' | 'monthly' | 'weekly'
+
+export interface CountdownItem {
+  id: number
+  name: string
+  type: CountdownType
+  date: number
+  icon: string
+  color: string
+  style: 'normal' | 'color' | 'soft' | 'outline'
+  background: string
+  remark: string
+  reminders: string
+  repeat: CountdownRepeat
+  ignoreYear: boolean
+  showAge: boolean
+  dateDisplayFormat: 'day' | 'full'
+  status: number
+  pinned: boolean
+  sortOrder: number
+  createdAt: string
+  modifiedAt: string
+  days: number
+  state: 'today' | 'future' | 'past'
+  occurrenceDate: number
+  age?: number
+}
+
+export interface CountdownDraft {
+  name: string
+  type: CountdownType
+  date: number
+  icon: string
+  color: string
+  style: 'normal' | 'color' | 'soft' | 'outline'
+  background: string
+  remark: string
+  reminders: string
+  repeat: CountdownRepeat
+  ignoreYear: boolean
+  showAge: boolean
+  dateDisplayFormat: 'day' | 'full'
+  status: number
+  pinned: boolean
+}

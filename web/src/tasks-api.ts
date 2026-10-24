@@ -373,8 +373,8 @@ export function saveAISettings(payload: { provider?: string; baseUrl: string; mo
   })
 }
 
-export function testAIModel(payload: { provider?: string; baseUrl?: string; apiKey?: string; model: string }) {
-  return api<{ ok: boolean; model: string; latencyMs: number; sample: string }>('/tasks/ai/test', {
+export function testAIModel(payload: { provider?: string; baseUrl?: string; apiKey?: string; model: string; mode?: 'chat' | 'tools' }) {
+  return api<{ ok: boolean; model: string; latencyMs: number; sample: string; toolsSupported?: boolean }>('/tasks/ai/test', {
     method: 'POST',
     body: JSON.stringify(payload),
   })

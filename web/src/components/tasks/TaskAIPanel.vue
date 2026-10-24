@@ -146,6 +146,7 @@
                 >
                   <span class="tw-ai-model-option-name">{{ model }}</span>
                   <span class="tw-ai-model-option-tags">
+                    <em v-if="modelLatencyLabel(model)" class="latency">{{ modelLatencyLabel(model) }}</em>
                     <em v-if="(settings.recentModels || []).includes(model)" class="recent">最近</em>
                     <em v-if="modelProfile(model).recommended" class="recommended">推荐</em>
                     <em v-for="label in modelCapabilityLabels(model)" :key="label" :class="{ warn: label.includes('不是对话') }">{{ label }}</em>
@@ -159,10 +160,13 @@
               <small v-if="!selectedModelCapabilities.length">未识别到能力标签</small>
             </p>
             <div class="tw-ai-model-test">
-              <button class="tw-ai-model-test-btn" type="button" :disabled="testBusy || !settingsForm.model.trim() || !settingsForm.baseUrl.trim()" @click="testModel">
+              <button class="tw-ai-model-test-btn" type="button" :disabled="testBusy || !settingsForm.model.trim() || !settingsForm.baseUrl.trim()" @click="testModel('chat')">
                 {{ testBusy ? '测试中…' : '测试连接' }}
               </button>
-              <span v-if="testResult" :class="testResult.ok ? 'ok' : 'error'">{{ testResult.text }}</span>
+              <button class="tw-ai-model-test-btn" type="button" :disabled="testBusy || !settingsForm.model.trim() || !settingsForm.baseUrl.trim()" @click="testModel('tools')">
+                测试工具调用
+              </button>
+              <span v-if="testResult" :class="testResult.ok ? (testResult.warn ? 'warn' : 'ok') : 'error'">{{ testResult.text }}</span>
             </div>
           </label>
           <label v-if="settings.hasKey" class="tw-check-label">
@@ -207,7 +211,7 @@ const quickPrompts = ['今天有哪些任务？', '创建一个明天下午 3 �
 const messages = ref<AIChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
-const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', models: [], recentModels: [], hasKey: false, configured: false })
+const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', models: [], recentModels: [], modelStats: {}, hasKey: false, configured: false })
 const settingsOpen = ref(false)
 const settingsBusy = ref(false)
 const settingsForm = reactive({ provider: 'custom', baseUrl: '', model: '', apiKey: '', clearKey: false })
@@ -216,7 +220,7 @@ const modelsLoading = ref(false)
 const modelsFetched = ref(false)
 const modelFilter = ref('')
 const testBusy = ref(false)
-const testResult = ref<{ ok: boolean; text: string } | null>(null)
+const testResult = ref<{ ok: boolean; warn?: boolean; text: string } | null>(null)
 const chatModel = ref('')
 try {
   chatModel.value = localStorage.getItem(CHAT_MODEL_KEY) || ''
@@ -286,6 +290,7 @@ async function loadSettings() {
     settings.value = await fetchAISettings()
     settings.value.models = settings.value.models || []
     settings.value.recentModels = settings.value.recentModels || []
+    settings.value.modelStats = settings.value.modelStats || {}
     settingsForm.provider = normalizeProvider(settings.value.provider, settings.value.baseUrl)
     settingsForm.baseUrl = settings.value.baseUrl
     settingsForm.model = settings.value.model
@@ -340,6 +345,7 @@ async function send(text?: string) {
       .map((item) => ({ role: item.role, content: item.content }))
     const reply = await sendAIChat(history, browserTimezone(), chatModel.value || settings.value.model)
     if (reply.recentModels) settings.value.recentModels = reply.recentModels
+    if (reply.modelStats) settings.value.modelStats = reply.modelStats
     if (reply.fallbackFrom) {
       chatModel.value = reply.model
       onChatModelChange()
@@ -427,7 +433,7 @@ function onKeyBlur() {
   }
 }
 
-async function testModel() {
+async function testModel(mode: 'chat' | 'tools' = 'chat') {
   if (testBusy.value || !settingsForm.model.trim() || !settingsForm.baseUrl.trim()) return
   testBusy.value = true
   testResult.value = null
@@ -437,13 +443,26 @@ async function testModel() {
       baseUrl: settingsForm.baseUrl.trim(),
       apiKey: settingsForm.apiKey.trim() || undefined,
       model: settingsForm.model.trim(),
+      mode,
     })
-    testResult.value = { ok: true, text: `连接成功 · ${result.latencyMs}ms · ${result.model}` }
+    if (mode === 'tools') {
+      testResult.value = result.toolsSupported
+        ? { ok: true, text: `工具调用成功 · ${result.latencyMs}ms` }
+        : { ok: true, warn: true, text: '模型未发起工具调用（可能不支持）' }
+    } else {
+      testResult.value = { ok: true, text: `连接成功 · ${result.latencyMs}ms · ${result.model}` }
+    }
   } catch (error) {
     testResult.value = { ok: false, text: error instanceof Error ? error.message : '连接测试失败' }
   } finally {
     testBusy.value = false
   }
+}
+
+function modelLatencyLabel(model: string) {
+  const stat = settings.value.modelStats?.[model]
+  if (!stat || !stat.calls) return ''
+  return `~${Math.round(stat.totalMs / stat.calls)}ms`
 }
 
 function onChatModelChange() {
@@ -470,6 +489,7 @@ async function saveSettings() {
     })
     settings.value.models = settings.value.models || []
     settings.value.recentModels = settings.value.recentModels || []
+    settings.value.modelStats = settings.value.modelStats || {}
     chatModel.value = settings.value.model
     onChatModelChange()
     settingsOpen.value = false

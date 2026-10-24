@@ -364,12 +364,20 @@ export interface TaskStats {
   priorities: TaskPriorityStat[]
 }
 
+export interface AIModelStat {
+  calls: number
+  totalMs: number
+  lastMs: number
+  lastAt: string
+}
+
 export interface AISettings {
   provider: string
   baseUrl: string
   model: string
   models: string[]
   recentModels: string[]
+  modelStats: Record<string, AIModelStat>
   hasKey: boolean
   configured: boolean
 }
@@ -401,6 +409,8 @@ export interface AIChatReply {
   model: string
   fallbackFrom?: string
   recentModels?: string[]
+  modelStats?: Record<string, AIModelStat>
+  latencyMs?: number
 }
 
 export interface SummaryTask {

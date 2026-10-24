@@ -1149,6 +1149,9 @@ data: {"unread":2}
   "model": "gpt-4o-mini",
   "models": ["gpt-4o-mini", "gpt-4o"],
   "recentModels": ["gpt-4o-mini"],
+  "modelStats": {
+    "gpt-4o-mini": { "calls": 12, "totalMs": 9840, "lastMs": 760, "lastAt": "2026-10-24T01:40:55Z" }
+  },
   "hasKey": true,
   "configured": true
 }
@@ -1201,9 +1204,12 @@ API Key 永不返回。
   "provider": "openai",
   "baseUrl": "https://api.openai.com/v1",
   "apiKey": "sk-...",
-  "model": "gpt-4o-mini"
+  "model": "gpt-4o-mini",
+  "mode": "chat"
 }
 ```
+
+`mode` 为 `chat`（默认）或 `tools`。`tools` 会发送一个 ping 工具，检查模型是否返回 function call。
 
 成功返回：
 
@@ -1212,9 +1218,12 @@ API Key 永不返回。
   "ok": true,
   "model": "gpt-4o-mini",
   "latencyMs": 842,
-  "sample": "OK"
+  "sample": "OK",
+  "toolsSupported": true
 }
 ```
+
+`toolsSupported` 仅在 `mode: "tools"` 时返回。
 
 `baseUrl`、`apiKey` 可省略，省略时使用已保存配置。
 
@@ -1236,6 +1245,9 @@ API Key 永不返回。
 {
   "message": "已创建任务「和张三开会」，定在明天 15:00。",
   "recentModels": ["gpt-4o-mini"],
+  "modelStats": { "gpt-4o-mini": { "calls": 13, "totalMs": 10600, "lastMs": 760, "lastAt": "2026-10-24T01:42:55Z" } },
+  "latencyMs": 760,
+  "fallbackFrom": "bad-model",
   "actions": [
     {
       "type": "create_task",

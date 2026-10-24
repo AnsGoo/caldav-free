@@ -6810,3 +6810,15 @@ button.tw-side-link {
   color: var(--tw-danger);
   font-size: 10px;
 }
+
+.tw-ai-model-option-tags em.latency {
+  color: var(--tw-text-3);
+  background: transparent;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.tw-ai-model-test .warn {
+  color: var(--tw-warning, #f2a900);
+  font-size: 10px;
+}

@@ -26,6 +26,7 @@ const (
 	settingAIModels       = "ai.models"
 	settingAIModelsBase   = "ai.models_base"
 	settingAIRecentModels = "ai.recent_models"
+	settingAIModelStats   = "ai.model_stats"
 )
 
 type aiConfig struct {
@@ -80,6 +81,7 @@ func (s *Server) aiSettingsPayload(ctx context.Context) map[string]any {
 		"model":        config.Model,
 		"models":       models,
 		"recentModels": s.aiRecentModels(ctx),
+		"modelStats":   s.aiModelStats(ctx),
 		"hasKey":       config.APIKey != "",
 		"configured":   config.BaseURL != "" && config.Model != "",
 	}
@@ -346,12 +348,71 @@ func (s *Server) rememberAIModel(ctx context.Context, model string) []string {
 	return next
 }
 
+type aiModelStat struct {
+	Calls   int    `json:"calls"`
+	TotalMs int64  `json:"totalMs"`
+	LastMs  int64  `json:"lastMs"`
+	LastAt  string `json:"lastAt"`
+}
+
+func (s *Server) aiModelStats(ctx context.Context) map[string]aiModelStat {
+	stats := map[string]aiModelStat{}
+	if raw, _ := s.store.GetSetting(ctx, settingAIModelStats); strings.TrimSpace(raw) != "" {
+		_ = json.Unmarshal([]byte(raw), &stats)
+	}
+	if stats == nil {
+		stats = map[string]aiModelStat{}
+	}
+	return stats
+}
+
+func (s *Server) recordAIModelStat(ctx context.Context, model string, latency time.Duration) map[string]aiModelStat {
+	model = strings.TrimSpace(model)
+	stats := s.aiModelStats(ctx)
+	if model == "" {
+		return stats
+	}
+	entry := stats[model]
+	elapsed := latency.Milliseconds()
+	entry.Calls++
+	entry.TotalMs += elapsed
+	entry.LastMs = elapsed
+	entry.LastAt = time.Now().UTC().Format(time.RFC3339)
+	stats[model] = entry
+	if len(stats) > 20 {
+		oldestKey := ""
+		oldest := ""
+		for key, item := range stats {
+			if oldestKey == "" || item.LastAt < oldest {
+				oldestKey = key
+				oldest = item.LastAt
+			}
+		}
+		if oldestKey != "" {
+			delete(stats, oldestKey)
+		}
+	}
+	if encoded, err := json.Marshal(stats); err == nil {
+		_ = s.store.SetSetting(ctx, settingAIModelStats, string(encoded))
+	}
+	return stats
+}
+
+func aiStoredModels(ctx context.Context, s *Server) []string {
+	list := []string{}
+	if raw, _ := s.store.GetSetting(ctx, settingAIModels); strings.TrimSpace(raw) != "" {
+		_ = json.Unmarshal([]byte(raw), &list)
+	}
+	return list
+}
+
 func (s *Server) apiAITestModel(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body struct {
 		Provider string `json:"provider"`
 		BaseURL  string `json:"baseUrl"`
 		APIKey   string `json:"apiKey"`
 		Model    string `json:"model"`
+		Mode     string `json:"mode"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -386,12 +447,29 @@ func (s *Server) apiAITestModel(w http.ResponseWriter, r *http.Request, current 
 	} else {
 		endpoint += "/chat/completions"
 	}
+	testMode := strings.TrimSpace(body.Mode)
 	payload := map[string]any{
 		"model": model,
 		"messages": []map[string]string{
 			{"role": "user", "content": "Reply with OK only."},
 		},
 		"max_tokens": 8,
+	}
+	if testMode == "tools" {
+		payload["messages"] = []map[string]string{
+			{"role": "user", "content": "Call the ping tool once. Do not answer directly."},
+		}
+		payload["tools"] = []map[string]any{
+			{
+				"type": "function",
+				"function": map[string]any{
+					"name":        "ping",
+					"description": "Connectivity test tool.",
+					"parameters":  map[string]any{"type": "object", "properties": map[string]any{}},
+				},
+			},
+		}
+		payload["tool_choice"] = "auto"
 	}
 	encoded, _ := json.Marshal(payload)
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, bytes.NewReader(encoded))
@@ -428,7 +506,12 @@ func (s *Server) apiAITestModel(w http.ResponseWriter, r *http.Request, current 
 	var result struct {
 		Choices []struct {
 			Message struct {
-				Content string `json:"content"`
+				Content   string `json:"content"`
+				ToolCalls []struct {
+					Function struct {
+						Name string `json:"name"`
+					} `json:"function"`
+				} `json:"tool_calls"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
@@ -444,12 +527,16 @@ func (s *Server) apiAITestModel(w http.ResponseWriter, r *http.Request, current 
 	if len([]rune(sample)) > 120 {
 		sample = string([]rune(sample)[:120])
 	}
-	writeAPIJSON(w, http.StatusOK, map[string]any{
+	responsePayload := map[string]any{
 		"ok":        true,
 		"model":     model,
 		"latencyMs": time.Since(start).Milliseconds(),
 		"sample":    sample,
-	})
+	}
+	if testMode == "tools" {
+		responsePayload["toolsSupported"] = len(result.Choices[0].Message.ToolCalls) > 0
+	}
+	writeAPIJSON(w, http.StatusOK, responsePayload)
 }
 
 // ---------------------------------------------------------------- chat
@@ -572,16 +659,41 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 	}
 	config := s.loadAIConfig(r.Context())
 	defaultModel := config.Model
-	if model := strings.TrimSpace(body.Model); model != "" {
-		if len([]rune(model)) > 200 {
+	requestedModel := strings.TrimSpace(body.Model)
+	if requestedModel != "" {
+		if len([]rune(requestedModel)) > 200 {
 			writeAPIError(w, http.StatusBadRequest, "模型名称过长")
 			return
 		}
-		config.Model = model
+		config.Model = requestedModel
 	}
 	if config.BaseURL == "" || config.Model == "" {
 		writeAPIError(w, http.StatusServiceUnavailable, "尚未配置 AI 模型，请先在 AI 设置中填写 Base URL 与模型")
 		return
+	}
+	fallbackCandidates := []string{config.Model}
+	if requestedModel != "" && requestedModel != defaultModel {
+		addCandidate := func(model string) {
+			model = strings.TrimSpace(model)
+			if model == "" {
+				return
+			}
+			for _, existing := range fallbackCandidates {
+				if existing == model {
+					return
+				}
+			}
+			if len(fallbackCandidates) < 3 {
+				fallbackCandidates = append(fallbackCandidates, model)
+			}
+		}
+		addCandidate(defaultModel)
+		for _, model := range s.aiRecentModels(r.Context()) {
+			addCandidate(model)
+		}
+		for _, model := range aiStoredModels(r.Context(), s) {
+			addCandidate(model)
+		}
 	}
 	if len(body.Messages) == 0 || len(body.Messages) > 40 {
 		writeAPIError(w, http.StatusBadRequest, "对话消息数量无效")
@@ -622,17 +734,35 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 	actions := make([]aiAction, 0, 2)
 	var finalText string
 	fallbackFrom := ""
+	fallbackFromModel := ""
+	chatStart := time.Now()
 	for round := 0; round < 6; round++ {
-		reply, err := s.callAI(ctx, config, messages, tools)
-		if err != nil && round == 0 && len(actions) == 0 && fallbackFrom == "" && defaultModel != "" && defaultModel != config.Model {
-			fallbackFrom = config.Model
-			config.Model = defaultModel
+		var reply aiChatMessage
+		var err error
+		attempted := []string{}
+		for index, candidate := range fallbackCandidates {
+			config.Model = candidate
 			reply, err = s.callAI(ctx, config, messages, tools)
+			if err == nil {
+				if index > 0 && fallbackFromModel == "" {
+					fallbackFromModel = fallbackCandidates[0]
+					fallbackFrom = fallbackFromModel
+				}
+				fallbackCandidates = fallbackCandidates[index:]
+				break
+			}
+			attempted = append(attempted, candidate)
+			if round > 0 || len(actions) > 0 {
+				break
+			}
 		}
 		if err != nil {
+			if fallbackFromModel != "" {
+				fallbackFrom = fallbackFromModel
+			}
 			prefix := "AI 请求失败："
-			if fallbackFrom != "" {
-				prefix = "AI 请求失败（已尝试 " + fallbackFrom + " 和 " + config.Model + "）："
+			if len(attempted) > 1 {
+				prefix = "AI 请求失败（已尝试 " + strings.Join(attempted, "、") + "）："
 			}
 			writeAPIError(w, http.StatusBadGateway, prefix+err.Error())
 			return
@@ -668,12 +798,16 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 			finalText = "操作已完成。"
 		}
 	}
+	latency := time.Since(chatStart)
 	recentModels := s.rememberAIModel(ctx, config.Model)
+	modelStats := s.recordAIModelStat(ctx, config.Model, latency)
 	payload := map[string]any{
 		"message":      finalText,
 		"actions":      actions,
 		"model":        config.Model,
 		"recentModels": recentModels,
+		"modelStats":   modelStats,
+		"latencyMs":    latency.Milliseconds(),
 	}
 	if fallbackFrom != "" {
 		payload["fallbackFrom"] = fallbackFrom

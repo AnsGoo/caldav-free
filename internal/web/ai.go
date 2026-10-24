@@ -19,10 +19,12 @@ import (
 )
 
 const (
-	settingAIBaseURL  = "ai.base_url"
-	settingAIModel    = "ai.model"
-	settingAIAPIKey   = "ai.api_key"
-	settingAIProvider = "ai.provider"
+	settingAIBaseURL    = "ai.base_url"
+	settingAIModel      = "ai.model"
+	settingAIAPIKey     = "ai.api_key"
+	settingAIProvider   = "ai.provider"
+	settingAIModels     = "ai.models"
+	settingAIModelsBase = "ai.models_base"
 )
 
 type aiConfig struct {
@@ -64,10 +66,18 @@ func (s *Server) aiSettingsPayload(ctx context.Context) map[string]any {
 	if provider == "" {
 		provider = "custom"
 	}
+	models := []string{}
+	if raw, _ := s.store.GetSetting(ctx, settingAIModels); strings.TrimSpace(raw) != "" {
+		_ = json.Unmarshal([]byte(raw), &models)
+	}
+	if models == nil {
+		models = []string{}
+	}
 	return map[string]any{
 		"provider":   provider,
 		"baseUrl":    config.BaseURL,
 		"model":      config.Model,
+		"models":     models,
 		"hasKey":     config.APIKey != "",
 		"configured": config.BaseURL != "" && config.Model != "",
 	}
@@ -104,6 +114,21 @@ func (s *Server) apiAISettings(w http.ResponseWriter, r *http.Request, current *
 	if provider == "" {
 		provider = "custom"
 	}
+	previous := s.loadAIConfig(ctx)
+	modelsBase, _ := s.store.GetSetting(ctx, settingAIModelsBase)
+	if strings.TrimSpace(modelsBase) == "" {
+		modelsBase = previous.BaseURL
+	}
+	if modelsBase != "" && strings.TrimRight(modelsBase, "/") != baseURL {
+		if err := s.store.SetSetting(ctx, settingAIModels, ""); err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		if err := s.store.SetSetting(ctx, settingAIModelsBase, ""); err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+	}
 	if err := s.store.SetSetting(ctx, settingAIProvider, provider); err != nil {
 		s.apiServerError(w, err)
 		return
@@ -130,62 +155,7 @@ func (s *Server) apiAISettings(w http.ResponseWriter, r *http.Request, current *
 	writeAPIJSON(w, http.StatusOK, s.aiSettingsPayload(ctx))
 }
 
-func (s *Server) apiAIModels(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
-	var body struct {
-		Provider string `json:"provider"`
-		BaseURL  string `json:"baseUrl"`
-		APIKey   string `json:"apiKey"`
-	}
-	if !readAPIJSON(w, r, &body) {
-		return
-	}
-	config := s.loadAIConfig(r.Context())
-	baseURL := strings.TrimRight(strings.TrimSpace(body.BaseURL), "/")
-	if baseURL == "" {
-		baseURL = strings.TrimRight(config.BaseURL, "/")
-	}
-	parsed, err := url.Parse(baseURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		writeAPIError(w, http.StatusBadRequest, "请先填写有效的接口地址")
-		return
-	}
-	apiKey := strings.TrimSpace(body.APIKey)
-	if apiKey == "" {
-		apiKey = config.APIKey
-	}
-	endpoint := baseURL
-	if !strings.HasSuffix(endpoint, "/models") {
-		endpoint += "/models"
-	}
-	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, endpoint, nil)
-	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, "接口地址无效")
-		return
-	}
-	request.Header.Set("Accept", "application/json")
-	if apiKey != "" {
-		request.Header.Set("Authorization", "Bearer "+apiKey)
-	}
-	client := &http.Client{Timeout: 20 * time.Second}
-	response, err := client.Do(request)
-	if err != nil {
-		writeAPIError(w, http.StatusBadGateway, "获取模型失败："+err.Error())
-		return
-	}
-	defer response.Body.Close()
-	data, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
-	if err != nil {
-		writeAPIError(w, http.StatusBadGateway, "读取模型列表失败")
-		return
-	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		message := strings.TrimSpace(string(data))
-		if len(message) > 300 {
-			message = message[:300]
-		}
-		writeAPIError(w, http.StatusBadGateway, fmt.Sprintf("获取模型失败：HTTP %d %s", response.StatusCode, message))
-		return
-	}
+func cleanAIModels(data []byte) ([]string, error) {
 	var payload struct {
 		Data []struct {
 			ID string `json:"id"`
@@ -196,8 +166,7 @@ func (s *Server) apiAIModels(w http.ResponseWriter, r *http.Request, current *st
 		} `json:"models"`
 	}
 	if err := json.Unmarshal(data, &payload); err != nil {
-		writeAPIError(w, http.StatusBadGateway, "接口返回的模型列表格式不正确")
-		return
+		return nil, err
 	}
 	seen := make(map[string]bool)
 	models := make([]string, 0, len(payload.Data)+len(payload.Models))
@@ -221,6 +190,114 @@ func (s *Server) apiAIModels(w http.ResponseWriter, r *http.Request, current *st
 	sort.Strings(models)
 	if len(models) > 200 {
 		models = models[:200]
+	}
+	return models, nil
+}
+
+func fetchAIModels(ctx context.Context, endpoint, apiKey string) ([]string, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", "application/json")
+	if apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	client := &http.Client{Timeout: 20 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		message := strings.TrimSpace(string(data))
+		if len(message) > 300 {
+			message = message[:300]
+		}
+		return nil, fmt.Errorf("HTTP %d %s", response.StatusCode, message)
+	}
+	return cleanAIModels(data)
+}
+
+func openAIModelsEndpoint(baseURL string) string {
+	endpoint := strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint = strings.TrimSuffix(endpoint, "/chat/completions")
+	}
+	if strings.HasSuffix(endpoint, "/models") {
+		return endpoint
+	}
+	return endpoint + "/models"
+}
+
+func ollamaTagsEndpoint(baseURL string) string {
+	endpoint := strings.TrimRight(baseURL, "/")
+	if strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint = strings.TrimSuffix(endpoint, "/chat/completions")
+	}
+	if strings.HasSuffix(endpoint, "/v1") {
+		endpoint = strings.TrimSuffix(endpoint, "/v1")
+	}
+	if strings.HasSuffix(endpoint, "/api/tags") {
+		return endpoint
+	}
+	return endpoint + "/api/tags"
+}
+
+func (s *Server) apiAIModels(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Provider string `json:"provider"`
+		BaseURL  string `json:"baseUrl"`
+		APIKey   string `json:"apiKey"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	config := s.loadAIConfig(r.Context())
+	provider := strings.TrimSpace(body.Provider)
+	if provider == "" {
+		provider = config.Provider
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(body.BaseURL), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(config.BaseURL, "/")
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		writeAPIError(w, http.StatusBadRequest, "请先填写有效的接口地址")
+		return
+	}
+	apiKey := strings.TrimSpace(body.APIKey)
+	if apiKey == "" {
+		apiKey = config.APIKey
+	}
+	endpoints := []string{}
+	if provider == "ollama" {
+		endpoints = append(endpoints, ollamaTagsEndpoint(baseURL))
+	}
+	endpoints = append(endpoints, openAIModelsEndpoint(baseURL))
+	var models []string
+	var lastErr error
+	for _, endpoint := range endpoints {
+		models, lastErr = fetchAIModels(r.Context(), endpoint, apiKey)
+		if lastErr == nil && (len(models) > 0 || endpoint == endpoints[len(endpoints)-1]) {
+			break
+		}
+	}
+	if lastErr != nil && len(models) == 0 {
+		writeAPIError(w, http.StatusBadGateway, "获取模型失败："+lastErr.Error())
+		return
+	}
+	if models == nil {
+		models = []string{}
+	}
+	if encoded, err := json.Marshal(models); err == nil {
+		_ = s.store.SetSetting(r.Context(), settingAIModels, string(encoded))
+		_ = s.store.SetSetting(r.Context(), settingAIModelsBase, baseURL)
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"models": models})
 }
@@ -338,11 +415,19 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 			Content string `json:"content"`
 		} `json:"messages"`
 		Timezone string `json:"timezone"`
+		Model    string `json:"model"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
 	}
 	config := s.loadAIConfig(r.Context())
+	if model := strings.TrimSpace(body.Model); model != "" {
+		if len([]rune(model)) > 200 {
+			writeAPIError(w, http.StatusBadRequest, "模型名称过长")
+			return
+		}
+		config.Model = model
+	}
 	if config.BaseURL == "" || config.Model == "" {
 		writeAPIError(w, http.StatusServiceUnavailable, "尚未配置 AI 模型，请先在 AI 设置中填写 Base URL 与模型")
 		return

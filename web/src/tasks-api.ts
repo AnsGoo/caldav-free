@@ -373,10 +373,10 @@ export function saveAISettings(payload: { provider?: string; baseUrl: string; mo
   })
 }
 
-export function sendAIChat(messages: Array<{ role: string; content: string }>, timezone: string) {
+export function sendAIChat(messages: Array<{ role: string; content: string }>, timezone: string, model?: string) {
   return api<AIChatReply>('/tasks/ai/chat', {
     method: 'POST',
-    body: JSON.stringify({ messages, timezone }),
+    body: JSON.stringify({ messages, timezone, model }),
   })
 }
 

@@ -2,7 +2,16 @@
   <section class="tw-ai">
     <header class="tw-ai-head">
       <div class="tw-ai-head-actions">
-        <span v-if="settings.configured" class="tw-ai-model">{{ settings.model }}</span>
+        <select
+          v-if="settings.configured && chatModelOptions.length > 1"
+          v-model="chatModel"
+          class="tw-ai-chat-model"
+          title="选择对话模型"
+          @change="onChatModelChange"
+        >
+          <option v-for="model in chatModelOptions" :key="model" :value="model">{{ modelOptionLabel(model) }}</option>
+        </select>
+        <span v-else-if="settings.configured" class="tw-ai-model">{{ chatModel || settings.model }}</span>
         <button class="tw-icon-button" title="清空对话" @click="clearChat">
           <TaskIcon name="trash" :size="16" />
         </button>
@@ -111,7 +120,6 @@
               <input
                 v-model="settingsForm.model"
                 class="tw-dialog-input"
-                list="ai-model-options"
                 placeholder="获取模型后选择，或手动填写"
                 @keydown.enter.prevent
               />
@@ -119,10 +127,31 @@
                 {{ modelsLoading ? '获取中…' : '获取模型' }}
               </button>
             </div>
-            <datalist id="ai-model-options">
-              <option v-for="model in models" :key="model" :value="model" />
-            </datalist>
-            <span v-if="models.length" class="tw-ai-model-count">已获取 {{ models.length }} 个模型，可从下拉选择或手动填写</span>
+            <span v-if="models.length" class="tw-ai-model-count">已获取 {{ models.length }} 个模型，点击下方列表选择或直接手动填写</span>
+            <div v-if="models.length" class="tw-ai-model-picker">
+              <input v-model="modelFilter" class="tw-ai-model-filter" placeholder="筛选模型…" />
+              <div class="tw-ai-model-options">
+                <button
+                  v-for="model in filteredModels"
+                  :key="model"
+                  type="button"
+                  class="tw-ai-model-option"
+                  :class="{ active: settingsForm.model === model, warn: modelProfile(model).nonChat }"
+                  @click="settingsForm.model = model"
+                >
+                  <span class="tw-ai-model-option-name">{{ model }}</span>
+                  <span class="tw-ai-model-option-tags">
+                    <em v-if="modelProfile(model).recommended" class="recommended">推荐</em>
+                    <em v-for="label in modelCapabilityLabels(model)" :key="label" :class="{ warn: label.includes('不是对话') }">{{ label }}</em>
+                  </span>
+                </button>
+                <p v-if="!filteredModels.length" class="tw-ai-model-empty">没有匹配的模型</p>
+              </div>
+            </div>
+            <p v-if="selectedModelProfile" class="tw-ai-model-caps">
+              <span v-for="label in selectedModelCapabilities" :key="label" :class="{ warn: selectedModelProfile.nonChat }">{{ label }}</span>
+              <small v-if="!selectedModelCapabilities.length">未识别到能力标签</small>
+            </p>
           </label>
           <label v-if="settings.hasKey" class="tw-check-label">
             <input v-model="settingsForm.clearKey" type="checkbox" />
@@ -149,28 +178,48 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { AIChatMessage, AISettings } from '../../types'
 import { fetchAIModels, fetchAISettings, saveAISettings, sendAIChat } from '../../tasks-api'
 import { browserTimezone } from '../../tasks-api'
+import { modelCapabilityLabels, modelOptionLabel, modelProfile, sortModels } from '../../ai-models'
 import TaskIcon from './TaskIcon.vue'
 
 const emit = defineEmits<{ (event: 'tasks-changed'): void }>()
 
 const STORAGE_KEY = 'caldav-task-ai-messages'
+const CHAT_MODEL_KEY = 'caldav-task-ai-model'
 const quickPrompts = ['今天有哪些任务？', '创建一个明天下午 3 点的任务', '总结一下当前任务情况', '把逾期任务顺延到今天']
 
 const messages = ref<AIChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
-const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', hasKey: false, configured: false })
+const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', models: [], hasKey: false, configured: false })
 const settingsOpen = ref(false)
 const settingsBusy = ref(false)
 const settingsForm = reactive({ provider: 'custom', baseUrl: '', model: '', apiKey: '', clearKey: false })
 const models = ref<string[]>([])
 const modelsLoading = ref(false)
 const modelsFetched = ref(false)
+const modelFilter = ref('')
+const chatModel = ref('')
+try {
+  chatModel.value = localStorage.getItem(CHAT_MODEL_KEY) || ''
+} catch {
+  /* ignore */
+}
+
+const chatModelOptions = computed(() => {
+  const list = [settings.value.model, ...(settings.value.models || []), chatModel.value].filter(Boolean)
+  return sortModels(list)
+})
+const selectedModelProfile = computed(() => settingsForm.model ? modelProfile(settingsForm.model) : null)
+const selectedModelCapabilities = computed(() => settingsForm.model ? modelCapabilityLabels(settingsForm.model) : [])
+const filteredModels = computed(() => {
+  const keyword = modelFilter.value.trim().toLowerCase()
+  return keyword ? models.value.filter((model) => model.toLowerCase().includes(keyword)) : models.value
+})
 
 const providerOptions = [
   { value: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
@@ -216,9 +265,15 @@ function saveLocal() {
 async function loadSettings() {
   try {
     settings.value = await fetchAISettings()
+    settings.value.models = settings.value.models || []
     settingsForm.provider = normalizeProvider(settings.value.provider, settings.value.baseUrl)
     settingsForm.baseUrl = settings.value.baseUrl
     settingsForm.model = settings.value.model
+    const availableModels = [settings.value.model, ...(settings.value.models || [])]
+    if (!chatModel.value || !availableModels.includes(chatModel.value)) {
+      chatModel.value = settings.value.model
+      onChatModelChange()
+    }
   } catch {
     /* ignore */
   }
@@ -263,7 +318,7 @@ async function send(text?: string) {
       .filter((item) => !item.error)
       .slice(-20)
       .map((item) => ({ role: item.role, content: item.content }))
-    const reply = await sendAIChat(history, browserTimezone())
+    const reply = await sendAIChat(history, browserTimezone(), chatModel.value || settings.value.model)
     const actions = reply.actions.filter((action) => !reply.message.includes(action.label))
     messages.value.push({ role: 'assistant', content: reply.message, actions })
     if (reply.actions.length) emit('tasks-changed')
@@ -302,8 +357,9 @@ function openSettings() {
   settingsForm.model = settings.value.model
   settingsForm.apiKey = ''
   settingsForm.clearKey = false
-  models.value = []
-  modelsFetched.value = false
+  models.value = sortModels(settings.value.models || [])
+  modelsFetched.value = models.value.length > 0
+  modelFilter.value = ''
   settingsOpen.value = true
 }
 
@@ -325,9 +381,10 @@ async function loadModels() {
       baseUrl: settingsForm.baseUrl.trim(),
       apiKey: settingsForm.apiKey.trim() || undefined,
     })
-    models.value = data.models
+    models.value = sortModels(data.models)
+    settings.value.models = [...models.value]
     modelsFetched.value = true
-    if (!settingsForm.model.trim() && data.models.length) settingsForm.model = data.models[0]
+    if (!settingsForm.model.trim() && models.value.length) settingsForm.model = models.value[0]
     if (!data.models.length) Message.warning('服务商没有返回可用模型，可手动填写模型名称')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '获取模型失败')
@@ -339,6 +396,14 @@ async function loadModels() {
 function onKeyBlur() {
   if (!modelsFetched.value && settingsForm.apiKey.trim() && settingsForm.baseUrl.trim()) {
     void loadModels()
+  }
+}
+
+function onChatModelChange() {
+  try {
+    localStorage.setItem(CHAT_MODEL_KEY, chatModel.value)
+  } catch {
+    /* ignore */
   }
 }
 
@@ -356,6 +421,9 @@ async function saveSettings() {
       apiKey: settingsForm.apiKey.trim() || undefined,
       clearKey: settingsForm.clearKey,
     })
+    settings.value.models = settings.value.models || []
+    chatModel.value = settings.value.model
+    onChatModelChange()
     settingsOpen.value = false
     Message.success('AI 设置已保存')
   } catch (error) {

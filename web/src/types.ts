@@ -368,6 +368,7 @@ export interface AISettings {
   provider: string
   baseUrl: string
   model: string
+  models: string[]
   hasKey: boolean
   configured: boolean
 }

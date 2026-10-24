@@ -163,6 +163,10 @@
         :rule="matrixRule"
         :views="matrixViews"
         :active-view-id="activeMatrixViewId"
+        :custom-rules="matrixCustomRules"
+        :lists="lists"
+        :tags="tags"
+        :assignees="matrixAssignees"
         @open="openTask"
         @toggle="toggleTask"
         @move="moveTaskToQuadrant"
@@ -170,6 +174,7 @@
         @select-view="selectMatrixView"
         @create-view="openMatrixViewDialog"
         @manage-views="matrixViewManagerOpen = true"
+        @edit-rules="openMatrixRules"
       />
       <div v-else class="tw-scroll">
         <div class="tw-content">
@@ -674,10 +679,22 @@
       </div>
     </div>
 
+    <MatrixRulesDialog
+      v-if="matrixRulesDialogOpen && activeMatrixView"
+      :key="activeMatrixView.id"
+      :view="activeMatrixView"
+      :lists="lists"
+      :tags="tags"
+      :assignees="matrixAssignees"
+      @saved="onMatrixRulesSaved"
+      @close="matrixRulesDialogOpen = false"
+    />
+
     <MatrixViewManagerDialog
       v-if="matrixViewManagerOpen"
       :views="matrixViews"
       @changed="onMatrixViewsChanged"
+      @edit-rules="openMatrixRulesFor"
       @close="matrixViewManagerOpen = false"
     />
 
@@ -699,6 +716,7 @@
             <select v-model="matrixViewMode" class="tw-field-select">
               <option value="simple">按优先级</option>
               <option value="complex">优先级 + 日期</option>
+              <option value="custom">自定义规则</option>
             </select>
           </label>
         </div>
@@ -748,7 +766,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   createSavedFilter,
@@ -800,6 +818,7 @@ import TaskDetail from '../components/tasks/TaskDetail.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import MatrixViewManagerDialog from '../components/tasks/MatrixViewManagerDialog.vue'
+import MatrixRulesDialog from '../components/tasks/MatrixRulesDialog.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
 import TaskSummaryPanel from '../components/tasks/TaskSummaryPanel.vue'
 import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
@@ -849,13 +868,14 @@ const calendarReload = ref(0)
 const eventDialogOpen = ref(false)
 const editingEvent = ref<CalendarEvent | null>(null)
 const calendarFocus = ref<{ calendarId: number; href: string; occurrence: string } | null>(null)
-const matrixRule = ref<'simple' | 'complex'>('simple')
+const matrixRule = ref<MatrixRuleMode>('simple')
 const matrixViews = ref<MatrixView[]>([])
 const activeMatrixViewId = ref(0)
 const matrixViewDialogOpen = ref(false)
 const matrixViewName = ref('')
-const matrixViewMode = ref<'simple' | 'complex'>('simple')
+const matrixViewMode = ref<MatrixRuleMode>('simple')
 const matrixViewManagerOpen = ref(false)
+const matrixRulesDialogOpen = ref(false)
 const matrixViewBusy = ref(false)
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
@@ -1522,7 +1542,32 @@ async function rescheduleEvent(payload: { event: CalendarEvent; start: string; e
   }
 }
 
-async function setMatrixRule(rule: 'simple' | 'complex') {
+const activeMatrixView = computed(() => matrixViews.value.find((item) => item.id === activeMatrixViewId.value))
+const matrixCustomRules = computed(() => activeMatrixView.value?.rules)
+const matrixAssignees = computed(() =>
+  Array.from(new Set(tasks.value.map((task) => task.assignee).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh')),
+)
+
+function openMatrixRules() {
+  if (!activeMatrixViewId.value) return
+  matrixRulesDialogOpen.value = true
+}
+
+function openMatrixRulesFor(view: MatrixView) {
+  matrixViewManagerOpen.value = false
+  selectMatrixView(view.id)
+  matrixRule.value = 'custom'
+  matrixRulesDialogOpen.value = true
+}
+
+function onMatrixRulesSaved(view: MatrixView) {
+  matrixViews.value = matrixViews.value.map((item) => item.id === view.id ? view : item)
+  matrixRule.value = 'custom'
+  matrixRulesDialogOpen.value = false
+  Message.success('自定义规则已保存')
+}
+
+async function setMatrixRule(rule: MatrixRuleMode) {
   matrixRule.value = rule
   try {
     localStorage.setItem('caldav-matrix-rule', rule)
@@ -1530,9 +1575,11 @@ async function setMatrixRule(rule: 'simple' | 'complex') {
     /* ignore */
   }
   if (!activeMatrixViewId.value) return
+  const hadRules = Boolean(activeMatrixView.value?.rules)
   try {
     const { view } = await updateMatrixView(activeMatrixViewId.value, { mode: rule })
     matrixViews.value = matrixViews.value.map((item) => item.id === view.id ? view : item)
+    if (rule === 'custom' && !hadRules) matrixRulesDialogOpen.value = true
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '保存四象限规则失败')
   }
@@ -1541,7 +1588,7 @@ async function setMatrixRule(rule: 'simple' | 'complex') {
 function selectMatrixView(id: number) {
   activeMatrixViewId.value = id
   const view = matrixViews.value.find((item) => item.id === id)
-  matrixRule.value = view?.mode || matrixRule.value
+  matrixRule.value = view?.mode || 'simple'
   try {
     localStorage.setItem('caldav-matrix-view', String(id))
   } catch {
@@ -1575,6 +1622,7 @@ async function saveMatrixView() {
     matrixViews.value = [...matrixViews.value, view]
     selectMatrixView(view.id)
     matrixViewDialogOpen.value = false
+    if (view.mode === 'custom') matrixRulesDialogOpen.value = true
     Message.success('四象限视图已创建')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建四象限视图失败')

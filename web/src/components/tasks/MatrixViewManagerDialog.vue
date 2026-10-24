@@ -28,7 +28,11 @@
           <select v-model="view.mode" class="tw-field-select tw-matrix-mode-select" @change="saveMode(view)">
             <option value="simple">按优先级</option>
             <option value="complex">优先级 + 日期</option>
+            <option value="custom">自定义规则</option>
           </select>
+          <button v-if="view.mode === 'custom'" class="tw-icon-button" title="编辑自定义规则" @click="$emit('edit-rules', view)">
+            <TaskIcon name="filter" :size="14" />
+          </button>
           <button class="tw-icon-button" :title="deleteArmed === view.id ? '确认删除' : '删除视图'" @click="remove(view)">
             <TaskIcon name="trash" :size="14" />
           </button>
@@ -54,6 +58,7 @@ const props = defineProps<{ views: MatrixView[] }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', views: MatrixView[]): void
+  (event: 'edit-rules', view: MatrixView): void
 }>()
 
 const items = ref(props.views.map((view) => ({ ...view })))

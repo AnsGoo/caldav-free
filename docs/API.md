@@ -524,7 +524,18 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 ```json
 {
   "views": [
-    { "id": 1, "name": "工作矩阵", "mode": "complex", "order": 1 }
+    {
+      "id": 1,
+      "name": "工作矩阵",
+      "mode": "custom",
+      "rules": {
+        "q1": { "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
+        "q2": { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+        "q3": {},
+        "q4": {}
+      },
+      "order": 1
+    }
   ]
 }
 ```
@@ -532,16 +543,39 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 ### POST /api/admin/task-matrix-views
 
 ```json
-{ "name": "工作矩阵", "mode": "complex" }
+{
+  "name": "工作矩阵",
+  "mode": "custom",
+  "rules": {
+    "q1": { "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
+    "q2": { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+    "q3": {},
+    "q4": {}
+  }
+}
 ```
 
-`mode` 为 `simple` 或 `complex`。
+`mode` 为 `simple`、`complex` 或 `custom`。`rules` 仅在自定义模式使用，保存后原样返回。
+
+日期条件：`any`、`urgent`、`overdue`、`today`、`tomorrow`、`next7`、`later`、`none`。未填写的象限字段按任意处理；未匹配任何规则的任务归入 Q4。
 
 ### PATCH /api/admin/task-matrix-views/{id}
 
 ```json
-{ "name": "工作矩阵", "mode": "simple", "order": 1 }
+{
+  "name": "工作矩阵",
+  "mode": "custom",
+  "rules": {
+    "q1": { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
+    "q2": { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+    "q3": {},
+    "q4": {}
+  },
+  "order": 1
+}
 ```
+
+`name`、`mode`、`rules`、`order` 均可选；只传需要修改的字段。
 
 ### DELETE /api/admin/task-matrix-views/{id}
 

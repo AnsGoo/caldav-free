@@ -153,10 +153,31 @@ export interface SavedFilter {
   order: number
 }
 
+export type MatrixRuleMode = 'simple' | 'complex' | 'custom'
+export type MatrixDueRule = 'any' | 'urgent' | 'overdue' | 'today' | 'tomorrow' | 'next7' | 'later' | 'none'
+
+export interface MatrixQuadrantRule {
+  priorities: number[]
+  due: MatrixDueRule
+  listId: number
+  tag: string
+  assignee: string
+}
+
+export type MatrixQuadrantKey = 'q1' | 'q2' | 'q3' | 'q4'
+
+export interface MatrixViewRules {
+  q1: MatrixQuadrantRule
+  q2: MatrixQuadrantRule
+  q3: MatrixQuadrantRule
+  q4: MatrixQuadrantRule
+}
+
 export interface MatrixView {
   id: number
   name: string
-  mode: 'simple' | 'complex'
+  mode: MatrixRuleMode
+  rules?: MatrixViewRules
   order: number
 }
 

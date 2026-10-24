@@ -3,7 +3,7 @@
     <header class="tw-matrix-head">
       <div>
         <h2>四象限</h2>
-        <p>{{ rule === 'simple' ? '按优先级分组' : '按优先级 + 截止日期分组' }} · 拖动任务可修改优先级</p>
+        <p>{{ rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组' }}</p>
       </div>
       <div class="tw-matrix-head-actions">
         <div class="tw-matrix-view-picker">
@@ -17,10 +17,14 @@
           <button title="管理四象限视图" @click="$emit('manage-views')">
             <TaskIcon name="settings" :size="13" />
           </button>
+          <button v-if="activeViewId" title="编辑自定义规则" @click="$emit('edit-rules')">
+            <TaskIcon name="filter" :size="13" />
+          </button>
         </div>
         <div class="tw-matrix-rule">
           <button :class="{ active: rule === 'simple' }" @click="$emit('change-rule', 'simple')">按优先级</button>
           <button :class="{ active: rule === 'complex' }" @click="$emit('change-rule', 'complex')">优先级 + 日期</button>
+          <button v-if="activeViewId" :class="{ active: rule === 'custom' }" @click="$emit('change-rule', 'custom')">自定义</button>
         </div>
         <span class="tw-matrix-total">{{ tasks.length }} 项</span>
       </div>
@@ -99,35 +103,50 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { MatrixView, TaskItem } from '../../types'
+import type { MatrixRuleMode, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
 import { dayKey, formatDue, isOverdue, recurrenceLabel, startOfToday } from '../../tasks-utils'
+import { matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ tasks: TaskItem[]; rule: 'simple' | 'complex'; views: MatrixView[]; activeViewId: number }>()
+const props = defineProps<{
+  tasks: TaskItem[]
+  rule: MatrixRuleMode
+  views: MatrixView[]
+  activeViewId: number
+  customRules?: MatrixViewRules
+  lists: TaskList[]
+  tags: string[]
+  assignees: string[]
+}>()
 
 const emit = defineEmits<{
   (event: 'open', task: TaskItem): void
   (event: 'toggle', task: TaskItem): void
   (event: 'move', payload: { task: TaskItem; priority: number }): void
-  (event: 'change-rule', rule: 'simple' | 'complex'): void
+  (event: 'change-rule', rule: MatrixRuleMode): void
   (event: 'select-view', id: number): void
   (event: 'create-view'): void
-  (event: 'delete-view', id: number): void
   (event: 'manage-views'): void
+  (event: 'edit-rules'): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)
 const dragOver = ref('')
 
+const customRules = computed(() => normalizeMatrixRules(props.customRules))
+
 const quadrants = computed(() => {
   const buckets: Record<string, TaskItem[]> = { q1: [], q2: [], q3: [], q4: [] }
   const tomorrowEnd = new Date(startOfToday())
   tomorrowEnd.setDate(tomorrowEnd.getDate() + 2)
+  const today = startOfToday()
   for (const task of props.tasks) {
     const priority = task.priority > 3 || task.priority < 0 ? 0 : task.priority
     let key: string
     if (props.rule === 'simple') {
       key = priority === 3 ? 'q1' : priority === 2 ? 'q2' : priority === 1 ? 'q3' : 'q4'
+    } else if (props.rule === 'custom') {
+      key = matrixQuadrant(task, customRules.value, today)
     } else {
       const important = priority >= 2
       const due = task.due ? new Date(task.due) : null

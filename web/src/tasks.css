@@ -9016,7 +9016,8 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: auto;
+  padding-top: 10px;
   font-size: 11px;
   color: var(--tw-text-3);
 }

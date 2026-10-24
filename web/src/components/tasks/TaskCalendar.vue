@@ -218,6 +218,32 @@
       </div>
     </div>
 
+    <!-- year -->
+    <div v-else-if="viewMode === 'year'" class="tw-year-grid">
+      <section v-for="month in yearMonths" :key="month.key" class="tw-year-month">
+        <header>
+          <strong>{{ month.label }}</strong>
+          <span>{{ month.total }} 项</span>
+        </header>
+        <div class="tw-year-weekdays">
+          <span v-for="label in ['日', '一', '二', '三', '四', '五', '六']" :key="label">{{ label }}</span>
+        </div>
+        <div class="tw-year-cells">
+          <button
+            v-for="cell in month.cells"
+            :key="cell.key"
+            class="tw-year-cell"
+            :class="{ muted: !cell.currentMonth, today: cell.isToday }"
+            :title="cell.dateLabel"
+            @click="openDay(cell.key)"
+          >
+            <span>{{ cell.day }}</span>
+            <i v-for="(color, index) in cell.markers" :key="`${cell.key}-${index}`" :style="{ background: color }" />
+          </button>
+        </div>
+      </section>
+    </div>
+
     <!-- agenda -->
     <div v-else class="tw-agenda">
       <section v-for="group in agendaGroups" :key="group.key" class="tw-agenda-group">
@@ -292,7 +318,7 @@ import TaskIcon from './TaskIcon.vue'
 const props = defineProps<{
   tasks: TaskItem[]
   cursor: Date
-  viewMode: 'month' | 'week' | 'day' | 'agenda'
+  viewMode: 'month' | 'week' | 'day' | 'agenda' | 'year'
   reloadKey?: number
   focus?: { calendarId: number; href: string; occurrence: string } | null
 }>()
@@ -305,7 +331,7 @@ const emit = defineEmits<{
   (event: 'prev'): void
   (event: 'next'): void
   (event: 'today'): void
-  (event: 'change-view', value: 'month' | 'week' | 'day' | 'agenda'): void
+  (event: 'change-view', value: 'month' | 'week' | 'day' | 'agenda' | 'year'): void
   (event: 'calendars', value: CalendarSource[]): void
   (event: 'reschedule-task', payload: { task: TaskItem; due: string; allDay: boolean }): void
   (event: 'reschedule-event', payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }): void
@@ -318,6 +344,7 @@ const viewOptions = [
   { value: 'week', label: '周' },
   { value: 'day', label: '日' },
   { value: 'agenda', label: '日程' },
+  { value: 'year', label: '年' },
 ] as const
 const HOUR_HEIGHT = 56
 
@@ -382,6 +409,11 @@ const visibleDays = computed(() => {
 })
 
 const range = computed(() => {
+  if (props.viewMode === 'year') {
+    const start = new Date(props.cursor.getFullYear(), 0, 1)
+    const end = new Date(props.cursor.getFullYear() + 1, 0, 1)
+    return { start, end }
+  }
   if (props.viewMode === 'month') {
     const start = new Date(monthStart.value)
     start.setDate(start.getDate() - start.getDay())
@@ -408,6 +440,7 @@ const range = computed(() => {
 })
 
 const rangeTitle = computed(() => {
+  if (props.viewMode === 'year') return `${props.cursor.getFullYear()} 年`
   if (props.viewMode === 'month') return `${props.cursor.getFullYear()} 年 ${props.cursor.getMonth() + 1} 月`
   if (props.viewMode === 'week') {
     const start = weekStart.value
@@ -461,6 +494,32 @@ const monthCells = computed(() => {
       inMonth: date.getMonth() === month,
       isToday: key === todayKey,
     }
+  })
+})
+
+const yearMonths = computed(() => {
+  const year = props.cursor.getFullYear()
+  const today = todayKey
+  return Array.from({ length: 12 }, (_, month) => {
+    const first = new Date(year, month, 1)
+    const start = new Date(year, month, 1 - first.getDay())
+    let total = 0
+    const cells = Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start)
+      date.setDate(start.getDate() + index)
+      const key = dayKey(date)
+      const items = itemsByDay.value[key] || []
+      if (date.getMonth() === month) total += items.length
+      return {
+        key,
+        day: date.getDate(),
+        currentMonth: date.getMonth() === month,
+        isToday: key === today,
+        dateLabel: date.toLocaleDateString('zh-CN'),
+        markers: items.slice(0, 3).map((item) => item.color || '#4772fa'),
+      }
+    })
+    return { key: `${year}-${month}`, label: `${year} 年 ${month + 1} 月`, total, cells }
   })
 })
 
@@ -865,16 +924,46 @@ async function loadEvents() {
   const current = ++requestId
   eventsLoading.value = true
   try {
-    const [data, habitData] = await Promise.all([
-      fetchCalendarEvents(range.value.start, range.value.end),
-      fetchHabitCalendar(dayKey(range.value.start), dayKey(range.value.end)).catch(() => ({ entries: [] })),
-    ])
-    if (current !== requestId) return
-    events.value = data.events
-    habitEntries.value = habitData.entries || []
-    sources.value = data.calendars
-    emit('calendars', data.calendars)
-    openFocusEvent()
+    if (props.viewMode === 'year') {
+      const months = Array.from({ length: 12 }, (_, month) => {
+        const start = new Date(props.cursor.getFullYear(), month, 1)
+        const end = new Date(props.cursor.getFullYear(), month + 1, 1)
+        return { start, end }
+      })
+      const [eventResults, habitResults] = await Promise.all([
+        Promise.allSettled(months.map((month) => fetchCalendarEvents(month.start, month.end))),
+        Promise.allSettled(months.map((month) => fetchHabitCalendar(dayKey(month.start), dayKey(new Date(month.end.getTime() - 86400000))))),
+      ])
+      if (current !== requestId) return
+      const mergedEvents = new Map<string, CalendarEvent>()
+      const mergedHabits = new Map<string, HabitCalendarEntry>()
+      const mergedSources = new Map<number, CalendarSource>()
+      for (const result of eventResults) {
+        if (result.status !== 'fulfilled') continue
+        for (const source of result.value.calendars) mergedSources.set(source.id, source)
+        for (const event of result.value.events) mergedEvents.set(event.id, event)
+      }
+      for (const result of habitResults) {
+        if (result.status !== 'fulfilled') continue
+        for (const entry of result.value.entries || []) mergedHabits.set(`${entry.habitId}-${entry.date}`, entry)
+      }
+      events.value = [...mergedEvents.values()]
+      habitEntries.value = [...mergedHabits.values()]
+      sources.value = [...mergedSources.values()]
+      emit('calendars', sources.value)
+      openFocusEvent()
+    } else {
+      const [data, habitData] = await Promise.all([
+        fetchCalendarEvents(range.value.start, range.value.end),
+        fetchHabitCalendar(dayKey(range.value.start), dayKey(range.value.end)).catch(() => ({ entries: [] })),
+      ])
+      if (current !== requestId) return
+      events.value = data.events
+      habitEntries.value = habitData.entries || []
+      sources.value = data.calendars
+      emit('calendars', data.calendars)
+      openFocusEvent()
+    }
   } catch {
     if (current === requestId) {
       events.value = []

@@ -7969,3 +7969,33 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-cal-legend button:hover { color: var(--tw-text-2); }
 .tw-cal-legend button.off { opacity: .42; }
 .tw-cal-legend button.off i { background: var(--tw-text-3) !important; }
+
+/* ------------------------------------------------------------- year view */
+.tw-year-grid {
+  flex: 1; min-height: 0; overflow: auto; padding: 8px 22px 28px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px;
+  align-content: start;
+}
+.tw-year-month { border: 1px solid var(--tw-border); border-radius: 11px; background: var(--tw-bg); padding: 11px 12px 12px; }
+.tw-year-month > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.tw-year-month > header strong { color: var(--tw-text); font-size: 12px; font-weight: 650; }
+.tw-year-month > header span { color: var(--tw-text-3); font-size: 9.5px; }
+.tw-year-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); margin-bottom: 2px; color: var(--tw-text-3); font-size: 8.5px; text-align: center; }
+.tw-year-cells { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 1px; }
+.tw-year-cell { position: relative; height: 30px; padding: 3px 0 5px; border: 0; border-radius: 5px; background: transparent; color: var(--tw-text-2); font-size: 9.5px; text-align: center; cursor: pointer; }
+.tw-year-cell:hover { background: var(--tw-hover); color: var(--tw-text); }
+.tw-year-cell.muted { opacity: .32; }
+.tw-year-cell.today { color: #fff; background: var(--tw-accent); }
+.tw-year-cell > span { position: relative; z-index: 1; }
+.tw-year-cell > i { position: absolute; bottom: 3px; left: 50%; width: 3px; height: 3px; border-radius: 50%; transform: translateX(-4px); }
+.tw-year-cell > i + i { transform: translateX(1px); }
+.tw-year-cell > i + i + i { transform: translateX(6px); }
+.tw-year-cell.today > i { background: #fff !important; }
+
+@media (max-width: 1100px) {
+  .tw-year-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); padding-left: 16px; padding-right: 16px; }
+}
+@media (max-width: 640px) {
+  .tw-year-grid { grid-template-columns: 1fr; padding: 6px 12px 24px; gap: 10px; }
+  .tw-year-cell { height: 32px; }
+}

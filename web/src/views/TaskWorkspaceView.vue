@@ -222,6 +222,7 @@
               maxlength="500"
               @keydown.enter="onQuickEnter"
             />
+            <button class="tw-icon-button tw-quick-template" title="从模板创建任务" @click="openTaskTemplates"><TaskIcon name="copy" :size="16" /></button>
             <button v-if="quickText.trim()" class="tw-quick-submit" :disabled="quickBusy" @click="submitQuick">
               <TaskIcon name="check" :size="16" />
             </button>
@@ -430,6 +431,16 @@
       @changed="onTaskChanged"
       @deleted="onTaskDeleted"
       @remove="confirmRemoveTask"
+      @save-template="saveTaskAsTemplate"
+    />
+
+    <TaskTemplateDialog
+      :open="taskTemplatesOpen"
+      :templates="taskTemplates"
+      :busy="taskTemplateBusy"
+      @close="taskTemplatesOpen = false"
+      @apply="applyTaskTemplate"
+      @delete="removeTaskTemplate"
     />
 
     <div v-if="selectionMode" class="tw-batch-bar">
@@ -806,7 +817,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskTemplate, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   createSavedFilter,
@@ -814,17 +825,20 @@ import {
   createTaskFolder,
   createMatrixView,
   createTaskList,
+  createTaskTemplate,
   deleteSavedFilter,
   deleteTask,
   deleteTaskFolder,
   deleteTaskList,
   deleteTaskTag,
+  deleteTaskTemplate,
   emptyTaskTrash,
   fetchCalendarEvents,
   fetchNotifications,
   fetchSharedTasks,
   fetchTaskListMembers,
   fetchTaskReminders,
+  fetchTaskTemplates,
   fetchTaskWorkspace,
   purgeTask,
   renameTaskTag,
@@ -856,6 +870,7 @@ import { tagColor, tagTint } from '../tag-colors'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
 import TaskDetail from '../components/tasks/TaskDetail.vue'
+import TaskTemplateDialog from '../components/tasks/TaskTemplateDialog.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import HabitPanel from '../components/tasks/HabitPanel.vue'
@@ -907,6 +922,9 @@ const loading = ref(true)
 const sidebarOpen = ref(false)
 const quickText = ref('')
 const quickBusy = ref(false)
+const taskTemplatesOpen = ref(false)
+const taskTemplates = ref<TaskTemplate[]>([])
+const taskTemplateBusy = ref(false)
 const quickListId = ref(0)
 const cursor = ref(new Date())
 const calendarView = ref<'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'>('month')
@@ -1393,6 +1411,59 @@ function onQuickEnter(event: KeyboardEvent) {
   if (event.isComposing) return
   event.preventDefault()
   void submitQuick()
+}
+
+async function openTaskTemplates() {
+  taskTemplateBusy.value = true
+  try {
+    const data = await fetchTaskTemplates()
+    taskTemplates.value = data.templates || []
+    taskTemplatesOpen.value = true
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '加载任务模板失败')
+  } finally {
+    taskTemplateBusy.value = false
+  }
+}
+
+async function saveTaskAsTemplate(payload: Record<string, unknown>) {
+  const name = String(payload.title || '未命名模板').slice(0, 120)
+  try {
+    await createTaskTemplate(name, JSON.stringify(payload))
+    Message.success('任务已保存为模板')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存模板失败')
+  }
+}
+
+async function applyTaskTemplate(template: TaskTemplate) {
+  if (taskTemplateBusy.value) return
+  taskTemplateBusy.value = true
+  try {
+    const payload = JSON.parse(template.payload) as Record<string, unknown>
+    await createTask({
+      ...(payload as object),
+      title: String(payload.title || template.name),
+      listId: Number(payload.listId) || quickTargetList.value?.id,
+    })
+    taskTemplatesOpen.value = false
+    await loadWorkspace(true)
+    Message.success('已从模板创建任务')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '从模板创建任务失败')
+  } finally {
+    taskTemplateBusy.value = false
+  }
+}
+
+async function removeTaskTemplate(template: TaskTemplate) {
+  try {
+    await deleteTaskTemplate(template.id)
+    taskTemplates.value = taskTemplates.value.filter((item) => item.id !== template.id)
+    Message.success('模板已删除')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除模板失败')
+  }
 }
 
 async function submitQuick() {

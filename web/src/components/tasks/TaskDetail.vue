@@ -9,6 +9,7 @@
       </label>
       <div class="tw-detail-head-actions">
         <span class="tw-save-state">{{ readonly ? '只读共享' : saving ? '保存中…' : saved ? '已保存' : '' }}</span>
+        <button v-if="!readonly" class="tw-icon-button" title="保存为任务模板" @click="saveAsTemplate"><TaskIcon name="copy" :size="17" /></button>
         <button class="tw-icon-button" title="关闭" @click="$emit('close')">
           <TaskIcon name="close" :size="18" />
         </button>
@@ -379,6 +380,7 @@ const emit = defineEmits<{
   (event: 'changed', task: TaskItem): void
   (event: 'deleted', id: number): void
   (event: 'remove', task: TaskItem): void
+  (event: 'save-template', payload: Record<string, unknown>): void
 }>()
 
 interface Draft {
@@ -708,6 +710,19 @@ function growTitle() {
   if (!el) return
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
+}
+
+function saveAsTemplate() {
+  emit('save-template', {
+    title: draft.title.trim() || '未命名任务',
+    notes: draft.notes,
+    listId: draft.listId,
+    priority: draft.priority,
+    tags: [...draft.tags],
+    checklist: draft.checklist.map((item) => ({ id: item.id, title: item.title, done: false })),
+    recurrence: draft.recurrence,
+    reminderOffsets: [...draft.reminderOffsets],
+  })
 }
 
 async function save() {

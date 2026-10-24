@@ -194,6 +194,14 @@ export interface MatrixRuleTemplate {
   rules: MatrixViewRules
 }
 
+export interface TaskTemplate {
+  id: number
+  name: string
+  payload: string
+  createdAt: string
+  modifiedAt: string
+}
+
 export interface TaskTagCount {
   name: string
   count: number

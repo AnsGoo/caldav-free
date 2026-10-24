@@ -1,5 +1,5 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
 
@@ -650,4 +650,19 @@ export function uploadCountdownBackground(id: number, file: File) {
 
 export function deleteCountdownBackground(id: number) {
   return api<void>(`/countdowns/${id}/background`, { method: 'DELETE' })
+}
+
+export function fetchTaskTemplates() {
+  return api<{ templates: TaskTemplate[] }>('/task-templates')
+}
+
+export function createTaskTemplate(name: string, payload: string) {
+  return api<{ template: TaskTemplate }>('/task-templates', {
+    method: 'POST',
+    body: JSON.stringify({ name, payload }),
+  })
+}
+
+export function deleteTaskTemplate(id: number) {
+  return api<void>(`/task-templates/${id}`, { method: 'DELETE' })
 }

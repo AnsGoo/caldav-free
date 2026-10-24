@@ -6169,3 +6169,31 @@ button.tw-side-link {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.tw-matrix-rule-preview {
+  flex: none;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: var(--matrix-color);
+  background: color-mix(in srgb, var(--matrix-color) 11%, transparent);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.tw-matrix-condition-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tw-matrix-group-drag {
+  display: inline-flex;
+  color: var(--tw-text-3);
+  cursor: grab;
+}
+
+.tw-matrix-condition-group.drag-over {
+  outline: 1px dashed var(--matrix-color);
+  outline-offset: 3px;
+  border-radius: 6px;
+}

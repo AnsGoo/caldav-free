@@ -109,6 +109,14 @@ function matchesDue(task: TaskItem, rule: MatrixCondition['due'], today: Date) {
   }
 }
 
+function taskPriority(task: TaskItem) {
+  return task.priority > 3 || task.priority < 0 ? 0 : task.priority
+}
+
+export function matchesMatrixCondition(task: TaskItem, condition: MatrixCondition, today = startOfToday()) {
+  return matchesCondition(task, condition, taskPriority(task), today)
+}
+
 function matchesCondition(task: TaskItem, condition: MatrixCondition, priority: number, today: Date) {
   if (condition.priorities.length && !condition.priorities.includes(priority)) return false
   if (!matchesDue(task, condition.due, today)) return false
@@ -127,7 +135,7 @@ export function matchesMatrixRule(task: TaskItem, rule: MatrixQuadrantRule, prio
 }
 
 export function matrixQuadrant(task: TaskItem, rules: MatrixViewRules, today = startOfToday()): MatrixQuadrantKey {
-  const priority = task.priority > 3 || task.priority < 0 ? 0 : task.priority
+  const priority = taskPriority(task)
   for (const quadrant of MATRIX_QUADRANTS) {
     if (matchesMatrixRule(task, rules[quadrant.id], priority, today)) return quadrant.id
   }

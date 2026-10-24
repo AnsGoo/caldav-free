@@ -31,12 +31,32 @@
               <option value="all">满足全部条件组</option>
               <option value="any">满足任一条件组</option>
             </select>
+            <span class="tw-matrix-rule-preview" title="按当前规则预览命中数量">{{ quadrantCounts[quadrant.id] }} 项</span>
             <button class="tw-matrix-rule-clear" @click="clearMatrixConditions(form[quadrant.id])">重置条件</button>
           </header>
 
-          <div v-for="(group, groupIndex) in form[quadrant.id].groups" :key="groupIndex" class="tw-matrix-condition-group">
+          <div
+            v-for="(group, groupIndex) in form[quadrant.id].groups"
+            :key="groupIndex"
+            class="tw-matrix-condition-group"
+            :class="{ 'drag-over': groupDrag?.quadrant === quadrant.id && groupOver === groupIndex && groupDrag?.index !== groupIndex }"
+            @dragover.prevent="groupOver = groupIndex"
+            @dragleave="groupOver = -1"
+            @drop.prevent="dropConditionGroup(quadrant.id, groupIndex)"
+          >
             <header v-if="form[quadrant.id].groups.length > 1" class="tw-matrix-condition-head">
-              <span>条件组 {{ groupIndex + 1 }}</span>
+              <span class="tw-matrix-condition-label">
+                <span
+                  class="tw-matrix-group-drag"
+                  title="拖动排序"
+                  draggable="true"
+                  @dragstart.stop="startConditionDrag(quadrant.id, groupIndex, $event)"
+                  @dragend="groupDrag = null; groupOver = -1"
+                >
+                  <TaskIcon name="drag" :size="12" />
+                </span>
+                条件组 {{ groupIndex + 1 }} · 命中 {{ groupCounts[quadrant.id]?.[groupIndex] ?? 0 }}
+              </span>
               <button @click="removeConditionGroup(quadrant.id, groupIndex)">删除</button>
             </header>
 
@@ -110,9 +130,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { MatrixCondition, MatrixQuadrantKey, MatrixView, MatrixViewRules, TaskList } from '../../types'
-import { clearMatrixConditions, defaultMatrixRules, emptyMatrixCondition, MATRIX_QUADRANTS, normalizeMatrixRules } from '../../matrix-utils'
+import { computed, ref } from 'vue'
+import type { MatrixCondition, MatrixQuadrantKey, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
+import { clearMatrixConditions, defaultMatrixRules, emptyMatrixCondition, MATRIX_QUADRANTS, matchesMatrixCondition, matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
 import { updateMatrixView } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
@@ -121,6 +141,7 @@ const props = defineProps<{
   lists: TaskList[]
   tags: string[]
   assignees: string[]
+  tasks: TaskItem[]
 }>()
 
 const emit = defineEmits<{
@@ -131,6 +152,24 @@ const emit = defineEmits<{
 const form = ref<MatrixViewRules>(normalizeMatrixRules(props.view.rules))
 const busy = ref(false)
 const error = ref('')
+const groupDrag = ref<{ quadrant: MatrixQuadrantKey; index: number } | null>(null)
+const groupOver = ref(-1)
+
+const quadrantCounts = computed(() => {
+  const counts: Record<MatrixQuadrantKey, number> = { q1: 0, q2: 0, q3: 0, q4: 0 }
+  for (const task of props.tasks) counts[matrixQuadrant(task, form.value)] += 1
+  return counts
+})
+
+const groupCounts = computed(() => {
+  const counts = {} as Record<MatrixQuadrantKey, number[]>
+  for (const quadrant of MATRIX_QUADRANTS) {
+    counts[quadrant.id] = form.value[quadrant.id].groups.map((group) =>
+      props.tasks.filter((task) => matchesMatrixCondition(task, group)).length,
+    )
+  }
+  return counts
+})
 
 const priorityOptions = [
   { value: 3, label: '高' },
@@ -151,6 +190,25 @@ function conditionEmpty(condition: MatrixCondition) {
   return condition.priorities.length === 0 && condition.due === 'any' && !condition.listId && !condition.tag && !condition.assignee
 }
 
+function startConditionDrag(quadrant: MatrixQuadrantKey, index: number, event: DragEvent) {
+  groupDrag.value = { quadrant, index }
+  groupOver.value = index
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(index))
+  }
+}
+
+function dropConditionGroup(quadrant: MatrixQuadrantKey, target: number) {
+  const drag = groupDrag.value
+  groupDrag.value = null
+  groupOver.value = -1
+  if (!drag || drag.quadrant !== quadrant || drag.index === target) return
+  const groups = form.value[quadrant].groups
+  const [moved] = groups.splice(drag.index, 1)
+  if (moved) groups.splice(target, 0, moved)
+}
+
 function addConditionGroup(quadrant: MatrixQuadrantKey) {
   const rule = form.value[quadrant]
   if (rule.groups.length >= 12) return
@@ -162,6 +220,8 @@ function removeConditionGroup(quadrant: MatrixQuadrantKey, groupIndex: number) {
   if (rule.groups.length <= 1) return
   rule.groups.splice(groupIndex, 1)
   if (rule.groups.length === 1) rule.match = 'all'
+  groupDrag.value = null
+  groupOver.value = -1
 }
 
 async function save() {

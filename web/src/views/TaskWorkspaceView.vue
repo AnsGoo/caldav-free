@@ -686,6 +686,7 @@
       :lists="lists"
       :tags="tags"
       :assignees="matrixAssignees"
+      :tasks="filteredTasks"
       @saved="onMatrixRulesSaved"
       @close="matrixRulesDialogOpen = false"
     />

@@ -8917,7 +8917,9 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 /* ----------------------------------------------------------------- notes */
 .tw-note-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 320px));
+  justify-content: center;
+  align-content: start;
   gap: 12px;
   padding: 6px 0 30px;
 }
@@ -9593,5 +9595,12 @@ body.tw-resizing {
 @media (max-width: 640px) {
   .tw-note-detail {
     width: 100vw;
+  }
+}
+
+@media (max-width: 640px) {
+  .tw-note-grid {
+    grid-template-columns: 1fr;
+    justify-content: stretch;
   }
 }

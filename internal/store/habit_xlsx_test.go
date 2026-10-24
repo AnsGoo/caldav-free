@@ -9,6 +9,7 @@ import (
 	"html"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseDidaXLSX(t *testing.T) {
@@ -182,4 +183,62 @@ func buildDidaTestWorkbook(t *testing.T, sheets []didaTestSheet) []byte {
 		t.Fatal(err)
 	}
 	return buf.Bytes()
+}
+
+func TestExportDidaHabitsRoundTrip(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	now := time.Now()
+	habit, err := s.CreateHabit(ctx, &Habit{
+		UserID: userID, Name: "导出夜读", Goal: 2, Unit: "Count",
+		Frequency: `{"type":"weekly","daysPerWeek":3}`,
+		StartDate: stampOf(now.AddDate(0, 0, -2)),
+		Reminders: `["21:30"]`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	section, err := s.CreateHabitSection(ctx, userID, "工作")
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated := *habit
+	updated.SectionID = section.ID
+	if _, err := s.UpdateHabit(ctx, userID, habit.ID, &updated); err != nil {
+		t.Fatal(err)
+	}
+	value := 2.0
+	checkin, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, stampOf(now), &value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkin == nil {
+		t.Fatal("missing checkin")
+	}
+	if _, err := s.CreateHabitRecord(ctx, &HabitRecord{
+		UserID: userID, HabitID: habit.ID, Stamp: stampOf(now), Content: "读完一章", Emoji: "😊",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := s.ExportDidaHabits(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheets, err := parseDidaXLSX(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sheets) != 1 {
+		t.Fatalf("sheets = %d", len(sheets))
+	}
+	exported := sheets[0].Habit
+	if exported.Habit.Name != "导出夜读" || exported.Habit.Goal != 2 || exported.Habit.Frequency != `{"type":"weekly","daysPerWeek":3}` {
+		t.Fatalf("unexpected habit: %+v", exported.Habit)
+	}
+	if sheets[0].SectionName != "工作" || len(exported.Checkins) != 1 || len(exported.Records) != 1 {
+		t.Fatalf("unexpected sheet: %+v", sheets[0])
+	}
+	if exported.Records[0].Content != "读完一章" || exported.Records[0].Emoji != "😊" {
+		t.Fatalf("unexpected record: %+v", exported.Records[0])
+	}
 }

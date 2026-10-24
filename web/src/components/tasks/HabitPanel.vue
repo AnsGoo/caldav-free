@@ -435,6 +435,7 @@
           </div>
           <div class="tw-habit-backup">
             <span>数据备份</span>
+            <a class="tw-ghost-button" href="/api/admin/habits/export?format=xlsx">导出 Dida XLSX</a>
             <a class="tw-ghost-button" href="/api/admin/habits/export">导出 CSV</a>
             <a class="tw-ghost-button" href="/api/admin/habits/export?format=json">导出 JSON</a>
             <select v-model="importMode" class="tw-field-select tw-import-mode" title="导入方式">

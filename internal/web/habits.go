@@ -415,6 +415,17 @@ func (s *Server) apiHabitSection(w http.ResponseWriter, r *http.Request, current
 }
 
 func (s *Server) apiHabitExport(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	if r.URL.Query().Get("format") == "xlsx" {
+		data, err := s.store.ExportDidaHabits(r.Context(), current.ID)
+		if err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=habits-%s.xlsx", time.Now().Format("20060102")))
+		_, _ = w.Write(data)
+		return
+	}
 	if r.URL.Query().Get("format") == "json" {
 		backup, err := s.store.ExportHabitsBackup(r.Context(), current.ID)
 		if err != nil {

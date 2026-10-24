@@ -51,7 +51,7 @@
           <span>A</span>
           <input type="color" value="#4772fa" @input="setColor(($event.target as HTMLInputElement).value)" />
         </label>
-        <button title="链接" @click="addLink">🔗</button>
+        <button title="插入链接" @click="addLink"><TaskIcon name="link" :size="15" /></button>
         <button title="行内代码" @click="exec('formatBlock', 'pre')">&lt;/&gt;</button>
         <button title="引用" @click="exec('formatBlock', 'blockquote')">“”</button>
         <span class="tw-md-divider" />
@@ -192,6 +192,51 @@
       <button class="tw-summary-aside-close" @click="asideOpen = false">收起设置</button>
     </aside>
 
+    <div v-if="linkDialogOpen" class="tw-dialog-scrim" @click.self="closeLinkDialog">
+      <div class="tw-dialog tw-link-dialog" role="dialog" aria-modal="true" aria-label="插入链接" @keydown.esc.stop="closeLinkDialog">
+        <header class="tw-dialog-head">
+          <div class="tw-link-title">
+            <span class="tw-link-title-icon"><TaskIcon name="link" :size="16" /></span>
+            <h2>插入链接</h2>
+          </div>
+          <button class="tw-icon-button" title="关闭" @click="closeLinkDialog">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body tw-link-body">
+          <p v-if="linkSelectedText" class="tw-link-hint">
+            将应用到选中的文字：<strong>{{ linkSelectedText }}</strong>
+          </p>
+          <label class="tw-link-field">
+            <span>链接地址</span>
+            <input
+              ref="linkInput"
+              v-model="linkUrl"
+              class="tw-dialog-input"
+              placeholder="https://example.com"
+              spellcheck="false"
+              @keydown.enter.prevent="confirmLink"
+            />
+          </label>
+          <label v-if="!linkSelectedText" class="tw-link-field">
+            <span>显示文字 <small>可选</small></span>
+            <input
+              v-model="linkText"
+              class="tw-dialog-input"
+              placeholder="留空则显示链接地址"
+              maxlength="300"
+              @keydown.enter.prevent="confirmLink"
+            />
+          </label>
+          <p v-if="linkError" class="tw-link-error">{{ linkError }}</p>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="closeLinkDialog">取消</button>
+          <button class="tw-dialog-ok" @click="confirmLink">插入链接</button>
+        </footer>
+      </div>
+    </div>
+
     <div v-if="templateDialogOpen" class="tw-dialog-scrim" @click.self="templateDialogOpen = false">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="保存为模板" @keydown.esc="templateDialogOpen = false">
         <header class="tw-dialog-head">
@@ -287,6 +332,14 @@ const templates = ref<SummaryDocument[]>([])
 const aiConfigured = ref(false)
 const optimize = ref(false)
 const optimizing = ref(false)
+const linkDialogOpen = ref(false)
+const linkUrl = ref('')
+const linkText = ref('')
+const linkSelectedText = ref('')
+const linkError = ref('')
+const linkInput = ref<HTMLInputElement | null>(null)
+let savedLinkRange: Range | null = null
+
 const templateDialogOpen = ref(false)
 const templateName = ref('')
 const templateBusy = ref(false)
@@ -538,8 +591,83 @@ function setColor(color: string) {
 }
 
 function addLink() {
-  const url = window.prompt('链接地址')
-  if (url) exec('createLink', url)
+  const editor = editorRef.value
+  if (!editor) return
+  const selection = window.getSelection()
+  let range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null
+  if (!range || !editor.contains(range.commonAncestorContainer)) {
+    range = document.createRange()
+    range.selectNodeContents(editor)
+    range.collapse(false)
+  }
+  savedLinkRange = range
+  linkSelectedText.value = range.toString().trim().slice(0, 100)
+  linkUrl.value = ''
+  linkText.value = ''
+  linkError.value = ''
+  linkDialogOpen.value = true
+  void nextTick(() => linkInput.value?.focus())
+}
+
+function closeLinkDialog() {
+  linkDialogOpen.value = false
+  linkError.value = ''
+  savedLinkRange = null
+  editorRef.value?.focus()
+}
+
+function normaliseLink(raw: string) {
+  let value = raw.trim()
+  if (!value) return ''
+  if (/^(javascript|data|vbscript):/i.test(value)) return ''
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(value) && !value.startsWith('#') && !value.startsWith('/')) {
+    value = `https://${value}`
+  }
+  try {
+    if (!value.startsWith('#') && !value.startsWith('/')) new URL(value)
+  } catch {
+    return ''
+  }
+  return value
+}
+
+function escapeLinkHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[char] || char)
+}
+
+function confirmLink() {
+  const editor = editorRef.value
+  const url = normaliseLink(linkUrl.value)
+  if (!url) {
+    linkError.value = '请输入有效的链接地址'
+    return
+  }
+  if (!editor) return
+  const range = savedLinkRange
+  const selected = linkSelectedText.value
+  editor.focus()
+  const selection = window.getSelection()
+  if (range && selection) {
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
+  if (selected) {
+    document.execCommand('createLink', false, url)
+    const links = editor.querySelectorAll('a')
+    const anchor = links[links.length - 1] as HTMLAnchorElement | undefined
+    if (anchor) {
+      anchor.target = '_blank'
+      anchor.rel = 'noopener noreferrer'
+    }
+  } else {
+    const text = escapeLinkHtml(linkText.value.trim() || url)
+    document.execCommand('insertHTML', false, `<a href="${escapeLinkHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`)
+  }
+  linkDialogOpen.value = false
+  savedLinkRange = null
+  onEdit()
 }
 
 function insertChecklist() {

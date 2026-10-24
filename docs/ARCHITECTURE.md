@@ -51,6 +51,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_comments` | 任务评论：任务、作者、正文、创建时间 |
 | `task_tag_colors` | 用户标签颜色；按用户名+标签名唯一 |
 | `matrix_views` | 四象限视图名称、simple/complex/custom 规则（含条件组/名称/颜色）JSON、排序 |
+| `matrix_rule_templates` | 用户保存的四象限规则模板 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
@@ -235,6 +236,8 @@ name:   任务
 - 矩阵页显示/隐藏已完成状态保存在浏览器 `localStorage`，过滤后的任务同时用于卡片和规则预览。
 - 自定义模式拖拽由 `planMatrixDrop` 生成补丁，先在内存中重新计算归属，命中目标象限后才提交 PATCH；无法满足时不变更任务。
 - 象限折叠状态按当前视图保存在 `localStorage`，桌面端两行都折叠时自动收缩对应网格行。
+- 矩阵手动排序复用 `/tasks/reorder`：把 Q1–Q4 的可见任务按顺序扁平化后写入全局 `order`；关闭手动排序后恢复日期分组。
+- 自定义规则模板保存在 `matrix_rule_templates`，存完整四象限规则 JSON（含名称、颜色、条件组）；规则弹窗挂载时拉取，保存/删除即时更新。
 
 ## 9. 提醒
 

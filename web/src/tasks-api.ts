@@ -1,5 +1,5 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, MatrixRuleMode, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix'
 
@@ -216,6 +216,21 @@ export function updateMatrixView(id: number, payload: { name?: string; mode?: Ma
 
 export function deleteMatrixView(id: number) {
   return api<void>(`/task-matrix-views/${id}`, { method: 'DELETE' })
+}
+
+export function fetchMatrixRuleTemplates() {
+  return api<{ templates: MatrixRuleTemplate[] }>('/task-matrix-templates')
+}
+
+export function createMatrixRuleTemplate(name: string, rules: MatrixViewRules) {
+  return api<{ template: MatrixRuleTemplate }>('/task-matrix-templates', {
+    method: 'POST',
+    body: JSON.stringify({ name, rules }),
+  })
+}
+
+export function deleteMatrixRuleTemplate(id: number) {
+  return api<void>(`/task-matrix-templates/${id}`, { method: 'DELETE' })
 }
 
 export function fetchTaskListMembers(listId: number) {

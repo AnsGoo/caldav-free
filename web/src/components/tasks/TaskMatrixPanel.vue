@@ -3,7 +3,7 @@
     <header class="tw-matrix-head">
       <div>
         <h2>四象限</h2>
-        <p>{{ rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
+        <p>{{ manualSort ? '手动排序 · 拖动任务调整象限内顺序' : rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
       </div>
       <div class="tw-matrix-head-actions">
         <div class="tw-matrix-view-picker">
@@ -26,6 +26,15 @@
           <button :class="{ active: rule === 'complex' }" @click="$emit('change-rule', 'complex')">优先级 + 日期</button>
           <button v-if="activeViewId" :class="{ active: rule === 'custom' }" @click="$emit('change-rule', 'custom')">自定义</button>
         </div>
+        <button
+          class="tw-matrix-completed-toggle"
+          :class="{ active: manualSort }"
+          :title="manualSort ? '关闭手动排序' : '开启手动排序（拖动任务调整顺序）'"
+          @click="$emit('toggle-manual-sort')"
+        >
+          <TaskIcon name="sort" :size="11" />
+          手动排序
+        </button>
         <button
           class="tw-matrix-completed-toggle"
           :class="{ active: showCompleted }"
@@ -74,7 +83,7 @@
             :key="group.key"
             class="tw-matrix-group"
           >
-            <header class="tw-matrix-group-head">
+            <header v-if="group.label" class="tw-matrix-group-head">
               <span>{{ group.label }}</span>
               <small>{{ group.tasks.length }}</small>
             </header>
@@ -83,10 +92,13 @@
                 v-for="task in group.tasks"
                 :key="task.id"
                 class="tw-matrix-row"
-                :class="{ done: task.completed }"
-                :draggable="rule !== 'complex'"
+                :class="{ done: task.completed, 'sort-over': manualSort && sortOver === task.id }"
+                :draggable="manualSort ? !task.completed : rule !== 'complex'"
                 @dragstart="startDrag(task, $event)"
-                @dragend="dragTask = null; dragOver = ''"
+                @dragover.prevent="manualSort && !task.completed ? (sortOver = task.id) : null"
+                @dragleave="sortOver = 0"
+                @drop.prevent="onRowDrop(quadrant.id, task, $event)"
+                @dragend="endDrag"
                 @click="$emit('open', task)"
               >
                 <span
@@ -137,6 +149,7 @@ const props = defineProps<{
   tags: string[]
   assignees: string[]
   showCompleted: boolean
+  manualSort: boolean
 }>()
 
 const emit = defineEmits<{
@@ -150,10 +163,14 @@ const emit = defineEmits<{
   (event: 'manage-views'): void
   (event: 'edit-rules'): void
   (event: 'toggle-completed'): void
+  (event: 'toggle-manual-sort'): void
+  (event: 'reorder', ids: number[]): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)
 const dragOver = ref('')
+const sortTask = ref<TaskItem | null>(null)
+const sortOver = ref(0)
 const collapsedQuadrants = ref<Set<string>>(new Set())
 
 const collapseStorageKey = computed(() => `caldav-matrix-collapsed-${props.activeViewId}`)
@@ -208,21 +225,60 @@ const quadrants = computed(() => {
     }
     buckets[key].push(task)
   }
+  const groupsFor = (items: TaskItem[]) => props.manualSort
+    ? [{ key: 'manual', label: '', tasks: sortManual(items) }]
+    : group(items)
   return [
-    { id: 'q1', label: customRules.value.q1.name, color: customRules.value.q1.color, tasks: buckets.q1, groups: group(buckets.q1) },
-    { id: 'q2', label: customRules.value.q2.name, color: customRules.value.q2.color, tasks: buckets.q2, groups: group(buckets.q2) },
-    { id: 'q3', label: customRules.value.q3.name, color: customRules.value.q3.color, tasks: buckets.q3, groups: group(buckets.q3) },
-    { id: 'q4', label: customRules.value.q4.name, color: customRules.value.q4.color, tasks: buckets.q4, groups: group(buckets.q4) },
+    { id: 'q1', label: customRules.value.q1.name, color: customRules.value.q1.color, tasks: buckets.q1, groups: groupsFor(buckets.q1) },
+    { id: 'q2', label: customRules.value.q2.name, color: customRules.value.q2.color, tasks: buckets.q2, groups: groupsFor(buckets.q2) },
+    { id: 'q3', label: customRules.value.q3.name, color: customRules.value.q3.color, tasks: buckets.q3, groups: groupsFor(buckets.q3) },
+    { id: 'q4', label: customRules.value.q4.name, color: customRules.value.q4.color, tasks: buckets.q4, groups: groupsFor(buckets.q4) },
   ]
 })
 
 function startDrag(task: TaskItem, event: DragEvent) {
-  if (props.rule === 'complex') return
-  dragTask.value = task
+  if (props.manualSort) {
+    if (task.completed) return
+    sortTask.value = task
+    sortOver.value = task.id
+  } else {
+    if (props.rule === 'complex') return
+    dragTask.value = task
+  }
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', String(task.id))
   }
+}
+
+function endDrag() {
+  dragTask.value = null
+  dragOver.value = ''
+  sortTask.value = null
+  sortOver.value = 0
+}
+
+function onRowDrop(quadrant: string, target: TaskItem, event: DragEvent) {
+  if (!props.manualSort) return
+  event.stopPropagation()
+  const source = sortTask.value
+  sortTask.value = null
+  sortOver.value = 0
+  if (!source || target.completed || source.id === target.id) return
+  const quadrantTasks = quadrants.value.find((item) => item.id === quadrant)?.groups[0]?.tasks
+  if (!quadrantTasks) return
+  const list = quadrantTasks.slice()
+  const from = list.findIndex((task) => task.id === source.id)
+  const to = list.findIndex((task) => task.id === target.id)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  const ordered: number[] = []
+  for (const item of quadrants.value) {
+    const tasks = item.id === quadrant ? list : item.groups[0]?.tasks ?? []
+    ordered.push(...tasks.map((task) => task.id))
+  }
+  emit('reorder', ordered)
 }
 
 function dropOnQuadrant(quadrant: string) {
@@ -236,6 +292,10 @@ function dropOnQuadrant(quadrant: string) {
   }
   const priority = quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0
   if (task.priority !== priority) emit('move', { task, priority })
+}
+
+function sortManual(tasks: TaskItem[]) {
+  return tasks.slice().sort((a, b) => a.order - b.order || a.id - b.id)
 }
 
 function group(tasks: TaskItem[]) {

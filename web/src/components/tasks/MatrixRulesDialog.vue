@@ -16,15 +16,34 @@
           <div class="tw-matrix-rules-tools">
             <select v-model="template" class="tw-matrix-template-select" @change="applyTemplate">
               <option value="">套用模板…</option>
-              <option value="priority">按优先级分组</option>
-              <option value="eisenhower">优先级 + 日期</option>
-              <option value="empty">清空全部条件</option>
+              <optgroup label="内置模板">
+                <option value="builtin:priority">按优先级分组</option>
+                <option value="builtin:eisenhower">优先级 + 日期</option>
+                <option value="builtin:empty">清空全部条件</option>
+              </optgroup>
+              <optgroup v-if="templates.length" label="我的模板">
+                <option v-for="item in templates" :key="item.id" :value="`custom:${item.id}`">{{ item.name }}</option>
+              </optgroup>
             </select>
+            <button class="tw-matrix-rules-reset" @click="templateFormOpen = !templateFormOpen">
+              <TaskIcon name="copy" :size="11" />
+              保存为模板
+            </button>
+            <button v-if="selectedTemplateId" class="tw-matrix-template-delete" :title="deleteArmed === selectedTemplateId ? '再次点击确认删除' : '删除当前模板'" @click="deleteTemplate">
+              <TaskIcon name="trash" :size="11" />
+              {{ deleteArmed === selectedTemplateId ? '确认删除' : '删除模板' }}
+            </button>
             <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">
               <TaskIcon name="restore" :size="11" />
               恢复内置规则与配色
             </button>
           </div>
+        </div>
+
+        <div v-if="templateFormOpen" class="tw-matrix-template-save">
+          <input v-model="templateName" class="tw-dialog-input" placeholder="模板名称" maxlength="60" @keydown.enter="saveTemplate" />
+          <button class="tw-dialog-ok" :disabled="templateSaving || !templateName.trim()" @click="saveTemplate">{{ templateSaving ? '保存中…' : '保存模板' }}</button>
+          <button class="tw-dialog-cancel" @click="templateFormOpen = false">取消</button>
         </div>
 
         <section v-for="quadrant in MATRIX_QUADRANTS" :key="quadrant.id" class="tw-matrix-rule-card" :style="{ '--matrix-color': form[quadrant.id].color }">
@@ -148,11 +167,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { MatrixCondition, MatrixQuadrantKey, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
+import type { MatrixCondition, MatrixQuadrantKey, MatrixRuleTemplate, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
 import { clearMatrixConditions, defaultMatrixRules, emptyMatrixCondition, MATRIX_QUADRANTS, matchesMatrixCondition, matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
-import { updateMatrixView } from '../../tasks-api'
+import { createMatrixRuleTemplate, deleteMatrixRuleTemplate, fetchMatrixRuleTemplates, updateMatrixView } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
@@ -174,7 +193,23 @@ const error = ref('')
 const groupDrag = ref<{ quadrant: MatrixQuadrantKey; index: number } | null>(null)
 const groupOver = ref(-1)
 const template = ref('')
+const templates = ref<MatrixRuleTemplate[]>([])
+const templateFormOpen = ref(false)
+const templateName = ref('')
+const templateSaving = ref(false)
+const deleteArmed = ref(0)
 const copiedConditions = ref<{ match: 'all' | 'any'; groups: MatrixCondition[] } | null>(null)
+const selectedTemplateId = computed(() => template.value.startsWith('custom:') ? Number(template.value.slice(7)) || 0 : 0)
+
+watch(template, () => { deleteArmed.value = 0 })
+
+onMounted(async () => {
+  try {
+    templates.value = (await fetchMatrixRuleTemplates()).templates
+  } catch {
+    /* keep built-in templates usable */
+  }
+})
 
 const quadrantCounts = computed(() => {
   const counts: Record<MatrixQuadrantKey, number> = { q1: 0, q2: 0, q3: 0, q4: 0 }
@@ -213,13 +248,18 @@ function cloneCondition(condition: MatrixCondition): MatrixCondition {
 
 function applyTemplate() {
   const selected = template.value
-  template.value = ''
   if (!selected) return
+  if (selected.startsWith('custom:')) {
+    const item = templates.value.find((entry) => `custom:${entry.id}` === selected)
+    if (item) form.value = normalizeMatrixRules(item.rules)
+    return
+  }
+  template.value = ''
   const priorities: Record<MatrixQuadrantKey, number[]> = { q1: [3], q2: [2], q3: [1], q4: [0] }
-  const presets = selected === 'eisenhower' ? defaultMatrixRules() : null
+  const presets = selected === 'builtin:eisenhower' ? defaultMatrixRules() : null
   for (const quadrant of MATRIX_QUADRANTS) {
     const rule = form.value[quadrant.id]
-    if (selected === 'priority') {
+    if (selected === 'builtin:priority') {
       rule.match = 'all'
       rule.groups = [{ ...emptyMatrixCondition(), priorities: priorities[quadrant.id] }]
     } else if (presets) {
@@ -229,6 +269,43 @@ function applyTemplate() {
       rule.match = 'all'
       rule.groups = [emptyMatrixCondition()]
     }
+  }
+}
+
+async function saveTemplate() {
+  const name = templateName.value.trim()
+  if (!name || templateSaving.value) return
+  templateSaving.value = true
+  error.value = ''
+  try {
+    const { template: created } = await createMatrixRuleTemplate(name, normalizeMatrixRules(form.value))
+    templates.value = [created, ...templates.value]
+    template.value = `custom:${created.id}`
+    templateName.value = ''
+    templateFormOpen.value = false
+    Message.success('规则模板已保存')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '保存规则模板失败'
+  } finally {
+    templateSaving.value = false
+  }
+}
+
+async function deleteTemplate() {
+  const id = selectedTemplateId.value
+  if (!id) return
+  if (deleteArmed.value !== id) {
+    deleteArmed.value = id
+    return
+  }
+  try {
+    await deleteMatrixRuleTemplate(id)
+    templates.value = templates.value.filter((item) => item.id !== id)
+    template.value = ''
+    deleteArmed.value = 0
+    Message.success('规则模板已删除')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '删除规则模板失败'
   }
 }
 

@@ -517,6 +517,47 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 移除共享成员，返回 `204`。
 
+### GET /api/admin/task-matrix-templates
+
+返回当前用户保存的四象限规则模板：
+
+```json
+{
+  "templates": [
+    {
+      "id": 1,
+      "name": "我的工作规则",
+      "rules": {
+        "q1": { "name": "立即去做", "color": "#e5484d", "match": "all", "groups": [{ "priorities": [3], "due": "urgent" }] },
+        "q2": { "name": "计划推进", "color": "#f2a900", "match": "all", "groups": [{ "priorities": [2], "due": "any" }] },
+        "q3": {},
+        "q4": {}
+      }
+    }
+  ]
+}
+```
+
+### POST /api/admin/task-matrix-templates
+
+```json
+{
+  "name": "我的工作规则",
+  "rules": {
+    "q1": { "match": "all", "groups": [{ "priorities": [3] }] },
+    "q2": {},
+    "q3": {},
+    "q4": {}
+  }
+}
+```
+
+`name` 必填，`rules` 必须是 JSON 对象，最大 16KB。返回 `201` 和完整模板。
+
+### DELETE /api/admin/task-matrix-templates/{id}
+
+返回 `204`。
+
 ### GET /api/admin/task-matrix-views
 
 返回当前用户保存的四象限视图：

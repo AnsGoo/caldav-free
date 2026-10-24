@@ -188,6 +188,12 @@ export interface MatrixView {
   order: number
 }
 
+export interface MatrixRuleTemplate {
+  id: number
+  name: string
+  rules: MatrixViewRules
+}
+
 export interface TaskTagCount {
   name: string
   count: number

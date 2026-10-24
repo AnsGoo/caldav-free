@@ -165,6 +165,7 @@
         :active-view-id="activeMatrixViewId"
         :custom-rules="matrixCustomRules"
         :show-completed="matrixShowCompleted"
+        :manual-sort="matrixManualSort"
         :lists="lists"
         :tags="tags"
         :assignees="matrixAssignees"
@@ -178,6 +179,8 @@
         @manage-views="matrixViewManagerOpen = true"
         @edit-rules="openMatrixRules"
         @toggle-completed="toggleMatrixCompleted"
+        @toggle-manual-sort="toggleMatrixManualSort"
+        @reorder="onMatrixReorder"
       />
       <div v-else class="tw-scroll">
         <div class="tw-content">
@@ -882,8 +885,10 @@ const matrixViewMode = ref<MatrixRuleMode>('simple')
 const matrixViewManagerOpen = ref(false)
 const matrixRulesDialogOpen = ref(false)
 const matrixShowCompleted = ref(true)
+const matrixManualSort = ref(false)
 try {
   matrixShowCompleted.value = localStorage.getItem('caldav-matrix-show-completed') !== '0'
+  matrixManualSort.value = localStorage.getItem('caldav-matrix-manual-sort') === '1'
 } catch {
   /* ignore */
 }
@@ -1568,6 +1573,28 @@ function toggleMatrixCompleted() {
     localStorage.setItem('caldav-matrix-show-completed', matrixShowCompleted.value ? '1' : '0')
   } catch {
     /* ignore */
+  }
+}
+
+function toggleMatrixManualSort() {
+  matrixManualSort.value = !matrixManualSort.value
+  try {
+    localStorage.setItem('caldav-matrix-manual-sort', matrixManualSort.value ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
+async function onMatrixReorder(ids: number[]) {
+  ids.forEach((id, index) => {
+    const task = tasks.value.find((item) => item.id === id)
+    if (task) task.order = index + 1
+  })
+  try {
+    await reorderTasks(ids)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '排序保存失败')
+    void loadWorkspace(true)
   }
 }
 

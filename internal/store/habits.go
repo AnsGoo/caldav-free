@@ -1,0 +1,747 @@
+package store
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+const habitDayLayout = "20060102"
+
+// Habit is a recurring check-in item shown in the habit workspace.
+type Habit struct {
+	ID              int64      `gorm:"primaryKey" json:"id"`
+	UserID          int64      `gorm:"not null;index:idx_habit_user" json:"-"`
+	Name            string     `gorm:"size:200;not null" json:"name"`
+	Icon            string     `gorm:"size:100;not null;default:''" json:"icon"`
+	Color           string     `gorm:"size:20;not null;default:'#97E38B'" json:"color"`
+	SectionID       int64      `gorm:"not null;default:0" json:"sectionId"`
+	SortOrder       int64      `gorm:"not null;default:0" json:"sortOrder"`
+	Status          int        `gorm:"not null;default:0" json:"status"`
+	Goal            float64    `gorm:"not null;default:1" json:"goal"`
+	Step            float64    `gorm:"not null;default:1" json:"step"`
+	Unit            string     `gorm:"size:32;not null;default:'Count'" json:"unit"`
+	Frequency       string     `gorm:"type:text;not null;default:'{}'" json:"frequency"`
+	Reminders       string     `gorm:"type:text;not null;default:'[]'" json:"reminders"`
+	RecordEnable    bool       `gorm:"not null;default:false" json:"recordEnable"`
+	StartDate       int        `gorm:"not null;default:0" json:"startDate"`
+	TargetDays      int        `gorm:"not null;default:0" json:"targetDays"`
+	CompletedCycles int        `gorm:"not null;default:0" json:"completedCycles"`
+	ExDates         string     `gorm:"type:text;not null;default:'[]'" json:"exDates"`
+	Style           string     `gorm:"size:20;not null;default:'check'" json:"style"`
+	ArchivedAt      *time.Time `json:"archivedAt,omitempty"`
+	CreatedAt       time.Time  `gorm:"not null;autoCreateTime" json:"createdAt"`
+	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime" json:"modifiedAt"`
+
+	TotalCheckIns int `gorm:"-" json:"totalCheckIns"`
+	CurrentStreak int `gorm:"-" json:"currentStreak"`
+	MaxStreak     int `gorm:"-" json:"maxStreak"`
+}
+
+type HabitSection struct {
+	ID         int64     `gorm:"primaryKey" json:"id"`
+	UserID     int64     `gorm:"not null;index:idx_habit_section_user" json:"-"`
+	Name       string    `gorm:"size:100;not null" json:"name"`
+	SortOrder  int64     `gorm:"not null;default:0" json:"sortOrder"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime" json:"createdAt"`
+	ModifiedAt time.Time `gorm:"not null;autoUpdateTime" json:"modifiedAt"`
+}
+
+type HabitCheckin struct {
+	ID          int64      `gorm:"primaryKey" json:"id"`
+	UserID      int64      `gorm:"not null;index:idx_habit_checkin_user" json:"-"`
+	HabitID     int64      `gorm:"not null;uniqueIndex:idx_habit_checkin_day" json:"habitId"`
+	Stamp       int        `gorm:"column:checkin_stamp;not null;uniqueIndex:idx_habit_checkin_day" json:"checkinStamp"`
+	Value       float64    `gorm:"not null;default:0" json:"value"`
+	Goal        float64    `gorm:"not null;default:0" json:"goal"`
+	Status      int        `gorm:"not null;default:0" json:"status"` // 0 pending, 1 undone, 2 done
+	CheckinTime *time.Time `json:"checkinTime,omitempty"`
+	OpTime      time.Time  `gorm:"not null;autoCreateTime" json:"opTime"`
+	CreatedAt   time.Time  `gorm:"not null;autoCreateTime" json:"createdAt"`
+	ModifiedAt  time.Time  `gorm:"not null;autoUpdateTime" json:"modifiedAt"`
+}
+
+type HabitRecord struct {
+	ID         int64     `gorm:"primaryKey" json:"id"`
+	UserID     int64     `gorm:"not null;index:idx_habit_record_user" json:"-"`
+	HabitID    int64     `gorm:"not null;index:idx_habit_record_habit" json:"habitId"`
+	Stamp      int       `gorm:"not null" json:"stamp"`
+	Content    string    `gorm:"type:text;not null" json:"content"`
+	Emoji      string    `gorm:"size:20;not null;default:''" json:"emoji"`
+	OpTime     time.Time `gorm:"not null;autoCreateTime" json:"opTime"`
+	CreatedAt  time.Time `gorm:"not null;autoCreateTime" json:"createdAt"`
+	ModifiedAt time.Time `gorm:"not null;autoUpdateTime" json:"modifiedAt"`
+}
+
+type HabitPreference struct {
+	UserID           int64  `gorm:"primaryKey" json:"-"`
+	ShowInToday      bool   `gorm:"not null;default:true" json:"showInToday"`
+	ShowInCalendar   bool   `gorm:"not null;default:true" json:"showInCalendar"`
+	GroupByCompleted bool   `gorm:"not null;default:false" json:"groupByCompleted"`
+	DisplayType      string `gorm:"size:16;not null;default:'list'" json:"displayType"`
+	SortType         string `gorm:"size:32;not null;default:'custom'" json:"sortType"`
+	DefaultSectionID int64  `gorm:"not null;default:0" json:"defaultSectionId"`
+}
+
+type HabitFrequency struct {
+	Type        string `json:"type"`
+	Weekdays    []int  `json:"weekdays,omitempty"`
+	DaysPerWeek int    `json:"daysPerWeek,omitempty"`
+	Interval    int    `json:"interval,omitempty"`
+}
+
+type HabitDailyStat struct {
+	Date  string  `json:"date"`
+	Value float64 `json:"value"`
+	Goal  float64 `json:"goal"`
+}
+
+type HabitStats struct {
+	MonthCheckinDays     int              `json:"monthCheckinDays"`
+	TotalCheckinDays     int              `json:"totalCheckinDays"`
+	MonthCompletionRate  float64          `json:"monthCompletionRate"`
+	CurrentStreak        int              `json:"currentStreak"`
+	MonthCompletionCount float64          `json:"monthCompletionCount"`
+	TotalCompletionCount float64          `json:"totalCompletionCount"`
+	Daily                []HabitDailyStat `json:"daily"`
+}
+
+type HabitDetail struct {
+	Habit    *Habit          `json:"habit"`
+	Checkins []*HabitCheckin `json:"checkins"`
+	Records  []*HabitRecord  `json:"records"`
+	Stats    HabitStats      `json:"stats"`
+}
+
+func (s *Store) ListHabits(ctx context.Context, userID int64, includeArchived bool) ([]*Habit, error) {
+	var habits []*Habit
+	query := s.db.WithContext(ctx).Where("user_id = ?", userID)
+	if !includeArchived {
+		query = query.Where("status = ?", 0)
+	}
+	if err := query.Order("sort_order ASC, id ASC").Find(&habits).Error; err != nil {
+		return nil, fmt.Errorf("list habits: %w", err)
+	}
+	if len(habits) == 0 {
+		return habits, nil
+	}
+	var checkins []*HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Find(&checkins).Error; err != nil {
+		return nil, fmt.Errorf("list habit checkins: %w", err)
+	}
+	byHabit := make(map[int64][]*HabitCheckin)
+	for _, checkin := range checkins {
+		byHabit[checkin.HabitID] = append(byHabit[checkin.HabitID], checkin)
+	}
+	for _, habit := range habits {
+		habit.TotalCheckIns, habit.CurrentStreak, habit.MaxStreak = habitSummary(habit, byHabit[habit.ID])
+	}
+	return habits, nil
+}
+
+func (s *Store) GetHabit(ctx context.Context, userID, id int64) (*Habit, error) {
+	var habit Habit
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).First(&habit).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &habit, nil
+}
+
+func (s *Store) CreateHabit(ctx context.Context, habit *Habit) (*Habit, error) {
+	habit.Name = strings.TrimSpace(habit.Name)
+	if habit.Name == "" {
+		return nil, fmt.Errorf("习惯名称不能为空")
+	}
+	if habit.Goal <= 0 {
+		habit.Goal = 1
+	}
+	if habit.Step <= 0 {
+		habit.Step = 1
+	}
+	if habit.Unit == "" {
+		habit.Unit = "Count"
+	}
+	if habit.Color == "" {
+		habit.Color = "#97E38B"
+	}
+	if habit.Frequency == "" {
+		habit.Frequency = `{"type":"daily","weekdays":[0,1,2,3,4,5,6]}`
+	}
+	if habit.Reminders == "" {
+		habit.Reminders = "[]"
+	}
+	if habit.ExDates == "" {
+		habit.ExDates = "[]"
+	}
+	if habit.Style == "" {
+		habit.Style = "check"
+	}
+	if habit.StartDate == 0 {
+		habit.StartDate = habitTodayStamp()
+	}
+	var minOrder int64
+	_ = s.db.WithContext(ctx).Model(&Habit{}).Where("user_id = ?", habit.UserID).
+		Select("COALESCE(MIN(sort_order), 0)").Scan(&minOrder).Error
+	habit.SortOrder = minOrder - 1
+	if err := s.db.WithContext(ctx).Create(habit).Error; err != nil {
+		return nil, fmt.Errorf("create habit: %w", err)
+	}
+	return habit, nil
+}
+
+func (s *Store) UpdateHabit(ctx context.Context, userID, id int64, patch *Habit) (*Habit, error) {
+	existing, err := s.GetHabit(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if patch.Name != "" {
+		existing.Name = strings.TrimSpace(patch.Name)
+	}
+	if existing.Name == "" {
+		return nil, fmt.Errorf("习惯名称不能为空")
+	}
+	if patch.Icon != "" {
+		existing.Icon = patch.Icon
+	}
+	if patch.Color != "" {
+		existing.Color = patch.Color
+	}
+	existing.SectionID = patch.SectionID
+	if patch.Goal > 0 {
+		existing.Goal = patch.Goal
+	}
+	if patch.Step > 0 {
+		existing.Step = patch.Step
+	}
+	if patch.Unit != "" {
+		existing.Unit = patch.Unit
+	}
+	if patch.Frequency != "" {
+		existing.Frequency = patch.Frequency
+	}
+	if patch.Reminders != "" {
+		existing.Reminders = patch.Reminders
+	}
+	existing.RecordEnable = patch.RecordEnable
+	if patch.StartDate > 0 {
+		existing.StartDate = patch.StartDate
+	}
+	if patch.TargetDays >= 0 {
+		existing.TargetDays = patch.TargetDays
+	}
+	if patch.ExDates != "" {
+		existing.ExDates = patch.ExDates
+	}
+	if patch.Style != "" {
+		existing.Style = patch.Style
+	}
+	if patch.Status == 0 || patch.Status == 1 {
+		existing.Status = patch.Status
+		if patch.Status == 1 {
+			now := time.Now()
+			existing.ArchivedAt = &now
+		} else {
+			existing.ArchivedAt = nil
+		}
+	}
+	if patch.SortOrder != 0 {
+		existing.SortOrder = patch.SortOrder
+	}
+	if err := s.db.WithContext(ctx).Save(existing).Error; err != nil {
+		return nil, fmt.Errorf("update habit: %w", err)
+	}
+	return existing, nil
+}
+
+func (s *Store) DeleteHabit(ctx context.Context, userID, id int64) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("user_id = ? AND id = ?", userID, id).Delete(&Habit{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND habit_id = ?", userID, id).Delete(&HabitCheckin{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND habit_id = ?", userID, id).Delete(&HabitRecord{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func (s *Store) ToggleHabitCheckin(ctx context.Context, userID, habitID int64, stamp int, value *float64) (*HabitCheckin, *Habit, error) {
+	habit, err := s.GetHabit(ctx, userID, habitID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if stamp == 0 {
+		stamp = habitTodayStamp()
+	}
+	var existing HabitCheckin
+	found := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habitID, stamp).
+		First(&existing).Error == nil
+	if value == nil {
+		if found && (existing.Status == 2 || existing.Value >= existing.Goal) {
+			if err := s.db.WithContext(ctx).Delete(&existing).Error; err != nil {
+				return nil, nil, err
+			}
+			return nil, habit, nil
+		}
+		next := habit.Step
+		if found {
+			next = existing.Value + habit.Step
+		}
+		if next >= habit.Goal {
+			next = habit.Goal
+		}
+		value = &next
+	}
+	if *value <= 0 {
+		if found {
+			if err := s.db.WithContext(ctx).Delete(&existing).Error; err != nil {
+				return nil, nil, err
+			}
+		}
+		return nil, habit, nil
+	}
+	now := time.Now()
+	checkin := &HabitCheckin{
+		UserID: userID, HabitID: habitID, Stamp: stamp, Value: *value, Goal: habit.Goal,
+		Status: 0, CheckinTime: &now, OpTime: now,
+	}
+	if *value >= habit.Goal {
+		checkin.Status = 2
+	}
+	if found {
+		checkin.ID = existing.ID
+		checkin.CreatedAt = existing.CreatedAt
+		if err := s.db.WithContext(ctx).Save(checkin).Error; err != nil {
+			return nil, nil, err
+		}
+	} else if err := s.db.WithContext(ctx).Create(checkin).Error; err != nil {
+		return nil, nil, err
+	}
+	return checkin, habit, nil
+}
+
+func (s *Store) ListHabitCheckins(ctx context.Context, userID int64, habitIDs []int64, afterStamp int) (map[int64][]*HabitCheckin, error) {
+	out := make(map[int64][]*HabitCheckin, len(habitIDs))
+	query := s.db.WithContext(ctx).Where("user_id = ?", userID)
+	if len(habitIDs) > 0 {
+		query = query.Where("habit_id IN ?", habitIDs)
+	}
+	if afterStamp > 0 {
+		query = query.Where("checkin_stamp >= ?", afterStamp)
+	}
+	var rows []*HabitCheckin
+	if err := query.Order("checkin_stamp ASC").Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list habit checkins: %w", err)
+	}
+	for _, row := range rows {
+		out[row.HabitID] = append(out[row.HabitID], row)
+	}
+	return out, nil
+}
+
+func (s *Store) ListHabitSections(ctx context.Context, userID int64) ([]*HabitSection, error) {
+	var sections []*HabitSection
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("sort_order ASC, id ASC").Find(&sections).Error; err != nil {
+		return nil, fmt.Errorf("list habit sections: %w", err)
+	}
+	return sections, nil
+}
+
+func (s *Store) CreateHabitSection(ctx context.Context, userID int64, name string) (*HabitSection, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("分组名称不能为空")
+	}
+	var maxOrder int64
+	_ = s.db.WithContext(ctx).Model(&HabitSection{}).Where("user_id = ?", userID).
+		Select("COALESCE(MAX(sort_order), 0)").Scan(&maxOrder).Error
+	section := &HabitSection{UserID: userID, Name: name, SortOrder: maxOrder + 1}
+	if err := s.db.WithContext(ctx).Create(section).Error; err != nil {
+		return nil, fmt.Errorf("create habit section: %w", err)
+	}
+	return section, nil
+}
+
+func (s *Store) UpdateHabitSection(ctx context.Context, userID, id int64, name string, sortOrder int64) (*HabitSection, error) {
+	updates := map[string]any{}
+	if strings.TrimSpace(name) != "" {
+		updates["name"] = strings.TrimSpace(name)
+	}
+	if sortOrder != 0 {
+		updates["sort_order"] = sortOrder
+	}
+	if len(updates) > 0 {
+		if err := s.db.WithContext(ctx).Model(&HabitSection{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+	}
+	var section HabitSection
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).First(&section).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &section, nil
+}
+
+func (s *Store) DeleteHabitSection(ctx context.Context, userID, id int64) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&Habit{}).Where("user_id = ? AND section_id = ?", userID, id).Update("section_id", 0).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ? AND user_id = ?", id, userID).Delete(&HabitSection{}).Error
+	})
+}
+
+func (s *Store) GetHabitPreference(ctx context.Context, userID int64) (*HabitPreference, error) {
+	var pref HabitPreference
+	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&pref).Error
+	if err == gorm.ErrRecordNotFound {
+		return &HabitPreference{UserID: userID, ShowInToday: true, ShowInCalendar: true, DisplayType: "list", SortType: "custom"}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &pref, nil
+}
+
+func (s *Store) SaveHabitPreference(ctx context.Context, pref *HabitPreference) (*HabitPreference, error) {
+	if pref.DisplayType == "" {
+		pref.DisplayType = "list"
+	}
+	if pref.SortType == "" {
+		pref.SortType = "custom"
+	}
+	if err := s.db.WithContext(ctx).Save(pref).Error; err != nil {
+		return nil, fmt.Errorf("save habit preference: %w", err)
+	}
+	return pref, nil
+}
+
+func (s *Store) HabitDetail(ctx context.Context, userID, habitID int64, month string) (*HabitDetail, error) {
+	habit, err := s.GetHabit(ctx, userID, habitID)
+	if err != nil {
+		return nil, err
+	}
+	var checkins []*HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).
+		Order("checkin_stamp ASC").Find(&checkins).Error; err != nil {
+		return nil, err
+	}
+	monthStart, monthEnd := habitMonthRange(month)
+	var records []*HabitRecord
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND stamp >= ? AND stamp <= ?", userID, habitID, stampOf(monthStart), stampOf(monthEnd)).
+		Order("stamp ASC, id ASC").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	stats := computeHabitStats(habit, checkins, monthStart, monthEnd)
+	return &HabitDetail{Habit: habit, Checkins: checkins, Records: records, Stats: stats}, nil
+}
+
+func (s *Store) ListHabitRecords(ctx context.Context, userID, habitID int64, month string) ([]*HabitRecord, error) {
+	monthStart, monthEnd := habitMonthRange(month)
+	var records []*HabitRecord
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND stamp >= ? AND stamp <= ?", userID, habitID, stampOf(monthStart), stampOf(monthEnd)).
+		Order("stamp ASC, id ASC").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (s *Store) CreateHabitRecord(ctx context.Context, record *HabitRecord) (*HabitRecord, error) {
+	if strings.TrimSpace(record.Content) == "" {
+		return nil, fmt.Errorf("日志内容不能为空")
+	}
+	if record.Stamp == 0 {
+		record.Stamp = habitTodayStamp()
+	}
+	record.OpTime = time.Now()
+	if err := s.db.WithContext(ctx).Create(record).Error; err != nil {
+		return nil, fmt.Errorf("create habit record: %w", err)
+	}
+	return record, nil
+}
+
+func (s *Store) UpdateHabitRecord(ctx context.Context, userID, habitID, id int64, content, emoji string) (*HabitRecord, error) {
+	updates := map[string]any{"op_time": time.Now()}
+	if strings.TrimSpace(content) != "" {
+		updates["content"] = strings.TrimSpace(content)
+	}
+	if emoji != "" {
+		updates["emoji"] = emoji
+	}
+	if err := s.db.WithContext(ctx).Model(&HabitRecord{}).Where("id = ? AND habit_id = ? AND user_id = ?", id, habitID, userID).
+		Updates(updates).Error; err != nil {
+		return nil, err
+	}
+	var record HabitRecord
+	if err := s.db.WithContext(ctx).Where("id = ? AND habit_id = ? AND user_id = ?", id, habitID, userID).First(&record).Error; err != nil {
+		return nil, ErrNotFound
+	}
+	return &record, nil
+}
+
+func (s *Store) DeleteHabitRecord(ctx context.Context, userID, habitID, id int64) error {
+	res := s.db.WithContext(ctx).Where("id = ? AND habit_id = ? AND user_id = ?", id, habitID, userID).Delete(&HabitRecord{})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func habitMonthRange(month string) (time.Time, time.Time) {
+	now := time.Now()
+	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+	if parsed, err := time.ParseInLocation("2006-01", month, now.Location()); err == nil {
+		start = parsed
+	}
+	return start, start.AddDate(0, 1, -1)
+}
+
+func stampOf(t time.Time) int {
+	value, _ := strconv.Atoi(t.Format(habitDayLayout))
+	return value
+}
+
+func habitTodayStamp() int {
+	return stampOf(time.Now())
+}
+
+func parseHabitFrequency(raw string) HabitFrequency {
+	freq := HabitFrequency{Type: "daily"}
+	_ = json.Unmarshal([]byte(raw), &freq)
+	if freq.Type == "" {
+		freq.Type = "daily"
+	}
+	if freq.Type == "daily" && len(freq.Weekdays) == 0 {
+		freq.Weekdays = []int{0, 1, 2, 3, 4, 5, 6}
+	}
+	if freq.Interval <= 0 {
+		freq.Interval = 1
+	}
+	if freq.DaysPerWeek <= 0 {
+		freq.DaysPerWeek = 1
+	}
+	return freq
+}
+
+func parseHabitExDates(raw string) map[int]bool {
+	var values []int
+	_ = json.Unmarshal([]byte(raw), &values)
+	out := make(map[int]bool, len(values))
+	for _, value := range values {
+		out[value] = true
+	}
+	return out
+}
+
+func habitStartDate(habit *Habit) time.Time {
+	if habit.StartDate > 0 {
+		if parsed, err := time.ParseInLocation(habitDayLayout, fmt.Sprintf("%08d", habit.StartDate), time.Local); err == nil {
+			return parsed
+		}
+	}
+	return time.Now()
+}
+
+func habitScheduledOn(habit *Habit, date time.Time) bool {
+	freq := parseHabitFrequency(habit.Frequency)
+	start := habitStartDate(habit)
+	day := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	if day.Before(time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, date.Location())) {
+		return false
+	}
+	if parseHabitExDates(habit.ExDates)[stampOf(day)] {
+		return false
+	}
+	switch freq.Type {
+	case "interval":
+		days := int(day.Sub(time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, date.Location())).Hours() / 24)
+		return days%freq.Interval == 0
+	case "weekly":
+		return true
+	default:
+		for _, weekday := range freq.Weekdays {
+			if int(day.Weekday()) == weekday {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func habitDone(checkin *HabitCheckin) bool {
+	return checkin != nil && (checkin.Status == 2 || checkin.Value >= checkin.Goal && checkin.Goal > 0)
+}
+
+func habitSummary(habit *Habit, checkins []*HabitCheckin) (total, current, max int) {
+	byStamp := make(map[int]*HabitCheckin, len(checkins))
+	for _, checkin := range checkins {
+		byStamp[checkin.Stamp] = checkin
+		if habitDone(checkin) {
+			total++
+		}
+	}
+	current = habitCurrentStreak(habit, byStamp)
+	return total, current, current
+}
+
+func habitCurrentStreak(habit *Habit, byStamp map[int]*HabitCheckin) int {
+	freq := parseHabitFrequency(habit.Frequency)
+	today := time.Now()
+	streak := 0
+	if freq.Type == "weekly" {
+		weekStart := startOfHabitWeek(today)
+		for offset := 0; offset < 260; offset++ {
+			start := weekStart.AddDate(0, 0, -offset*7)
+			done := 0
+			for day := 0; day < 7; day++ {
+				if habitDone(byStamp[stampOf(start.AddDate(0, 0, day))]) {
+					done++
+				}
+			}
+			if done >= freq.DaysPerWeek {
+				streak++
+			} else if offset == 0 {
+				continue
+			} else {
+				break
+			}
+		}
+		return streak
+	}
+	for offset := 0; offset < 3650; offset++ {
+		day := today.AddDate(0, 0, -offset)
+		if !habitScheduledOn(habit, day) {
+			continue
+		}
+		if habitDone(byStamp[stampOf(day)]) {
+			streak++
+		} else if offset == 0 {
+			continue
+		} else {
+			break
+		}
+	}
+	return streak
+}
+
+func startOfHabitWeek(day time.Time) time.Time {
+	weekday := int(day.Weekday())
+	return time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, day.Location()).AddDate(0, 0, -weekday)
+}
+
+func computeHabitStats(habit *Habit, checkins []*HabitCheckin, monthStart, monthEnd time.Time) HabitStats {
+	byStamp := make(map[int]*HabitCheckin, len(checkins))
+	stats := HabitStats{Daily: make([]HabitDailyStat, 0, 31)}
+	for _, checkin := range checkins {
+		byStamp[checkin.Stamp] = checkin
+		if habitDone(checkin) {
+			stats.TotalCheckinDays++
+			value := checkin.Value
+			if value <= 0 {
+				value = 1
+			}
+			stats.TotalCompletionCount += value
+		}
+	}
+	stats.CurrentStreak = habitCurrentStreak(habit, byStamp)
+	stats.MonthCompletionCount = 0
+	stats.MonthCheckinDays = 0
+
+	freq := parseHabitFrequency(habit.Frequency)
+	var scheduled int
+	for day := monthStart; !day.After(monthEnd); day = day.AddDate(0, 0, 1) {
+		stamp := stampOf(day)
+		checkin := byStamp[stamp]
+		value := 0.0
+		if checkin != nil {
+			value = checkin.Value
+			if habitDone(checkin) {
+				stats.MonthCheckinDays++
+				stats.MonthCompletionCount += checkin.Value
+			}
+		}
+		stats.Daily = append(stats.Daily, HabitDailyStat{Date: day.Format("2006-01-02"), Value: value, Goal: habit.Goal})
+		if freq.Type == "weekly" {
+			if day.Weekday() == time.Monday {
+				scheduled += freq.DaysPerWeek
+			}
+		} else if habitScheduledOn(habit, day) {
+			scheduled++
+		}
+	}
+	if freq.Type == "weekly" {
+		scheduled = 0
+		for day := monthStart; !day.After(monthEnd); day = day.AddDate(0, 0, 1) {
+			if day.Weekday() == time.Monday {
+				scheduled += freq.DaysPerWeek
+			}
+		}
+	}
+	if scheduled > 0 {
+		stats.MonthCompletionRate = float64(stats.MonthCheckinDays) / float64(scheduled) * 100
+		if stats.MonthCompletionRate > 100 {
+			stats.MonthCompletionRate = 100
+		}
+	}
+	return stats
+}
+
+func (s *Store) ExportHabitsCSV(ctx context.Context, userID int64) (string, error) {
+	habits, err := s.ListHabits(ctx, userID, true)
+	if err != nil {
+		return "", err
+	}
+	var checkins []*HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("habit_id ASC, checkin_stamp ASC").Find(&checkins).Error; err != nil {
+		return "", err
+	}
+	byHabit := make(map[int64][]*HabitCheckin)
+	for _, checkin := range checkins {
+		byHabit[checkin.HabitID] = append(byHabit[checkin.HabitID], checkin)
+	}
+	var b strings.Builder
+	b.WriteString("habit,date,value,goal,status\n")
+	for _, habit := range habits {
+		for _, checkin := range byHabit[habit.ID] {
+			b.WriteString(fmt.Sprintf("%q,%08d,%.2f,%.2f,%d\n", habit.Name, checkin.Stamp, checkin.Value, checkin.Goal, checkin.Status))
+		}
+	}
+	return b.String(), nil
+}
+
+func SortHabitsBySection(habits []*Habit, sections []*HabitSection) []*Habit {
+	order := make(map[int64]int64, len(sections))
+	for index, section := range sections {
+		order[section.ID] = int64(index)
+	}
+	out := append([]*Habit(nil), habits...)
+	sort.SliceStable(out, func(i, j int) bool {
+		left := out[i]
+		right := out[j]
+		leftOrder := order[left.SectionID]
+		rightOrder := order[right.SectionID]
+		if leftOrder != rightOrder {
+			return leftOrder < rightOrder
+		}
+		return left.SortOrder < right.SortOrder
+	})
+	return out
+}

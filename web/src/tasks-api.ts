@@ -1,7 +1,7 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, HabitDetail, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit'
 
 export function browserTimezone() {
   try {
@@ -467,4 +467,64 @@ export function saveEmailSettings(settings: EmailNotificationSettingsInput) {
 
 export function testEmail() {
   return api<{ sent: boolean; to: string }>('/tasks/notifications/email/test', { method: 'POST' })
+}
+
+
+export function fetchHabits(archived = false) {
+  return api<HabitListData>(`/habits${archived ? '?archived=1' : ''}`)
+}
+
+export function createHabit(payload: Partial<HabitItem>) {
+  return api<{ habit: HabitItem }>('/habits', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function updateHabit(id: number, payload: Partial<HabitItem>) {
+  return api<{ habit: HabitItem }>(`/habits/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export function deleteHabit(id: number) {
+  return api<void>(`/habits/${id}`, { method: 'DELETE' })
+}
+
+export function toggleHabitCheckin(id: number, stamp?: number, value?: number) {
+  return api<{ checkin: import('./types').HabitCheckin | null; habit: HabitItem; detail: HabitDetail }>(`/habits/${id}/checkin`, {
+    method: 'POST',
+    body: JSON.stringify({ stamp, value }),
+  })
+}
+
+export function fetchHabitDetail(id: number, month: string) {
+  return api<HabitDetail>(`/habits/${id}/detail?month=${encodeURIComponent(month)}`)
+}
+
+export function createHabitRecord(id: number, payload: { content: string; emoji?: string; stamp?: number }) {
+  return api<{ record: HabitRecord }>(`/habits/${id}/records`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function updateHabitRecord(id: number, recordId: number, payload: { content?: string; emoji?: string }) {
+  return api<{ record: HabitRecord }>(`/habits/${id}/records/${recordId}`, { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export function deleteHabitRecord(id: number, recordId: number) {
+  return api<void>(`/habits/${id}/records/${recordId}`, { method: 'DELETE' })
+}
+
+export function fetchHabitPreferences() {
+  return api<HabitPreference>('/habit-preferences')
+}
+
+export function saveHabitPreferences(payload: Partial<HabitPreference>) {
+  return api<HabitPreference>('/habit-preferences', { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export function createHabitSection(name: string) {
+  return api<{ section: HabitSection }>('/habit-sections', { method: 'POST', body: JSON.stringify({ name }) })
+}
+
+export function updateHabitSection(id: number, payload: { name?: string; sortOrder?: number }) {
+  return api<{ section: HabitSection }>(`/habit-sections/${id}`, { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export function deleteHabitSection(id: number) {
+  return api<void>(`/habit-sections/${id}`, { method: 'DELETE' })
 }

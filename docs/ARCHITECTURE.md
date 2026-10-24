@@ -54,6 +54,11 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_tag_colors` | 用户标签颜色；按用户名+标签名唯一 |
 | `matrix_views` | 四象限视图名称、simple/complex/custom 规则（含条件组/名称/颜色）JSON、排序 |
 | `matrix_rule_templates` | 用户保存的四象限规则模板 |
+| `habits` | 习惯定义、频率、目标、分组、提醒、样式 |
+| `habit_sections` | 习惯自定义分组 |
+| `habit_checkins` | 按日期唯一的习惯打卡记录 |
+| `habit_records` | 习惯打卡日志 |
+| `habit_preferences` | 习惯显示与分类偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
@@ -242,6 +247,14 @@ name:   任务
 - 自定义规则模板保存在 `matrix_rule_templates`，存完整四象限规则 JSON（含名称、颜色、条件组）；规则弹窗挂载时拉取，支持创建、重命名、更新规则和删除。
 - 手动排序跨象限拖动会先计算目标条件补丁和插入位置；任务条件更新成功后再写入新的全局顺序，避免移动失败时顺序被破坏。
 - 四象限批量移动复用单任务条件推导，对每个选中任务执行 PATCH；快速添加先用空白任务壳推导目标象限条件，再调用创建任务接口。
+
+## 8.1 习惯
+
+- 习惯数据独立存储在 SQLite，不写入 CalDAV `VTODO`。
+- `HabitPanel` 通过 `/api/admin/habits` 加载习惯、分组、偏好和近 60 天打卡；详情按月份加载统计、月历和日志。
+- 频率使用本项目 JSON：`daily`（星期集合）、`weekly`（每周 N 天）、`interval`（每 N 天）。
+- 打卡按 `habit_id + checkin_stamp` 唯一；`value >= goal` 视为完成。
+- 月完成率、当前连续、月完成量和每日完成量由后端实时计算。
 
 ## 9. 提醒
 

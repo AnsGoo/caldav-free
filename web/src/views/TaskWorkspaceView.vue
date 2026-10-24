@@ -20,6 +20,9 @@
         <button class="tw-rail-button" :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
           <TaskIcon name="matrix" :size="20" />
         </button>
+        <button class="tw-rail-button" :class="{ active: view === 'habit' }" title="习惯" @click="selectView('habit')">
+          <TaskIcon name="habit" :size="20" />
+        </button>
         <button class="tw-rail-button" :class="{ active: view === 'stats' }" title="统计" @click="openStats">
           <TaskIcon name="chart" :size="21" />
         </button>
@@ -49,7 +52,7 @@
     </aside>
 
     <TaskSidebar
-      v-if="view !== 'matrix'"
+      v-if="view !== 'matrix' && view !== 'habit'"
       :lists="lists"
       :shared-lists="sharedLists"
       :folders="folders"
@@ -90,7 +93,7 @@
     <div v-if="sidebarOpen" class="tw-scrim" @click="sidebarOpen = false" />
 
     <main class="tw-main">
-      <header v-if="view !== 'matrix'" class="tw-toolbar">
+      <header v-if="view !== 'matrix' && view !== 'habit'" class="tw-toolbar">
         <button class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
           <TaskIcon name="list" :size="20" />
         </button>
@@ -143,7 +146,7 @@
         </div>
       </header>
 
-      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix'" class="tw-search-bar">
+      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && view !== 'habit'" class="tw-search-bar">
         <TaskIcon name="search" :size="17" />
         <input
           ref="searchInputEl"
@@ -157,8 +160,9 @@
         </button>
       </div>
 
+      <HabitPanel v-if="view === 'habit'" />
       <TaskMatrixPanel
-        v-if="view === 'matrix'"
+        v-else-if="view === 'matrix'"
         :tasks="matrixTasks"
         :rule="matrixRule"
         :views="matrixViews"
@@ -833,6 +837,7 @@ import TaskRow from '../components/tasks/TaskRow.vue'
 import TaskDetail from '../components/tasks/TaskDetail.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
+import HabitPanel from '../components/tasks/HabitPanel.vue'
 import MatrixViewManagerDialog from '../components/tasks/MatrixViewManagerDialog.vue'
 import MatrixRulesDialog from '../components/tasks/MatrixRulesDialog.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
@@ -981,6 +986,7 @@ const sharedEditable = computed(() => view.value === 'shared' && activeSharedLis
 const sharedReadonly = computed(() => view.value === 'shared' && !sharedEditable.value)
 const heading = computed(() => {
   if (view.value === 'matrix') return '四象限'
+  if (view.value === 'habit') return '习惯'
   if (view.value === 'shared') return activeSharedList.value?.name || '共享清单'
   if (view.value === 'list') {
     const list = lists.value.find((item) => item.id === activeListId.value)
@@ -997,6 +1003,7 @@ const headingIcon = computed(() => {
   if (view.value === 'inbox') return 'inbox'
   if (view.value === 'completed') return 'check'
   if (view.value === 'trash') return 'trash'
+  if (view.value === 'habit') return 'habit'
   if (view.value === 'filter') return 'filter'
   return 'list'
 })
@@ -1094,7 +1101,7 @@ async function loadWorkspace(silent = false) {
   if (!silent) loading.value = true
   try {
     const data: TaskWorkspaceData = await fetchTaskWorkspace({
-      view: view.value === 'shared' || view.value === 'matrix' ? 'all' : view.value,
+      view: view.value === 'shared' || view.value === 'matrix' || view.value === 'habit' ? 'all' : view.value,
       listId: view.value === 'shared' ? undefined : activeListId.value || undefined,
       filterId: activeFilterId.value || undefined,
       q: query.value || undefined,
@@ -1216,7 +1223,7 @@ function selectView(nextView: string) {
   selectedId.value = 0
   sidebarOpen.value = false
   clearSelection()
-  if (view.value === 'trash' || view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix') {
+  if (view.value === 'trash' || view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix' || view.value === 'habit') {
     mode.value = 'list'
     manualSort.value = false
   }
@@ -1291,7 +1298,7 @@ function resetWorkspaceToAll() {
 
 function switchMode(next: Mode) {
   if (view.value === 'trash' || view.value === 'shared') return
-  if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix') resetWorkspaceToAll()
+  if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix' || view.value === 'habit') resetWorkspaceToAll()
   clearSelection()
   mode.value = next
   if (next === 'calendar') {
@@ -2415,7 +2422,7 @@ function routeParamID(value: unknown) {
 
 function hydrateFromRoute() {
   const q = route.query
-  const validViews: TaskView[] = ['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix']
+  const validViews: TaskView[] = ['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix', 'habit']
   const queryView = typeof q.view === 'string' && validViews.includes(q.view as TaskView) ? q.view as TaskView : null
   const metaView = typeof route.meta.view === 'string' && validViews.includes(route.meta.view as TaskView) ? route.meta.view as TaskView : null
   view.value = queryView || metaView || 'all'

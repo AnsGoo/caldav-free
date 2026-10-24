@@ -6822,3 +6822,119 @@ button.tw-side-link {
   color: var(--tw-warning, #f2a900);
   font-size: 10px;
 }
+
+/* Habits */
+.tw-habits { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--tw-bg); overflow: hidden; }
+.tw-habits-head { flex: none; height: 76px; display: flex; align-items: center; justify-content: space-between; padding: 15px 22px; }
+.tw-habits-view-switch { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 0; color: var(--tw-text); background: transparent; font-size: 20px; font-weight: 650; outline: none; }
+.tw-habits-view-switch svg { transform: rotate(90deg); color: var(--tw-text-3); }
+.tw-habits-actions { display: flex; align-items: center; gap: 6px; }
+.tw-habit-week { flex: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 4px 34px 14px; }
+.tw-habit-week-day { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--tw-text-3); font-size: 11px; }
+.tw-habit-week-day strong { color: var(--tw-text-2); font-size: 12px; font-weight: 650; }
+.tw-habit-week-day.today { color: var(--tw-accent); }
+.tw-habit-week-day.today strong { color: var(--tw-accent); }
+.tw-habit-week-dot { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--tw-border); color: #fff; background: transparent; }
+.tw-habit-week-dot.done { border-color: var(--tw-accent); background: var(--tw-accent); }
+.tw-habit-loading { flex: 1; display: grid; place-items: center; }
+.tw-habit-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--tw-text-3); }
+.tw-habit-empty-icon { width: 82px; height: 82px; display: grid; place-items: center; border-radius: 50%; color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 9%, transparent); }
+.tw-habit-empty h3 { color: var(--tw-text); font-size: 15px; }
+.tw-habit-empty p { font-size: 12px; }
+.tw-habit-content { flex: 1; min-height: 0; display: flex; gap: 0; border-top: 1px solid var(--tw-border); }
+.tw-habit-list { flex: 1; min-width: 0; overflow-y: auto; padding: 18px 34px 28px; }
+.tw-habit-group + .tw-habit-group { margin-top: 18px; }
+.tw-habit-group-head { margin-bottom: 8px; color: var(--tw-text-3); font-size: 11px; font-weight: 650; }
+.tw-habit-items { display: flex; flex-direction: column; gap: 10px; }
+.tw-habit-item { display: flex; align-items: center; gap: 12px; min-height: 70px; padding: 12px 16px; border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-surface); cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.tw-habit-item:hover { border-color: color-mix(in srgb, var(--tw-accent) 45%, var(--tw-border)); }
+.tw-habit-item.selected { border-color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 5%, var(--tw-surface)); }
+.tw-habit-icon { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 8px; font-size: 18px; }
+.tw-habit-info { flex: 1; min-width: 0; }
+.tw-habit-info strong { display: block; overflow: hidden; color: var(--tw-text); font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.tw-habit-meta { display: flex; align-items: center; gap: 10px; margin-top: 4px; color: var(--tw-text-3); font-size: 11px; }
+.tw-habit-meta span { display: inline-flex; align-items: center; gap: 3px; }
+.tw-habit-meta .streak { color: #ff7b82; }
+.tw-habit-days { display: flex; align-items: center; gap: 14px; flex: none; }
+.tw-habit-day { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--tw-border); border-radius: 50%; color: #fff; background: transparent; font-size: 9px; }
+.tw-habit-day:hover { border-color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 15%, transparent); }
+.tw-habit-day.done { border-color: var(--tw-accent); background: var(--tw-accent); }
+.tw-habit-day.partial { color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 14%, transparent); }
+.tw-habit-day.today { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tw-accent) 30%, transparent); }
+.tw-habit-content.card-mode .tw-habit-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; }
+.tw-habit-content.card-mode .tw-habit-item { flex-wrap: wrap; align-items: flex-start; }
+.tw-habit-content.card-mode .tw-habit-days { width: 100%; justify-content: space-between; padding-top: 10px; }
+.tw-habit-detail { width: 390px; flex: none; border-left: 1px solid var(--tw-border); overflow-y: auto; background: var(--tw-surface); }
+.tw-habit-detail-head { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 18px; background: color-mix(in srgb, var(--tw-surface) 96%, transparent); backdrop-filter: blur(8px); }
+.tw-habit-detail-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tw-habit-detail-title strong { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.tw-habit-detail-icon { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; font-size: 18px; }
+.tw-habit-detail-actions { display: flex; align-items: center; gap: 2px; }
+.tw-habit-detail-actions .danger:hover { color: var(--tw-danger); }
+.tw-habit-stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 0 18px 14px; }
+.tw-habit-stat-grid article { padding: 10px 12px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-bg); }
+.tw-habit-stat-grid span { color: var(--tw-text-3); font-size: 10px; }
+.tw-habit-stat-grid strong { display: block; margin-top: 4px; color: var(--tw-text); font-size: 18px; font-weight: 650; }
+.tw-habit-stat-grid small { margin-left: 2px; color: var(--tw-text-3); font-size: 10px; font-weight: 400; }
+.tw-habit-calendar { margin: 0 18px 14px; padding: 12px; border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-bg); }
+.tw-habit-calendar > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
+.tw-habit-calendar-week, .tw-habit-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.tw-habit-calendar-week { color: var(--tw-text-3); font-size: 9px; }
+.tw-habit-calendar-day { width: 28px; height: 28px; justify-self: center; display: grid; place-items: center; border: 0; border-radius: 50%; color: var(--tw-text-2); background: var(--tw-hover); font-size: 10px; }
+.tw-habit-calendar-day:hover:not(.future) { background: var(--tw-hover); }
+.tw-habit-calendar-day.muted { opacity: .28; }
+.tw-habit-calendar-day.done { color: #fff; background: var(--tw-accent); }
+.tw-habit-calendar-day.partial { color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 15%, transparent); }
+.tw-habit-calendar-day.today { box-shadow: 0 0 0 1px var(--tw-accent); }
+.tw-habit-calendar-day.future { opacity: .4; cursor: default; }
+.tw-habit-chart { margin: 0 18px 14px; padding: 12px; border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-bg); }
+.tw-habit-chart header { margin-bottom: 8px; font-size: 11px; }
+.tw-habit-chart header small { color: var(--tw-text-3); }
+.tw-habit-chart-bars { display: flex; align-items: flex-end; gap: 3px; height: 86px; border-bottom: 1px dashed var(--tw-border); }
+.tw-habit-chart-bar { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.tw-habit-chart-bar i { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--tw-accent) 55%, transparent); }
+.tw-habit-records { padding: 0 18px 24px; }
+.tw-habit-records > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: 12px; }
+.tw-habit-log-form { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.tw-habit-log-form textarea { width: 100%; resize: vertical; border: 1px solid var(--tw-border); border-radius: 8px; padding: 8px; color: var(--tw-text); background: var(--tw-bg); font: inherit; font-size: 12px; }
+.tw-habit-log-empty { padding: 20px 0; color: var(--tw-text-3); text-align: center; font-size: 11px; }
+.tw-habit-log { display: flex; align-items: flex-start; gap: 8px; padding: 9px 0; border-top: 1px solid var(--tw-border); }
+.tw-habit-log-emoji { width: 22px; flex: none; text-align: center; }
+.tw-habit-log strong { color: var(--tw-text-3); font-size: 10px; font-weight: 500; }
+.tw-habit-log p { margin-top: 3px; color: var(--tw-text-2); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; }
+.tw-habit-log > div { flex: 1; min-width: 0; }
+.tw-habit-dialog { width: min(520px, calc(100vw - 32px)); }
+.tw-habit-form { gap: 10px; }
+.tw-habit-form-title { display: flex; align-items: center; gap: 10px; }
+.tw-habit-icon-picker { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border: 0; border-radius: 10px; font-size: 22px; }
+.tw-emoji-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.tw-emoji-row button { width: 26px; height: 26px; border: 1px solid transparent; border-radius: 7px; background: transparent; font-size: 16px; }
+.tw-emoji-row button.active { border-color: var(--tw-accent); background: color-mix(in srgb, var(--tw-accent) 10%, transparent); }
+.tw-color-dot { width: 20px !important; height: 20px !important; border-radius: 50% !important; margin: 3px; }
+.tw-color-dot.active { box-shadow: 0 0 0 2px var(--tw-bg), 0 0 0 3px var(--tw-accent); }
+.tw-habit-frequency { display: flex; flex-direction: column; gap: 7px; }
+.tw-habit-weekday-picks { display: flex; gap: 5px; }
+.tw-habit-weekday-picks button { width: 28px; height: 28px; border: 1px solid var(--tw-border); border-radius: 50%; color: var(--tw-text-2); background: transparent; font-size: 11px; }
+.tw-habit-weekday-picks button.active { border-color: var(--tw-accent); color: #fff; background: var(--tw-accent); }
+.tw-habit-inline-field, .tw-habit-goal-row { display: flex; align-items: center; gap: 7px; color: var(--tw-text-2); font-size: 12px; }
+.tw-habit-inline-field .tw-dialog-input { width: 72px; }
+.tw-habit-goal-row .tw-dialog-input { width: 90px; }
+.tw-habit-goal-row .tw-field-select { flex: 1; }
+.tw-habit-reminders { display: flex; flex-direction: column; gap: 6px; }
+.tw-habit-reminder { display: flex; align-items: center; gap: 6px; }
+.tw-habit-reminder .tw-dialog-input { width: 120px; }
+.tw-habit-reminder-add { align-self: flex-start; border: 1px dashed var(--tw-border); border-radius: 7px; padding: 4px 9px; color: var(--tw-text-3); background: transparent; font-size: 10.5px; }
+.tw-habit-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--tw-border); border-radius: 9px; background: var(--tw-bg); font-size: 12px; }
+@media (max-width: 900px) {
+  .tw-habit-detail { width: 340px; }
+  .tw-habit-list { padding-left: 18px; padding-right: 18px; }
+}
+@media (max-width: 700px) {
+  .tw-habit-week { padding-left: 12px; padding-right: 12px; gap: 2px; }
+  .tw-habit-content { position: relative; }
+  .tw-habit-detail { position: absolute; inset: 0; z-index: 5; width: 100%; background: var(--tw-surface); }
+  .tw-habit-list { padding: 12px; }
+  .tw-habit-item { padding: 10px; }
+  .tw-habit-days { gap: 8px; }
+  .tw-habit-content.card-mode .tw-habit-items { grid-template-columns: 1fr; }
+}

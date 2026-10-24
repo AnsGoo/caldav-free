@@ -47,6 +47,10 @@
       <path d="m16.5 13.5 3 3 3-3" />
       <path d="M4.5 12h7M4.5 16.5h5" />
     </template>
+    <template v-else-if="name === 'habit'">
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="m8.2 12.2 2.4 2.4 5.2-5.4" />
+    </template>
     <template v-else-if="name === 'check'">
       <path d="m4.5 12.5 5 5 10-11" />
     </template>

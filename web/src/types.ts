@@ -450,3 +450,104 @@ export interface SummaryDocument {
   createdAt: string
   modifiedAt: string
 }
+
+export interface HabitFrequency {
+  type: 'daily' | 'weekly' | 'interval'
+  weekdays?: number[]
+  daysPerWeek?: number
+  interval?: number
+}
+
+export interface HabitItem {
+  id: number
+  name: string
+  icon: string
+  color: string
+  sectionId: number
+  sortOrder: number
+  status: number
+  goal: number
+  step: number
+  unit: string
+  frequency: string
+  reminders: string
+  recordEnable: boolean
+  startDate: number
+  targetDays: number
+  completedCycles: number
+  exDates: string
+  style: string
+  archivedAt?: string
+  createdAt: string
+  modifiedAt: string
+  totalCheckIns: number
+  currentStreak: number
+  maxStreak: number
+}
+
+export interface HabitSection {
+  id: number
+  name: string
+  sortOrder: number
+  createdAt: string
+  modifiedAt: string
+}
+
+export interface HabitCheckin {
+  id: number
+  habitId: number
+  checkinStamp: number
+  value: number
+  goal: number
+  status: number
+  checkinTime?: string
+  opTime: string
+}
+
+export interface HabitRecord {
+  id: number
+  habitId: number
+  stamp: number
+  content: string
+  emoji: string
+  opTime: string
+}
+
+export interface HabitPreference {
+  showInToday: boolean
+  showInCalendar: boolean
+  groupByCompleted: boolean
+  displayType: 'list' | 'card'
+  sortType: string
+  defaultSectionId: number
+}
+
+export interface HabitDailyStat {
+  date: string
+  value: number
+  goal: number
+}
+
+export interface HabitStats {
+  monthCheckinDays: number
+  totalCheckinDays: number
+  monthCompletionRate: number
+  currentStreak: number
+  monthCompletionCount: number
+  totalCompletionCount: number
+  daily: HabitDailyStat[]
+}
+
+export interface HabitDetail {
+  habit: HabitItem
+  checkins: HabitCheckin[]
+  records: HabitRecord[]
+  stats: HabitStats
+}
+
+export interface HabitListData {
+  habits: HabitItem[]
+  sections: HabitSection[]
+  preferences: HabitPreference
+  checkins: Record<string, HabitCheckin[]>
+}

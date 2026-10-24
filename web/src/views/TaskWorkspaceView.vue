@@ -86,6 +86,7 @@
       @select-shared="selectSharedList"
       @share-list="openShareList"
       @create-list="createList"
+      @create-note="createNote"
       @edit-list="openEditList"
       @delete-list="confirmDeleteList"
       @pin-list="toggleListPin"
@@ -1663,7 +1664,15 @@ function selectList(id: number) {
   view.value = 'list'
   activeListId.value = id
   quickSectionId.value = 0
-  if (lists.value.find((list) => list.id === id)?.kind === 'NOTE') mode.value = 'list'
+  const selected = lists.value.find((list) => list.id === id)
+  if (selected?.kind === 'NOTE') {
+    mode.value = 'list'
+    try {
+      localStorage.setItem('caldav-last-note-list', String(id))
+    } catch {
+      /* ignore */
+    }
+  }
   activeFilterId.value = 0
   activeTag.value = ''
   selectedId.value = 0
@@ -2204,11 +2213,43 @@ async function confirmCopyList() {
 async function createList(payload: { name: string; kind: 'TASK' | 'NOTE' }) {
   try {
     const color = LIST_COLORS[lists.value.length % LIST_COLORS.length]
-    await createTaskList(payload.name, color, 0, payload.kind)
+    const { list } = await createTaskList(payload.name, color, 0, payload.kind)
     await loadWorkspace(true)
+    if (payload.kind === 'NOTE') {
+      selectList(list.id)
+      focusQuick()
+    }
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建清单失败')
   }
+}
+
+async function createNote() {
+  let target = lists.value.find((list) => list.kind === 'NOTE' && list.id === activeListId.value)
+  if (!target) {
+    let saved = 0
+    try {
+      saved = Number(localStorage.getItem('caldav-last-note-list') || 0)
+    } catch {
+      /* ignore */
+    }
+    target = lists.value.find((list) => list.kind === 'NOTE' && list.id === saved && !list.isInbox)
+  }
+  if (!target) target = lists.value.find((list) => list.kind === 'NOTE' && !list.isInbox)
+  if (!target) {
+    try {
+      const color = LIST_COLORS[lists.value.length % LIST_COLORS.length]
+      const { list } = await createTaskList('笔记', color, 0, 'NOTE')
+      await loadWorkspace(true)
+      target = list
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : '创建笔记清单失败')
+      return
+    }
+  }
+  if (!target) return
+  selectList(target.id)
+  focusQuick()
 }
 
 function openEditList(list: TaskList) {
@@ -2833,6 +2874,7 @@ const paletteCommands = computed<PaletteCommand[]>(() => {
   }
   const rows: PaletteCommand[] = [
     { id: 'new-task', label: '新建任务', group: '操作', keys: [keyOf('newTask')].filter(Boolean) },
+    { id: 'new-note', label: '新建笔记', group: '操作', keys: [] },
     { id: 'search', label: '搜索任务', group: '操作', keys: [keyOf('search')].filter(Boolean) },
     { id: 'theme', label: '切换主题', group: '操作', keys: [] },
     { id: 'shortcuts', label: '快捷键', group: '帮助', keys: [keyOf('shortcutHelp')].filter(Boolean) },
@@ -2878,6 +2920,9 @@ function runPalette(id: string) {
   switch (id) {
     case 'new-task':
       return focusQuickAdd()
+    case 'new-note':
+      void createNote()
+      return
     case 'search':
       return toggleSearch()
     case 'theme':

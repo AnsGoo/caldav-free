@@ -14,28 +14,44 @@
     </div>
 
     <div v-if="pinnedLists.length || pinnedFilters.length" class="tw-pinned-strip">
-      <button
-        v-for="list in pinnedLists"
-        :key="`pinned-list-${list.id}`"
-        class="tw-pinned-item"
-        :class="{ active: activeListId === list.id }"
-        :title="`${list.name}（已置顶）`"
-        @click="$emit('select-list', list.id)"
-      >
-        <span class="tw-pinned-dot" :style="{ background: list.color || '#4772fa' }" />
-        <span class="tw-pinned-name">{{ list.name }}</span>
-      </button>
-      <button
-        v-for="filter in pinnedFilters"
-        :key="`pinned-filter-${filter.id}`"
-        class="tw-pinned-item"
-        :class="{ active: activeFilterId === filter.id }"
-        :title="`${filter.name}（已置顶）`"
-        @click="$emit('select-filter', filter.id)"
-      >
-        <TaskIcon name="filter" :size="14" />
-        <span class="tw-pinned-name">{{ filter.name }}</span>
-      </button>
+      <div v-for="list in pinnedLists" :key="`pinned-list-${list.id}`" class="tw-pinned-item-wrap">
+        <button
+          class="tw-pinned-item"
+          :class="{ active: activeListId === list.id }"
+          :title="`${list.name}（已置顶）`"
+          @click="$emit('select-list', list.id)"
+        >
+          <span class="tw-pinned-dot" :style="{ background: list.color || '#4772fa' }" />
+          <span class="tw-pinned-name">{{ list.name }}</span>
+        </button>
+        <button
+          class="tw-pinned-unpin"
+          title="取消置顶清单"
+          aria-label="取消置顶清单"
+          @click.stop="$emit('pin-list', list)"
+        >
+          <TaskIcon name="close" :size="11" />
+        </button>
+      </div>
+      <div v-for="filter in pinnedFilters" :key="`pinned-filter-${filter.id}`" class="tw-pinned-item-wrap">
+        <button
+          class="tw-pinned-item"
+          :class="{ active: activeFilterId === filter.id }"
+          :title="`${filter.name}（已置顶）`"
+          @click="$emit('select-filter', filter.id)"
+        >
+          <TaskIcon name="filter" :size="14" />
+          <span class="tw-pinned-name">{{ filter.name }}</span>
+        </button>
+        <button
+          class="tw-pinned-unpin"
+          title="取消置顶过滤器"
+          aria-label="取消置顶过滤器"
+          @click.stop="$emit('pin-filter', filter)"
+        >
+          <TaskIcon name="close" :size="11" />
+        </button>
+      </div>
     </div>
 
     <nav class="tw-smart-nav">
@@ -55,12 +71,77 @@
     <div class="tw-side-scroll">
       <section class="tw-side-section">
         <header class="tw-section-head">
-          <span>清单</span>
+          <span>笔记</span>
+          <span class="tw-section-actions">
+            <button class="tw-icon-button" aria-label="新建笔记清单" title="新建笔记清单" @click="startAddNoteList">
+              <TaskIcon name="note" :size="16" />
+            </button>
+            <button class="tw-icon-button" aria-label="新建笔记" title="新建笔记" @click="$emit('create-note')">
+              <TaskIcon name="plus" :size="16" />
+            </button>
+          </span>
+        </header>
+
+        <form v-if="addingNoteList" class="tw-new-list" @submit.prevent="submitNoteList">
+          <input
+            ref="noteNameInput"
+            v-model="newNoteListName"
+            class="tw-inline-input"
+            maxlength="40"
+            placeholder="笔记清单名称，回车创建"
+            @keydown.enter.prevent="submitNoteList"
+            @keydown.esc="cancelAddNoteList"
+            @blur="maybeCancelNoteList"
+          />
+        </form>
+
+        <ul v-if="customNoteLists.length" class="tw-list-nav">
+          <li v-for="list in customNoteLists" :key="`note-${list.id}`">
+            <button
+              class="tw-nav-item tw-list-item tw-list-note-item"
+              :class="{ active: activeListId === list.id }"
+              @click="$emit('select-list', list.id)"
+            >
+              <span class="tw-note-list-mark"><TaskIcon name="note" :size="14" /></span>
+              <span class="tw-nav-label">{{ list.name }}</span>
+              <span v-if="list.count" class="tw-nav-count">{{ list.count }}</span>
+            </button>
+            <div class="tw-list-actions">
+              <button
+                class="tw-icon-button"
+                :class="{ 'is-pinned': list.pinned }"
+                :title="list.pinned ? '取消置顶笔记清单' : '置顶笔记清单'"
+                @click.stop="$emit('pin-list', list)"
+              >
+                <TaskIcon name="pin" :size="14" />
+              </button>
+              <button class="tw-icon-button" title="编辑笔记清单" @click.stop="$emit('edit-list', list)">
+                <TaskIcon name="edit" :size="14" />
+              </button>
+              <button class="tw-icon-button" title="删除笔记清单" @click.stop="$emit('delete-list', list)">
+                <TaskIcon name="trash" :size="14" />
+              </button>
+            </div>
+          </li>
+        </ul>
+
+        <template v-else-if="!hasNoteLists">
+          <p class="tw-side-hint">新建笔记清单后，就可以开始记录想法和灵感。</p>
+          <button class="tw-side-note-create" @click="startAddNoteList">
+            <TaskIcon name="plus" :size="13" />
+            新建笔记清单
+          </button>
+        </template>
+      </section>
+
+      <section class="tw-side-section">
+        <header class="tw-section-head">
+          <span>任务清单</span>
           <span class="tw-section-actions">
             <button class="tw-icon-button" aria-label="新建文件夹" title="新建文件夹" @click="$emit('create-folder')">
               <TaskIcon name="folder" :size="16" />
             </button>
-            <button class="tw-icon-button" aria-label="新建清单" title="新建清单" @click="toggleAdd">
+            <button class="tw-icon-button" aria-label="新建任务清单" title="新建任务清单" @click="toggleAdd">
               <TaskIcon name="plus" :size="16" />
             </button>
           </span>
@@ -72,14 +153,11 @@
             v-model="newListName"
             class="tw-inline-input"
             maxlength="40"
-            placeholder="清单名称，回车创建"
+            placeholder="任务清单名称，回车创建"
+            @keydown.enter.prevent="submitList"
             @keydown.esc="cancelAdd"
             @blur="maybeCancel"
           />
-          <div class="tw-new-list-kinds">
-            <button type="button" :class="{ active: newListKind === 'TASK' }" @mousedown.prevent="newListKind = 'TASK'">任务清单</button>
-            <button type="button" :class="{ active: newListKind === 'NOTE' }" @mousedown.prevent="newListKind = 'NOTE'">笔记清单</button>
-          </div>
         </form>
 
         <ul class="tw-list-nav">
@@ -138,8 +216,8 @@
           </template>
         </ul>
 
-        <p v-if="!customLists.length && !pinnedLists.length" class="tw-side-hint">
-          用清单来分类收集、组织和管理你的任务与笔记。
+        <p v-if="!customTaskLists.length && !folders.length && !pinnedLists.length" class="tw-side-hint">
+          用清单来分类收集、组织和管理你的任务。
         </p>
       </section>
 
@@ -297,6 +375,7 @@ const emit = defineEmits<{
   (event: 'select-tag', tag: string): void
   (event: 'select-shared', listId: number): void
   (event: 'create-list', payload: { name: string; kind: 'TASK' | 'NOTE' }): void
+  (event: 'create-note'): void
   (event: 'edit-list', list: TaskList): void
   (event: 'delete-list', list: TaskList): void
   (event: 'pin-list', list: TaskList): void
@@ -320,19 +399,30 @@ const emit = defineEmits<{
 }>()
 
 const adding = ref(false)
+const addingNoteList = ref(false)
 const newListName = ref('')
-const newListKind = ref<'TASK' | 'NOTE'>('TASK')
+const newNoteListName = ref('')
 const nameInput = ref<HTMLInputElement | null>(null)
+const noteNameInput = ref<HTMLInputElement | null>(null)
 const collapsedFolders = ref(new Set<number>())
 const draggingFolderId = ref(0)
 const draggingListId = ref(0)
 const draggingFilterId = ref(0)
 
 const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
-const pinnedLists = computed(() => props.lists.filter((list) => list.pinned))
+const pinnedLists = computed(() => props.lists.filter((list) => list.pinned && list.kind !== 'NOTE'))
 const pinnedFilters = computed(() => props.filters.filter((filter) => filter.pinned))
 const unpinnedFilters = computed(() => props.filters.filter((filter) => !filter.pinned))
-const customLists = computed(() => props.lists.filter((list) => !list.isInbox && !list.pinned))
+const customTaskLists = computed(() =>
+  props.lists.filter((list) => !list.isInbox && !list.pinned && list.kind !== 'NOTE'),
+)
+const customNoteLists = computed(() =>
+  props.lists
+    .filter((list) => !list.isInbox && list.kind === 'NOTE')
+    .slice()
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+)
+const hasNoteLists = computed(() => props.lists.some((list) => !list.isInbox && list.kind === 'NOTE'))
 
 type ListRow =
   | { kind: 'folder'; key: string; folder: TaskFolder; count: number }
@@ -341,14 +431,14 @@ type ListRow =
 const listRows = computed<ListRow[]>(() => {
   const rows: ListRow[] = []
   for (const folder of props.folders) {
-    const lists = customLists.value.filter((list) => list.folderId === folder.id)
+    const lists = customTaskLists.value.filter((list) => list.folderId === folder.id)
     rows.push({ kind: 'folder', key: `folder-${folder.id}`, folder, count: lists.length })
     if (collapsedFolders.value.has(folder.id)) continue
     for (const list of lists) {
       rows.push({ kind: 'list', key: `list-${list.id}`, list, nested: true })
     }
   }
-  for (const list of customLists.value.filter((item) => item.folderId === 0)) {
+  for (const list of customTaskLists.value.filter((item) => item.folderId === 0)) {
     rows.push({ kind: 'list', key: `list-${list.id}`, list, nested: false })
   }
   return rows
@@ -384,8 +474,8 @@ function toggleFolder(id: number) {
 
 async function toggleAdd() {
   adding.value = true
+  addingNoteList.value = false
   newListName.value = ''
-  newListKind.value = 'TASK'
   await nextTick()
   nameInput.value?.focus()
 }
@@ -402,8 +492,32 @@ function maybeCancel() {
 function submitList() {
   const name = newListName.value.trim()
   if (!name) return cancelAdd()
-  emit('create-list', { name, kind: newListKind.value })
+  emit('create-list', { name, kind: 'TASK' })
   cancelAdd()
+}
+
+async function startAddNoteList() {
+  addingNoteList.value = true
+  adding.value = false
+  newNoteListName.value = ''
+  await nextTick()
+  noteNameInput.value?.focus()
+}
+
+function cancelAddNoteList() {
+  addingNoteList.value = false
+  newNoteListName.value = ''
+}
+
+function maybeCancelNoteList() {
+  if (!newNoteListName.value.trim()) cancelAddNoteList()
+}
+
+function submitNoteList() {
+  const name = newNoteListName.value.trim()
+  if (!name) return cancelAddNoteList()
+  emit('create-list', { name, kind: 'NOTE' })
+  cancelAddNoteList()
 }
 
 function startFolderDrag(id: number, event: DragEvent) {

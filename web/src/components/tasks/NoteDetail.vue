@@ -1,5 +1,16 @@
 <template>
-  <aside class="tw-detail tw-note-detail">
+  <aside class="tw-detail tw-note-detail" :style="{ '--tw-note-detail-width': `${panelWidth}px` }">
+    <div
+      class="tw-note-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="调整笔记编辑器宽度"
+      title="拖动调整宽度"
+      tabindex="0"
+      @pointerdown="startResize"
+      @keydown.left.prevent="resizeBy(24)"
+      @keydown.right.prevent="resizeBy(-24)"
+    />
     <header class="tw-detail-head">
       <div class="tw-detail-title">
         <span class="tw-detail-list">
@@ -81,6 +92,58 @@ const saving = ref(false)
 let timer: ReturnType<typeof setTimeout> | undefined
 let lastSaved = { title: props.task.title, notes: notes.value }
 
+const NOTE_MIN_WIDTH = 320
+const NOTE_MAX_WIDTH = 760
+
+function clampPanelWidth(value: number) {
+  const max = Math.min(NOTE_MAX_WIDTH, Math.max(NOTE_MIN_WIDTH, window.innerWidth - 320))
+  return Math.min(max, Math.max(NOTE_MIN_WIDTH, value))
+}
+
+function storedPanelWidth() {
+  try {
+    const value = Number(localStorage.getItem('caldav-note-detail-width'))
+    if (Number.isFinite(value) && value >= NOTE_MIN_WIDTH) return clampPanelWidth(value)
+  } catch {
+    /* ignore */
+  }
+  return 380
+}
+
+const panelWidth = ref(storedPanelWidth())
+
+function savePanelWidth() {
+  try {
+    localStorage.setItem('caldav-note-detail-width', String(panelWidth.value))
+  } catch {
+    /* ignore */
+  }
+}
+
+function resizeBy(delta: number) {
+  panelWidth.value = clampPanelWidth(panelWidth.value + delta)
+  savePanelWidth()
+}
+
+function startResize(event: PointerEvent) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  const startX = event.clientX
+  const startWidth = panelWidth.value
+  document.body.classList.add('tw-resizing')
+  const move = (moveEvent: PointerEvent) => {
+    panelWidth.value = clampPanelWidth(startWidth - (moveEvent.clientX - startX))
+  }
+  const stop = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+    document.body.classList.remove('tw-resizing')
+    savePanelWidth()
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop, { once: true })
+}
+
 const listName = computed(() => props.lists.find((list) => list.id === props.task.listId)?.name || props.task.listName || '笔记')
 const wordCount = computed(() => (markdownToPlain(notes.value).match(/[\u4e00-\u9fa5]|[A-Za-z0-9]+/g) || []).length)
 const modifiedLabel = computed(() => {
@@ -124,6 +187,7 @@ async function flush() {
 
 onBeforeUnmount(() => {
   if (timer) clearTimeout(timer)
+  document.body.classList.remove('tw-resizing')
   void flush()
 })
 </script>

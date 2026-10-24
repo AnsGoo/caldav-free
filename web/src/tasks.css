@@ -420,6 +420,46 @@
   flex: none;
 }
 
+.tw-note-list-mark {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tw-text-3);
+  flex: none;
+}
+
+.tw-nav-item.active .tw-note-list-mark {
+  color: var(--tw-accent);
+}
+
+.tw-list-note-item {
+  padding-right: 76px;
+}
+
+.tw-side-note-create {
+  width: calc(100% - 16px);
+  margin: 6px 8px 0;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px dashed var(--tw-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tw-text-3);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.tw-side-note-create:hover {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent-soft);
+  color: var(--tw-accent);
+}
+
 .tw-list-actions {
   position: absolute;
   right: 4px;
@@ -8087,6 +8127,16 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   margin-bottom: 4px;
 }
 
+.tw-pinned-item-wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+}
+
+.tw-pinned-item-wrap .tw-pinned-item {
+  padding-right: 26px;
+}
+
 .tw-pinned-item {
   display: inline-flex;
   align-items: center;
@@ -8100,6 +8150,35 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   color: var(--tw-text-2);
   cursor: pointer;
   font-size: 12px;
+}
+
+.tw-pinned-unpin {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--tw-text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.4;
+}
+
+.tw-pinned-item-wrap:hover .tw-pinned-unpin,
+.tw-pinned-item-wrap:focus-within .tw-pinned-unpin {
+  opacity: 1;
+}
+
+.tw-pinned-unpin:hover {
+  background: var(--tw-hover);
+  color: var(--tw-accent);
 }
 
 .tw-pinned-item:hover {
@@ -9041,29 +9120,6 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   border-top: 1px solid var(--tw-border);
 }
 
-.tw-new-list-kinds {
-  display: flex;
-  gap: 6px;
-  padding: 4px 8px 8px;
-}
-
-.tw-new-list-kinds button {
-  flex: 1;
-  height: 24px;
-  border: 1px solid var(--tw-border);
-  border-radius: 6px;
-  background: var(--tw-bg);
-  color: var(--tw-text-3);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.tw-new-list-kinds button.active {
-  border-color: var(--tw-accent);
-  background: var(--tw-accent-soft);
-  color: var(--tw-accent);
-}
-
 /* Compact calendar chrome for the split pane. */
 .tw-split-calendar .tw-calendar-head {
   flex-direction: column;
@@ -9477,4 +9533,65 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   font-size: 11px;
   color: var(--tw-text-3);
   letter-spacing: 0.04em;
+}
+
+/* Resizable note detail panel */
+.tw-note-detail {
+  width: var(--tw-note-detail-width, 380px);
+  flex: 0 0 var(--tw-note-detail-width, 380px);
+  min-width: 320px;
+  max-width: calc(100vw - 320px);
+  position: relative;
+}
+
+.tw-note-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 6px;
+  z-index: 8;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.tw-note-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.tw-note-resizer:hover::after,
+.tw-note-resizer:focus-visible::after {
+  background: var(--tw-accent);
+}
+
+body.tw-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+@media (max-width: 960px) {
+  .tw-note-detail {
+    width: min(430px, 100vw);
+    flex-basis: auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .tw-note-resizer {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .tw-note-detail {
+    width: 100vw;
+  }
 }

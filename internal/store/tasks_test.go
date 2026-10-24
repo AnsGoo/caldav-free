@@ -372,3 +372,45 @@ func TestDeleteNoteListKeepsNotesInNoteList(t *testing.T) {
 		t.Fatalf("restored note moved to non-note list: %+v", restoredList)
 	}
 }
+
+func TestNormalizeCrossKindTaskLists(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	inbox, err := s.EnsureInbox(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskList, err := s.CreateTaskListKind(ctx, userID, "任务区", "#ff0000", "TASK")
+	if err != nil {
+		t.Fatal(err)
+	}
+	noteList, err := s.CreateTaskListKind(ctx, userID, "笔记区", "#4772fa", "NOTE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: noteList.ID, Kind: "TASK", Title: "误入笔记"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: taskList.ID, Kind: "NOTE", Title: "误入任务"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := normalizeTaskListKinds(ctx, s.db.WithContext(ctx)); err != nil {
+		t.Fatal(err)
+	}
+	movedTask, err := s.GetTask(ctx, userID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if movedTask.ListID != inbox.ID {
+		t.Fatalf("task should return to inbox: %+v", movedTask)
+	}
+	movedNote, err := s.GetTask(ctx, userID, note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if movedNote.ListID != noteList.ID {
+		t.Fatalf("note should return to a note list: %+v", movedNote)
+	}
+}

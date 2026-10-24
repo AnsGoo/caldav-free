@@ -604,7 +604,7 @@
         </header>
         <div class="tw-dialog-body tw-move-list">
           <button
-            v-for="list in lists"
+            v-for="list in moveTargetLists"
             :key="list.id"
             class="tw-move-option"
             :class="{ active: moveTargetId === list.id }"
@@ -614,6 +614,7 @@
             <span>{{ list.name }}</span>
             <TaskIcon v-if="moveTargetId === list.id" name="check" :size="14" />
           </button>
+          <p v-if="!moveTargetLists.length" class="tw-dialog-hint">任务和笔记不能混合移动。</p>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="moveDialogOpen = false">取消</button>
@@ -3361,13 +3362,27 @@ function batchComplete() {
   void runBatch('complete')
 }
 
+const moveTargetLists = computed(() => {
+  const selected = tasks.value.filter((task) => selectedIds.value.has(task.id))
+  if (!selected.length) return []
+  const noteCount = selected.filter((task) => task.kind === 'NOTE').length
+  if (noteCount > 0 && noteCount !== selected.length) return []
+  const wantNoteLists = noteCount > 0
+  return lists.value.filter((list) => (list.kind === 'NOTE') === wantNoteLists)
+})
+
 function openMoveDialog() {
-  moveTargetId.value = activeListId.value || inboxId.value
+  const options = moveTargetLists.value
+  moveTargetId.value = options.find((list) => list.id === activeListId.value)?.id || options[0]?.id || 0
   moveDialogOpen.value = true
+  if (!options.length) Message.info('任务和笔记不能混合移动')
 }
 
 function batchMove() {
-  if (!moveTargetId.value) return
+  if (!moveTargetId.value) {
+    Message.info('请选择目标清单')
+    return
+  }
   void runBatch('move', moveTargetId.value)
 }
 

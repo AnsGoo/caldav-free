@@ -1038,3 +1038,66 @@ func TestMarkdownNote(t *testing.T) {
 		t.Fatalf("markdown note search results = %+v", ws.Tasks)
 	}
 }
+
+func TestRejectCrossKindListMoves(t *testing.T) {
+	env := newAPIEnv(t)
+	createList := func(name, kind string) int64 {
+		status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{"name": name, "kind": kind}, env.csrf)
+		if status != http.StatusCreated {
+			t.Fatalf("create list %s = %d: %s", name, status, body)
+		}
+		return decode[struct {
+			List struct {
+				ID int64 `json:"id"`
+			} `json:"list"`
+		}](t, body).List.ID
+	}
+	taskListID := createList("任务区", "TASK")
+	noteListID := createList("笔记区", "NOTE")
+
+	createTask := func(title string, listID int64, kind string) int64 {
+		payload := map[string]any{"title": title, "listId": listID}
+		if kind != "" {
+			payload["kind"] = kind
+		}
+		status, body := env.request(t, "POST", "/api/admin/tasks", payload, env.csrf)
+		if status != http.StatusCreated {
+			t.Fatalf("create %s = %d: %s", title, status, body)
+		}
+		return decode[taskResponse](t, body).Task.ID
+	}
+	taskID := createTask("普通任务", taskListID, "")
+	noteID := createTask("普通笔记", noteListID, "")
+
+	status, body := env.request(t, "PATCH", "/api/admin/tasks/"+itoa(taskID), map[string]any{"listId": noteListID}, env.csrf)
+	if status != http.StatusBadRequest {
+		t.Fatalf("move task into note list = %d: %s", status, body)
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(noteID), map[string]any{"listId": taskListID}, env.csrf)
+	if status != http.StatusBadRequest {
+		t.Fatalf("move note into task list = %d: %s", status, body)
+	}
+	status, body = env.request(t, "POST", "/api/admin/tasks/batch", map[string]any{
+		"ids": []int64{taskID}, "action": "move", "listId": noteListID,
+	}, env.csrf)
+	if status != http.StatusBadRequest {
+		t.Fatalf("batch move task into note list = %d: %s", status, body)
+	}
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "显式错误任务", "listId": noteListID, "kind": "TASK",
+	}, env.csrf)
+	if status != http.StatusBadRequest {
+		t.Fatalf("create task in note list = %d: %s", status, body)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "无清单笔记", "kind": "NOTE",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note without list = %d: %s", status, body)
+	}
+	created := decode[taskResponse](t, body)
+	if created.Task.Kind != "NOTE" || created.Task.ListID != noteListID {
+		t.Fatalf("note should be placed in the note list: %+v", created.Task)
+	}
+}

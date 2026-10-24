@@ -172,10 +172,12 @@ type TaskCounts struct {
 
 // EnsureInbox returns the user's inbox list, creating it when missing.
 func (s *Store) EnsureInbox(ctx context.Context, userID int64) (*TaskList, error) {
+	return ensureInboxList(s.db.WithContext(ctx), userID)
+}
+
+func ensureInboxList(db *gorm.DB, userID int64) (*TaskList, error) {
 	var list TaskList
-	err := s.db.WithContext(ctx).
-		Where("user_id = ? AND is_inbox = ?", userID, true).
-		First(&list).Error
+	err := db.Where("user_id = ? AND is_inbox = ?", userID, true).First(&list).Error
 	if err == nil {
 		return &list, nil
 	}
@@ -183,12 +185,10 @@ func (s *Store) EnsureInbox(ctx context.Context, userID int64) (*TaskList, error
 		return nil, fmt.Errorf("load inbox: %w", err)
 	}
 	list = TaskList{UserID: userID, Name: "收集箱", Color: "#4772fa", Kind: "TASK", IsInbox: true, Order: 0}
-	if err := s.db.WithContext(ctx).Create(&list).Error; err != nil {
+	if err := db.Create(&list).Error; err != nil {
 		// Another request may have created the inbox concurrently.
 		var existing TaskList
-		if findErr := s.db.WithContext(ctx).
-			Where("user_id = ? AND is_inbox = ?", userID, true).
-			First(&existing).Error; findErr == nil {
+		if findErr := db.Where("user_id = ? AND is_inbox = ?", userID, true).First(&existing).Error; findErr == nil {
 			return &existing, nil
 		}
 		return nil, fmt.Errorf("create inbox: %w", err)
@@ -319,6 +319,16 @@ func (s *Store) DeleteTaskList(ctx context.Context, userID, id int64) error {
 		}
 		return nil
 	})
+}
+
+func taskKindMatchesListKind(taskKind, listKind string) bool {
+	return (taskKind == "NOTE") == (listKind == "NOTE")
+}
+
+// EnsureNoteFallbackList returns a note list for callers that need to place a
+// note without an explicit note-list target.
+func (s *Store) EnsureNoteFallbackList(ctx context.Context, userID int64) (*TaskList, error) {
+	return ensureNoteFallbackList(s.db.WithContext(ctx), userID, 0)
 }
 
 // ensureNoteFallbackList returns another note list for notes that would
@@ -522,6 +532,46 @@ func backfillTaskNotesText(ctx context.Context, db *gorm.DB) error {
 			}
 		}
 	}
+}
+
+// normalizeTaskListKinds repairs rows that were moved across task/note list
+// boundaries before the API rejected those moves. Tasks return to the inbox;
+// notes return to a note list (created when the user has none).
+func normalizeTaskListKinds(ctx context.Context, db *gorm.DB) error {
+	var tasks []*Task
+	err := db.WithContext(ctx).
+		Joins("JOIN task_lists ON task_lists.id = tasks.list_id").
+		Where("tasks.deleted = ?", false).
+		Where("(tasks.kind = ? AND task_lists.kind <> ?) OR (tasks.kind <> ? AND task_lists.kind = ?)", "NOTE", "NOTE", "NOTE", "NOTE").
+		Find(&tasks).Error
+	if err != nil {
+		return fmt.Errorf("find cross-kind tasks: %w", err)
+	}
+	for _, task := range tasks {
+		targetID := int64(0)
+		if task.Kind == "NOTE" {
+			fallback, err := ensureNoteFallbackList(db.WithContext(ctx), task.UserID, 0)
+			if err != nil {
+				return err
+			}
+			targetID = fallback.ID
+		} else {
+			inbox, err := ensureInboxList(db.WithContext(ctx), task.UserID)
+			if err != nil {
+				return err
+			}
+			targetID = inbox.ID
+		}
+		updates := map[string]any{"list_id": targetID, "section_id": 0}
+		if task.Kind != "NOTE" {
+			updates["sync_pending"] = true
+		}
+		if err := db.WithContext(ctx).Model(&Task{}).Where("id = ? AND user_id = ?", task.ID, task.UserID).
+			Updates(updates).Error; err != nil {
+			return fmt.Errorf("normalize task list kind: %w", err)
+		}
+	}
+	return nil
 }
 
 func normalizeTaskNotes(task *Task) error {
@@ -852,7 +902,8 @@ func (s *Store) RestoreTask(ctx context.Context, userID, id int64) (*Task, error
 		return nil, fmt.Errorf("get trashed task: %w", err)
 	}
 	listID := task.ListID
-	if _, err := s.GetTaskList(ctx, userID, listID); err != nil {
+	list, listErr := s.GetTaskList(ctx, userID, listID)
+	if listErr != nil || !taskKindMatchesListKind(task.Kind, list.Kind) {
 		if task.Kind == "NOTE" {
 			fallback, fallbackErr := ensureNoteFallbackList(s.db.WithContext(ctx), userID, 0)
 			if fallbackErr != nil {

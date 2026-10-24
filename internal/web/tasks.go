@@ -484,6 +484,17 @@ func normalizeTaskKind(raw string) (string, error) {
 	}
 }
 
+func taskKindMatchesList(taskKind, listKind string) bool {
+	return (taskKind == "NOTE") == (listKind == "NOTE")
+}
+
+func crossKindMoveError(taskKind string) string {
+	if taskKind == "NOTE" {
+		return "笔记只能放入笔记清单"
+	}
+	return "任务不能放入笔记清单"
+}
+
 func clearNoteSchedule(task *store.Task) {
 	task.StartAt = nil
 	task.DueAt = nil
@@ -684,6 +695,32 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		task.NotesFormat = format
 	}
+	if !taskKindMatchesList(kind, listKind) {
+		explicitTarget := (body.ListID != nil && *body.ListID > 0) || (body.ParentID != nil && *body.ParentID > 0)
+		if explicitTarget {
+			writeAPIError(w, http.StatusBadRequest, crossKindMoveError(kind))
+			return
+		}
+		if kind == "NOTE" {
+			fallback, err := s.store.EnsureNoteFallbackList(ctx, current.ID)
+			if err != nil {
+				s.apiServerError(w, err)
+				return
+			}
+			task.ListID = fallback.ID
+			task.SectionID = 0
+			listKind = "NOTE"
+		} else {
+			inbox, err := s.store.EnsureInbox(ctx, current.ID)
+			if err != nil {
+				s.apiServerError(w, err)
+				return
+			}
+			task.ListID = inbox.ID
+			task.SectionID = 0
+			listKind = "TASK"
+		}
+	}
 	task.Kind = kind
 	if kind == "NOTE" {
 		clearNoteSchedule(task)
@@ -826,8 +863,16 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.Title != nil {
 		task.Title = strings.TrimSpace(*body.Title)
 	}
-	if body.ListID != nil && *body.ListID > 0 {
-		task.ListID = *body.ListID
+	targetListKind := list.Kind
+	explicitList := body.ListID != nil && *body.ListID > 0
+	if explicitList {
+		targetList, err := s.store.GetTaskList(ctx, current.ID, *body.ListID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "目标清单不存在")
+			return
+		}
+		targetListKind = targetList.Kind
+		task.ListID = targetList.ID
 	}
 	if body.Notes != nil {
 		task.Notes = *body.Notes
@@ -957,6 +1002,28 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if task.Kind == "" {
 		task.Kind = "TASK"
+	}
+	if !taskKindMatchesList(task.Kind, targetListKind) {
+		if explicitList {
+			writeAPIError(w, http.StatusBadRequest, crossKindMoveError(task.Kind))
+			return
+		}
+		if task.Kind == "NOTE" {
+			fallback, err := s.store.EnsureNoteFallbackList(ctx, current.ID)
+			if err != nil {
+				s.apiServerError(w, err)
+				return
+			}
+			task.ListID = fallback.ID
+		} else {
+			inbox, err := s.store.EnsureInbox(ctx, current.ID)
+			if err != nil {
+				s.apiServerError(w, err)
+				return
+			}
+			task.ListID = inbox.ID
+		}
+		task.SectionID = 0
 	}
 	if body.NotesFormat != nil {
 		format := strings.ToLower(strings.TrimSpace(*body.NotesFormat))
@@ -1283,13 +1350,26 @@ func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, "无效的批量操作")
 		return
 	}
+	ctx := r.Context()
+	targetListKind := ""
 	if body.Action == "move" {
-		if _, err := s.store.GetTaskList(r.Context(), current.ID, body.ListID); err != nil {
+		targetList, err := s.store.GetTaskList(ctx, current.ID, body.ListID)
+		if err != nil {
 			writeAPIError(w, http.StatusBadRequest, "目标清单不存在")
 			return
 		}
+		targetListKind = targetList.Kind
+		for _, id := range body.IDs {
+			task, err := s.store.GetTask(ctx, current.ID, id)
+			if err != nil {
+				continue
+			}
+			if !taskKindMatchesList(task.Kind, targetListKind) {
+				writeAPIError(w, http.StatusBadRequest, "任务和笔记不能混合移动，或目标清单类型不匹配")
+				return
+			}
+		}
 	}
-	ctx := r.Context()
 	seen := make(map[int64]bool, len(body.IDs))
 	updated := 0
 	for _, id := range body.IDs {

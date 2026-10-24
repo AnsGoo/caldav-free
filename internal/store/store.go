@@ -210,6 +210,10 @@ func Open(path string) (*Store, error) {
 		sqlDB.Close()
 		return nil, fmt.Errorf("backfill task notes: %w", err)
 	}
+	if err := normalizeTaskListKinds(ctx, db); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("normalize task list kinds: %w", err)
+	}
 	if path != ":memory:" && !strings.HasPrefix(path, "file:") {
 		// The database contains credentials and calendar data.
 		_ = os.Chmod(path, 0o600)

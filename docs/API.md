@@ -285,6 +285,7 @@ docker run -d --name caldav \
 - 过滤器日期条件支持 `any`、`today`、`tomorrow`、`next7`、`overdue`、`none`、`yesterday`、`thisWeek`、`lastWeek`、`thisMonth`、`lastMonth`、`range`。
 - `range` 使用 `dateFrom` / `dateTo`（`YYYY-MM-DD`，含首尾），可只传一端。
 - 创建清单可传 `kind: "NOTE"`；在笔记清单中创建任务默认 `kind: "NOTE"`，服务端会忽略日期、提醒、重复和完成态。
+- 任务只能移动到任务清单，笔记只能移动到笔记清单；跨类型移动返回 400。创建笔记不传 `listId` 时会自动放入笔记清单。
 - PATCH 任务传 `{"kind":"NOTE"}` 可把任务转换为笔记，并删除对应 VTODO；笔记不参与 VTODO 同步。
 - 笔记提交 Markdown 内容并传 `{"notesFormat":"markdown"}`；服务端按 Markdown 原文保存，并维护 `notesText` 搜索镜像。
 - 旧版 HTML 笔记仍可传 `notesFormat="html"`，服务端会按白名单清洗；前端打开时会转换为 Markdown。

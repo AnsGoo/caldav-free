@@ -529,8 +529,23 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
       "name": "工作矩阵",
       "mode": "custom",
       "rules": {
-        "q1": { "name": "立即去做", "color": "#e5484d", "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
-        "q2": { "name": "计划推进", "color": "#f2a900", "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+        "q1": {
+          "name": "立即去做",
+          "color": "#e5484d",
+          "match": "any",
+          "groups": [
+            { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
+            { "priorities": [], "due": "any", "listId": 0, "tag": "工作", "assignee": "" }
+          ]
+        },
+        "q2": {
+          "name": "计划推进",
+          "color": "#f2a900",
+          "match": "all",
+          "groups": [
+            { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" }
+          ]
+        },
         "q3": {},
         "q4": {}
       },
@@ -547,8 +562,23 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
   "name": "工作矩阵",
   "mode": "custom",
   "rules": {
-    "q1": { "name": "立即去做", "color": "#e5484d", "priorities": [3], "due": "urgent", "listId": 0, "tag": "工作", "assignee": "" },
-    "q2": { "name": "计划推进", "color": "#f2a900", "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+    "q1": {
+      "name": "立即去做",
+      "color": "#e5484d",
+      "match": "any",
+      "groups": [
+        { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
+        { "priorities": [], "due": "any", "listId": 0, "tag": "工作", "assignee": "" }
+      ]
+    },
+    "q2": {
+      "name": "计划推进",
+      "color": "#f2a900",
+      "match": "all",
+      "groups": [
+        { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" }
+      ]
+    },
     "q3": {},
     "q4": {}
   }
@@ -557,9 +587,16 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 `mode` 为 `simple`、`complex` 或 `custom`。`rules` 仅在自定义模式使用，保存后原样返回。
 
-日期条件：`any`、`urgent`、`overdue`、`today`、`tomorrow`、`next7`、`later`、`none`。未填写的象限字段按任意处理；未匹配任何规则的任务归入 Q4。
+每个象限包含：
 
-`name` 和 `color` 为象限显示名称与十六进制颜色，可省略，省略时使用内置名称/颜色。
+- `match`：`all` 表示满足全部条件组，`any` 表示满足任一条件组。
+- `groups`：条件组数组，最多 12 组；每组内部各字段之间为 AND。
+- `name` / `color`：象限显示名称与十六进制颜色，可省略。
+- 条件组字段：`priorities`（0–3 数组）、`due`、`listId`、`tag`、`assignee`。
+
+日期条件：`any`、`urgent`、`overdue`、`today`、`tomorrow`、`next7`、`later`、`none`。空的 `groups` 或空条件组按任意条件处理；未匹配任何规则的任务归入 Q4。
+
+旧版平铺条件（直接写 `priorities`、`due` 等字段）仍可读取，前端会将其自动迁移为单个条件组。
 
 ### PATCH /api/admin/task-matrix-views/{id}
 
@@ -568,8 +605,14 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
   "name": "工作矩阵",
   "mode": "custom",
   "rules": {
-    "q1": { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
-    "q2": { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" },
+    "q1": {
+      "match": "any",
+      "groups": [
+        { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
+        { "priorities": [], "due": "any", "listId": 0, "tag": "工作", "assignee": "" }
+      ]
+    },
+    "q2": { "match": "all", "groups": [{ "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" }] },
     "q3": {},
     "q4": {}
   },

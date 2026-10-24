@@ -31,7 +31,7 @@ func (s *Store) ListMatrixViews(ctx context.Context, userID int64) ([]*MatrixVie
 }
 
 // DefaultMatrixRulesJSON mirrors the built-in "important + urgent" split.
-const DefaultMatrixRulesJSON = `{"q1":{"name":"重要且紧急","color":"#ff5f68","priorities":[2,3],"due":"urgent"},"q2":{"name":"重要不紧急","color":"#ffb000","priorities":[2,3],"due":"any"},"q3":{"name":"不重要但紧急","color":"#4772fa","priorities":[0,1],"due":"urgent"},"q4":{"name":"不重要不紧急","color":"#0cce9c","priorities":[],"due":"any"}}`
+const DefaultMatrixRulesJSON = `{"q1":{"name":"重要且紧急","color":"#ff5f68","match":"all","groups":[{"priorities":[2,3],"due":"urgent"}]},"q2":{"name":"重要不紧急","color":"#ffb000","match":"all","groups":[{"priorities":[2,3],"due":"any"}]},"q3":{"name":"不重要但紧急","color":"#4772fa","match":"all","groups":[{"priorities":[0,1],"due":"urgent"}]},"q4":{"name":"不重要不紧急","color":"#0cce9c","match":"all","groups":[{}]}}`
 
 func (s *Store) CreateMatrixView(ctx context.Context, userID int64, name, mode, rules string) (*MatrixView, error) {
 	name = strings.TrimSpace(name)

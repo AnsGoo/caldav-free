@@ -6115,3 +6115,57 @@ button.tw-side-link {
   border: 0;
   border-radius: 999px;
 }
+
+.tw-matrix-rule-match {
+  height: 24px;
+  flex: none;
+  max-width: 136px;
+  border: 1px solid var(--tw-border);
+  border-radius: 6px;
+  padding: 0 6px;
+  color: var(--tw-text-2);
+  background: var(--tw-bg);
+  font-size: 10.5px;
+}
+
+.tw-matrix-condition-group + .tw-matrix-condition-group {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--tw-border);
+}
+
+.tw-matrix-condition-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+}
+
+.tw-matrix-condition-head button {
+  color: var(--tw-danger);
+  background: transparent;
+  font-size: 10.5px;
+}
+
+.tw-matrix-add-group {
+  margin-top: 9px;
+  width: 100%;
+  border: 1px dashed var(--tw-border);
+  border-radius: 7px;
+  padding: 5px 8px;
+  color: var(--tw-text-3);
+  background: transparent;
+  font-size: 10.5px;
+}
+
+.tw-matrix-add-group:hover:not(:disabled) {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+}
+
+.tw-matrix-add-group:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

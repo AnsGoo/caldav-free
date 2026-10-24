@@ -156,14 +156,19 @@ export interface SavedFilter {
 export type MatrixRuleMode = 'simple' | 'complex' | 'custom'
 export type MatrixDueRule = 'any' | 'urgent' | 'overdue' | 'today' | 'tomorrow' | 'next7' | 'later' | 'none'
 
-export interface MatrixQuadrantRule {
-  name: string
-  color: string
+export interface MatrixCondition {
   priorities: number[]
   due: MatrixDueRule
   listId: number
   tag: string
   assignee: string
+}
+
+export interface MatrixQuadrantRule {
+  name: string
+  color: string
+  match: 'all' | 'any'
+  groups: MatrixCondition[]
 }
 
 export type MatrixQuadrantKey = 'q1' | 'q2' | 'q3' | 'q4'

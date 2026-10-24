@@ -33,7 +33,11 @@ func (s *Server) spaHandler() http.Handler {
 		if rel != "" && !strings.Contains(rel, "..") {
 			if data, err := fs.ReadFile(sub, rel); err == nil {
 				if ext := path.Ext(rel); ext != "" {
-					if ct := mime.TypeByExtension(ext); ct != "" {
+					ct := mime.TypeByExtension(ext)
+					if ext == ".webmanifest" {
+						ct = "application/manifest+json"
+					}
+					if ct != "" {
 						w.Header().Set("Content-Type", ct)
 					}
 				}

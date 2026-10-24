@@ -17,3 +17,9 @@ setUnauthorizedHandler(() => {
 await bootstrapAuth()
 
 createApp(App).use(ArcoVue).use(router).mount('#app')
+
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  void navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(() => {
+    // Offline shell is optional; the admin app still works without it.
+  })
+}

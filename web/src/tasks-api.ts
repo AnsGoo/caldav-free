@@ -1,4 +1,4 @@
-import { api, apiForm } from './api'
+import { api, apiForm, getCSRFToken, notifyUnauthorized } from './api'
 import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
@@ -665,4 +665,58 @@ export function createTaskTemplate(name: string, payload: string) {
 
 export function deleteTaskTemplate(id: number) {
   return api<void>(`/task-templates/${id}`, { method: 'DELETE' })
+}
+
+export async function streamAIChat(
+  messages: Array<{ role: string; content: string }>,
+  timezone: string,
+  model: string | undefined,
+  onDelta: (text: string) => void,
+  onDone: (reply: AIChatReply) => void,
+) {
+  const response = await fetch('/api/admin/tasks/ai/chat/stream', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(getCSRFToken() ? { 'X-CSRF-Token': getCSRFToken() } : {}),
+    },
+    body: JSON.stringify({ messages, timezone, model }),
+  })
+  if (response.status === 401) notifyUnauthorized()
+  if (!response.ok) {
+    const text = await response.text()
+    let message = `请求失败（${response.status}）`
+    try {
+      const payload = JSON.parse(text) as { error?: string }
+      if (payload.error) message = payload.error
+    } catch {
+      if (text.trim()) message = text.trim().slice(0, 300)
+    }
+    throw new Error(message)
+  }
+  if (!response.body) throw new Error('当前浏览器不支持流式响应')
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    let boundary = buffer.indexOf('\n\n')
+    while (boundary >= 0) {
+      const block = buffer.slice(0, boundary)
+      buffer = buffer.slice(boundary + 2)
+      for (const line of block.split('\n')) {
+        if (!line.startsWith('data:')) continue
+        const data = line.slice(5).trim()
+        if (!data) continue
+        const event = JSON.parse(data) as { type?: string; text?: string; error?: string } & AIChatReply
+        if (event.type === 'delta' && event.text) onDelta(event.text)
+        else if (event.type === 'error') throw new Error(event.error || 'AI 请求失败')
+        else if (event.type === 'done') onDone(event)
+      }
+      boundary = buffer.indexOf('\n\n')
+    }
+  }
 }

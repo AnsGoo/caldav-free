@@ -56,7 +56,7 @@
         </div>
       </div>
 
-      <div v-if="sending" class="tw-ai-message assistant">
+      <div v-if="sending && !streaming" class="tw-ai-message assistant">
         <div class="tw-ai-bubble tw-ai-thinking">
           <i /><i /><i />
         </div>
@@ -196,8 +196,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { AIChatMessage, AISettings } from '../../types'
-import { fetchAIModels, fetchAISettings, saveAISettings, sendAIChat, testAIModel } from '../../tasks-api'
+import type { AIChatMessage, AIChatReply, AISettings } from '../../types'
+import { fetchAIModels, fetchAISettings, saveAISettings, streamAIChat, testAIModel } from '../../tasks-api'
 import { browserTimezone } from '../../tasks-api'
 import { modelCapabilityLabels, modelOptionLabel, modelProfile, sortModels } from '../../ai-models'
 import TaskIcon from './TaskIcon.vue'
@@ -211,6 +211,7 @@ const quickPrompts = ['今天有哪些任务？', '创建一个明天下午 3 �
 const messages = ref<AIChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
+const streaming = ref(false)
 const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', models: [], recentModels: [], modelStats: {}, hasKey: false, configured: false })
 const settingsOpen = ref(false)
 const settingsBusy = ref(false)
@@ -337,13 +338,17 @@ async function send(text?: string) {
   await nextTick()
   growInput()
   sending.value = true
+  streaming.value = false
   scrollBottom()
-  try {
-    const history = messages.value
-      .filter((item) => !item.error)
-      .slice(-20)
-      .map((item) => ({ role: item.role, content: item.content }))
-    const reply = await sendAIChat(history, browserTimezone(), chatModel.value || settings.value.model)
+  let assistantIndex = -1
+  const ensureAssistant = () => {
+    if (assistantIndex < 0) {
+      messages.value.push({ role: 'assistant', content: '', actions: [] })
+      assistantIndex = messages.value.length - 1
+    }
+    return messages.value[assistantIndex]
+  }
+  const applyReply = (reply: AIChatReply) => {
     if (reply.recentModels) settings.value.recentModels = reply.recentModels
     if (reply.modelStats) settings.value.modelStats = reply.modelStats
     if (reply.fallbackFrom) {
@@ -351,17 +356,38 @@ async function send(text?: string) {
       onChatModelChange()
       Message.warning(`模型 ${reply.fallbackFrom} 调用失败，已自动切换到 ${reply.model}`)
     }
-    const actions = reply.actions.filter((action) => !reply.message.includes(action.label))
-    messages.value.push({ role: 'assistant', content: reply.message, actions })
+    const message = ensureAssistant()
+    if (!message.content.trim() && reply.message) message.content = reply.message
+    const actions = reply.actions.filter((action) => !message.content.includes(action.label))
+    if (actions.length) message.actions = actions
     if (reply.actions.length) emit('tasks-changed')
+  }
+  const history = messages.value
+    .filter((item) => !item.error && item.content.trim())
+    .slice(-20)
+    .map((item) => ({ role: item.role, content: item.content }))
+  try {
+    await streamAIChat(
+      history,
+      browserTimezone(),
+      chatModel.value || settings.value.model,
+      (text) => {
+        streaming.value = true
+        const message = ensureAssistant()
+        message.content += text
+        scrollBottom()
+      },
+      applyReply,
+    )
   } catch (error) {
     messages.value.push({
       role: 'assistant',
-      content: error instanceof Error ? error.message : 'AI 请求失败',
+      content: error instanceof Error ? error.message : (streaming.value ? 'AI 流式响应中断' : 'AI 请求失败'),
       error: true,
     })
   } finally {
     sending.value = false
+    streaming.value = false
     scrollBottom()
   }
 }

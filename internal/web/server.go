@@ -189,6 +189,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/tasks/ai/models", s.apiAdmin(s.apiAIModels))
 	mux.HandleFunc("POST /api/admin/tasks/ai/test", s.apiAdmin(s.apiAITestModel))
 	mux.HandleFunc("POST /api/admin/tasks/ai/chat", s.apiAdmin(s.apiAIChat))
+	mux.HandleFunc("POST /api/admin/tasks/ai/chat/stream", s.apiAdmin(s.apiAIChatStream))
 	mux.HandleFunc("POST /api/admin/tasks/batch", s.apiAdmin(s.apiBatchTasks))
 	mux.HandleFunc("POST /api/admin/tasks/reorder", s.apiAdmin(s.apiReorderTasks))
 	mux.HandleFunc("POST /api/admin/tasks/{id}/restore", s.apiAdmin(s.apiRestoreTask))

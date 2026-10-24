@@ -150,3 +150,32 @@ func TestAISettingsUpdateMasksKey(t *testing.T) {
 		t.Fatalf("unexpected settings: %+v", settings)
 	}
 }
+
+func TestCallAIStream(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"你\"}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"好\"}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"list_\",\"arguments\":\"{\\\"view\\\":\"}}]}}]}\n\n"))
+		_, _ = w.Write([]byte("data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"name\":\"tasks\",\"arguments\":\"\\\"today\\\"}\"}}]}}]}\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	defer upstream.Close()
+	config := aiConfig{BaseURL: upstream.URL + "/v1", Model: "stream-model"}
+	var delta strings.Builder
+	reply, err := (&Server{}).callAIStream(context.Background(), config, []aiChatMessage{{Role: "user", Content: "hi"}}, nil, func(text string) {
+		delta.WriteString(text)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reply.Content != "你好" || delta.String() != "你好" {
+		t.Fatalf("content = %q, delta = %q", reply.Content, delta.String())
+	}
+	if len(reply.ToolCalls) != 1 || reply.ToolCalls[0].Function.Name != "list_tasks" || reply.ToolCalls[0].Function.Arguments != `{"view":"today"}` {
+		t.Fatalf("tool calls = %+v", reply.ToolCalls)
+	}
+	if reply.ToolCalls[0].ID != "call_1" {
+		t.Fatalf("tool call id = %q", reply.ToolCalls[0].ID)
+	}
+}

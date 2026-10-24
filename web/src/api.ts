@@ -13,6 +13,14 @@ export function setCSRF(token: string) {
   csrfToken = token
 }
 
+export function getCSRFToken() {
+  return csrfToken
+}
+
+export function notifyUnauthorized() {
+  unauthorizedHandler?.()
+}
+
 export function setUnauthorizedHandler(handler: () => void) {
   unauthorizedHandler = handler
 }

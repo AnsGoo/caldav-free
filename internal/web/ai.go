@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -645,7 +646,15 @@ func (s *Server) aiTools() []aiToolDef {
 	}
 }
 
-func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *store.User, sess *session) {
+	s.aiChat(w, r, current, sess, false)
+}
+
+func (s *Server) apiAIChatStream(w http.ResponseWriter, r *http.Request, current *store.User, sess *session) {
+	s.aiChat(w, r, current, sess, true)
+}
+
+func (s *Server) aiChat(w http.ResponseWriter, r *http.Request, current *store.User, _ *session, stream bool) {
 	var body struct {
 		Messages []struct {
 			Role    string `json:"role"`
@@ -730,6 +739,39 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 		return
 	}
 
+	var flusher http.Flusher
+	sendEvent := func(eventType string, payload map[string]any) {
+		if !stream {
+			return
+		}
+		payload["type"] = eventType
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return
+		}
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+	fail := func(status int, message string) {
+		if stream && flusher != nil {
+			sendEvent("error", map[string]any{"error": message})
+			return
+		}
+		writeAPIError(w, status, message)
+	}
+	if stream {
+		var ok bool
+		flusher, ok = w.(http.Flusher)
+		if !ok {
+			writeAPIError(w, http.StatusInternalServerError, "当前服务器不支持流式响应")
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		w.Header().Set("X-Accel-Buffering", "no")
+		sendEvent("meta", map[string]any{"model": config.Model})
+	}
 	tools := s.aiTools()
 	actions := make([]aiAction, 0, 2)
 	var finalText string
@@ -740,9 +782,20 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 		var reply aiChatMessage
 		var err error
 		attempted := []string{}
+		streamed := false
 		for index, candidate := range fallbackCandidates {
 			config.Model = candidate
-			reply, err = s.callAI(ctx, config, messages, tools)
+			if stream {
+				reply, err = s.callAIStream(ctx, config, messages, tools, func(text string) {
+					if text == "" {
+						return
+					}
+					streamed = true
+					sendEvent("delta", map[string]any{"text": text})
+				})
+			} else {
+				reply, err = s.callAI(ctx, config, messages, tools)
+			}
 			if err == nil {
 				if index > 0 && fallbackFromModel == "" {
 					fallbackFromModel = fallbackCandidates[0]
@@ -752,7 +805,7 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 				break
 			}
 			attempted = append(attempted, candidate)
-			if round > 0 || len(actions) > 0 {
+			if streamed || round > 0 || len(actions) > 0 {
 				break
 			}
 		}
@@ -764,7 +817,7 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 			if len(attempted) > 1 {
 				prefix = "AI 请求失败（已尝试 " + strings.Join(attempted, "、") + "）："
 			}
-			writeAPIError(w, http.StatusBadGateway, prefix+err.Error())
+			fail(http.StatusBadGateway, prefix+err.Error())
 			return
 		}
 		if len(reply.ToolCalls) == 0 {
@@ -812,7 +865,144 @@ func (s *Server) apiAIChat(w http.ResponseWriter, r *http.Request, current *stor
 	if fallbackFrom != "" {
 		payload["fallbackFrom"] = fallbackFrom
 	}
+	if stream {
+		sendEvent("done", payload)
+		return
+	}
 	writeAPIJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) callAIStream(ctx context.Context, config aiConfig, messages []aiChatMessage, tools []aiToolDef, onDelta func(string)) (aiChatMessage, error) {
+	endpoint := strings.TrimRight(config.BaseURL, "/")
+	if !strings.HasSuffix(endpoint, "/chat/completions") {
+		endpoint += "/chat/completions"
+	}
+	payload := map[string]any{
+		"model":       config.Model,
+		"messages":    messages,
+		"temperature": 0.3,
+		"stream":      true,
+	}
+	if len(tools) > 0 {
+		payload["tools"] = tools
+		payload["tool_choice"] = "auto"
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return aiChatMessage{}, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(encoded))
+	if err != nil {
+		return aiChatMessage{}, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	if config.APIKey != "" {
+		request.Header.Set("Authorization", "Bearer "+config.APIKey)
+	}
+	client := &http.Client{Timeout: 90 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		return aiChatMessage{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+		message := strings.TrimSpace(string(data))
+		if len(message) > 300 {
+			message = message[:300]
+		}
+		return aiChatMessage{}, fmt.Errorf("HTTP %d: %s", response.StatusCode, message)
+	}
+	type streamTool struct {
+		id   string
+		name string
+		args strings.Builder
+	}
+	reply := aiChatMessage{Role: "assistant"}
+	var content strings.Builder
+	toolsByIndex := map[int]*streamTool{}
+	scanner := bufio.NewScanner(response.Body)
+	scanner.Buffer(make([]byte, 64*1024), 2<<20)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content   string `json:"content"`
+					ToolCalls []struct {
+						Index    int    `json:"index"`
+						ID       string `json:"id"`
+						Type     string `json:"type"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+				} `json:"delta"`
+			} `json:"choices"`
+			Error *struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+		if chunk.Error != nil && chunk.Error.Message != "" {
+			return aiChatMessage{}, fmt.Errorf("%s", chunk.Error.Message)
+		}
+		for _, choice := range chunk.Choices {
+			if choice.Delta.Content != "" {
+				content.WriteString(choice.Delta.Content)
+				if onDelta != nil {
+					onDelta(choice.Delta.Content)
+				}
+			}
+			for _, call := range choice.Delta.ToolCalls {
+				item := toolsByIndex[call.Index]
+				if item == nil {
+					item = &streamTool{}
+					toolsByIndex[call.Index] = item
+				}
+				if call.ID != "" {
+					item.id = call.ID
+				}
+				if call.Function.Name != "" {
+					item.name += call.Function.Name
+				}
+				item.args.WriteString(call.Function.Arguments)
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return aiChatMessage{}, err
+	}
+	reply.Content = content.String()
+	if len(toolsByIndex) > 0 {
+		indexes := make([]int, 0, len(toolsByIndex))
+		for index := range toolsByIndex {
+			indexes = append(indexes, index)
+		}
+		sort.Ints(indexes)
+		for _, index := range indexes {
+			item := toolsByIndex[index]
+			call := aiToolCall{ID: item.id, Type: "function"}
+			call.Function.Name = item.name
+			call.Function.Arguments = item.args.String()
+			if call.ID == "" {
+				call.ID = fmt.Sprintf("call_%d", index)
+			}
+			reply.ToolCalls = append(reply.ToolCalls, call)
+		}
+	}
+	return reply, nil
 }
 
 func (s *Server) callAI(ctx context.Context, config aiConfig, messages []aiChatMessage, tools []aiToolDef) (aiChatMessage, error) {

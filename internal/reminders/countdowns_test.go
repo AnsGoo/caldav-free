@@ -24,10 +24,14 @@ func TestCountdownInAppReminder(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now()
-	date, _ := strconv.Atoi(now.Format("20060102"))
+	loc, err := time.LoadLocation(store.DefaultTimezone)
+	if err != nil {
+		t.Fatal(err)
+	}
+	date, _ := strconv.Atoi(now.In(loc).Format("20060102"))
 	_, err = st.CreateCountdown(context.Background(), &store.CountdownEvent{
 		UserID: user.ID, Name: "今天发布", Type: "countdown", Date: date,
-		Reminders: "[0]", ReminderTime: now.Add(-time.Minute).Format("15:04"), Repeat: "none",
+		Reminders: "[0]", ReminderTime: now.In(loc).Add(-time.Minute).Format("15:04"), Repeat: "none",
 	})
 	if err != nil {
 		t.Fatal(err)

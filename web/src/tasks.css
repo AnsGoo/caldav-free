@@ -7872,3 +7872,49 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-habit-exdate-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .tw-habit-exdate-chips button { height: 24px; display: inline-flex; align-items: center; gap: 4px; padding: 0 8px; border: 1px solid var(--tw-border); border-radius: 999px; background: var(--tw-bg); color: var(--tw-text-2); font-size: 10px; cursor: pointer; }
 .tw-habit-exdate-chips button:hover { border-color: var(--tw-danger); color: var(--tw-danger); }
+
+.tw-habit-day.partial {
+  position: relative;
+  border-color: transparent;
+  background: conic-gradient(var(--tw-accent) calc(var(--habit-progress, 0) * 1%), var(--tw-surface) 0);
+  color: var(--tw-accent);
+}
+.tw-habit-day.partial::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--tw-bg);
+}
+.tw-habit-day.partial span { position: relative; z-index: 1; }
+.tw-habit-day.partial:hover { background: conic-gradient(var(--tw-accent) calc(var(--habit-progress, 0) * 1%), var(--tw-hover) 0); }
+.tw-habit-checkin-preview { display: flex; align-items: center; gap: 14px; padding: 4px 0 14px; }
+.tw-habit-checkin-ring {
+  width: 78px;
+  height: 78px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  position: relative;
+  border-radius: 50%;
+  background: conic-gradient(var(--tw-accent) calc(var(--habit-progress, 0) * 1%), var(--tw-surface) 0);
+}
+.tw-habit-checkin-ring::before { content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--tw-bg); }
+.tw-habit-checkin-ring > div { position: relative; z-index: 1; display: flex; align-items: baseline; gap: 2px; color: var(--tw-text); }
+.tw-habit-checkin-ring strong { font-size: 23px; font-weight: 650; letter-spacing: -0.04em; }
+.tw-habit-checkin-ring small { color: var(--tw-text-3); font-size: 10px; }
+.tw-habit-checkin-preview > div:last-child { display: grid; gap: 3px; }
+.tw-habit-checkin-preview > div:last-child strong { color: var(--tw-text-2); font-size: 12px; }
+.tw-habit-checkin-preview > div:last-child span { color: var(--tw-text-3); font-size: 10px; }
+.tw-habit-checkin-stepper { display: flex; align-items: center; gap: 7px; }
+.tw-habit-checkin-stepper input { flex: 1; text-align: center; }
+.tw-habit-checkin-stepper button { height: 32px; min-width: 42px; padding: 0 8px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-bg); color: var(--tw-text-2); font-size: 11px; cursor: pointer; }
+.tw-habit-checkin-stepper button:hover { border-color: var(--tw-accent); color: var(--tw-accent); }
+.tw-habit-checkin-quick { display: flex; gap: 7px; margin-top: 8px; }
+.tw-habit-checkin-quick button { flex: 1; height: 30px; border: 1px solid var(--tw-border); border-radius: 8px; background: transparent; color: var(--tw-text-3); font-size: 10.5px; cursor: pointer; }
+.tw-habit-checkin-quick button.accent { border-color: var(--tw-accent); color: var(--tw-accent); background: var(--tw-accent-soft); }
+.tw-habit-checkin-quick button:hover { border-color: var(--tw-accent); color: var(--tw-accent); }
+
+.tw-habit-day.blocked,
+.tw-habit-calendar-day.blocked { opacity: .25; cursor: not-allowed; }
+.tw-habit-day.blocked:hover { border-color: var(--tw-border); background: transparent; }

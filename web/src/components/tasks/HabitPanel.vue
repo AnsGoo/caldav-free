@@ -68,9 +68,10 @@
                   v-for="day in weekDays"
                   :key="day.stamp"
                   class="tw-habit-day"
-                  :class="{ done: isDone(habit.id, day.stamp), partial: isPartial(habit.id, day.stamp), today: day.isToday, future: day.future }"
-                  :disabled="day.future"
-                  :title="day.future ? '未来日期不能打卡' : `${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
+                  :style="{ '--habit-progress': checkinPercent(habit, day.stamp) }"
+                  :class="{ done: isDone(habit.id, day.stamp), partial: isPartial(habit.id, day.stamp), today: day.isToday, future: day.future, blocked: isHabitBlocked(habit, day.stamp) }"
+                  :disabled="isHabitBlocked(habit, day.stamp)"
+                  :title="isHabitBlocked(habit, day.stamp) ? '该日期不可打卡' : `${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
                   @click.stop="startCheckin(habit, day.stamp)"
                 >
                   <TaskIcon v-if="isDone(habit.id, day.stamp) && habit.style !== 'icon'" name="check" :size="11" />
@@ -138,9 +139,9 @@
               v-for="cell in calendarCells"
               :key="cell.stamp"
               class="tw-habit-calendar-day"
-              :class="{ muted: !cell.currentMonth, done: cell.done, partial: cell.partial, today: cell.isToday, future: cell.future }"
-              :title="cell.dateLabel"
-              @click="!cell.future && startCheckin(selectedHabit, cell.stamp)"
+              :class="{ muted: !cell.currentMonth, done: cell.done, partial: cell.partial, today: cell.isToday, future: cell.future, blocked: cell.blocked }"
+              :title="cell.blocked ? `${cell.dateLabel} · 不可打卡` : cell.dateLabel"
+              @click="!cell.blocked && startCheckin(selectedHabit, cell.stamp)"
             >
               <span v-if="cell.done && selectedHabit.style === 'icon'" class="tw-habit-day-emoji">{{ selectedHabit.icon }}</span>
               <template v-else>{{ cell.day }}</template>
@@ -355,8 +356,25 @@
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true">
         <header class="tw-dialog-head"><h2>记录打卡</h2></header>
         <div class="tw-dialog-body">
-          <p class="tw-modal-note">{{ checkinDialog.habit.name }} · 目标 {{ checkinDialog.habit.goal }} 次</p>
-          <input v-model.number="checkinDialog.value" type="number" min="0" step="1" class="tw-dialog-input" />
+          <p class="tw-modal-note">{{ checkinDialog.habit.name }} · {{ formatStamp(checkinDialog.stamp) }}</p>
+          <div class="tw-habit-checkin-preview">
+            <div class="tw-habit-checkin-ring" :style="{ '--habit-progress': checkinDialogPercent }">
+              <div><strong>{{ checkinDialog.value }}</strong><small>/ {{ checkinDialog.habit.goal }}</small></div>
+            </div>
+            <div>
+              <strong>{{ checkinDialogPercent >= 100 ? '已完成今日目标' : `还差 ${Math.max(0, checkinDialog.habit.goal - checkinDialog.value)} ${checkinDialog.habit.unit === 'Count' ? '次' : checkinDialog.habit.unit}` }}</strong>
+              <span>每次打卡 +{{ checkinDialog.habit.step || 1 }}</span>
+            </div>
+          </div>
+          <div class="tw-habit-checkin-stepper">
+            <button type="button" @click="adjustCheckin(-(checkinDialog.habit.step || 1))">−{{ checkinDialog.habit.step || 1 }}</button>
+            <input v-model.number="checkinDialog.value" type="number" min="0" step="1" class="tw-dialog-input" />
+            <button type="button" @click="adjustCheckin(checkinDialog.habit.step || 1)">+{{ checkinDialog.habit.step || 1 }}</button>
+          </div>
+          <div class="tw-habit-checkin-quick">
+            <button type="button" @click="checkinDialog.value = 0">清零</button>
+            <button type="button" class="accent" @click="checkinDialog.value = checkinDialog.habit.goal">完成目标</button>
+          </div>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="checkinDialog = null">取消</button>
@@ -467,6 +485,11 @@ const dialogOpen = ref(false)
 const editingHabitId = ref(0)
 const busy = ref(false)
 const checkinDialog = ref<{ habit: HabitItem; stamp: number; value: number } | null>(null)
+const checkinDialogPercent = computed(() => {
+  const dialog = checkinDialog.value
+  if (!dialog) return 0
+  return Math.min(100, Math.max(0, Math.round((dialog.value / Math.max(1, dialog.habit.goal)) * 100)))
+})
 const logComposerOpen = ref(false)
 const logContent = ref('')
 const logTarget = ref<{ habit: HabitItem; stamp: number } | null>(null)
@@ -561,6 +584,7 @@ const calendarCells = computed(() => {
       partial: Boolean(checkin && checkin.value > 0 && !isCheckinDone(checkin)),
       isToday: stamp === today,
       future: stamp > today,
+      blocked: !selectedHabit.value || isHabitBlocked(selectedHabit.value, stamp),
     }
   })
 })
@@ -610,6 +634,17 @@ function formatStamp(stamp: number) {
 
 function checkinFor(habitId: number, stamp: number) {
   return (checkins.value[String(habitId)] || []).find((item) => item.checkinStamp === stamp)
+}
+
+function checkinPercent(habit: HabitItem, stamp: number) {
+  return Math.min(100, Math.max(0, Math.round((checkinValue(habit.id, stamp) / Math.max(1, habit.goal)) * 100)))
+}
+
+function adjustCheckin(delta: number) {
+  const dialog = checkinDialog.value
+  if (!dialog) return
+  const goal = Math.max(1, dialog.habit.goal)
+  dialog.value = Math.min(goal, Math.max(0, Math.round((dialog.value || 0) + delta)))
 }
 
 function checkinValue(habitId: number, stamp: number) {
@@ -758,9 +793,15 @@ async function saveHabit() {
   }
 }
 
+function isHabitBlocked(habit: HabitItem, stamp: number) {
+  if (stamp > stampOf(new Date())) return true
+  if (habit.startDate > 0 && stamp < habit.startDate) return true
+  return safeParse<number[]>(habit.exDates, []).includes(stamp)
+}
+
 function startCheckin(habit: HabitItem, stamp: number) {
-  if (stamp > stampOf(new Date())) {
-    Message.info('未来日期不能打卡')
+  if (isHabitBlocked(habit, stamp)) {
+    Message.info('该日期不可打卡')
     return
   }
   if (habit.goal > 1) {

@@ -1365,8 +1365,10 @@ create_list
 ```
 
 `type`：`anniversary`、`countdown`、`birthday`、`festival`
+`calendar`：`solar`、`lunar`
 `repeat`：`none`、`yearly`、`monthly`、`weekly`、`weekend`
 `reminderTime`：`HH:mm`，默认 `09:00`
+`lunarMonth` / `lunarDay` / `lunarLeap`：农历日期字段
 
 ### PATCH /api/admin/countdowns/{id}
 

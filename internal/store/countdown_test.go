@@ -70,6 +70,16 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 	if weekly.State != "future" || weekly.Days < 1 || weekly.Days > 7 {
 		t.Fatalf("unexpected weekly occurrence: %+v", weekly)
 	}
+	lunar, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "中秋", Type: "festival", Date: stampOf(now), Calendar: "lunar",
+		LunarMonth: 8, LunarDay: 15, Repeat: "yearly",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lunar.Calendar != "lunar" || lunar.LunarMonth != 8 || lunar.LunarDay != 15 || lunar.State == "past" {
+		t.Fatalf("unexpected lunar countdown: %+v", lunar)
+	}
 	weekend, err := s.CreateCountdown(ctx, &CountdownEvent{
 		UserID: userID, Name: "周末", Type: "festival", Date: stampOf(now), Repeat: "weekend",
 	})

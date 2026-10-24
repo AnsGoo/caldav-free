@@ -780,6 +780,10 @@ export interface CountdownItem {
   name: string
   type: CountdownType
   date: number
+  calendar: 'solar' | 'lunar'
+  lunarMonth: number
+  lunarDay: number
+  lunarLeap: boolean
   icon: string
   color: string
   style: 'normal' | 'color' | 'soft' | 'outline'
@@ -806,6 +810,10 @@ export interface CountdownDraft {
   name: string
   type: CountdownType
   date: number
+  calendar: 'solar' | 'lunar'
+  lunarMonth: number
+  lunarDay: number
+  lunarLeap: boolean
   icon: string
   color: string
   style: 'normal' | 'color' | 'soft' | 'outline'

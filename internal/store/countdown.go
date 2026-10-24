@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	lunarcalendar "github.com/6tail/lunar-go/calendar"
 	"gorm.io/gorm"
 )
 
@@ -19,6 +20,10 @@ type CountdownEvent struct {
 	Name              string    `gorm:"size:64;not null" json:"name"`
 	Type              string    `gorm:"size:20;not null;default:'countdown'" json:"type"`
 	Date              int       `gorm:"not null" json:"date"`
+	Calendar          string    `gorm:"size:10;not null;default:'solar'" json:"calendar"`
+	LunarMonth        int       `gorm:"not null;default:0" json:"lunarMonth"`
+	LunarDay          int       `gorm:"not null;default:0" json:"lunarDay"`
+	LunarLeap         bool      `gorm:"not null;default:false" json:"lunarLeap"`
 	Icon              string    `gorm:"size:40;not null;default:'⏳'" json:"icon"`
 	Color             string    `gorm:"size:20;not null;default:'#92D0FF'" json:"color"`
 	Style             string    `gorm:"size:20;not null;default:'normal'" json:"style"`
@@ -49,6 +54,10 @@ type CountdownPatch struct {
 	Name              *string `json:"name"`
 	Type              *string `json:"type"`
 	Date              *int    `json:"date"`
+	Calendar          *string `json:"calendar"`
+	LunarMonth        *int    `json:"lunarMonth"`
+	LunarDay          *int    `json:"lunarDay"`
+	LunarLeap         *bool   `json:"lunarLeap"`
 	Icon              *string `json:"icon"`
 	Color             *string `json:"color"`
 	Style             *string `json:"style"`
@@ -117,6 +126,18 @@ func (s *Store) UpdateCountdown(ctx context.Context, userID, id int64, patch *Co
 		}
 		if patch.Date != nil {
 			event.Date = *patch.Date
+		}
+		if patch.Calendar != nil {
+			event.Calendar = *patch.Calendar
+		}
+		if patch.LunarMonth != nil {
+			event.LunarMonth = *patch.LunarMonth
+		}
+		if patch.LunarDay != nil {
+			event.LunarDay = *patch.LunarDay
+		}
+		if patch.LunarLeap != nil {
+			event.LunarLeap = *patch.LunarLeap
 		}
 		if patch.Icon != nil {
 			event.Icon = *patch.Icon
@@ -200,6 +221,27 @@ func normalizeCountdown(event *CountdownEvent) error {
 	if _, ok := parseCountdownDate(event.Date); !ok {
 		return fmt.Errorf("日期无效")
 	}
+	if event.Calendar != "lunar" {
+		event.Calendar = "solar"
+		event.LunarMonth = 0
+		event.LunarDay = 0
+		event.LunarLeap = false
+	} else {
+		if event.LunarMonth == 0 || event.LunarDay == 0 {
+			parsed, _ := parseCountdownDate(event.Date)
+			fromSolar := lunarcalendar.NewLunarFromSolar(lunarcalendar.NewSolarFromDate(parsed))
+			month := fromSolar.GetMonth()
+			event.LunarLeap = month < 0
+			if month < 0 {
+				month = -month
+			}
+			event.LunarMonth = month
+			event.LunarDay = fromSolar.GetDay()
+		}
+		if event.LunarMonth < 1 || event.LunarMonth > 12 || event.LunarDay < 1 || event.LunarDay > 30 {
+			return fmt.Errorf("农历日期无效")
+		}
+	}
 	if event.Icon == "" {
 		event.Icon = "⏳"
 	}
@@ -258,7 +300,11 @@ func countdownItem(event *CountdownEvent, now time.Time) *CountdownItem {
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	original, _ := parseCountdownDate(event.Date)
 	occurrence := original
-	if event.Repeat != "none" {
+	if event.Calendar == "lunar" && event.Repeat == "yearly" {
+		if next, ok := nextLunarCountdown(event, today); ok {
+			occurrence = next
+		}
+	} else if event.Repeat != "none" {
 		occurrence = nextCountdownDate(original, event.Repeat, today)
 	}
 	item := &CountdownItem{
@@ -291,6 +337,25 @@ func parseCountdownDate(value int) (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return parsed, true
+}
+
+func nextLunarCountdown(event *CountdownEvent, today time.Time) (time.Time, bool) {
+	month := event.LunarMonth
+	if event.LunarLeap {
+		month = -month
+	}
+	if month == 0 || event.LunarDay == 0 {
+		return time.Time{}, false
+	}
+	for year := today.Year() - 1; year <= today.Year()+2; year++ {
+		lunar := lunarcalendar.NewLunarFromYmd(year, month, event.LunarDay)
+		solar := lunar.GetSolar()
+		candidate := time.Date(solar.GetYear(), time.Month(solar.GetMonth()), solar.GetDay(), 0, 0, 0, 0, today.Location())
+		if !candidate.Before(today) {
+			return candidate, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func nextCountdownDate(original time.Time, repeat string, today time.Time) time.Time {

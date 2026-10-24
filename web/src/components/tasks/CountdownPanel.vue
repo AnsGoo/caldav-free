@@ -35,6 +35,10 @@
         class="tw-countdown-card"
         :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past' }]"
         :style="cardStyle(item)"
+        role="button"
+        tabindex="0"
+        @click="detailItem = item"
+        @keydown.enter="detailItem = item"
       >
         <div class="tw-countdown-card-pin" v-if="item.pinned"><TaskIcon name="flag" :size="13" /></div>
         <header>
@@ -50,7 +54,8 @@
           <template v-else-if="item.state === 'future'">距离 {{ formatDate(item.occurrenceDate, item.dateDisplayFormat) }} 还有</template>
           <template v-else>距离 {{ formatDate(item.date, item.dateDisplayFormat) }} 已经</template>
         </p>
-        <p v-if="item.type === 'birthday' && item.showAge && item.age" class="tw-countdown-age">{{ item.age }} 岁</p>
+        <p v-if="item.type === 'birthday' && item.showAge && item.age && item.calendar === 'solar'" class="tw-countdown-age">{{ item.age }} 岁</p>
+        <p v-if="item.calendar === 'lunar'" class="tw-countdown-lunar-label">农历 {{ lunarLabel(item) }}</p>
         <footer v-if="!archived" class="tw-countdown-card-actions">
           <button class="tw-icon-button" :title="item.pinned ? '取消置顶' : '置顶'" @click.stop="togglePin(item)"><TaskIcon name="flag" :size="14" /></button>
           <button class="tw-icon-button" title="编辑" @click.stop="openEdit(item)"><TaskIcon name="edit" :size="14" /></button>
@@ -63,6 +68,40 @@
           <button class="tw-icon-button danger" title="删除" @click.stop="deleteItem(item)"><TaskIcon name="trash" :size="14" /></button>
         </footer>
       </article>
+    </div>
+
+    <div v-if="detailItem" class="tw-dialog-scrim" @click.self="detailItem = null">
+      <div class="tw-dialog tw-countdown-detail" role="dialog" aria-modal="true">
+        <header class="tw-dialog-head">
+          <h2>{{ detailItem.name }}</h2>
+          <button class="tw-icon-button" title="关闭" @click="detailItem = null"><TaskIcon name="close" :size="16" /></button>
+        </header>
+        <div class="tw-countdown-detail-body" :style="cardStyle(detailItem)">
+          <div class="tw-countdown-detail-icon" :style="{ backgroundColor: detailItem.color }">{{ detailItem.icon || '⏳' }}</div>
+          <div class="tw-countdown-detail-number" :class="detailItem.state">
+            {{ detailItem.state === 'today' ? '今天' : detailItem.days }}
+          </div>
+          <p class="tw-countdown-detail-date">
+            <template v-if="detailItem.state === 'today'">{{ formatDate(detailItem.occurrenceDate, detailItem.dateDisplayFormat) }}</template>
+            <template v-else-if="detailItem.state === 'future'">距离 {{ formatDate(detailItem.occurrenceDate, detailItem.dateDisplayFormat) }} 还有</template>
+            <template v-else>距离 {{ formatDate(detailItem.date, detailItem.dateDisplayFormat) }} 已经</template>
+          </p>
+          <p v-if="detailItem.calendar === 'lunar'" class="tw-countdown-detail-lunar">农历 {{ lunarLabel(detailItem) }}<span v-if="detailItem.lunarLeap"> · 闰月</span></p>
+          <p v-if="detailItem.type === 'birthday' && detailItem.showAge && detailItem.age && detailItem.calendar === 'solar'" class="tw-countdown-detail-age">{{ detailItem.age }} 岁</p>
+          <div v-if="detailItem.remark" class="tw-countdown-detail-note">{{ detailItem.remark }}</div>
+          <div class="tw-countdown-detail-reminders">
+            <span>{{ reminderSummary(detailItem) }}</span>
+            <small>{{ detailItem.reminderTime || '09:00' }}</small>
+          </div>
+        </div>
+        <footer class="tw-dialog-foot tw-countdown-detail-foot">
+          <button class="tw-dialog-cancel" @click="detailItem = null">关闭</button>
+          <button v-if="!archived" class="tw-ghost-button" @click="editFromDetail">编辑</button>
+          <button v-if="!archived" class="tw-danger-link" @click="archiveFromDetail">归档</button>
+          <button v-else class="tw-ghost-button" @click="restoreFromDetail">恢复</button>
+          <button class="tw-danger-link" @click="deleteFromDetail">删除</button>
+        </footer>
+      </div>
     </div>
 
     <div v-if="dialogOpen" class="tw-dialog-scrim" @click.self="dialogOpen = false">
@@ -82,11 +121,23 @@
           <div class="tw-countdown-presets">
             <span>快速添加</span>
             <button v-for="preset in festivalPresets" :key="preset.name" class="tw-countdown-preset" @click="applyPreset(preset)">{{ preset.icon }} {{ preset.name }}</button>
+            <button v-for="preset in lunarFestivalPresets" :key="preset.name" class="tw-countdown-preset lunar" @click="applyLunarPreset(preset)">{{ preset.icon }} {{ preset.name }}</button>
             <button class="tw-countdown-preset weekend" @click="applyWeekend">🏖️ 周末</button>
           </div>
-          <div class="tw-countdown-form-grid">
+          <div class="tw-countdown-calendar-switch">
+            <span>历法</span>
+            <button :class="{ active: form.calendar === 'solar' }" @click="setCalendar('solar')">公历</button>
+            <button :class="{ active: form.calendar === 'lunar' }" @click="setCalendar('lunar')">农历</button>
+          </div>
+          <div v-if="form.calendar === 'solar'" class="tw-countdown-form-grid">
             <label class="tw-countdown-field"><span>日期</span><a-date-picker v-model="form.date" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" /></label>
             <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="none">不重复</option><option value="yearly">每年</option><option value="monthly">每月</option><option value="weekly">每周</option><option value="weekend">每个周末</option></select></label>
+          </div>
+          <div v-else class="tw-countdown-form-grid lunar">
+            <label class="tw-countdown-field"><span>农历月份</span><select v-model.number="form.lunarMonth" class="tw-field-select"><option v-for="month in 12" :key="month" :value="month">{{ lunarMonthLabel(month) }}</option></select></label>
+            <label class="tw-countdown-field"><span>农历日期</span><select v-model.number="form.lunarDay" class="tw-field-select"><option v-for="day in 30" :key="day" :value="day">{{ lunarDayLabel(day) }}</option></select></label>
+            <label class="tw-countdown-check"><input v-model="form.lunarLeap" type="checkbox" /><span>闰月</span></label>
+            <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="yearly">每年</option><option value="none">不重复</option></select></label>
           </div>
           <div class="tw-countdown-form-grid">
             <label class="tw-countdown-field"><span>显示格式</span><select v-model="form.dateDisplayFormat" class="tw-field-select"><option value="day">标准</option><option value="full">完整日期</option></select></label>
@@ -159,6 +210,15 @@ const festivalPresets = [
   { name: '国庆节', month: 10, day: 1, icon: '🇨🇳', color: '#FF8F9C' },
   { name: '圣诞节', month: 12, day: 25, icon: '🎄', color: '#97E38B' },
 ]
+const lunarFestivalPresets = [
+  { name: '春节', lunarMonth: 1, lunarDay: 1, icon: '🧧', color: '#FF8F9C' },
+  { name: '元宵节', lunarMonth: 1, lunarDay: 15, icon: '🏮', color: '#FDB368' },
+  { name: '端午节', lunarMonth: 5, lunarDay: 5, icon: '🐉', color: '#97E38B' },
+  { name: '中秋节', lunarMonth: 8, lunarDay: 15, icon: '🌕', color: '#F4C95D' },
+  { name: '重阳节', lunarMonth: 9, lunarDay: 9, icon: '🍁', color: '#B58BFF' },
+]
+const lunarMonths = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月']
+const lunarDays = ['初一', '初二', '初三', '初四', '初五', '初六', '初七', '初八', '初九', '初十', '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十', '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十']
 const emojis = ['⏳', '🎂', '🎉', '💍', '🏖️', '🎓', '🏆', '❤️', '🌸', '📅']
 
 const items = ref<CountdownItem[]>([])
@@ -167,12 +227,17 @@ const archived = ref(false)
 const filter = ref<'all' | CountdownType>('all')
 const viewMenuOpen = ref(false)
 const dialogOpen = ref(false)
+const detailItem = ref<CountdownItem | null>(null)
 const editingId = ref(0)
 const saving = ref(false)
 const form = reactive({
   name: '',
   type: 'countdown' as CountdownType,
   date: '',
+  calendar: 'solar' as 'solar' | 'lunar',
+  lunarMonth: 1,
+  lunarDay: 1,
+  lunarLeap: false,
   icon: '⏳',
   color: colors[0],
   style: 'normal' as 'normal' | 'color' | 'soft' | 'outline',
@@ -194,6 +259,41 @@ function dateInput(date: Date) {
 
 function stampDate(value: string) {
   return Number(value.replaceAll('-', ''))
+}
+
+function reminderSummary(item: CountdownItem) {
+  const offsets = parseReminders(item.reminders)
+  if (!offsets.length) return '未设置提醒'
+  const labels: Record<number, string> = { 0: '当天', 1: '提前 1 天', 3: '提前 3 天', 7: '提前 7 天' }
+  return offsets.map((offset) => labels[offset] || `提前 ${offset} 天`).join('、')
+}
+
+function editFromDetail() {
+  if (!detailItem.value) return
+  const item = detailItem.value
+  detailItem.value = null
+  openEdit(item)
+}
+
+async function archiveFromDetail() {
+  if (!detailItem.value) return
+  const item = detailItem.value
+  detailItem.value = null
+  await archiveItem(item)
+}
+
+async function restoreFromDetail() {
+  if (!detailItem.value) return
+  const item = detailItem.value
+  detailItem.value = null
+  await restoreItem(item)
+}
+
+function deleteFromDetail() {
+  if (!detailItem.value) return
+  const item = detailItem.value
+  detailItem.value = null
+  deleteItem(item)
 }
 
 function formatDate(stamp: number, display: 'day' | 'full' = 'day') {
@@ -242,6 +342,10 @@ function resetForm() {
   form.name = ''
   form.type = 'countdown'
   form.date = dateInput(new Date(Date.now() + 10 * 86400000))
+  form.calendar = 'solar'
+  form.lunarMonth = 1
+  form.lunarDay = 1
+  form.lunarLeap = false
   form.icon = '⏳'
   form.color = colors[0]
   form.style = 'normal'
@@ -266,6 +370,10 @@ function openEdit(item: CountdownItem) {
   form.name = item.name
   form.type = item.type
   form.date = `${String(item.date).slice(0, 4)}-${String(item.date).slice(4, 6)}-${String(item.date).slice(6, 8)}`
+  form.calendar = item.calendar || 'solar'
+  form.lunarMonth = item.lunarMonth || 1
+  form.lunarDay = item.lunarDay || 1
+  form.lunarLeap = item.lunarLeap || false
   form.icon = item.icon
   form.color = item.color
   form.style = item.style
@@ -284,6 +392,23 @@ function openNote(item: CountdownItem) {
   openEdit(item)
 }
 
+function setCalendar(calendar: 'solar' | 'lunar') {
+  form.calendar = calendar
+  if (calendar === 'lunar') form.repeat = 'yearly'
+}
+
+function lunarMonthLabel(month: number) {
+  return lunarMonths[month - 1] || ''
+}
+
+function lunarDayLabel(day: number) {
+  return lunarDays[day - 1] || ''
+}
+
+function lunarLabel(item: CountdownItem) {
+  return `${lunarMonthLabel(item.lunarMonth)}${lunarDayLabel(item.lunarDay)}`
+}
+
 function nextFestivalDate(month: number, day: number) {
   const now = new Date()
   let date = new Date(now.getFullYear(), month - 1, day)
@@ -296,6 +421,20 @@ function applyPreset(preset: { name: string; month: number; day: number; icon: s
   form.name = preset.name
   form.type = 'festival'
   form.date = nextFestivalDate(preset.month, preset.day)
+  form.repeat = 'yearly'
+  form.icon = preset.icon
+  form.color = preset.color
+  form.calendar = 'solar'
+}
+
+function applyLunarPreset(preset: { name: string; lunarMonth: number; lunarDay: number; icon: string; color: string }) {
+  form.name = preset.name
+  form.type = 'festival'
+  form.calendar = 'lunar'
+  form.lunarMonth = preset.lunarMonth
+  form.lunarDay = preset.lunarDay
+  form.lunarLeap = false
+  form.date = dateInput(new Date())
   form.repeat = 'yearly'
   form.icon = preset.icon
   form.color = preset.color
@@ -312,6 +451,7 @@ function applyWeekend() {
   form.repeat = 'weekend'
   form.icon = '🏖️'
   form.color = '#92D0FF'
+  form.calendar = 'solar'
 }
 
 function cycleIcon() {
@@ -324,6 +464,10 @@ function payload(): CountdownDraft {
     name: form.name.trim(),
     type: form.type,
     date: stampDate(form.date),
+    calendar: form.calendar,
+    lunarMonth: form.lunarMonth,
+    lunarDay: form.lunarDay,
+    lunarLeap: form.lunarLeap,
     icon: form.icon,
     color: form.color,
     style: form.style,

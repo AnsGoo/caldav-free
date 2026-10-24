@@ -287,6 +287,8 @@ name:   任务
 - `/tasks/countdown` 使用 `CountdownPanel`，按类型筛选并支持记录中/已归档视图。
 - `countdown_events` 保存名称、类型、`YYYYMMDD` 日期、图标/颜色/样式、备注、提醒偏移、重复规则和置顶/归档状态。
 - 服务端返回下一次发生日期、`days`、`state`（today/future/past）和生日年龄；每年重复的 2 月 29 日会收敛到当月最后一天。
+- 农历事件通过 `github.com/6tail/lunar-go` 转换下一次公历 occurrence；农历节日预设覆盖春节、元宵、端午、中秋、重阳。
+- 卡片点击打开详情弹窗，展示大数字、公历/农历日期、备注、提醒偏移和提醒时间。
 - 提醒默认在应用时区 09:00 触发，支持每个事件自定义 `reminderTime`，复用站内通知、Web Push、SMTP 和现有重试退避；投递 key 绑定 occurrence 与 offset，避免重复。
 - `repeat=weekend` 在周末返回今天，工作日返回下一个周六；公历节日预设是 Dida 节日智能列表的近似实现。
 - 日期选择使用 Arco DatePicker，未使用原生日期控件。

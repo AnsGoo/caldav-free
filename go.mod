@@ -3,6 +3,7 @@ module caldav-free
 go 1.26.0
 
 require (
+	github.com/6tail/lunar-go v1.4.6
 	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/teambition/rrule-go v1.8.2
 	gorm.io/driver/sqlite v1.6.0

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"caldav-free/internal/auth"
+
 	"gorm.io/gorm"
 )
 
@@ -91,6 +93,14 @@ type HabitFocusSession struct {
 	CreatedAt   time.Time `gorm:"not null;autoCreateTime" json:"createdAt"`
 }
 
+type HabitShare struct {
+	ID        int64     `gorm:"primaryKey" json:"id"`
+	UserID    int64     `gorm:"not null;index:idx_habit_share_user" json:"-"`
+	HabitID   int64     `gorm:"not null;uniqueIndex:idx_habit_share_habit" json:"habitId"`
+	Token     string    `gorm:"size:64;not null;uniqueIndex:idx_habit_share_token" json:"token"`
+	CreatedAt time.Time `gorm:"not null;autoCreateTime" json:"createdAt"`
+}
+
 type HabitPreference struct {
 	UserID           int64  `gorm:"primaryKey" json:"-"`
 	ShowInToday      bool   `gorm:"not null;default:true" json:"showInToday"`
@@ -115,20 +125,27 @@ type HabitDailyStat struct {
 	Goal  float64 `json:"goal"`
 }
 
+type HabitFocusDailyStat struct {
+	Date    string `json:"date"`
+	Minutes int    `json:"minutes"`
+	Count   int    `json:"count"`
+}
+
 type HabitStats struct {
-	FocusMinutes         int              `json:"focusMinutes"`
-	MonthFocusMinutes    int              `json:"monthFocusMinutes"`
-	FocusCount           int              `json:"focusCount"`
-	TargetDays           int              `json:"targetDays"`
-	TargetProgress       int              `json:"targetProgress"`
-	CompletedCycles      int              `json:"completedCycles"`
-	MonthCheckinDays     int              `json:"monthCheckinDays"`
-	TotalCheckinDays     int              `json:"totalCheckinDays"`
-	MonthCompletionRate  float64          `json:"monthCompletionRate"`
-	CurrentStreak        int              `json:"currentStreak"`
-	MonthCompletionCount float64          `json:"monthCompletionCount"`
-	TotalCompletionCount float64          `json:"totalCompletionCount"`
-	Daily                []HabitDailyStat `json:"daily"`
+	FocusMinutes         int                   `json:"focusMinutes"`
+	MonthFocusMinutes    int                   `json:"monthFocusMinutes"`
+	FocusCount           int                   `json:"focusCount"`
+	FocusDaily           []HabitFocusDailyStat `json:"focusDaily"`
+	TargetDays           int                   `json:"targetDays"`
+	TargetProgress       int                   `json:"targetProgress"`
+	CompletedCycles      int                   `json:"completedCycles"`
+	MonthCheckinDays     int                   `json:"monthCheckinDays"`
+	TotalCheckinDays     int                   `json:"totalCheckinDays"`
+	MonthCompletionRate  float64               `json:"monthCompletionRate"`
+	CurrentStreak        int                   `json:"currentStreak"`
+	MonthCompletionCount float64               `json:"monthCompletionCount"`
+	TotalCompletionCount float64               `json:"totalCompletionCount"`
+	Daily                []HabitDailyStat      `json:"daily"`
 }
 
 type HabitCalendarEntry struct {
@@ -149,6 +166,35 @@ type HabitDetail struct {
 	Records       []*HabitRecord       `json:"records"`
 	FocusSessions []*HabitFocusSession `json:"focusSessions"`
 	Stats         HabitStats           `json:"stats"`
+}
+
+type HabitPublicDay struct {
+	Date  string  `json:"date"`
+	Done  bool    `json:"done"`
+	Value float64 `json:"value"`
+	Goal  float64 `json:"goal"`
+}
+
+type HabitPublicStats struct {
+	TotalCheckinDays     int     `json:"totalCheckinDays"`
+	CurrentStreak        int     `json:"currentStreak"`
+	MonthCheckinDays     int     `json:"monthCheckinDays"`
+	MonthCompletionRate  float64 `json:"monthCompletionRate"`
+	MonthCompletionCount float64 `json:"monthCompletionCount"`
+	TargetDays           int     `json:"targetDays"`
+	TargetProgress       int     `json:"targetProgress"`
+	CompletedCycles      int     `json:"completedCycles"`
+}
+
+type HabitPublicShare struct {
+	Name     string           `json:"name"`
+	Icon     string           `json:"icon"`
+	Color    string           `json:"color"`
+	Goal     float64          `json:"goal"`
+	Unit     string           `json:"unit"`
+	Stats    HabitPublicStats `json:"stats"`
+	Days     []HabitPublicDay `json:"days"`
+	SharedAt time.Time        `json:"sharedAt"`
 }
 
 func (s *Store) ListHabits(ctx context.Context, userID int64, includeArchived bool) ([]*Habit, error) {
@@ -314,6 +360,12 @@ func (s *Store) DeleteHabit(ctx context.Context, userID, id int64) error {
 			return err
 		}
 		if err := tx.Where("user_id = ? AND habit_id = ?", userID, id).Delete(&HabitRecord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND habit_id = ?", userID, id).Delete(&HabitFocusSession{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("user_id = ? AND habit_id = ?", userID, id).Delete(&HabitShare{}).Error; err != nil {
 			return err
 		}
 		return nil
@@ -592,17 +644,171 @@ func (s *Store) HabitDetail(ctx context.Context, userID, habitID int64, month st
 		return nil, err
 	}
 	stats := computeHabitStats(habit, checkins, monthStart, monthEnd)
+	focusDaily := make(map[string]*HabitFocusDailyStat)
+	for day := monthStart; !day.After(monthEnd); day = day.AddDate(0, 0, 1) {
+		key := day.Format("2006-01-02")
+		focusDaily[key] = &HabitFocusDailyStat{Date: key}
+	}
 	for _, session := range focusSessions {
 		stats.FocusMinutes += session.Minutes
 		stats.FocusCount++
-		if session.CompletedAt.In(monthStart.Location()).Month() == monthStart.Month() && session.CompletedAt.In(monthStart.Location()).Year() == monthStart.Year() {
+		local := session.CompletedAt.In(monthStart.Location())
+		if local.Month() == monthStart.Month() && local.Year() == monthStart.Year() {
 			stats.MonthFocusMinutes += session.Minutes
+			if row, ok := focusDaily[local.Format("2006-01-02")]; ok {
+				row.Minutes += session.Minutes
+				row.Count++
+			}
+		}
+	}
+	stats.FocusDaily = make([]HabitFocusDailyStat, 0, len(focusDaily))
+	for day := monthStart; !day.After(monthEnd); day = day.AddDate(0, 0, 1) {
+		if row, ok := focusDaily[day.Format("2006-01-02")]; ok {
+			stats.FocusDaily = append(stats.FocusDaily, *row)
 		}
 	}
 	if len(focusSessions) > 30 {
 		focusSessions = focusSessions[:30]
 	}
 	return &HabitDetail{Habit: habit, Checkins: checkins, Records: records, FocusSessions: focusSessions, Stats: stats}, nil
+}
+
+func (s *Store) GetOrCreateHabitShare(ctx context.Context, userID, habitID int64) (*HabitShare, error) {
+	if _, err := s.GetHabit(ctx, userID, habitID); err != nil {
+		return nil, err
+	}
+	var share HabitShare
+	err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).First(&share).Error
+	if err == nil {
+		return &share, nil
+	}
+	if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+	share = HabitShare{UserID: userID, HabitID: habitID, Token: auth.RandomToken(24)}
+	if err := s.db.WithContext(ctx).Create(&share).Error; err != nil {
+		// A concurrent request may have created the same habit share.
+		if queryErr := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).First(&share).Error; queryErr == nil {
+			return &share, nil
+		}
+		return nil, fmt.Errorf("create habit share: %w", err)
+	}
+	return &share, nil
+}
+
+func (s *Store) RevokeHabitShare(ctx context.Context, userID, habitID int64) error {
+	result := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).Delete(&HabitShare{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) HabitPublicShare(ctx context.Context, token string) (*HabitPublicShare, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, ErrNotFound
+	}
+	var share HabitShare
+	if err := s.db.WithContext(ctx).Where("token = ?", token).First(&share).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	habit, err := s.GetHabit(ctx, share.UserID, share.HabitID)
+	if err != nil {
+		return nil, err
+	}
+	var checkins []*HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", share.UserID, share.HabitID).
+		Order("checkin_stamp ASC").Find(&checkins).Error; err != nil {
+		return nil, err
+	}
+	byStamp := make(map[int]*HabitCheckin, len(checkins))
+	for _, checkin := range checkins {
+		byStamp[checkin.Stamp] = checkin
+	}
+	monthStart, monthEnd := habitMonthRange(time.Now().Format("2006-01"))
+	stats := computeHabitStats(habit, checkins, monthStart, monthEnd)
+	public := &HabitPublicShare{
+		Name: habit.Name, Icon: habit.Icon, Color: habit.Color, Goal: habit.Goal, Unit: habit.Unit,
+		SharedAt: share.CreatedAt,
+		Stats: HabitPublicStats{
+			TotalCheckinDays: stats.TotalCheckinDays, CurrentStreak: stats.CurrentStreak,
+			MonthCheckinDays: stats.MonthCheckinDays, MonthCompletionRate: stats.MonthCompletionRate,
+			MonthCompletionCount: stats.MonthCompletionCount, TargetDays: stats.TargetDays,
+			TargetProgress: stats.TargetProgress, CompletedCycles: stats.CompletedCycles,
+		},
+	}
+	public.Days = make([]HabitPublicDay, 0, 30)
+	today := time.Now()
+	for offset := 29; offset >= 0; offset-- {
+		day := today.AddDate(0, 0, -offset)
+		stamp := stampOf(day)
+		checkin := byStamp[stamp]
+		row := HabitPublicDay{Date: day.Format("2006-01-02"), Goal: habit.Goal}
+		if checkin != nil {
+			row.Value = checkin.Value
+			row.Done = habitDone(checkin)
+		}
+		public.Days = append(public.Days, row)
+	}
+	return public, nil
+}
+
+func (s *Store) ExportHabitBackup(ctx context.Context, userID, habitID int64) (*HabitBackup, error) {
+	habit, err := s.GetHabit(ctx, userID, habitID)
+	if err != nil {
+		return nil, err
+	}
+	sections, err := s.ListHabitSections(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	backup := &HabitBackup{Version: 1, ExportedAt: time.Now(), Sections: make([]*HabitSection, 0, 1)}
+	if habit.SectionID != 0 {
+		for _, section := range sections {
+			if section.ID == habit.SectionID {
+				backup.Sections = append(backup.Sections, section)
+				break
+			}
+		}
+	}
+	var checkins []*HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).Order("checkin_stamp ASC").Find(&checkins).Error; err != nil {
+		return nil, err
+	}
+	var records []*HabitRecord
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).Order("stamp ASC, id ASC").Find(&records).Error; err != nil {
+		return nil, err
+	}
+	var focusSessions []*HabitFocusSession
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).Order("completed_at ASC").Find(&focusSessions).Error; err != nil {
+		return nil, err
+	}
+	backup.Habits = []HabitBackupHabit{{Habit: habit, Checkins: checkins, Records: records, FocusSessions: focusSessions}}
+	return backup, nil
+}
+
+func (s *Store) ExportHabitCSV(ctx context.Context, userID, habitID int64) (string, error) {
+	habit, err := s.GetHabit(ctx, userID, habitID)
+	if err != nil {
+		return "", err
+	}
+	var checkins []*HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).Order("checkin_stamp ASC").Find(&checkins).Error; err != nil {
+		return "", err
+	}
+	var b strings.Builder
+	b.WriteString("habit,date,value,goal,status\n")
+	for _, checkin := range checkins {
+		b.WriteString(fmt.Sprintf("%q,%08d,%.2f,%.2f,%d\n", habit.Name, checkin.Stamp, checkin.Value, checkin.Goal, checkin.Status))
+	}
+	return b.String(), nil
 }
 
 func (s *Store) CreateHabitFocusSession(ctx context.Context, session *HabitFocusSession) (*HabitFocusSession, error) {

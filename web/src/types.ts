@@ -524,6 +524,45 @@ export interface HabitFocusSession {
   createdAt: string
 }
 
+export interface HabitFocusDailyStat {
+  date: string
+  minutes: number
+  count: number
+}
+
+export interface HabitShareLink {
+  token: string
+  path: string
+  createdAt: string
+}
+
+export interface HabitPublicDay {
+  date: string
+  done: boolean
+  value: number
+  goal: number
+}
+
+export interface HabitPublicShare {
+  name: string
+  icon: string
+  color: string
+  goal: number
+  unit: string
+  stats: {
+    totalCheckinDays: number
+    currentStreak: number
+    monthCheckinDays: number
+    monthCompletionRate: number
+    monthCompletionCount: number
+    targetDays: number
+    targetProgress: number
+    completedCycles: number
+  }
+  days: HabitPublicDay[]
+  sharedAt: string
+}
+
 export interface HabitPreference {
   showInToday: boolean
   showInCalendar: boolean
@@ -544,6 +583,7 @@ export interface HabitStats {
   focusMinutes: number
   monthFocusMinutes: number
   focusCount: number
+  focusDaily: HabitFocusDailyStat[]
   targetDays: number
   targetProgress: number
   completedCycles: number

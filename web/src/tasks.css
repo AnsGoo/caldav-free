@@ -7000,3 +7000,26 @@ button.tw-side-link {
 .tw-habit-backup a, .tw-habit-backup button { height: 26px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid var(--tw-border); border-radius: 999px; color: var(--tw-text-2); background: transparent; font-size: 10px; text-decoration: none; }
 .tw-habit-backup a:hover, .tw-habit-backup button:hover:not(:disabled) { border-color: var(--tw-accent); color: var(--tw-accent); }
 .tw-import-mode { width: auto; height: 26px; padding: 0 6px; border-radius: 999px; font-size: 10px; }
+
+/* Habit focus history and public sharing */
+.tw-habit-detail-actions a.tw-icon-button { text-decoration: none; }
+.tw-habit-focus-chart { padding-top: 12px; border-top: 1px dashed var(--tw-border); }
+.tw-habit-focus-chart .tw-habit-chart-bar i { background: #b58bff; }
+.tw-habit-focus-history { display: grid; gap: 7px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--tw-border); }
+.tw-habit-focus-history > header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; }
+.tw-habit-focus-history > header strong { font-size: 12px; color: var(--tw-text); }
+.tw-habit-focus-history > header small { font-size: 10px; color: var(--tw-text-3); }
+.tw-habit-focus-history article { display: flex; align-items: center; gap: 9px; padding: 8px 9px; border-radius: 9px; background: var(--tw-surface); }
+.tw-habit-focus-mark { width: 24px; height: 24px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: rgba(181, 139, 255, 0.16); color: #9f6eff; }
+.tw-habit-focus-history article > div { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.tw-habit-focus-history article strong { font-size: 11px; font-weight: 600; color: var(--tw-text); }
+.tw-habit-focus-history article span { font-size: 9.5px; color: var(--tw-text-3); }
+.tw-habit-focus-history article b { font-size: 13px; font-weight: 650; color: var(--tw-text); }
+.tw-habit-focus-history article b small { margin-left: 2px; font-size: 9px; font-weight: 400; color: var(--tw-text-3); }
+.tw-habit-share-dialog { width: min(460px, calc(100vw - 32px)); }
+.tw-habit-share-link { display: flex; gap: 8px; margin-top: 12px; }
+.tw-habit-share-link input { flex: 1; min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-surface); color: var(--tw-text-2); font-size: 11px; outline: none; }
+.tw-habit-share-link input:focus { border-color: var(--tw-accent); }
+.tw-habit-share-open { display: inline-block; margin-top: 10px; color: var(--tw-accent); font-size: 11px; text-decoration: none; }
+.tw-habit-share-open:hover { text-decoration: underline; }
+.tw-habit-share-foot { justify-content: space-between; }

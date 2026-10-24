@@ -120,6 +120,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("ok\n"))
 	})
+	mux.HandleFunc("GET /api/public/habit-shares/{token}", s.apiPublicHabitShare)
 
 	// JSON API used by the Vue admin SPA.
 	mux.HandleFunc("POST /api/admin/login", s.apiLogin)
@@ -203,6 +204,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/admin/habits/{id}", s.apiAdmin(s.apiHabit))
 	mux.HandleFunc("POST /api/admin/habits/{id}/checkin", s.apiAdmin(s.apiHabitCheckin))
 	mux.HandleFunc("POST /api/admin/habits/{id}/focus", s.apiAdmin(s.apiHabitFocus))
+	mux.HandleFunc("GET /api/admin/habits/{id}/export", s.apiAdmin(s.apiHabitExportByID))
+	mux.HandleFunc("POST /api/admin/habits/{id}/share", s.apiAdmin(s.apiHabitShare))
+	mux.HandleFunc("DELETE /api/admin/habits/{id}/share", s.apiAdmin(s.apiHabitShare))
 	mux.HandleFunc("GET /api/admin/habits/{id}/detail", s.apiAdmin(s.apiHabitDetail))
 	mux.HandleFunc("POST /api/admin/habits/{id}/records", s.apiAdmin(s.apiHabitRecords))
 	mux.HandleFunc("PATCH /api/admin/habits/{id}/records/{recordId}", s.apiAdmin(s.apiHabitRecord))
@@ -234,6 +238,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/admin/task-lists/{id}", s.apiAdmin(s.apiDeleteTaskList))
 
 	// Vue SPA. Nginx adds an additional Basic Auth layer for this path.
+	mux.Handle("/share/", s.spaHandler())
 	mux.Handle("/admin/", s.spaHandler())
 	mux.HandleFunc("GET /admin", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/admin/", http.StatusMovedPermanently)

@@ -1,8 +1,12 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { auth } from './auth'
 
+// The public habit share page is served from /share/ while the admin SPA
+// normally lives under /admin/. Both use the same built assets.
+const routerBase = window.location.pathname.startsWith('/share/') ? '/share/' : import.meta.env.BASE_URL
+
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(routerBase),
   scrollBehavior: () => ({ top: 0 }),
   routes: [
     {
@@ -15,6 +19,17 @@ const router = createRouter({
       path: '/',
       name: 'dashboard',
       component: () => import('./views/DashboardView.vue'),
+    },
+    {
+      path: '/habit/:token',
+      name: 'habit-share',
+      component: () => import('./views/HabitShareView.vue'),
+      meta: { public: true, share: true },
+    },
+    {
+      path: '/share/habit/:token',
+      component: () => import('./views/HabitShareView.vue'),
+      meta: { public: true, share: true },
     },
     ...taskWorkspaceRoutes(),
     {
@@ -46,6 +61,7 @@ const router = createRouter({
 })
 
 router.beforeEach((to) => {
+  if (to.meta.share) return true
   if (to.meta.public) {
     if (auth.user) return { name: 'dashboard' }
     return true

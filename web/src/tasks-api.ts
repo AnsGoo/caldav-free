@@ -1,5 +1,5 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit'
 
@@ -503,6 +503,34 @@ export function saveHabitFocus(id: number, payload: { minutes: number; startedAt
 
 export function fetchHabitDetail(id: number, month: string) {
   return api<HabitDetail>(`/habits/${id}/detail?month=${encodeURIComponent(month)}`)
+}
+
+export function createHabitShare(id: number) {
+  return api<{ share: HabitShareLink }>(`/habits/${id}/share`, { method: 'POST' })
+}
+
+export function revokeHabitShare(id: number) {
+  return api<void>(`/habits/${id}/share`, { method: 'DELETE' })
+}
+
+export async function fetchPublicHabitShare(token: string): Promise<HabitPublicShare> {
+  const response = await fetch(`/api/public/habit-shares/${encodeURIComponent(token)}`, { credentials: 'same-origin' })
+  const text = await response.text()
+  let payload: unknown = null
+  if (text) {
+    try {
+      payload = JSON.parse(text)
+    } catch {
+      payload = text
+    }
+  }
+  if (!response.ok) {
+    const message = payload && typeof payload === 'object' && 'error' in payload
+      ? String((payload as { error: unknown }).error)
+      : `请求失败（${response.status}）`
+    throw new Error(message)
+  }
+  return (payload as { share: HabitPublicShare }).share
 }
 
 export function createHabitRecord(id: number, payload: { content: string; emoji?: string; stamp?: number }) {

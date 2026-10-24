@@ -59,6 +59,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `habit_checkins` | 按日期唯一的习惯打卡记录 |
 | `habit_records` | 习惯打卡日志 |
 | `habit_focus_sessions` | 习惯专注历史：分钟、开始/完成时间 |
+| `habit_shares` | 习惯只读分享：习惯、随机 token、创建时间 |
 | `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
@@ -260,8 +261,10 @@ name:   任务
 - `HabitTodayStrip` 根据偏好接入今天/最近 7 天与日历顶部；打卡满足 `recordEnable` 时弹出日志编辑器。
 - 提醒调度器检查习惯 HH:mm 提醒，按习惯/日期/时间/渠道去重；站内通知、Web Push 和 SMTP 复用现有提醒基础设施，内部用负数 `task_id` 复用投递与退避表。
 - 日历通过 `/api/admin/habits/calendar` 获取日期范围内的习惯打卡条目，并以只读全天条目展示；点击条目进入 `/tasks/habit/:habitId`。坚持目标按总完成天数计算轮次和当前进度。
-- 习惯详情深链由 `/tasks/habit/:habitId` 驱动，`HabitPanel` 挂载或收到 focus 变化时加载对应详情；专注计时完成后通过 `/habits/{id}/focus` 写入专注历史，并参与累计/本月专注统计。
+- 习惯详情深链由 `/tasks/habit/:habitId` 驱动，`HabitPanel` 挂载或收到 focus 变化时加载对应详情；专注计时完成后通过 `/habits/{id}/focus` 写入专注历史，并参与累计/本月专注统计、本月专注柱状图和最近专注明细。
 - 习惯提醒时区来自 `habit_preferences.timezone`；JSON 备份导出习惯、分组、打卡、日志和专注记录，导入支持 append/skip/overwrite，按名称复用分组并写入当前用户。
+- 单习惯导出复用备份结构，只包含该习惯及其所属分组、打卡、日志和专注历史；CSV 只导出打卡明细。
+- 只读分享使用 `habit_shares` 中的随机 token，`/api/public/habit-shares/{token}` 不经过 admin 会话，只返回名称、图标、统计和最近 30 天打卡；撤销后立即删除 token。公开页 `/share/habit/{token}` 在 `/share/` 下复用同一 SPA 构建产物，并在前端按路径切换 router base，避免落在 Nginx 的 `/admin/` 保护范围内。
 
 ## 9. 提醒
 

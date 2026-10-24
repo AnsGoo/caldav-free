@@ -90,6 +90,8 @@
           </div>
           <div class="tw-habit-detail-actions">
             <button v-if="!archived" class="tw-icon-button" title="开始专注" @click="focusHabit = selectedHabit"><TaskIcon name="clock" :size="16" /></button>
+            <a class="tw-icon-button" title="导出习惯 JSON" :href="`/api/admin/habits/${selectedHabit.id}/export?format=json`" download><TaskIcon name="download" :size="16" /></a>
+            <button class="tw-icon-button" title="分享习惯" @click="openShare(selectedHabit)"><TaskIcon name="share" :size="16" /></button>
             <button v-if="archived" class="tw-icon-button" title="恢复习惯" @click="restoreHabit"><TaskIcon name="restore" :size="16" /></button>
             <button v-else class="tw-icon-button" title="编辑习惯" @click="openEdit(selectedHabit)"><TaskIcon name="edit" :size="16" /></button>
             <button v-if="!archived" class="tw-icon-button" :title="selectedHabit.style === 'icon' ? '打卡样式：习惯图标' : '打卡样式：对勾'" @click="toggleHabitStyle">
@@ -152,6 +154,30 @@
               <i :style="{ height: `${chartHeight(item.value)}%` }" />
             </div>
           </div>
+        </div>
+
+        <div v-if="detail.stats.monthFocusMinutes > 0" class="tw-habit-chart tw-habit-focus-chart">
+          <header>本月专注 <small>(分钟)</small></header>
+          <div class="tw-habit-chart-bars">
+            <div v-for="item in detail.stats.focusDaily" :key="item.date" class="tw-habit-chart-bar focus" :title="`${item.date} ${item.minutes} 分钟 / ${item.count} 次`">
+              <i :style="{ height: `${focusChartHeight(item.minutes)}%` }" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="detail.focusSessions.length" class="tw-habit-focus-history">
+          <header>
+            <strong>最近专注</strong>
+            <small>{{ detail.stats.focusCount }} 次 · {{ detail.stats.focusMinutes }} 分钟</small>
+          </header>
+          <article v-for="session in detail.focusSessions.slice(0, 8)" :key="session.id">
+            <span class="tw-habit-focus-mark"><TaskIcon name="clock" :size="13" /></span>
+            <div>
+              <strong>{{ formatFocusDate(session.completedAt) }}</strong>
+              <span>{{ formatFocusTime(session.startedAt) }} - {{ formatFocusTime(session.completedAt) }}</span>
+            </div>
+            <b>{{ session.minutes }}<small>分钟</small></b>
+          </article>
         </div>
 
         <div class="tw-habit-records">
@@ -290,6 +316,27 @@
 
     <HabitLogDialog v-if="logTarget" :habit="logTarget.habit" :stamp="logTarget.stamp" @saved="onLogSaved" @close="logTarget = null" />
 
+    <div v-if="shareDialog" class="tw-dialog-scrim" @click.self="shareDialog = null">
+      <div class="tw-dialog tw-habit-share-dialog" role="dialog" aria-modal="true">
+        <header class="tw-dialog-head">
+          <h2>分享习惯</h2>
+          <button class="tw-icon-button" title="关闭" @click="shareDialog = null"><TaskIcon name="close" :size="16" /></button>
+        </header>
+        <div class="tw-dialog-body">
+          <p class="tw-modal-note">获得链接的人可以查看「{{ shareDialog.habit.name }}」的名称、统计和最近 30 天打卡，不会展示日志、备注和账号信息。</p>
+          <div class="tw-habit-share-link">
+            <input :value="shareURL" readonly />
+            <button class="tw-primary-button" @click="copyShareLink">复制链接</button>
+          </div>
+          <a class="tw-habit-share-open" :href="shareDialog.link.path" target="_blank" rel="noopener">在新标签页预览</a>
+        </div>
+        <footer class="tw-dialog-foot tw-habit-share-foot">
+          <button class="tw-dialog-cancel" @click="stopShare">停止分享</button>
+          <button class="tw-dialog-ok" @click="shareDialog = null">完成</button>
+        </footer>
+      </div>
+    </div>
+
     <div v-if="checkinDialog" class="tw-dialog-scrim" @click.self="checkinDialog = null">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true">
         <header class="tw-dialog-head"><h2>记录打卡</h2></header>
@@ -357,11 +404,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { copyText } from '../../auth'
 import { Message, Modal } from '@arco-design/web-vue'
-import type { HabitCheckin, HabitDetail, HabitFrequency, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection } from '../../types'
+import type { HabitCheckin, HabitDetail, HabitFrequency, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection, HabitShareLink } from '../../types'
 import {
   createHabit,
   createHabitRecord,
+  createHabitShare,
   createHabitSection,
   deleteHabit,
   deleteHabitRecord,
@@ -370,6 +419,7 @@ import {
   fetchHabits,
   importHabitsBackup,
   reorderHabits,
+  revokeHabitShare,
   saveHabitFocus,
   saveHabitPreferences,
   toggleHabitCheckin,
@@ -405,6 +455,8 @@ const logComposerOpen = ref(false)
 const logContent = ref('')
 const logTarget = ref<{ habit: HabitItem; stamp: number } | null>(null)
 const focusHabit = ref<HabitItem | null>(null)
+const shareDialog = ref<{ habit: HabitItem; link: HabitShareLink } | null>(null)
+const shareURL = computed(() => shareDialog.value ? `${window.location.origin}${shareDialog.value.link.path}` : '')
 const timezoneOptions = computed(() => {
   try {
     const values = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.('timeZone') || []
@@ -733,6 +785,50 @@ async function shiftMonth(delta: number) {
 function chartHeight(value: number) {
   const max = Math.max(selectedHabit.value?.goal || 1, ...(detail.value?.stats.daily.map((item) => item.value) || [0]))
   return max > 0 ? Math.max(3, Math.round(value / max * 100)) : 3
+}
+
+function focusChartHeight(value: number) {
+  const max = Math.max(1, ...(detail.value?.stats.focusDaily.map((item) => item.minutes) || [0]))
+  return Math.max(3, Math.round(value / max * 100))
+}
+
+function formatFocusDate(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+function formatFocusTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+async function openShare(habit: HabitItem) {
+  try {
+    const { share } = await createHabitShare(habit.id)
+    shareDialog.value = { habit, link: share }
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '创建分享链接失败')
+  }
+}
+
+async function copyShareLink() {
+  try {
+    await copyText(shareURL.value)
+    Message.success('分享链接已复制')
+  } catch {
+    Message.error('复制失败，请手动选择链接')
+  }
+}
+
+async function stopShare() {
+  if (!shareDialog.value) return
+  try {
+    await revokeHabitShare(shareDialog.value.habit.id)
+    shareDialog.value = null
+    Message.success('已停止分享，旧链接已失效')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '停止分享失败')
+  }
 }
 
 function startHabitDrag(habit: HabitItem, event: DragEvent) {

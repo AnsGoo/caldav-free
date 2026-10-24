@@ -435,6 +435,88 @@ func (s *Server) apiHabitExport(w http.ResponseWriter, r *http.Request, current 
 	_, _ = w.Write([]byte(csv))
 }
 
+func (s *Server) apiHabitExportByID(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, ok := habitID(r, "id")
+	if !ok {
+		writeAPIError(w, http.StatusNotFound, "习惯不存在")
+		return
+	}
+	if r.URL.Query().Get("format") == "json" {
+		backup, err := s.store.ExportHabitBackup(r.Context(), current.ID, id)
+		if err != nil {
+			if err == store.ErrNotFound {
+				writeAPIError(w, http.StatusNotFound, "习惯不存在")
+				return
+			}
+			s.apiServerError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=habit-%d-%s.json", id, time.Now().Format("20060102")))
+		writeAPIJSON(w, http.StatusOK, backup)
+		return
+	}
+	csv, err := s.store.ExportHabitCSV(r.Context(), current.ID, id)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "习惯不存在")
+			return
+		}
+		s.apiServerError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=habit-%d-%s.csv", id, time.Now().Format("20060102")))
+	_, _ = w.Write([]byte(csv))
+}
+
+func (s *Server) apiHabitShare(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, ok := habitID(r, "id")
+	if !ok {
+		writeAPIError(w, http.StatusNotFound, "习惯不存在")
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if err := s.store.RevokeHabitShare(r.Context(), current.ID, id); err != nil {
+			if err == store.ErrNotFound {
+				writeAPIError(w, http.StatusNotFound, "分享链接不存在")
+				return
+			}
+			s.apiServerError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	share, err := s.store.GetOrCreateHabitShare(r.Context(), current.ID, id)
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "习惯不存在")
+			return
+		}
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"share": map[string]any{
+		"token":     share.Token,
+		"path":      "/share/habit/" + share.Token,
+		"createdAt": share.CreatedAt,
+	}})
+}
+
+func (s *Server) apiPublicHabitShare(w http.ResponseWriter, r *http.Request) {
+	share, err := s.store.HabitPublicShare(r.Context(), r.PathValue("token"))
+	if err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "分享链接不存在或已停止分享")
+			return
+		}
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"share": share})
+}
+
 func (s *Server) apiHabitImport(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var backup store.HabitBackup
 	if !readAPIJSON(w, r, &backup) {

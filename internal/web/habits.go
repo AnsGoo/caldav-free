@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -505,6 +506,15 @@ func (s *Server) apiHabitShare(w http.ResponseWriter, r *http.Request, current *
 }
 
 func (s *Server) apiPublicHabitShare(w http.ResponseWriter, r *http.Request) {
+	if allowed, retry := s.publicLimiter.allow(clientIP(r)); !allowed {
+		seconds := int(retry.Seconds() + 0.5)
+		if seconds < 1 {
+			seconds = 1
+		}
+		w.Header().Set("Retry-After", strconv.Itoa(seconds))
+		writeAPIError(w, http.StatusTooManyRequests, "访问过于频繁，请稍后再试")
+		return
+	}
 	share, err := s.store.HabitPublicShare(r.Context(), r.PathValue("token"))
 	if err != nil {
 		if err == store.ErrNotFound {
@@ -515,6 +525,35 @@ func (s *Server) apiPublicHabitShare(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"share": share})
+}
+
+func (s *Server) apiHabitImportDida(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	r.Body = http.MaxBytesReader(w, r.Body, 12<<20)
+	if err := r.ParseMultipartForm(12 << 20); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "读取上传文件失败")
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "请选择 Dida 习惯导出文件")
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, (10<<20)+1))
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "读取上传文件失败")
+		return
+	}
+	if len(data) > 10<<20 {
+		writeAPIError(w, http.StatusBadRequest, "Dida 导出文件不能超过 10MB")
+		return
+	}
+	result, err := s.store.ImportDidaHabits(r.Context(), current.ID, data, r.URL.Query().Get("mode"))
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, result)
 }
 
 func (s *Server) apiHabitImport(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {

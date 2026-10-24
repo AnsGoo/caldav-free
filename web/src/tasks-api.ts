@@ -553,6 +553,15 @@ export function saveHabitPreferences(payload: Partial<HabitPreference>) {
   return api<HabitPreference>('/habit-preferences', { method: 'PATCH', body: JSON.stringify(payload) })
 }
 
+export function importDidaHabits(file: File, mode: 'append' | 'skip' | 'overwrite' = 'append') {
+  const form = new FormData()
+  form.append('file', file)
+  return apiForm<{ habits: number; checkins: number; records: number; updated: number; skipped: number }>(
+    `/habits/import-dida?mode=${encodeURIComponent(mode)}`,
+    form,
+  )
+}
+
 export function importHabitsBackup(payload: unknown, mode: 'append' | 'skip' | 'overwrite' = 'append') {
   return api<{ habits: number; checkins: number; records: number; updated: number; skipped: number }>(
     `/habits/import?mode=${encodeURIComponent(mode)}`,

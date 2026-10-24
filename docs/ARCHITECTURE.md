@@ -255,7 +255,7 @@ name:   任务
 - 习惯数据独立存储在 SQLite，不写入 CalDAV `VTODO`。
 - `HabitPanel` 通过 `/api/admin/habits` 加载习惯、分组、偏好和近 60 天打卡；详情按月份加载统计、月历和日志。
 - 频率使用本项目 JSON：`daily`（星期集合）、`weekly`（每周 N 天）、`interval`（每 N 天）。
-- 打卡按 `habit_id + checkin_stamp` 唯一；`value >= goal` 视为完成。
+- 打卡按 `habit_id + checkin_stamp` 唯一；`value >= goal` 视为完成。读改写由进程内互斥锁串行化，创建冲突使用唯一索引 upsert 兜底，避免并发请求产生重复行或 500。
 - 月完成率、当前连续、月完成量和每日完成量由后端实时计算；按周目标按与月份重叠的自然周累计，单周完成量按目标封顶；间隔打卡用 UTC 日差计算，避免 DST 漏算。
 - 习惯排序通过批量 `sort_order` 更新；打卡样式、分组和日志编辑均走习惯 API。
 - `HabitTodayStrip` 根据偏好接入今天/最近 7 天与日历顶部；打卡满足 `recordEnable` 时弹出日志编辑器。
@@ -264,7 +264,8 @@ name:   任务
 - 习惯详情深链由 `/tasks/habit/:habitId` 驱动，`HabitPanel` 挂载或收到 focus 变化时加载对应详情；专注计时完成后通过 `/habits/{id}/focus` 写入专注历史，并参与累计/本月专注统计、本月专注柱状图和最近专注明细。
 - 习惯提醒时区来自 `habit_preferences.timezone`；JSON 备份导出习惯、分组、打卡、日志和专注记录，导入支持 append/skip/overwrite，按名称复用分组并写入当前用户。
 - 单习惯导出复用备份结构，只包含该习惯及其所属分组、打卡、日志和专注历史；CSV 只导出打卡明细。
-- 只读分享使用 `habit_shares` 中的随机 token，`/api/public/habit-shares/{token}` 不经过 admin 会话，只返回名称、图标、统计和最近 30 天打卡；撤销后立即删除 token。公开页 `/share/habit/{token}` 在 `/share/` 下复用同一 SPA 构建产物，并在前端按路径切换 router base，避免落在 Nginx 的 `/admin/` 保护范围内。
+- Dida XLSX 导入使用标准库 `archive/zip` 与 `encoding/xml` 解析工作表：首个单元格是基本信息块，后续表格按日期、完成情况、完成量、心情和日志转换为本项目习惯、打卡和日志。
+- 只读分享使用 `habit_shares` 中的随机 token，`/api/public/habit-shares/{token}` 不经过 admin 会话，只返回名称、图标、统计和最近 30 天打卡；撤销后立即删除 token。公开 API 按客户端 IP 限流 60 次/分钟，超限返回 429。公开页 `/share/habit/{token}` 在 `/share/` 下复用同一 SPA 构建产物，并在前端按路径切换 router base，避免落在 Nginx 的 `/admin/` 保护范围内。
 
 ## 9. 提醒
 

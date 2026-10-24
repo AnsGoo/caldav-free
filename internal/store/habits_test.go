@@ -1,8 +1,10 @@
 package store
 
 import (
+	"context"
 	"encoding/json"
 	"math"
+	"sync"
 	"testing"
 	"time"
 )
@@ -70,5 +72,75 @@ func assertClose(t *testing.T, got, want float64) {
 	t.Helper()
 	if math.Abs(got-want) > 0.001 {
 		t.Fatalf("got %.4f, want %.4f", got, want)
+	}
+}
+
+func TestToggleHabitCheckinConcurrentSet(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	habit, err := s.CreateHabit(ctx, &Habit{
+		UserID: userID, Name: "并发打卡", Goal: 3, Step: 1,
+		Frequency: `{"type":"daily","weekdays":[0,1,2,3,4,5,6]}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := 2.0
+	var wg sync.WaitGroup
+	errs := make(chan error, 24)
+	for i := 0; i < 24; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, 20261024, &value); err != nil {
+				errs <- err
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Fatalf("concurrent checkin: %v", err)
+	}
+	var rows []HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habit.ID, 20261024).Find(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("checkin rows = %d, want 1", len(rows))
+	}
+	if rows[0].Value != 2 || rows[0].Status != 0 {
+		t.Fatalf("unexpected checkin: %+v", rows[0])
+	}
+}
+
+func TestToggleHabitCheckinConcurrentToggleStable(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	habit, err := s.CreateHabit(ctx, &Habit{
+		UserID: userID, Name: "并发开关", Goal: 1, Step: 1,
+		Frequency: `{"type":"daily","weekdays":[0,1,2,3,4,5,6]}`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, 20261024, nil); err != nil {
+				t.Errorf("toggle: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	var count int64
+	if err := s.db.WithContext(ctx).Model(&HabitCheckin{}).
+		Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habit.ID, 20261024).Count(&count).Error; err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("toggle twice left %d rows, want 0", count)
 	}
 }

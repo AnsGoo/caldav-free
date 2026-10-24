@@ -145,6 +145,10 @@ type Store struct {
 	db             *gorm.DB
 	notifyMu       sync.Mutex
 	notifyListener func(*Notification)
+	// habitCheckinMu serializes read-modify-write habit check-ins. The unique
+	// index protects the database, while the mutex keeps toggle semantics
+	// deterministic for concurrent requests in this process.
+	habitCheckinMu sync.Mutex
 }
 
 // Open opens (and if necessary creates) the SQLite database.

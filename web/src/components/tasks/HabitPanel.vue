@@ -389,9 +389,10 @@
               <option value="skip">跳过同名</option>
               <option value="overwrite">覆盖同名</option>
             </select>
-            <button class="tw-ghost-button" :disabled="importBusy" @click="importInput?.click()">{{ importBusy ? '导入中…' : '导入 JSON' }}</button>
-            <input ref="importInput" type="file" accept="application/json,.json" hidden @change="importBackup" />
+            <button class="tw-ghost-button" :disabled="importBusy" @click="importInput?.click()">{{ importBusy ? '导入中…' : '导入 JSON / XLSX' }}</button>
+            <input ref="importInput" type="file" accept=".json,.xlsx,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden @change="importBackup" />
           </div>
+          <p class="tw-modal-note">支持本项目 JSON 备份和滴答清单导出的 .xlsx；覆盖模式会替换同名习惯。</p>
           <p class="tw-modal-note">开启“按完成状态分类显示”后，未打卡的习惯会聚合展示在列表上方。</p>
         </div>
         <footer class="tw-dialog-foot">
@@ -417,6 +418,7 @@ import {
   deleteHabitSection,
   fetchHabitDetail,
   fetchHabits,
+  importDidaHabits,
   importHabitsBackup,
   reorderHabits,
   revokeHabitShare,
@@ -913,9 +915,10 @@ async function importBackup(event: Event) {
 async function runImport(file: File, input: HTMLInputElement) {
   importBusy.value = true
   try {
-    const text = await file.text()
-    const payload = JSON.parse(text) as unknown
-    const result = await importHabitsBackup(payload, importMode.value)
+    const isXLSX = /\.xlsx$/i.test(file.name)
+    const result = isXLSX
+      ? await importDidaHabits(file, importMode.value)
+      : await importHabitsBackup(JSON.parse(await file.text()) as unknown, importMode.value)
     const parts = [`创建 ${result.habits} 个习惯`, `${result.checkins} 条打卡`]
     if (result.updated) parts.push(`覆盖 ${result.updated} 个`)
     if (result.skipped) parts.push(`跳过 ${result.skipped} 个`)

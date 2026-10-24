@@ -12,6 +12,7 @@ import (
 	"caldav-free/internal/auth"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const habitDayLayout = "20060102"
@@ -373,6 +374,8 @@ func (s *Store) DeleteHabit(ctx context.Context, userID, id int64) error {
 }
 
 func (s *Store) ToggleHabitCheckin(ctx context.Context, userID, habitID int64, stamp int, value *float64) (*HabitCheckin, *Habit, error) {
+	s.habitCheckinMu.Lock()
+	defer s.habitCheckinMu.Unlock()
 	habit, err := s.GetHabit(ctx, userID, habitID)
 	if err != nil {
 		return nil, nil, err
@@ -421,10 +424,24 @@ func (s *Store) ToggleHabitCheckin(ctx context.Context, userID, habitID int64, s
 		if err := s.db.WithContext(ctx).Save(checkin).Error; err != nil {
 			return nil, nil, err
 		}
-	} else if err := s.db.WithContext(ctx).Create(checkin).Error; err != nil {
+	} else {
+		// A second process may have inserted the same habit/day between the
+		// lookup and insert. The unique index turns that into an upsert.
+		if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "habit_id"}, {Name: "checkin_stamp"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"value", "goal", "status", "checkin_time", "op_time", "modified_at",
+			}),
+		}).Create(checkin).Error; err != nil {
+			return nil, nil, err
+		}
+	}
+	var stored HabitCheckin
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habitID, stamp).
+		First(&stored).Error; err != nil {
 		return nil, nil, err
 	}
-	return checkin, habit, nil
+	return &stored, habit, nil
 }
 
 func (s *Store) ListHabitCheckins(ctx context.Context, userID int64, habitIDs []int64, afterStamp int) (map[int64][]*HabitCheckin, error) {

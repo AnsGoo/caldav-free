@@ -44,14 +44,15 @@ var dummyAdminHash = func() string {
 
 // Server serves the admin UI.
 type Server struct {
-	store       *store.Store
-	dav         *dav.Handler
-	logger      *slog.Logger
-	templates   *template.Template
-	assets      http.Handler
-	sessions    *sessionStore
-	limiter     *loginLimiter
-	externalURL string
+	store         *store.Store
+	dav           *dav.Handler
+	logger        *slog.Logger
+	templates     *template.Template
+	assets        http.Handler
+	sessions      *sessionStore
+	limiter       *loginLimiter
+	publicLimiter *publicRateLimiter
+	externalURL   string
 	// CalDAVURL is the public CalDAV base URL shown to administrators.
 	CalDAVURL     string
 	taskSync      *tasksync.Syncer
@@ -104,6 +105,7 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 		assets:        assets,
 		sessions:      newSessionStore(),
 		limiter:       newLoginLimiter(),
+		publicLimiter: newPublicRateLimiter(60, time.Minute),
 		externalURL:   strings.TrimRight(externalURL, "/"),
 		taskSync:      tasksync.New(st),
 	}, nil
@@ -198,6 +200,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/habits/export", s.apiAdmin(s.apiHabitExport))
 	mux.HandleFunc("GET /api/admin/habits/calendar", s.apiAdmin(s.apiHabitCalendar))
 	mux.HandleFunc("POST /api/admin/habits/import", s.apiAdmin(s.apiHabitImport))
+	mux.HandleFunc("POST /api/admin/habits/import-dida", s.apiAdmin(s.apiHabitImportDida))
 	mux.HandleFunc("POST /api/admin/habits/reorder", s.apiAdmin(s.apiHabitReorder))
 	mux.HandleFunc("POST /api/admin/habits/checkins/query", s.apiAdmin(s.apiHabitCheckinsQuery))
 	mux.HandleFunc("PATCH /api/admin/habits/{id}", s.apiAdmin(s.apiHabit))
@@ -356,6 +359,51 @@ func (l *loginLimiter) reset(ip string) {
 	l.mu.Lock()
 	delete(l.m, ip)
 	l.mu.Unlock()
+}
+
+type publicRateLimiter struct {
+	mu     sync.Mutex
+	m      map[string]*publicRateBucket
+	limit  int
+	window time.Duration
+}
+
+type publicRateBucket struct {
+	count int
+	reset time.Time
+}
+
+func newPublicRateLimiter(limit int, window time.Duration) *publicRateLimiter {
+	if limit <= 0 {
+		limit = 60
+	}
+	if window <= 0 {
+		window = time.Minute
+	}
+	return &publicRateLimiter{m: map[string]*publicRateBucket{}, limit: limit, window: window}
+}
+
+func (l *publicRateLimiter) allow(key string) (bool, time.Duration) {
+	now := time.Now()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	bucket := l.m[key]
+	if bucket == nil || now.After(bucket.reset) {
+		if bucket == nil && len(l.m) >= 4096 {
+			for k, v := range l.m {
+				if now.After(v.reset) {
+					delete(l.m, k)
+				}
+			}
+		}
+		bucket = &publicRateBucket{reset: now.Add(l.window)}
+		l.m[key] = bucket
+	}
+	if bucket.count >= l.limit {
+		return false, time.Until(bucket.reset)
+	}
+	bucket.count++
+	return true, 0
 }
 
 // ---------------------------------------------------------------- middleware

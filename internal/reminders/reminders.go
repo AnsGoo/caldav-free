@@ -166,6 +166,10 @@ func (s *Scheduler) tick(ctx context.Context) {
 	if taskSnoozeSent > 0 {
 		s.logger.Info("sent task snoozes", "count", taskSnoozeSent)
 	}
+	habitSent := s.tickHabits(ctx, now, mailConfig)
+	if habitSent > 0 {
+		s.logger.Info("sent habit reminders", "count", habitSent)
+	}
 	_ = s.store.PurgeReminderDeliveries(ctx, now.AddDate(0, 0, -30))
 	_ = s.store.PurgeReminderAttempts(ctx, now.AddDate(0, 0, -30))
 }

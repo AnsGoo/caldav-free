@@ -153,7 +153,7 @@ func (s *Store) ListHabits(ctx context.Context, userID int64, includeArchived bo
 			}
 		}
 		habit.DoneToday = habitDone(todayCheckin)
-		habit.DueToday = habit.Status == 0 && habitDueToday(habit, byHabit[habit.ID], today)
+		habit.DueToday = habit.Status == 0 && HabitDueToday(habit, byHabit[habit.ID], today)
 	}
 	return habits, nil
 }
@@ -618,6 +618,19 @@ func habitDone(checkin *HabitCheckin) bool {
 	return checkin != nil && (checkin.Status == 2 || checkin.Value >= checkin.Goal && checkin.Goal > 0)
 }
 
+func HabitCheckinDone(checkin *HabitCheckin) bool {
+	return habitDone(checkin)
+}
+
+func (s *Store) ListHabitsWithReminders(ctx context.Context) ([]*Habit, error) {
+	var habits []*Habit
+	if err := s.db.WithContext(ctx).Where("status = 0 AND reminders NOT IN ('', '[]')").
+		Order("id ASC").Find(&habits).Error; err != nil {
+		return nil, fmt.Errorf("list habits with reminders: %w", err)
+	}
+	return habits, nil
+}
+
 func habitSummary(habit *Habit, checkins []*HabitCheckin) (total, current, max int) {
 	byStamp := make(map[int]*HabitCheckin, len(checkins))
 	for _, checkin := range checkins {
@@ -630,7 +643,7 @@ func habitSummary(habit *Habit, checkins []*HabitCheckin) (total, current, max i
 	return total, current, current
 }
 
-func habitDueToday(habit *Habit, checkins []*HabitCheckin, today time.Time) bool {
+func HabitDueToday(habit *Habit, checkins []*HabitCheckin, today time.Time) bool {
 	freq := parseHabitFrequency(habit.Frequency)
 	start := habitStartDate(habit)
 	day := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())

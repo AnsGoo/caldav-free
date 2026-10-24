@@ -20,12 +20,23 @@ func (s *Scheduler) tickHabits(ctx context.Context, now time.Time, cfg mailer.Co
 	if len(habits) == 0 {
 		return 0
 	}
-	loc, err := time.LoadLocation(store.DefaultTimezone)
+	locCache := make(map[int64]*time.Location)
+	defaultLoc, err := time.LoadLocation(store.DefaultTimezone)
 	if err != nil {
-		loc = time.Local
+		defaultLoc = time.Local
 	}
 	sent := 0
 	for _, habit := range habits {
+		loc := locCache[habit.UserID]
+		if loc == nil {
+			loc = defaultLoc
+			if preference, prefErr := s.store.GetHabitPreference(ctx, habit.UserID); prefErr == nil && preference.Timezone != "" {
+				if parsed, loadErr := time.LoadLocation(preference.Timezone); loadErr == nil {
+					loc = parsed
+				}
+			}
+			locCache[habit.UserID] = loc
+		}
 		checkins, err := s.store.ListHabitCheckins(ctx, habit.UserID, []int64{habit.ID}, 0)
 		if err != nil {
 			continue

@@ -117,6 +117,8 @@
           <article><span>当前连续</span><strong>{{ detail.stats.currentStreak }}<small>天</small></strong></article>
           <article><span>月完成量</span><strong>{{ detail.stats.monthCompletionCount }}<small>次</small></strong></article>
           <article><span>总完成量</span><strong>{{ detail.stats.totalCompletionCount }}<small>次</small></strong></article>
+          <article><span>累计专注</span><strong>{{ detail.stats.focusMinutes }}<small>分钟</small></strong></article>
+          <article><span>本月专注</span><strong>{{ detail.stats.monthFocusMinutes }}<small>分钟</small></strong></article>
         </div>
 
         <div class="tw-habit-calendar">
@@ -284,7 +286,7 @@
       </div>
     </div>
 
-    <HabitFocusDialog v-if="focusHabit" :habit="focusHabit" @close="focusHabit = null" />
+    <HabitFocusDialog v-if="focusHabit" :habit="focusHabit" @completed="onFocusCompleted" @close="focusHabit = null" />
 
     <HabitLogDialog v-if="logTarget" :habit="logTarget.habit" :stamp="logTarget.stamp" @saved="onLogSaved" @close="logTarget = null" />
 
@@ -315,6 +317,11 @@
               <option value="card">卡片</option>
             </select>
           </div>
+          <div class="tw-habit-setting-row"><span>提醒时区</span>
+            <select v-model="preferences.timezone" class="tw-field-select" @change="savePreferences">
+              <option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</option>
+            </select>
+          </div>
           <div class="tw-habit-section-manage">
             <strong>习惯分组</strong>
             <div v-for="section in sections" :key="section.id" class="tw-habit-section-row">
@@ -326,10 +333,16 @@
               <button class="tw-ghost-button" :disabled="!newSectionName.trim()" @click="addSection">添加</button>
             </div>
           </div>
+          <div class="tw-habit-backup">
+            <span>数据备份</span>
+            <a class="tw-ghost-button" href="/api/admin/habits/export">导出 CSV</a>
+            <a class="tw-ghost-button" href="/api/admin/habits/export?format=json">导出 JSON</a>
+            <button class="tw-ghost-button" :disabled="importBusy" @click="importInput?.click()">{{ importBusy ? '导入中…' : '导入 JSON' }}</button>
+            <input ref="importInput" type="file" accept="application/json,.json" hidden @change="importBackup" />
+          </div>
           <p class="tw-modal-note">开启“按完成状态分类显示”后，未打卡的习惯会聚合展示在列表上方。</p>
         </div>
         <footer class="tw-dialog-foot">
-          <a class="tw-dialog-cancel" href="/api/admin/habits/export" target="_blank">导出</a>
           <button class="tw-dialog-ok" @click="savePreferences(); settingsOpen = false">完成</button>
         </footer>
       </div>
@@ -350,7 +363,9 @@ import {
   deleteHabitSection,
   fetchHabitDetail,
   fetchHabits,
+  importHabitsBackup,
   reorderHabits,
+  saveHabitFocus,
   saveHabitPreferences,
   toggleHabitCheckin,
   updateHabit,
@@ -371,7 +386,7 @@ const loading = ref(true)
 const habits = ref<HabitItem[]>([])
 const sections = ref<HabitSection[]>([])
 const checkins = ref<Record<string, HabitCheckin[]>>({})
-const preferences = ref<HabitPreference>({ showInToday: true, showInCalendar: true, groupByCompleted: false, displayType: 'list', sortType: 'custom', defaultSectionId: 0 })
+const preferences = ref<HabitPreference>({ showInToday: true, showInCalendar: true, groupByCompleted: false, displayType: 'list', sortType: 'custom', defaultSectionId: 0, timezone: 'Asia/Shanghai' })
 const archived = ref(false)
 const settingsOpen = ref(false)
 const selectedHabitId = ref(0)
@@ -385,10 +400,20 @@ const logComposerOpen = ref(false)
 const logContent = ref('')
 const logTarget = ref<{ habit: HabitItem; stamp: number } | null>(null)
 const focusHabit = ref<HabitItem | null>(null)
+const timezoneOptions = computed(() => {
+  try {
+    const values = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.('timeZone') || []
+    return Array.from(new Set([preferences.value.timezone || 'Asia/Shanghai', ...values])).sort()
+  } catch {
+    return ['Asia/Shanghai', 'UTC', 'Asia/Tokyo', 'Europe/London', 'America/New_York']
+  }
+})
 const editingLogId = ref(0)
 const editingLogContent = ref('')
 const newSectionName = ref('')
+const importInput = ref<HTMLInputElement | null>(null)
 const draggingHabitId = ref(0)
+const importBusy = ref(false)
 const dragOverHabitId = ref(0)
 
 const emojis = ['😊', '📚', '🏃', '💧', '🧘', '🌱', '🎯', '✍️', '🌙', '🍎', '💪', '🎨']
@@ -736,6 +761,18 @@ async function dropHabit(target: HabitItem) {
   }
 }
 
+async function onFocusCompleted(payload: { minutes: number; startedAt: string; completedAt: string }) {
+  if (!selectedHabit.value) return
+  try {
+    await saveHabitFocus(selectedHabit.value.id, payload)
+    focusHabit.value = null
+    await loadDetail(selectedHabit.value.id)
+    Message.success('专注记录已保存')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存专注记录失败')
+  }
+}
+
 async function toggleHabitStyle() {
   if (!selectedHabit.value) return
   const next = selectedHabit.value.style === 'icon' ? 'check' : 'icon'
@@ -745,6 +782,26 @@ async function toggleHabitStyle() {
     if (selectedHabitId.value) await loadDetail(selectedHabitId.value)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '切换打卡样式失败')
+  }
+}
+
+async function importBackup(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  importBusy.value = true
+  try {
+    const text = await file.text()
+    const payload = JSON.parse(text) as unknown
+    const result = await importHabitsBackup(payload)
+    Message.success(`已导入 ${result.habits} 个习惯、${result.checkins} 条打卡`)
+    settingsOpen.value = false
+    await load()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '导入失败，请选择有效 JSON')
+  } finally {
+    importBusy.value = false
+    input.value = ''
   }
 }
 

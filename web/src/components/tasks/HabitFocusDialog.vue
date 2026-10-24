@@ -34,12 +34,16 @@ import type { HabitItem } from '../../types'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ habit: HabitItem }>()
-const emit = defineEmits<{ (event: 'close'): void }>()
+const emit = defineEmits<{
+  (event: 'close'): void
+  (event: 'completed', payload: { minutes: number; startedAt: string; completedAt: string }): void
+}>()
 const presets = [15, 25, 45, 60]
 const minutes = ref(25)
 const remaining = ref(25 * 60)
 const running = ref(false)
 let timer: ReturnType<typeof setInterval> | undefined
+let startedAt: Date | null = null
 
 const clock = computed(() => {
   const value = Math.max(0, remaining.value)
@@ -65,6 +69,7 @@ function toggle() {
     return
   }
   if (remaining.value <= 0) remaining.value = minutes.value * 60
+  if (!startedAt) startedAt = new Date()
   running.value = true
   timer = setInterval(tick, 1000)
 }
@@ -78,12 +83,19 @@ function pause() {
 function reset() {
   pause()
   remaining.value = minutes.value * 60
+  startedAt = null
 }
 
 function complete() {
   pause()
   remaining.value = 0
-  Message.success(`「${props.habit.name}」专注完成`)
+  const completedAt = new Date()
+  emit('completed', {
+    minutes: minutes.value,
+    startedAt: (startedAt || completedAt).toISOString(),
+    completedAt: completedAt.toISOString(),
+  })
+  startedAt = null
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
     new Notification('专注完成', { body: props.habit.name, tag: `habit-focus-${props.habit.id}` })
   }

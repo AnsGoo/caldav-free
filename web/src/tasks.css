@@ -6995,3 +6995,7 @@ button.tw-side-link {
 .tw-habit-focus-presets button:disabled { opacity: .45; }
 .tw-habit-focus-actions { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
 .tw-habit-focus-actions button { height: 32px; padding: 0 14px; font-size: 12px; }
+
+.tw-habit-backup { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--tw-border); color: var(--tw-text-3); font-size: 10.5px; }
+.tw-habit-backup a, .tw-habit-backup button { height: 26px; display: inline-flex; align-items: center; padding: 0 9px; border: 1px solid var(--tw-border); border-radius: 999px; color: var(--tw-text-2); background: transparent; font-size: 10px; text-decoration: none; }
+.tw-habit-backup a:hover, .tw-habit-backup button:hover:not(:disabled) { border-color: var(--tw-accent); color: var(--tw-accent); }

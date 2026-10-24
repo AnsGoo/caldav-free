@@ -515,6 +515,15 @@ export interface HabitRecord {
   opTime: string
 }
 
+export interface HabitFocusSession {
+  id: number
+  habitId: number
+  minutes: number
+  startedAt: string
+  completedAt: string
+  createdAt: string
+}
+
 export interface HabitPreference {
   showInToday: boolean
   showInCalendar: boolean
@@ -522,6 +531,7 @@ export interface HabitPreference {
   displayType: 'list' | 'card'
   sortType: string
   defaultSectionId: number
+  timezone: string
 }
 
 export interface HabitDailyStat {
@@ -531,6 +541,9 @@ export interface HabitDailyStat {
 }
 
 export interface HabitStats {
+  focusMinutes: number
+  monthFocusMinutes: number
+  focusCount: number
   targetDays: number
   targetProgress: number
   completedCycles: number
@@ -547,6 +560,7 @@ export interface HabitDetail {
   habit: HabitItem
   checkins: HabitCheckin[]
   records: HabitRecord[]
+  focusSessions: HabitFocusSession[]
   stats: HabitStats
 }
 

@@ -81,6 +81,16 @@ type HabitRecord struct {
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime" json:"modifiedAt"`
 }
 
+type HabitFocusSession struct {
+	ID          int64     `gorm:"primaryKey" json:"id"`
+	UserID      int64     `gorm:"not null;index:idx_habit_focus_user" json:"-"`
+	HabitID     int64     `gorm:"not null;index:idx_habit_focus_habit" json:"habitId"`
+	Minutes     int       `gorm:"not null;default:0" json:"minutes"`
+	StartedAt   time.Time `gorm:"not null" json:"startedAt"`
+	CompletedAt time.Time `gorm:"not null" json:"completedAt"`
+	CreatedAt   time.Time `gorm:"not null;autoCreateTime" json:"createdAt"`
+}
+
 type HabitPreference struct {
 	UserID           int64  `gorm:"primaryKey" json:"-"`
 	ShowInToday      bool   `gorm:"not null;default:true" json:"showInToday"`
@@ -89,6 +99,7 @@ type HabitPreference struct {
 	DisplayType      string `gorm:"size:16;not null;default:'list'" json:"displayType"`
 	SortType         string `gorm:"size:32;not null;default:'custom'" json:"sortType"`
 	DefaultSectionID int64  `gorm:"not null;default:0" json:"defaultSectionId"`
+	Timezone         string `gorm:"size:64;not null;default:'Asia/Shanghai'" json:"timezone"`
 }
 
 type HabitFrequency struct {
@@ -105,6 +116,9 @@ type HabitDailyStat struct {
 }
 
 type HabitStats struct {
+	FocusMinutes         int              `json:"focusMinutes"`
+	MonthFocusMinutes    int              `json:"monthFocusMinutes"`
+	FocusCount           int              `json:"focusCount"`
 	TargetDays           int              `json:"targetDays"`
 	TargetProgress       int              `json:"targetProgress"`
 	CompletedCycles      int              `json:"completedCycles"`
@@ -130,10 +144,11 @@ type HabitCalendarEntry struct {
 }
 
 type HabitDetail struct {
-	Habit    *Habit          `json:"habit"`
-	Checkins []*HabitCheckin `json:"checkins"`
-	Records  []*HabitRecord  `json:"records"`
-	Stats    HabitStats      `json:"stats"`
+	Habit         *Habit               `json:"habit"`
+	Checkins      []*HabitCheckin      `json:"checkins"`
+	Records       []*HabitRecord       `json:"records"`
+	FocusSessions []*HabitFocusSession `json:"focusSessions"`
+	Stats         HabitStats           `json:"stats"`
 }
 
 func (s *Store) ListHabits(ctx context.Context, userID int64, includeArchived bool) ([]*Habit, error) {
@@ -453,7 +468,7 @@ func (s *Store) GetHabitPreference(ctx context.Context, userID int64) (*HabitPre
 	var pref HabitPreference
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&pref).Error
 	if err == gorm.ErrRecordNotFound {
-		return &HabitPreference{UserID: userID, ShowInToday: true, ShowInCalendar: true, DisplayType: "list", SortType: "custom"}, nil
+		return &HabitPreference{UserID: userID, ShowInToday: true, ShowInCalendar: true, DisplayType: "list", SortType: "custom", Timezone: DefaultTimezone}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -467,6 +482,9 @@ func (s *Store) SaveHabitPreference(ctx context.Context, pref *HabitPreference) 
 	}
 	if pref.SortType == "" {
 		pref.SortType = "custom"
+	}
+	if pref.Timezone == "" {
+		pref.Timezone = DefaultTimezone
 	}
 	if err := s.db.WithContext(ctx).Save(pref).Error; err != nil {
 		return nil, fmt.Errorf("save habit preference: %w", err)
@@ -568,8 +586,39 @@ func (s *Store) HabitDetail(ctx context.Context, userID, habitID int64, month st
 		Order("stamp ASC, id ASC").Find(&records).Error; err != nil {
 		return nil, err
 	}
+	var focusSessions []*HabitFocusSession
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habitID).
+		Order("completed_at DESC, id DESC").Find(&focusSessions).Error; err != nil {
+		return nil, err
+	}
 	stats := computeHabitStats(habit, checkins, monthStart, monthEnd)
-	return &HabitDetail{Habit: habit, Checkins: checkins, Records: records, Stats: stats}, nil
+	for _, session := range focusSessions {
+		stats.FocusMinutes += session.Minutes
+		stats.FocusCount++
+		if session.CompletedAt.In(monthStart.Location()).Month() == monthStart.Month() && session.CompletedAt.In(monthStart.Location()).Year() == monthStart.Year() {
+			stats.MonthFocusMinutes += session.Minutes
+		}
+	}
+	if len(focusSessions) > 30 {
+		focusSessions = focusSessions[:30]
+	}
+	return &HabitDetail{Habit: habit, Checkins: checkins, Records: records, FocusSessions: focusSessions, Stats: stats}, nil
+}
+
+func (s *Store) CreateHabitFocusSession(ctx context.Context, session *HabitFocusSession) (*HabitFocusSession, error) {
+	if session.Minutes <= 0 || session.Minutes > 600 {
+		return nil, fmt.Errorf("专注时长无效")
+	}
+	if session.StartedAt.IsZero() {
+		session.StartedAt = time.Now()
+	}
+	if session.CompletedAt.IsZero() {
+		session.CompletedAt = time.Now()
+	}
+	if err := s.db.WithContext(ctx).Create(session).Error; err != nil {
+		return nil, fmt.Errorf("create habit focus session: %w", err)
+	}
+	return session, nil
 }
 
 func (s *Store) ListHabitRecords(ctx context.Context, userID, habitID int64, month string) ([]*HabitRecord, error) {
@@ -909,4 +958,116 @@ func SortHabitsBySection(habits []*Habit, sections []*HabitSection) []*Habit {
 		return left.SortOrder < right.SortOrder
 	})
 	return out
+}
+
+type HabitBackupHabit struct {
+	Habit         *Habit               `json:"habit"`
+	Checkins      []*HabitCheckin      `json:"checkins"`
+	Records       []*HabitRecord       `json:"records"`
+	FocusSessions []*HabitFocusSession `json:"focusSessions"`
+}
+
+type HabitBackup struct {
+	Version    int                `json:"version"`
+	ExportedAt time.Time          `json:"exportedAt"`
+	Sections   []*HabitSection    `json:"sections"`
+	Habits     []HabitBackupHabit `json:"habits"`
+}
+
+func (s *Store) ExportHabitsBackup(ctx context.Context, userID int64) (*HabitBackup, error) {
+	habits, err := s.ListHabits(ctx, userID, true)
+	if err != nil {
+		return nil, err
+	}
+	sections, err := s.ListHabitSections(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	backup := &HabitBackup{Version: 1, ExportedAt: time.Now(), Sections: sections, Habits: make([]HabitBackupHabit, 0, len(habits))}
+	for _, habit := range habits {
+		var checkins []*HabitCheckin
+		if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habit.ID).Order("checkin_stamp ASC").Find(&checkins).Error; err != nil {
+			return nil, err
+		}
+		var records []*HabitRecord
+		if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habit.ID).Order("stamp ASC, id ASC").Find(&records).Error; err != nil {
+			return nil, err
+		}
+		var focusSessions []*HabitFocusSession
+		if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, habit.ID).Order("completed_at ASC").Find(&focusSessions).Error; err != nil {
+			return nil, err
+		}
+		backup.Habits = append(backup.Habits, HabitBackupHabit{Habit: habit, Checkins: checkins, Records: records, FocusSessions: focusSessions})
+	}
+	return backup, nil
+}
+
+func (s *Store) ImportHabitsBackup(ctx context.Context, userID int64, backup *HabitBackup) (int, int, int, error) {
+	if len(backup.Habits) > 200 {
+		return 0, 0, 0, fmt.Errorf("一次最多导入 200 个习惯")
+	}
+	sectionMap := make(map[int64]int64)
+	for _, section := range backup.Sections {
+		if strings.TrimSpace(section.Name) == "" {
+			continue
+		}
+		created, err := s.CreateHabitSection(ctx, userID, section.Name)
+		if err != nil {
+			continue
+		}
+		sectionMap[section.ID] = created.ID
+	}
+	importedHabits, importedCheckins, importedRecords := 0, 0, 0
+	for _, entry := range backup.Habits {
+		if entry.Habit == nil || strings.TrimSpace(entry.Habit.Name) == "" {
+			continue
+		}
+		habit := *entry.Habit
+		habit.ID = 0
+		habit.UserID = userID
+		habit.SectionID = sectionMap[habit.SectionID]
+		habit.TotalCheckIns = 0
+		habit.CurrentStreak = 0
+		habit.MaxStreak = 0
+		created, err := s.CreateHabit(ctx, &habit)
+		if err != nil {
+			continue
+		}
+		importedHabits++
+		for _, checkin := range entry.Checkins {
+			if checkin == nil || checkin.Stamp == 0 {
+				continue
+			}
+			row := *checkin
+			row.ID = 0
+			row.UserID = userID
+			row.HabitID = created.ID
+			if err := s.db.WithContext(ctx).Create(&row).Error; err == nil {
+				importedCheckins++
+			}
+		}
+		for _, record := range entry.Records {
+			if record == nil || strings.TrimSpace(record.Content) == "" {
+				continue
+			}
+			row := *record
+			row.ID = 0
+			row.UserID = userID
+			row.HabitID = created.ID
+			if err := s.db.WithContext(ctx).Create(&row).Error; err == nil {
+				importedRecords++
+			}
+		}
+		for _, session := range entry.FocusSessions {
+			if session == nil || session.Minutes <= 0 {
+				continue
+			}
+			row := *session
+			row.ID = 0
+			row.UserID = userID
+			row.HabitID = created.ID
+			_ = s.db.WithContext(ctx).Create(&row).Error
+		}
+	}
+	return importedHabits, importedCheckins, importedRecords, nil
 }

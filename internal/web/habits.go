@@ -194,6 +194,39 @@ func (s *Server) apiHabitCalendar(w http.ResponseWriter, r *http.Request, curren
 	writeAPIJSON(w, http.StatusOK, map[string]any{"entries": entries})
 }
 
+func (s *Server) apiHabitFocus(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	id, ok := habitID(r, "id")
+	if !ok {
+		writeAPIError(w, http.StatusNotFound, "习惯不存在")
+		return
+	}
+	if _, err := s.store.GetHabit(r.Context(), current.ID, id); err != nil {
+		writeAPIError(w, http.StatusNotFound, "习惯不存在")
+		return
+	}
+	var body struct {
+		Minutes     int    `json:"minutes"`
+		StartedAt   string `json:"startedAt"`
+		CompletedAt string `json:"completedAt"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	session := &store.HabitFocusSession{UserID: current.ID, HabitID: id, Minutes: body.Minutes}
+	if parsed, err := time.Parse(time.RFC3339, body.StartedAt); err == nil {
+		session.StartedAt = parsed
+	}
+	if parsed, err := time.Parse(time.RFC3339, body.CompletedAt); err == nil {
+		session.CompletedAt = parsed
+	}
+	created, err := s.store.CreateHabitFocusSession(r.Context(), session)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusCreated, map[string]any{"session": created})
+}
+
 func (s *Server) apiHabitDetail(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	id, ok := habitID(r, "id")
 	if !ok {
@@ -289,6 +322,7 @@ func (s *Server) apiHabitPreferences(w http.ResponseWriter, r *http.Request, cur
 		DisplayType      *string `json:"displayType"`
 		SortType         *string `json:"sortType"`
 		DefaultSectionID *int64  `json:"defaultSectionId"`
+		Timezone         *string `json:"timezone"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -310,6 +344,13 @@ func (s *Server) apiHabitPreferences(w http.ResponseWriter, r *http.Request, cur
 	}
 	if body.DefaultSectionID != nil {
 		existing.DefaultSectionID = *body.DefaultSectionID
+	}
+	if body.Timezone != nil {
+		if _, err := time.LoadLocation(strings.TrimSpace(*body.Timezone)); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "时区无效")
+			return
+		}
+		existing.Timezone = strings.TrimSpace(*body.Timezone)
 	}
 	saved, err := s.store.SaveHabitPreference(r.Context(), existing)
 	if err != nil {
@@ -373,6 +414,17 @@ func (s *Server) apiHabitSection(w http.ResponseWriter, r *http.Request, current
 }
 
 func (s *Server) apiHabitExport(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	if r.URL.Query().Get("format") == "json" {
+		backup, err := s.store.ExportHabitsBackup(r.Context(), current.ID)
+		if err != nil {
+			s.apiServerError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=habits-%s.json", time.Now().Format("20060102")))
+		writeAPIJSON(w, http.StatusOK, backup)
+		return
+	}
 	csv, err := s.store.ExportHabitsCSV(r.Context(), current.ID)
 	if err != nil {
 		s.apiServerError(w, err)
@@ -381,4 +433,19 @@ func (s *Server) apiHabitExport(w http.ResponseWriter, r *http.Request, current 
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=habits-%s.csv", time.Now().Format("20060102")))
 	_, _ = w.Write([]byte(csv))
+}
+
+func (s *Server) apiHabitImport(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var backup store.HabitBackup
+	if !readAPIJSON(w, r, &backup) {
+		return
+	}
+	habits, checkins, records, err := s.store.ImportHabitsBackup(r.Context(), current.ID, &backup)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{
+		"habits": habits, "checkins": checkins, "records": records,
+	})
 }

@@ -1,5 +1,5 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, HabitCalendarEntry, HabitDetail, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit'
 
@@ -497,6 +497,10 @@ export function toggleHabitCheckin(id: number, stamp?: number, value?: number) {
   })
 }
 
+export function saveHabitFocus(id: number, payload: { minutes: number; startedAt?: string; completedAt?: string }) {
+  return api<{ session: HabitFocusSession }>(`/habits/${id}/focus`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
 export function fetchHabitDetail(id: number, month: string) {
   return api<HabitDetail>(`/habits/${id}/detail?month=${encodeURIComponent(month)}`)
 }
@@ -519,6 +523,13 @@ export function fetchHabitPreferences() {
 
 export function saveHabitPreferences(payload: Partial<HabitPreference>) {
   return api<HabitPreference>('/habit-preferences', { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export function importHabitsBackup(payload: unknown) {
+  return api<{ habits: number; checkins: number; records: number }>('/habits/import', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function createHabitSection(name: string) {

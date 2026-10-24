@@ -9,6 +9,7 @@
       <div class="tw-focus-range-tabs">
         <button v-for="option in ranges" :key="option.days" :class="{ active: days === option.days }" @click="days = option.days">{{ option.label }}</button>
       </div>
+      <button class="tw-ghost-button tw-focus-export" @click="exportCSV">导出 CSV</button>
     </header>
 
     <div v-if="loading" class="tw-focus-stats-page-loading"><a-spin /></div>
@@ -147,6 +148,42 @@ function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60)
   if (minutes < 60) return `${minutes}m`
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
+function csvCell(value: unknown) {
+  const text = String(value ?? '')
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+function exportCSV() {
+  const current = stats.value
+  if (!current?.sessions.length) {
+    Message.warning('当前区间还没有专注记录')
+    return
+  }
+  const rows: Array<Array<string | number>> = [
+    ['ID', '开始时间', '结束时间', '时长（秒）', '模式', '番茄数', '专注对象', '专注笔记'],
+  ]
+  for (const session of current.sessions) {
+    rows.push([
+      session.id,
+      new Date(session.startedAt).toISOString(),
+      new Date(session.endedAt).toISOString(),
+      session.durationSeconds,
+      session.mode === 'stopwatch' ? '正计时' : '番茄计时',
+      session.pomodoroCount,
+      session.title || '自由专注',
+      session.note || '',
+    ])
+  }
+  const csv = '\uFEFF' + rows.map((row) => row.map(csvCell).join(',')).join('\r\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `focus-${current.from}-${current.to}.csv`
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 async function load() {

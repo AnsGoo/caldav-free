@@ -369,14 +369,26 @@ func parseCountdownDate(value int) (time.Time, bool) {
 
 func nextLunarCountdown(event *CountdownEvent, today time.Time) (time.Time, bool) {
 	month := event.LunarMonth
-	if event.LunarLeap {
-		month = -month
-	}
-	if month == 0 || event.LunarDay == 0 {
+	if month < 1 || month > 12 || event.LunarDay < 1 || event.LunarDay > 30 {
 		return time.Time{}, false
 	}
 	for year := today.Year() - 1; year <= today.Year()+2; year++ {
-		lunar := lunarcalendar.NewLunarFromYmd(year, month, event.LunarDay)
+		lunarYear := lunarcalendar.NewLunarYear(year)
+		monthKey := month
+		// A leap-month event falls back to the normal month in years without
+		// that leap month, matching the usual birthday/anniversary convention.
+		if event.LunarLeap && lunarYear.GetLeapMonth() == month {
+			monthKey = -month
+		}
+		lunarMonth := lunarYear.GetMonth(monthKey)
+		if lunarMonth == nil {
+			continue
+		}
+		day := event.LunarDay
+		if day > lunarMonth.GetDayCount() {
+			day = lunarMonth.GetDayCount()
+		}
+		lunar := lunarcalendar.NewLunarFromYmd(year, monthKey, day)
 		solar := lunar.GetSolar()
 		candidate := time.Date(solar.GetYear(), time.Month(solar.GetMonth()), solar.GetDay(), 0, 0, 0, 0, today.Location())
 		if !candidate.Before(today) {

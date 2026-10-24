@@ -7323,14 +7323,21 @@ button.tw-side-link {
 .tw-focus-picker-tabs { display: flex; gap: 4px; padding: 0 20px; }
 .tw-focus-picker-tabs button { height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 11px; cursor: pointer; }
 .tw-focus-picker-tabs button.active { background: var(--tw-accent-soft); color: var(--tw-accent); }
-.tw-focus-picker-search { display: flex; align-items: center; gap: 8px; margin: 12px 20px 8px; padding: 0 10px; height: 34px; border: 1px solid var(--tw-border); border-radius: 9px; color: var(--tw-text-3); }
+.tw-focus-picker-filters { display: flex; align-items: center; gap: 8px; margin: 10px 20px 0; }
+.tw-focus-picker-groups { display: flex; align-items: center; gap: 3px; padding: 2px; border-radius: 8px; background: var(--tw-surface); }
+.tw-focus-picker-groups button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--tw-text-3); font-size: 10px; cursor: pointer; }
+.tw-focus-picker-groups button.active { background: var(--tw-bg); color: var(--tw-text); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1); }
+.tw-focus-picker-filters select { margin-left: auto; max-width: 130px; height: 28px; border: 1px solid var(--tw-border); border-radius: 7px; background: var(--tw-bg); color: var(--tw-text-2); font-size: 10px; outline: none; padding: 0 5px; }
+.tw-focus-picker-search { display: flex; align-items: center; gap: 8px; margin: 10px 20px 8px; padding: 0 10px; height: 34px; border: 1px solid var(--tw-border); border-radius: 9px; color: var(--tw-text-3); }
 .tw-focus-picker-search input { flex: 1; border: 0; background: transparent; color: var(--tw-text); outline: none; font-size: 12px; }
 .tw-focus-picker-list { max-height: 320px; overflow: auto; padding: 0 12px 14px; }
 .tw-focus-picker-clear, .tw-focus-picker-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 9px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--tw-text-2); text-align: left; font-size: 11px; cursor: pointer; }
 .tw-focus-picker-clear { color: var(--tw-accent); }
 .tw-focus-picker-item:hover, .tw-focus-picker-clear:hover { background: var(--tw-hover); }
 .tw-focus-picker-icon { width: 23px; height: 23px; flex: none; display: grid; place-items: center; border-radius: 7px; background: var(--tw-surface); color: var(--tw-text-3); }
-.tw-focus-picker-item > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-focus-picker-copy { min-width: 0; flex: 1; display: grid; gap: 1px; }
+.tw-focus-picker-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-focus-picker-copy small { overflow: hidden; color: var(--tw-text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 
 .tw-focus-settings, .tw-focus-manual, .tw-focus-stats-dialog { width: min(560px, calc(100vw - 28px)); }
 .tw-focus-settings-body { display: grid; gap: 12px; }
@@ -7529,6 +7536,7 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-focus-range-tabs { margin-left: auto; display: flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--tw-surface); }
 .tw-focus-range-tabs button { height: 28px; padding: 0 13px; border: 0; border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 10px; cursor: pointer; }
 .tw-focus-range-tabs button.active { background: var(--tw-bg); color: var(--tw-text); box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+.tw-focus-export { flex: none; height: 28px; font-size: 10px; }
 
 .tw-focus-stats-page-loading { height: 380px; display: grid; place-items: center; }
 .tw-focus-stats-page-body { padding: 24px 28px 48px; display: grid; gap: 16px; }

@@ -124,6 +124,15 @@
           <button :class="{ active: pickerTab === 'task' }" @click="pickerTab = 'task'">任务</button>
           <button :class="{ active: pickerTab === 'habit' }" @click="pickerTab = 'habit'">习惯</button>
         </div>
+        <div v-if="pickerTab === 'task'" class="tw-focus-picker-filters">
+          <div class="tw-focus-picker-groups">
+            <button v-for="group in pickerGroups" :key="group.value" :class="{ active: pickerGroup === group.value }" @click="pickerGroup = group.value">{{ group.label }}</button>
+          </div>
+          <select v-model.number="pickerListId" title="按清单筛选">
+            <option :value="0">全部清单</option>
+            <option v-for="list in pickerLists" :key="list.id" :value="list.id">{{ list.name }}</option>
+          </select>
+        </div>
         <div class="tw-focus-picker-search">
           <TaskIcon name="search" :size="15" />
           <input v-model="pickerQuery" placeholder="搜索任务或习惯" />
@@ -132,7 +141,7 @@
           <button class="tw-focus-picker-clear" @click="selectTarget(null)">自由专注（不关联）</button>
           <button v-for="item in pickerItems" :key="`${item.type}-${item.id}`" class="tw-focus-picker-item" @click="selectTarget(item)">
             <span class="tw-focus-picker-icon"><TaskIcon :name="item.type === 'habit' ? 'habit' : 'check'" :size="14" /></span>
-            <span>{{ item.title }}</span>
+            <span class="tw-focus-picker-copy"><span>{{ item.title }}</span><small>{{ item.meta }}</small></span>
           </button>
           <p v-if="!pickerItems.length" class="tw-modal-note">没有匹配的{{ pickerTab === 'habit' ? '习惯' : '任务' }}。</p>
         </div>
@@ -252,6 +261,7 @@ import { useRouter } from 'vue-router'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { FocusDashboard, FocusMode, FocusPreference, FocusSession, FocusTimerView, HabitItem, TaskItem } from '../../types'
 import { createFocusSession, deleteFocusSession, fetchFocusDashboard, fetchFocusTimer, fetchHabits, saveFocusPreferences, saveFocusTimer } from '../../tasks-api'
+import { isOverdue, isToday } from '../../tasks-utils'
 import TaskIcon from './TaskIcon.vue'
 
 const router = useRouter()
@@ -260,7 +270,8 @@ const props = defineProps<{ tasks: TaskItem[] }>()
 
 type TimerState = 'idle' | 'running' | 'paused'
 type FocusPhase = 'focus' | 'shortBreak' | 'longBreak'
-type FocusTarget = { type: 'task' | 'habit'; id: number; title: string }
+type FocusTarget = { type: 'task' | 'habit'; id: number; title: string; meta?: string }
+type PickerGroup = 'all' | 'today' | 'overdue'
 
 const loading = ref(true)
 const dashboard = ref<FocusDashboard | null>(null)
@@ -303,7 +314,20 @@ const manualForm = reactive({
 const pickerOpen = ref(false)
 const pickerTab = ref<'task' | 'habit'>('task')
 const pickerQuery = ref('')
+const pickerGroup = ref<PickerGroup>('all')
+const pickerListId = ref(0)
 const pickerFor = ref<'timer' | 'manual'>('timer')
+
+const pickerGroups: { value: PickerGroup; label: string }[] = [
+  { value: 'all', label: '全部' },
+  { value: 'today', label: '今天' },
+  { value: 'overdue', label: '已过期' },
+]
+const pickerLists = computed(() => {
+  const lists = new Map<number, string>()
+  for (const task of props.tasks) lists.set(task.listId, task.listName)
+  return [...lists].map(([id, name]) => ({ id, name }))
+})
 
 let ticker: ReturnType<typeof setInterval> | undefined
 let syncTicker: ReturnType<typeof setInterval> | undefined
@@ -357,12 +381,19 @@ const pickerItems = computed(() => {
   if (pickerTab.value === 'habit') {
     return habits.value
       .filter((habit) => !query || habit.name.toLowerCase().includes(query))
-      .map((habit) => ({ type: 'habit' as const, id: habit.id, title: habit.name }))
+      .map((habit) => ({ type: 'habit' as const, id: habit.id, title: habit.name, meta: '习惯' }))
   }
   return props.tasks
-    .filter((task) => !task.completed && (!query || task.title.toLowerCase().includes(query)))
+    .filter((task) => {
+      if (task.completed) return false
+      if (pickerListId.value && task.listId !== pickerListId.value) return false
+      if (query && !task.title.toLowerCase().includes(query)) return false
+      if (pickerGroup.value === 'today') return isToday(task)
+      if (pickerGroup.value === 'overdue') return isOverdue(task)
+      return true
+    })
     .slice(0, 100)
-    .map((task) => ({ type: 'task' as const, id: task.id, title: task.title }))
+    .map((task) => ({ type: 'task' as const, id: task.id, title: task.title, meta: task.listName }))
 })
 const weekTotalMinutes = computed(() => (dashboard.value?.daily || []).reduce((sum, day) => sum + day.minutes, 0))
 const weekMax = computed(() => Math.max(1, ...(dashboard.value?.daily || []).map((day) => day.minutes)))
@@ -787,6 +818,8 @@ function openPicker(forWho: 'timer' | 'manual') {
   pickerFor.value = forWho
   pickerTab.value = forWho === 'manual' && manualTarget.value?.type === 'habit' ? 'habit' : (target.value?.type === 'habit' ? 'habit' : 'task')
   pickerQuery.value = ''
+  pickerGroup.value = 'all'
+  pickerListId.value = 0
   pickerOpen.value = true
 }
 

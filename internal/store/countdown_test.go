@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	lunarcalendar "github.com/6tail/lunar-go/calendar"
 )
 
 func TestCountdownLifecycleAndOccurrences(t *testing.T) {
@@ -169,3 +171,83 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 }
 
 func stringPtr(value string) *string { return &value }
+
+func TestNextLunarCountdownLeapFallbackAndBoundaries(t *testing.T) {
+	t.Run("uses regular month when leap month is absent", func(t *testing.T) {
+		event := &CountdownEvent{LunarMonth: 4, LunarDay: 15, LunarLeap: true}
+		today := time.Date(2026, 1, 1, 0, 0, 0, 0, time.Local)
+		got, ok := nextLunarCountdown(event, today)
+		if !ok {
+			t.Fatal("expected an occurrence")
+		}
+		expected := lunarcalendar.NewLunarFromYmd(2026, 4, 15).GetSolar()
+		if got.Year() != expected.GetYear() || int(got.Month()) != expected.GetMonth() || got.Day() != expected.GetDay() {
+			t.Fatalf("fallback occurrence = %s, expected %04d-%02d-%02d", got, expected.GetYear(), expected.GetMonth(), expected.GetDay())
+		}
+	})
+
+	t.Run("uses leap month when it exists", func(t *testing.T) {
+		event := &CountdownEvent{LunarMonth: 5, LunarDay: 15, LunarLeap: true}
+		today := time.Date(2028, 1, 1, 0, 0, 0, 0, time.Local)
+		got, ok := nextLunarCountdown(event, today)
+		if !ok {
+			t.Fatal("expected an occurrence")
+		}
+		expected := lunarcalendar.NewLunarFromYmd(2028, -5, 15).GetSolar()
+		if got.Year() != expected.GetYear() || int(got.Month()) != expected.GetMonth() || got.Day() != expected.GetDay() {
+			t.Fatalf("leap occurrence = %s, expected %04d-%02d-%02d", got, expected.GetYear(), expected.GetMonth(), expected.GetDay())
+		}
+	})
+
+	t.Run("clamps day 30 in a 29-day month", func(t *testing.T) {
+		var year int
+		for candidate := 2026; candidate <= 2040; candidate++ {
+			if lunarcalendar.NewLunarYear(candidate).GetMonth(1).GetDayCount() < 30 {
+				year = candidate
+				break
+			}
+		}
+		if year == 0 {
+			t.Skip("no short first lunar month in test range")
+		}
+		event := &CountdownEvent{LunarMonth: 1, LunarDay: 30}
+		today := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
+		got, ok := nextLunarCountdown(event, today)
+		if !ok {
+			t.Fatal("expected an occurrence")
+		}
+		expected := lunarcalendar.NewLunarFromYmd(year, 1, 29).GetSolar()
+		if got.Year() != expected.GetYear() || int(got.Month()) != expected.GetMonth() || got.Day() != expected.GetDay() {
+			t.Fatalf("clamped occurrence = %s, expected %04d-%02d-%02d", got, expected.GetYear(), expected.GetMonth(), expected.GetDay())
+		}
+	})
+
+	t.Run("rolls into the next lunar year", func(t *testing.T) {
+		event := &CountdownEvent{LunarMonth: 1, LunarDay: 1}
+		today := time.Date(2026, 12, 31, 0, 0, 0, 0, time.Local)
+		got, ok := nextLunarCountdown(event, today)
+		if !ok {
+			t.Fatal("expected an occurrence")
+		}
+		expected := lunarcalendar.NewLunarFromYmd(2027, 1, 1).GetSolar()
+		if got.Year() != expected.GetYear() || int(got.Month()) != expected.GetMonth() || got.Day() != expected.GetDay() {
+			t.Fatalf("next new year = %s, expected %04d-%02d-%02d", got, expected.GetYear(), expected.GetMonth(), expected.GetDay())
+		}
+	})
+}
+
+func TestCreateCountdownLeapMonthDoesNotPanic(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	now := time.Now()
+	item, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "闰月十二", Type: "countdown", Date: stampOf(now),
+		Calendar: "lunar", LunarMonth: 12, LunarDay: 30, LunarLeap: true, Repeat: "yearly",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.OccurrenceDate == 0 || item.State == "" {
+		t.Fatalf("unexpected leap-month occurrence: %+v", item)
+	}
+}

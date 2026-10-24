@@ -337,6 +337,11 @@
             <span>数据备份</span>
             <a class="tw-ghost-button" href="/api/admin/habits/export">导出 CSV</a>
             <a class="tw-ghost-button" href="/api/admin/habits/export?format=json">导出 JSON</a>
+            <select v-model="importMode" class="tw-field-select tw-import-mode" title="导入方式">
+              <option value="append">新增副本</option>
+              <option value="skip">跳过同名</option>
+              <option value="overwrite">覆盖同名</option>
+            </select>
             <button class="tw-ghost-button" :disabled="importBusy" @click="importInput?.click()">{{ importBusy ? '导入中…' : '导入 JSON' }}</button>
             <input ref="importInput" type="file" accept="application/json,.json" hidden @change="importBackup" />
           </div>
@@ -352,7 +357,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { Message } from '@arco-design/web-vue'
+import { Message, Modal } from '@arco-design/web-vue'
 import type { HabitCheckin, HabitDetail, HabitFrequency, HabitItem, HabitListData, HabitPreference, HabitRecord, HabitSection } from '../../types'
 import {
   createHabit,
@@ -414,6 +419,7 @@ const newSectionName = ref('')
 const importInput = ref<HTMLInputElement | null>(null)
 const draggingHabitId = ref(0)
 const importBusy = ref(false)
+const importMode = ref<'append' | 'skip' | 'overwrite'>('append')
 const dragOverHabitId = ref(0)
 
 const emojis = ['😊', '📚', '🏃', '💧', '🧘', '🌱', '🎯', '✍️', '🌙', '🍎', '💪', '🎨']
@@ -789,12 +795,35 @@ async function importBackup(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  if (importMode.value === 'overwrite') {
+    Modal.confirm({
+      title: '覆盖同名习惯',
+      content: '同名习惯的打卡、日志和专注记录会被替换，是否继续？',
+      okText: '覆盖导入',
+      cancelText: '取消',
+      okButtonProps: { status: 'danger' },
+      onOk() {
+        void runImport(file, input)
+      },
+      onCancel() {
+        input.value = ''
+      },
+    })
+    return
+  }
+  await runImport(file, input)
+}
+
+async function runImport(file: File, input: HTMLInputElement) {
   importBusy.value = true
   try {
     const text = await file.text()
     const payload = JSON.parse(text) as unknown
-    const result = await importHabitsBackup(payload)
-    Message.success(`已导入 ${result.habits} 个习惯、${result.checkins} 条打卡`)
+    const result = await importHabitsBackup(payload, importMode.value)
+    const parts = [`创建 ${result.habits} 个习惯`, `${result.checkins} 条打卡`]
+    if (result.updated) parts.push(`覆盖 ${result.updated} 个`)
+    if (result.skipped) parts.push(`跳过 ${result.skipped} 个`)
+    Message.success(`导入完成：${parts.join('、')}`)
     settingsOpen.value = false
     await load()
   } catch (error) {

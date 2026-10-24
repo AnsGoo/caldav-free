@@ -525,11 +525,11 @@ export function saveHabitPreferences(payload: Partial<HabitPreference>) {
   return api<HabitPreference>('/habit-preferences', { method: 'PATCH', body: JSON.stringify(payload) })
 }
 
-export function importHabitsBackup(payload: unknown) {
-  return api<{ habits: number; checkins: number; records: number }>('/habits/import', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
+export function importHabitsBackup(payload: unknown, mode: 'append' | 'skip' | 'overwrite' = 'append') {
+  return api<{ habits: number; checkins: number; records: number; updated: number; skipped: number }>(
+    `/habits/import?mode=${encodeURIComponent(mode)}`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
 }
 
 export function createHabitSection(name: string) {

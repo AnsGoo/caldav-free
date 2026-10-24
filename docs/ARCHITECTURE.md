@@ -58,7 +58,8 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `habit_sections` | 习惯自定义分组 |
 | `habit_checkins` | 按日期唯一的习惯打卡记录 |
 | `habit_records` | 习惯打卡日志 |
-| `habit_preferences` | 习惯显示与分类偏好 |
+| `habit_focus_sessions` | 习惯专注历史：分钟、开始/完成时间 |
+| `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
@@ -254,13 +255,13 @@ name:   任务
 - `HabitPanel` 通过 `/api/admin/habits` 加载习惯、分组、偏好和近 60 天打卡；详情按月份加载统计、月历和日志。
 - 频率使用本项目 JSON：`daily`（星期集合）、`weekly`（每周 N 天）、`interval`（每 N 天）。
 - 打卡按 `habit_id + checkin_stamp` 唯一；`value >= goal` 视为完成。
-- 月完成率、当前连续、月完成量和每日完成量由后端实时计算。
+- 月完成率、当前连续、月完成量和每日完成量由后端实时计算；按周目标按与月份重叠的自然周累计，单周完成量按目标封顶；间隔打卡用 UTC 日差计算，避免 DST 漏算。
 - 习惯排序通过批量 `sort_order` 更新；打卡样式、分组和日志编辑均走习惯 API。
 - `HabitTodayStrip` 根据偏好接入今天/最近 7 天与日历顶部；打卡满足 `recordEnable` 时弹出日志编辑器。
 - 提醒调度器检查习惯 HH:mm 提醒，按习惯/日期/时间/渠道去重；站内通知、Web Push 和 SMTP 复用现有提醒基础设施，内部用负数 `task_id` 复用投递与退避表。
 - 日历通过 `/api/admin/habits/calendar` 获取日期范围内的习惯打卡条目，并以只读全天条目展示；点击条目进入 `/tasks/habit/:habitId`。坚持目标按总完成天数计算轮次和当前进度。
 - 习惯详情深链由 `/tasks/habit/:habitId` 驱动，`HabitPanel` 挂载或收到 focus 变化时加载对应详情；专注计时完成后通过 `/habits/{id}/focus` 写入专注历史，并参与累计/本月专注统计。
-- 习惯提醒时区来自 `habit_preferences.timezone`；JSON 备份导出习惯、分组、打卡、日志和专注记录，导入时重建分组映射并写入当前用户。
+- 习惯提醒时区来自 `habit_preferences.timezone`；JSON 备份导出习惯、分组、打卡、日志和专注记录，导入支持 append/skip/overwrite，按名称复用分组并写入当前用户。
 
 ## 9. 提醒
 

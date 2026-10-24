@@ -440,12 +440,10 @@ func (s *Server) apiHabitImport(w http.ResponseWriter, r *http.Request, current 
 	if !readAPIJSON(w, r, &backup) {
 		return
 	}
-	habits, checkins, records, err := s.store.ImportHabitsBackup(r.Context(), current.ID, &backup)
+	result, err := s.store.ImportHabitsBackup(r.Context(), current.ID, &backup, r.URL.Query().Get("mode"))
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	writeAPIJSON(w, http.StatusOK, map[string]any{
-		"habits": habits, "checkins": checkins, "records": records,
-	})
+	writeAPIJSON(w, http.StatusOK, result)
 }

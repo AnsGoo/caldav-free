@@ -708,6 +708,12 @@ func parseHabitFrequency(raw string) HabitFrequency {
 	if freq.DaysPerWeek <= 0 {
 		freq.DaysPerWeek = 1
 	}
+	if freq.DaysPerWeek > 7 {
+		freq.DaysPerWeek = 7
+	}
+	if freq.Interval > 3650 {
+		freq.Interval = 3650
+	}
 	return freq
 }
 
@@ -742,7 +748,9 @@ func habitScheduledOn(habit *Habit, date time.Time) bool {
 	}
 	switch freq.Type {
 	case "interval":
-		days := int(day.Sub(time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, date.Location())).Hours() / 24)
+		startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+		targetDay := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+		days := int(targetDay.Sub(startDay).Hours() / 24)
 		return days%freq.Interval == 0
 	case "weekly":
 		return true
@@ -897,12 +905,25 @@ func computeHabitStats(habit *Habit, checkins []*HabitCheckin, monthStart, month
 			scheduled++
 		}
 	}
+	completedUnits := stats.MonthCheckinDays
 	if freq.Type == "weekly" {
 		scheduled = 0
-		for day := monthStart; !day.After(monthEnd); day = day.AddDate(0, 0, 1) {
-			if day.Weekday() == time.Monday {
-				scheduled += freq.DaysPerWeek
+		completedUnits = 0
+		for weekStart := startOfHabitWeek(monthStart); !weekStart.After(monthEnd); weekStart = weekStart.AddDate(0, 0, 7) {
+			if weekStart.AddDate(0, 0, 6).Before(monthStart) {
+				continue
 			}
+			scheduled += freq.DaysPerWeek
+			done := 0
+			for offset := 0; offset < 7; offset++ {
+				if habitDone(byStamp[stampOf(weekStart.AddDate(0, 0, offset))]) {
+					done++
+				}
+			}
+			if done > freq.DaysPerWeek {
+				done = freq.DaysPerWeek
+			}
+			completedUnits += done
 		}
 	}
 	if stats.TargetDays > 0 {
@@ -910,7 +931,7 @@ func computeHabitStats(habit *Habit, checkins []*HabitCheckin, monthStart, month
 		stats.TargetProgress = stats.TotalCheckinDays % stats.TargetDays
 	}
 	if scheduled > 0 {
-		stats.MonthCompletionRate = float64(stats.MonthCheckinDays) / float64(scheduled) * 100
+		stats.MonthCompletionRate = float64(completedUnits) / float64(scheduled) * 100
 		if stats.MonthCompletionRate > 100 {
 			stats.MonthCompletionRate = 100
 		}
@@ -1002,38 +1023,86 @@ func (s *Store) ExportHabitsBackup(ctx context.Context, userID int64) (*HabitBac
 	return backup, nil
 }
 
-func (s *Store) ImportHabitsBackup(ctx context.Context, userID int64, backup *HabitBackup) (int, int, int, error) {
+type HabitImportResult struct {
+	Habits   int `json:"habits"`
+	Checkins int `json:"checkins"`
+	Records  int `json:"records"`
+	Updated  int `json:"updated"`
+	Skipped  int `json:"skipped"`
+}
+
+func (s *Store) ImportHabitsBackup(ctx context.Context, userID int64, backup *HabitBackup, mode string) (*HabitImportResult, error) {
 	if len(backup.Habits) > 200 {
-		return 0, 0, 0, fmt.Errorf("一次最多导入 200 个习惯")
+		return nil, fmt.Errorf("一次最多导入 200 个习惯")
+	}
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode != "skip" && mode != "overwrite" {
+		mode = "append"
 	}
 	sectionMap := make(map[int64]int64)
 	for _, section := range backup.Sections {
-		if strings.TrimSpace(section.Name) == "" {
+		name := strings.TrimSpace(section.Name)
+		if name == "" {
 			continue
 		}
-		created, err := s.CreateHabitSection(ctx, userID, section.Name)
+		var existing HabitSection
+		if err := s.db.WithContext(ctx).Where("user_id = ? AND name = ?", userID, name).First(&existing).Error; err == nil {
+			sectionMap[section.ID] = existing.ID
+			continue
+		}
+		created, err := s.CreateHabitSection(ctx, userID, name)
 		if err != nil {
 			continue
 		}
 		sectionMap[section.ID] = created.ID
 	}
-	importedHabits, importedCheckins, importedRecords := 0, 0, 0
+	result := &HabitImportResult{}
 	for _, entry := range backup.Habits {
 		if entry.Habit == nil || strings.TrimSpace(entry.Habit.Name) == "" {
 			continue
 		}
+		name := strings.TrimSpace(entry.Habit.Name)
+		var existing Habit
+		found := s.db.WithContext(ctx).Where("user_id = ? AND name = ?", userID, name).First(&existing).Error == nil
+		if found && mode == "skip" {
+			result.Skipped++
+			continue
+		}
 		habit := *entry.Habit
-		habit.ID = 0
+		habit.Name = name
 		habit.UserID = userID
 		habit.SectionID = sectionMap[habit.SectionID]
 		habit.TotalCheckIns = 0
 		habit.CurrentStreak = 0
 		habit.MaxStreak = 0
-		created, err := s.CreateHabit(ctx, &habit)
-		if err != nil {
-			continue
+		var target *Habit
+		if found && mode == "overwrite" {
+			habit.ID = existing.ID
+			habit.CreatedAt = existing.CreatedAt
+			habit.SortOrder = existing.SortOrder
+			if err := s.db.WithContext(ctx).Save(&habit).Error; err != nil {
+				continue
+			}
+			if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, existing.ID).Delete(&HabitCheckin{}).Error; err != nil {
+				continue
+			}
+			if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, existing.ID).Delete(&HabitRecord{}).Error; err != nil {
+				continue
+			}
+			if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ?", userID, existing.ID).Delete(&HabitFocusSession{}).Error; err != nil {
+				continue
+			}
+			target = &habit
+			result.Updated++
+		} else {
+			habit.ID = 0
+			created, err := s.CreateHabit(ctx, &habit)
+			if err != nil {
+				continue
+			}
+			target = created
+			result.Habits++
 		}
-		importedHabits++
 		for _, checkin := range entry.Checkins {
 			if checkin == nil || checkin.Stamp == 0 {
 				continue
@@ -1041,9 +1110,9 @@ func (s *Store) ImportHabitsBackup(ctx context.Context, userID int64, backup *Ha
 			row := *checkin
 			row.ID = 0
 			row.UserID = userID
-			row.HabitID = created.ID
+			row.HabitID = target.ID
 			if err := s.db.WithContext(ctx).Create(&row).Error; err == nil {
-				importedCheckins++
+				result.Checkins++
 			}
 		}
 		for _, record := range entry.Records {
@@ -1053,9 +1122,9 @@ func (s *Store) ImportHabitsBackup(ctx context.Context, userID int64, backup *Ha
 			row := *record
 			row.ID = 0
 			row.UserID = userID
-			row.HabitID = created.ID
+			row.HabitID = target.ID
 			if err := s.db.WithContext(ctx).Create(&row).Error; err == nil {
-				importedRecords++
+				result.Records++
 			}
 		}
 		for _, session := range entry.FocusSessions {
@@ -1065,9 +1134,9 @@ func (s *Store) ImportHabitsBackup(ctx context.Context, userID int64, backup *Ha
 			row := *session
 			row.ID = 0
 			row.UserID = userID
-			row.HabitID = created.ID
+			row.HabitID = target.ID
 			_ = s.db.WithContext(ctx).Create(&row).Error
 		}
 	}
-	return importedHabits, importedCheckins, importedRecords, nil
+	return result, nil
 }

@@ -9,7 +9,12 @@
           title="选择对话模型"
           @change="onChatModelChange"
         >
-          <option v-for="model in chatModelOptions" :key="model" :value="model">{{ modelOptionLabel(model) }}</option>
+          <optgroup v-if="recentChatModels.length" label="最近使用">
+            <option v-for="model in recentChatModels" :key="model" :value="model">{{ modelOptionLabel(model) }}</option>
+          </optgroup>
+          <optgroup v-if="otherChatModels.length" label="全部模型">
+            <option v-for="model in otherChatModels" :key="model" :value="model">{{ modelOptionLabel(model) }}</option>
+          </optgroup>
         </select>
         <span v-else-if="settings.configured" class="tw-ai-model">{{ chatModel || settings.model }}</span>
         <button class="tw-icon-button" title="清空对话" @click="clearChat">
@@ -141,6 +146,7 @@
                 >
                   <span class="tw-ai-model-option-name">{{ model }}</span>
                   <span class="tw-ai-model-option-tags">
+                    <em v-if="(settings.recentModels || []).includes(model)" class="recent">最近</em>
                     <em v-if="modelProfile(model).recommended" class="recommended">推荐</em>
                     <em v-for="label in modelCapabilityLabels(model)" :key="label" :class="{ warn: label.includes('不是对话') }">{{ label }}</em>
                   </span>
@@ -152,6 +158,12 @@
               <span v-for="label in selectedModelCapabilities" :key="label" :class="{ warn: selectedModelProfile.nonChat }">{{ label }}</span>
               <small v-if="!selectedModelCapabilities.length">未识别到能力标签</small>
             </p>
+            <div class="tw-ai-model-test">
+              <button class="tw-ai-model-test-btn" type="button" :disabled="testBusy || !settingsForm.model.trim() || !settingsForm.baseUrl.trim()" @click="testModel">
+                {{ testBusy ? '测试中…' : '测试连接' }}
+              </button>
+              <span v-if="testResult" :class="testResult.ok ? 'ok' : 'error'">{{ testResult.text }}</span>
+            </div>
           </label>
           <label v-if="settings.hasKey" class="tw-check-label">
             <input v-model="settingsForm.clearKey" type="checkbox" />
@@ -181,7 +193,7 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { AIChatMessage, AISettings } from '../../types'
-import { fetchAIModels, fetchAISettings, saveAISettings, sendAIChat } from '../../tasks-api'
+import { fetchAIModels, fetchAISettings, saveAISettings, sendAIChat, testAIModel } from '../../tasks-api'
 import { browserTimezone } from '../../tasks-api'
 import { modelCapabilityLabels, modelOptionLabel, modelProfile, sortModels } from '../../ai-models'
 import TaskIcon from './TaskIcon.vue'
@@ -195,7 +207,7 @@ const quickPrompts = ['今天有哪些任务？', '创建一个明天下午 3 �
 const messages = ref<AIChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
-const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', models: [], hasKey: false, configured: false })
+const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', models: [], recentModels: [], hasKey: false, configured: false })
 const settingsOpen = ref(false)
 const settingsBusy = ref(false)
 const settingsForm = reactive({ provider: 'custom', baseUrl: '', model: '', apiKey: '', clearKey: false })
@@ -203,6 +215,8 @@ const models = ref<string[]>([])
 const modelsLoading = ref(false)
 const modelsFetched = ref(false)
 const modelFilter = ref('')
+const testBusy = ref(false)
+const testResult = ref<{ ok: boolean; text: string } | null>(null)
 const chatModel = ref('')
 try {
   chatModel.value = localStorage.getItem(CHAT_MODEL_KEY) || ''
@@ -214,6 +228,11 @@ const chatModelOptions = computed(() => {
   const list = [settings.value.model, ...(settings.value.models || []), chatModel.value].filter(Boolean)
   return sortModels(list)
 })
+const recentChatModels = computed(() => {
+  const available = new Set(chatModelOptions.value)
+  return (settings.value.recentModels || []).filter((model) => available.has(model))
+})
+const otherChatModels = computed(() => chatModelOptions.value.filter((model) => !recentChatModels.value.includes(model)))
 const selectedModelProfile = computed(() => settingsForm.model ? modelProfile(settingsForm.model) : null)
 const selectedModelCapabilities = computed(() => settingsForm.model ? modelCapabilityLabels(settingsForm.model) : [])
 const filteredModels = computed(() => {
@@ -266,6 +285,7 @@ async function loadSettings() {
   try {
     settings.value = await fetchAISettings()
     settings.value.models = settings.value.models || []
+    settings.value.recentModels = settings.value.recentModels || []
     settingsForm.provider = normalizeProvider(settings.value.provider, settings.value.baseUrl)
     settingsForm.baseUrl = settings.value.baseUrl
     settingsForm.model = settings.value.model
@@ -319,6 +339,12 @@ async function send(text?: string) {
       .slice(-20)
       .map((item) => ({ role: item.role, content: item.content }))
     const reply = await sendAIChat(history, browserTimezone(), chatModel.value || settings.value.model)
+    if (reply.recentModels) settings.value.recentModels = reply.recentModels
+    if (reply.fallbackFrom) {
+      chatModel.value = reply.model
+      onChatModelChange()
+      Message.warning(`模型 ${reply.fallbackFrom} 调用失败，已自动切换到 ${reply.model}`)
+    }
     const actions = reply.actions.filter((action) => !reply.message.includes(action.label))
     messages.value.push({ role: 'assistant', content: reply.message, actions })
     if (reply.actions.length) emit('tasks-changed')
@@ -360,6 +386,7 @@ function openSettings() {
   models.value = sortModels(settings.value.models || [])
   modelsFetched.value = models.value.length > 0
   modelFilter.value = ''
+  testResult.value = null
   settingsOpen.value = true
 }
 
@@ -370,6 +397,7 @@ function onProviderChange() {
   if (preset.model) settingsForm.model = preset.model
   models.value = []
   modelsFetched.value = false
+  testResult.value = null
 }
 
 async function loadModels() {
@@ -399,6 +427,25 @@ function onKeyBlur() {
   }
 }
 
+async function testModel() {
+  if (testBusy.value || !settingsForm.model.trim() || !settingsForm.baseUrl.trim()) return
+  testBusy.value = true
+  testResult.value = null
+  try {
+    const result = await testAIModel({
+      provider: settingsForm.provider,
+      baseUrl: settingsForm.baseUrl.trim(),
+      apiKey: settingsForm.apiKey.trim() || undefined,
+      model: settingsForm.model.trim(),
+    })
+    testResult.value = { ok: true, text: `连接成功 · ${result.latencyMs}ms · ${result.model}` }
+  } catch (error) {
+    testResult.value = { ok: false, text: error instanceof Error ? error.message : '连接测试失败' }
+  } finally {
+    testBusy.value = false
+  }
+}
+
 function onChatModelChange() {
   try {
     localStorage.setItem(CHAT_MODEL_KEY, chatModel.value)
@@ -422,6 +469,7 @@ async function saveSettings() {
       clearKey: settingsForm.clearKey,
     })
     settings.value.models = settings.value.models || []
+    settings.value.recentModels = settings.value.recentModels || []
     chatModel.value = settings.value.model
     onChatModelChange()
     settingsOpen.value = false
@@ -476,6 +524,7 @@ function startVoice() {
 }
 
 watch(messages, saveLocal, { deep: true })
+watch(() => [settingsForm.provider, settingsForm.baseUrl, settingsForm.model], () => { testResult.value = null })
 
 onMounted(() => {
   loadLocal()

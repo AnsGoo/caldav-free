@@ -1148,6 +1148,7 @@ data: {"unread":2}
   "baseUrl": "https://api.openai.com/v1",
   "model": "gpt-4o-mini",
   "models": ["gpt-4o-mini", "gpt-4o"],
+  "recentModels": ["gpt-4o-mini"],
   "hasKey": true,
   "configured": true
 }
@@ -1191,6 +1192,32 @@ API Key 永不返回。
 
 仅管理员可调用；服务商返回错误时返回 `502`。`provider` 为 `ollama` 时会优先请求原生 `/api/tags`，失败后再尝试 OpenAI 兼容 `/models`。获取成功的列表会写入 `ai.models`，供设置接口和对话模型下拉框复用。
 
+### POST /api/admin/tasks/ai/test
+
+测试指定模型的对话连通性，不会创建或修改任务：
+
+```json
+{
+  "provider": "openai",
+  "baseUrl": "https://api.openai.com/v1",
+  "apiKey": "sk-...",
+  "model": "gpt-4o-mini"
+}
+```
+
+成功返回：
+
+```json
+{
+  "ok": true,
+  "model": "gpt-4o-mini",
+  "latencyMs": 842,
+  "sample": "OK"
+}
+```
+
+`baseUrl`、`apiKey` 可省略，省略时使用已保存配置。
+
 ### POST /api/admin/tasks/ai/chat
 
 ```json
@@ -1208,6 +1235,7 @@ API Key 永不返回。
 ```json
 {
   "message": "已创建任务「和张三开会」，定在明天 15:00。",
+  "recentModels": ["gpt-4o-mini"],
   "actions": [
     {
       "type": "create_task",

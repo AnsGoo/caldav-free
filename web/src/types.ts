@@ -369,6 +369,7 @@ export interface AISettings {
   baseUrl: string
   model: string
   models: string[]
+  recentModels: string[]
   hasKey: boolean
   configured: boolean
 }
@@ -398,6 +399,8 @@ export interface AIChatReply {
   message: string
   actions: AIAction[]
   model: string
+  fallbackFrom?: string
+  recentModels?: string[]
 }
 
 export interface SummaryTask {

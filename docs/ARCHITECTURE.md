@@ -353,6 +353,7 @@ ai.model
 ai.api_key
 ai.models
 ai.models_base
+ai.recent_models
 ```
 
 未配置时回退环境变量：
@@ -367,6 +368,8 @@ CALDAV_AI_API_KEY
 模型列表接口使用当前或表单中的 Base URL/Key 请求 `GET {baseURL}/models`，支持 `data[].id` 和 `models[].id/name` 两种响应格式，最多返回 200 个模型；Ollama 优先使用原生 `/api/tags`。列表写入 `ai.models`，`ai.models_base` 记录来源地址，换地址保存时自动清空。
 
 对话请求可以携带 `model` 覆盖默认模型，只影响本次请求；前端把对话模型选择保存在浏览器本地，并在设置页根据模型名称推测推荐、工具调用、视觉、推理和轻量标签。
+
+连接测试接口使用最小对话请求验证地址、Key 和模型。对话首轮调用失败且尚未执行工具操作时，会回退到默认模型；失败发生在工具执行之后则不重试，避免重复修改任务。成功调用会更新 `ai.recent_models`（最多 8 个），设置接口和对话响应都会返回最近使用列表。
 
 ### 10.2 对话循环
 

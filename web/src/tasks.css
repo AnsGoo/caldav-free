@@ -6767,3 +6767,46 @@ button.tw-side-link {
   text-align: center;
   font-size: 10.5px;
 }
+
+.tw-ai-model-option-tags em.recent {
+  color: var(--tw-text-2);
+  background: var(--tw-hover);
+}
+
+.tw-ai-model-test {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.tw-ai-model-test-btn {
+  height: 25px;
+  border: 1px solid var(--tw-border);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: var(--tw-text-2);
+  background: transparent;
+  font-size: 10px;
+}
+
+.tw-ai-model-test-btn:hover:not(:disabled) {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+}
+
+.tw-ai-model-test-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tw-ai-model-test .ok {
+  color: var(--tw-success, #0cce9c);
+  font-size: 10px;
+}
+
+.tw-ai-model-test .error {
+  color: var(--tw-danger);
+  font-size: 10px;
+}

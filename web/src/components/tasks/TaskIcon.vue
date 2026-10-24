@@ -15,6 +15,12 @@
       <path d="M4 6.5h16M4 12h16M4 17.5h10" />
       <circle cx="18.6" cy="17.5" r="1.6" fill="currentColor" stroke="none" />
     </template>
+    <template v-else-if="name === 'matrix'">
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.5" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+    </template>
     <template v-else-if="name === 'board'">
       <rect x="3.5" y="4.5" width="5" height="15" rx="1.5" />
       <rect x="10" y="4.5" width="5" height="10" rx="1.5" />

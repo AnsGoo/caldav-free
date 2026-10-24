@@ -5531,3 +5531,256 @@ button.tw-side-link {
 .tw-stat-tag small {
   color: inherit;
 }
+
+/* ---------------------------------------------------------------- matrix */
+.tw-matrix {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 18px 18px;
+  overflow: hidden;
+}
+
+.tw-matrix-head {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px;
+}
+
+.tw-matrix-head h2 {
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+
+.tw-matrix-head p {
+  margin-top: 3px;
+  color: var(--tw-text-3);
+  font-size: 11.5px;
+}
+
+.tw-matrix-total {
+  color: var(--tw-text-3);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.tw-matrix-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tw-matrix-card {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--tw-border);
+  border-radius: 10px;
+  background: var(--tw-bg);
+  overflow: hidden;
+}
+
+.tw-matrix-card-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 15px 9px;
+}
+
+.tw-matrix-card-head strong {
+  color: var(--matrix-color);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.tw-matrix-count {
+  margin-left: auto;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+}
+
+.tw-matrix-icon {
+  width: 17px;
+  height: 17px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  flex: none;
+}
+
+.tw-matrix-icon i {
+  border-radius: 2px;
+  background: var(--matrix-color);
+  opacity: 0.9;
+}
+
+.tw-matrix-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+  scrollbar-width: thin;
+}
+
+.tw-matrix-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tw-text-3);
+  font-size: 12px;
+}
+
+.tw-matrix-group {
+  margin-bottom: 5px;
+}
+
+.tw-matrix-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 5px 4px;
+  color: var(--tw-text-3);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tw-matrix-group-head small {
+  font-weight: 400;
+  font-size: 10px;
+}
+
+.tw-matrix-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tw-matrix-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tw-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.tw-matrix-row:hover {
+  background: var(--tw-hover);
+}
+
+.tw-matrix-check {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  border: 1.3px solid var(--tw-text-3);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+}
+
+.tw-matrix-check.checked {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent);
+}
+
+.tw-matrix-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+.tw-matrix-row.done .tw-matrix-title {
+  color: var(--tw-text-3);
+  text-decoration: line-through;
+}
+
+.tw-matrix-tag {
+  flex: none;
+  color: var(--tw-accent);
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.tw-matrix-meta {
+  flex: none;
+  max-width: 46%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.tw-matrix-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tw-matrix-list i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.tw-matrix-meta .overdue {
+  color: var(--tw-danger);
+}
+
+.tw-matrix-assignee {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--tw-accent);
+}
+
+.tw-matrix-row.done .tw-matrix-meta {
+  opacity: 0.65;
+}
+
+@media (max-width: 760px) {
+  .tw-matrix {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  .tw-matrix-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(4, minmax(180px, 1fr));
+    overflow-y: auto;
+  }
+
+  .tw-matrix-head p {
+    display: none;
+  }
+
+  .tw-matrix-meta {
+    max-width: 55%;
+  }
+}

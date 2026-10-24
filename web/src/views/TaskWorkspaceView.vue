@@ -17,6 +17,9 @@
         <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="switchMode('calendar')">
           <TaskIcon name="calendar" :size="21" />
         </button>
+        <button class="tw-rail-button" :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
+          <TaskIcon name="matrix" :size="20" />
+        </button>
         <button class="tw-rail-button" :class="{ active: view === 'stats' }" title="统计" @click="openStats">
           <TaskIcon name="chart" :size="21" />
         </button>
@@ -46,6 +49,7 @@
     </aside>
 
     <TaskSidebar
+      v-if="view !== 'matrix'"
       :lists="lists"
       :shared-lists="sharedLists"
       :folders="folders"
@@ -86,7 +90,7 @@
     <div v-if="sidebarOpen" class="tw-scrim" @click="sidebarOpen = false" />
 
     <main class="tw-main">
-      <header class="tw-toolbar">
+      <header v-if="view !== 'matrix'" class="tw-toolbar">
         <button class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
           <TaskIcon name="list" :size="20" />
         </button>
@@ -139,7 +143,7 @@
         </div>
       </header>
 
-      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-search-bar">
+      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix'" class="tw-search-bar">
         <TaskIcon name="search" :size="17" />
         <input
           ref="searchInputEl"
@@ -153,7 +157,13 @@
         </button>
       </div>
 
-      <div class="tw-scroll">
+      <TaskMatrixPanel
+        v-if="view === 'matrix'"
+        :tasks="filteredTasks"
+        @open="openTask"
+        @toggle="toggleTask"
+      />
+      <div v-else class="tw-scroll">
         <div class="tw-content">
           <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
@@ -741,6 +751,7 @@ import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
 import TaskDetail from '../components/tasks/TaskDetail.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
+import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'
 import TaskSummaryPanel from '../components/tasks/TaskSummaryPanel.vue'
 import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
@@ -867,6 +878,7 @@ const activeSharedList = computed(() => sharedLists.value.find((item) => item.li
 const sharedEditable = computed(() => view.value === 'shared' && activeSharedList.value?.role === 'editor')
 const sharedReadonly = computed(() => view.value === 'shared' && !sharedEditable.value)
 const heading = computed(() => {
+  if (view.value === 'matrix') return '四象限'
   if (view.value === 'shared') return activeSharedList.value?.name || '共享清单'
   if (view.value === 'list') {
     const list = lists.value.find((item) => item.id === activeListId.value)
@@ -980,7 +992,7 @@ async function loadWorkspace(silent = false) {
   if (!silent) loading.value = true
   try {
     const data: TaskWorkspaceData = await fetchTaskWorkspace({
-      view: view.value === 'shared' ? 'all' : view.value,
+      view: view.value === 'shared' || view.value === 'matrix' ? 'all' : view.value,
       listId: view.value === 'shared' ? undefined : activeListId.value || undefined,
       filterId: activeFilterId.value || undefined,
       q: query.value || undefined,
@@ -1064,7 +1076,7 @@ function selectView(nextView: string) {
   selectedId.value = 0
   sidebarOpen.value = false
   clearSelection()
-  if (view.value === 'trash' || view.value === 'stats' || view.value === 'summary' || view.value === 'ai') {
+  if (view.value === 'trash' || view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix') {
     mode.value = 'list'
     manualSort.value = false
   }
@@ -1983,7 +1995,7 @@ async function openNotification(url: string) {
 function hydrateFromRoute() {
   const q = route.query
   const nextView = typeof q.view === 'string' ? q.view : 'all'
-  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared'].includes(nextView) ? nextView : 'all') as TaskView
+  view.value = (['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix'].includes(nextView) ? nextView : 'all') as TaskView
   const listId = typeof q.list === 'string' ? Number(q.list) : 0
   if (view.value === 'list' && listId) activeListId.value = listId
   else if (view.value === 'list') view.value = 'all'

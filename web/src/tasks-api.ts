@@ -1,7 +1,7 @@
 import { api, apiForm } from './api'
 import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix'
 
 export function browserTimezone() {
   try {

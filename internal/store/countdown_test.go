@@ -98,6 +98,16 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 	if birthday.Age < 30 {
 		t.Fatalf("birthday age = %d", birthday.Age)
 	}
+	lunarBirthday, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "农历生日", Type: "birthday", Date: stampOf(now), Calendar: "lunar",
+		LunarMonth: 8, LunarDay: 15, LunarYear: 1990, Repeat: "yearly", ShowAge: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lunarBirthday.Age < 30 {
+		t.Fatalf("lunar birthday age = %d", lunarBirthday.Age)
+	}
 
 	past, err := s.CreateCountdown(ctx, &CountdownEvent{
 		UserID: userID, Name: "已过去", Type: "countdown", Date: stampOf(now.AddDate(0, 0, -2)), Repeat: "none",
@@ -123,6 +133,31 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 	reordered, err := s.ListCountdowns(ctx, userID, false)
 	if err != nil || len(reordered) < 2 || reordered[0].ID != ids[0] {
 		t.Fatalf("reordered countdowns = %+v (%v)", reordered, err)
+	}
+
+	backgroundData := []byte{0x89, 0x50, 0x4e, 0x47}
+	if err := s.SaveCountdownBackground(ctx, userID, lunar.ID, "image/png", backgroundData); err != nil {
+		t.Fatal(err)
+	}
+	background, err := s.GetCountdownBackground(ctx, userID, lunar.ID)
+	if err != nil || string(background.Data) != string(backgroundData) {
+		t.Fatalf("background = %+v (%v)", background, err)
+	}
+	withBackground, err := s.ListCountdowns(ctx, userID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundBackgroundURL := false
+	for _, row := range withBackground {
+		if row.ID == lunar.ID && row.BackgroundURL != "" {
+			foundBackgroundURL = true
+		}
+	}
+	if !foundBackgroundURL {
+		t.Fatal("background url was not exposed")
+	}
+	if err := s.DeleteCountdownBackground(ctx, userID, lunar.ID); err != nil {
+		t.Fatal(err)
 	}
 
 	if err := s.DeleteCountdown(ctx, userID, item.ID); err != nil {

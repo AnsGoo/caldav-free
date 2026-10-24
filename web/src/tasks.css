@@ -7576,3 +7576,25 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-countdown-backgrounds { display: flex; gap: 6px; flex-wrap: wrap; }
 .tw-countdown-background { min-width: 44px; height: 24px; padding: 0 7px; border: 2px solid var(--tw-border); border-radius: 7px; color: #1d2129; font-size: 9px; cursor: pointer; }
 .tw-countdown-background.active { border-color: var(--tw-accent); box-shadow: 0 0 0 2px var(--tw-accent-soft); }
+.tw-countdown-background-upload { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 2px; }
+.tw-countdown-background-upload img { width: 58px; height: 34px; object-fit: cover; border-radius: 7px; border: 1px solid var(--tw-border); }
+.tw-countdown-background-upload small { color: var(--tw-text-3); font-size: 8px; }
+.tw-countdown-card.has-image { color: #fff; }
+.tw-countdown-card.has-image::before { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(180deg, rgba(15,20,30,0.08), rgba(15,20,30,0.48)); }
+.tw-countdown-card.has-image > * { position: relative; z-index: 2; }
+.tw-countdown-card.has-image > header strong,
+.tw-countdown-card.has-image .tw-countdown-number { color: #fff; }
+.tw-countdown-card.has-image .tw-countdown-number.past { color: rgba(255,255,255,0.82); }
+.tw-countdown-card.has-image .tw-countdown-subtitle,
+.tw-countdown-card.has-image .tw-countdown-lunar-label,
+.tw-countdown-card.has-image .tw-countdown-age { color: rgba(255,255,255,0.78); }
+.tw-countdown-card.has-image .tw-countdown-card-pin { color: #fff; }
+.tw-countdown-detail-body.has-image { position: relative; background-size: cover; background-position: center; color: #fff; }
+.tw-countdown-detail-body.has-image::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: rgba(15,20,30,0.46); }
+.tw-countdown-detail-body.has-image > * { position: relative; z-index: 1; }
+.tw-countdown-detail-body.has-image .tw-countdown-detail-number,
+.tw-countdown-detail-body.has-image .tw-countdown-detail-date,
+.tw-countdown-detail-body.has-image .tw-countdown-detail-lunar,
+.tw-countdown-detail-body.has-image .tw-countdown-detail-age { color: #fff; }
+.tw-countdown-detail-body.has-image .tw-countdown-detail-note { background: rgba(0,0,0,0.26); color: rgba(255,255,255,0.86); }
+.tw-countdown-detail-body.has-image .tw-countdown-detail-reminders { border-top-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.78); }

@@ -33,7 +33,7 @@
         v-for="item in filteredItems"
         :key="item.id"
         class="tw-countdown-card"
-        :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past', dragging: draggingId === item.id, 'drag-over': dragOverId === item.id && draggingId !== item.id }]"
+        :class="[`style-${item.style}`, `type-${item.type}`, { pinned: item.pinned, past: item.state === 'past', 'has-image': !!item.backgroundUrl, dragging: draggingId === item.id, 'drag-over': dragOverId === item.id && draggingId !== item.id }]"
         :style="cardStyle(item)"
         :draggable="!archived && filter === 'all'"
         role="button"
@@ -60,7 +60,7 @@
           <template v-else-if="item.state === 'future'">距离 {{ formatDate(item.occurrenceDate, item.dateDisplayFormat) }} 还有</template>
           <template v-else>距离 {{ formatDate(item.date, item.dateDisplayFormat) }} 已经</template>
         </p>
-        <p v-if="item.type === 'birthday' && item.showAge && item.age && item.calendar === 'solar'" class="tw-countdown-age">{{ item.age }} 岁</p>
+        <p v-if="item.type === 'birthday' && item.showAge && item.age" class="tw-countdown-age">{{ item.age }} 岁</p>
         <p v-if="item.calendar === 'lunar'" class="tw-countdown-lunar-label">农历 {{ lunarLabel(item) }}</p>
         <footer v-if="!archived" class="tw-countdown-card-actions">
           <button class="tw-icon-button" :title="item.pinned ? '取消置顶' : '置顶'" @click.stop="togglePin(item)"><TaskIcon name="flag" :size="14" /></button>
@@ -82,7 +82,7 @@
           <h2>{{ detailItem.name }}</h2>
           <button class="tw-icon-button" title="关闭" @click="detailItem = null"><TaskIcon name="close" :size="16" /></button>
         </header>
-        <div class="tw-countdown-detail-body" :style="cardStyle(detailItem)">
+        <div class="tw-countdown-detail-body" :class="{ 'has-image': !!detailItem.backgroundUrl }" :style="cardStyle(detailItem)">
           <div class="tw-countdown-detail-icon" :style="{ backgroundColor: detailItem.color }">{{ detailItem.icon || '⏳' }}</div>
           <div class="tw-countdown-detail-number" :class="detailItem.state">
             {{ detailItem.state === 'today' ? '今天' : detailItem.days }}
@@ -143,6 +143,7 @@
             <label class="tw-countdown-field"><span>农历月份</span><select v-model.number="form.lunarMonth" class="tw-field-select"><option v-for="month in 12" :key="month" :value="month">{{ lunarMonthLabel(month) }}</option></select></label>
             <label class="tw-countdown-field"><span>农历日期</span><select v-model.number="form.lunarDay" class="tw-field-select"><option v-for="day in 30" :key="day" :value="day">{{ lunarDayLabel(day) }}</option></select></label>
             <label class="tw-countdown-check"><input v-model="form.lunarLeap" type="checkbox" /><span>闰月</span></label>
+            <label v-if="form.type === 'birthday'" class="tw-countdown-field"><span>出生年份</span><input v-model.number="form.lunarYear" type="number" min="1900" max="2100" /></label>
             <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="yearly">每年</option><option value="none">不重复</option></select></label>
           </div>
           <div class="tw-countdown-form-grid">
@@ -163,7 +164,14 @@
           <div class="tw-countdown-form-section">
             <span>背景</span>
             <div class="tw-countdown-backgrounds">
-              <button v-for="background in backgroundPresets" :key="background.value" class="tw-countdown-background" :class="{ active: form.background === background.value }" :style="background.style" :title="background.label" @click="form.background = background.value">{{ background.label }}</button>
+              <button v-for="background in backgroundPresets" :key="background.value" class="tw-countdown-background" :class="{ active: form.background === background.value && !backgroundPreview }" :style="background.style" :title="background.label" @click="selectBackground(background.value)">{{ background.label }}</button>
+            </div>
+            <div class="tw-countdown-background-upload">
+              <img v-if="backgroundPreview" :src="backgroundPreview" alt="背景预览" />
+              <button type="button" class="tw-ghost-button" @click="backgroundInput?.click()">{{ backgroundPreview ? '更换图片' : '上传图片' }}</button>
+              <button v-if="backgroundPreview" type="button" class="tw-ghost-button" @click="clearBackground">移除图片</button>
+              <input ref="backgroundInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden @change="onBackgroundFile" />
+              <small>JPG / PNG / WEBP / GIF，≤ 2MB</small>
             </div>
           </div>
           <div class="tw-countdown-form-section">
@@ -190,7 +198,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
 import type { CountdownDraft, CountdownItem, CountdownRepeat, CountdownType } from '../../types'
-import { createCountdown, deleteCountdown, fetchCountdowns, reorderCountdowns, updateCountdown } from '../../tasks-api'
+import { createCountdown, deleteCountdown, deleteCountdownBackground, fetchCountdowns, reorderCountdowns, updateCountdown, uploadCountdownBackground } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const tabs: Array<{ value: 'all' | CountdownType; label: string }> = [
@@ -250,6 +258,12 @@ const dragOverId = ref(0)
 const suppressClick = ref(false)
 const dialogOpen = ref(false)
 const detailItem = ref<CountdownItem | null>(null)
+const backgroundInput = ref<HTMLInputElement | null>(null)
+const backgroundFile = ref<File | null>(null)
+const backgroundPreview = ref('')
+const backgroundHad = ref(false)
+const removeBackground = ref(false)
+let previewObjectURL = ''
 const editingId = ref(0)
 const saving = ref(false)
 const form = reactive({
@@ -271,6 +285,7 @@ const form = reactive({
   dateDisplayFormat: 'day' as 'day' | 'full',
   reminderOffsets: [0, 3] as number[],
   reminderTime: '09:00',
+  lunarYear: new Date().getFullYear() - 30,
 })
 const filteredItems = computed(() => filter.value === 'all' ? items.value : items.value.filter((item) => item.type === filter.value))
 
@@ -336,6 +351,12 @@ function parseReminders(raw: string) {
 
 function cardStyle(item: CountdownItem) {
   const style: Record<string, string> = {}
+  if (item.backgroundUrl) {
+    style.backgroundImage = `url("${item.backgroundUrl}")`
+    style.backgroundSize = 'cover'
+    style.backgroundPosition = 'center'
+    return style
+  }
   const background = backgroundPresets.find((preset) => preset.value === item.background)
   if (background?.style.background) style.background = background.style.background
   if (item.style === 'color') {
@@ -433,6 +454,12 @@ function resetForm() {
   form.dateDisplayFormat = 'day'
   form.reminderOffsets = [0, 3]
   form.reminderTime = '09:00'
+  form.lunarYear = new Date().getFullYear() - 30
+  backgroundFile.value = null
+  backgroundPreview.value = ''
+  backgroundHad.value = false
+  removeBackground.value = false
+  revokePreview()
 }
 
 function openCreate() {
@@ -461,6 +488,11 @@ function openEdit(item: CountdownItem) {
   form.dateDisplayFormat = item.dateDisplayFormat
   form.reminderOffsets = parseReminders(item.reminders)
   form.reminderTime = item.reminderTime || '09:00'
+  form.lunarYear = item.lunarYear || new Date().getFullYear() - 30
+  backgroundFile.value = null
+  backgroundPreview.value = item.backgroundUrl || ''
+  backgroundHad.value = !!item.backgroundUrl
+  removeBackground.value = false
   dialogOpen.value = true
 }
 
@@ -470,7 +502,53 @@ function openNote(item: CountdownItem) {
 
 function setCalendar(calendar: 'solar' | 'lunar') {
   form.calendar = calendar
-  if (calendar === 'lunar') form.repeat = 'yearly'
+  if (calendar === 'lunar') {
+    form.repeat = 'yearly'
+    if (form.type === 'birthday' && !form.lunarYear) form.lunarYear = new Date().getFullYear() - 30
+  }
+}
+
+function selectBackground(value: string) {
+  form.background = value
+  backgroundFile.value = null
+  backgroundPreview.value = ''
+  revokePreview()
+  if (backgroundHad.value) removeBackground.value = true
+}
+
+function revokePreview() {
+  if (previewObjectURL) {
+    URL.revokeObjectURL(previewObjectURL)
+    previewObjectURL = ''
+  }
+}
+
+function onBackgroundFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    Message.error('请选择图片文件')
+    input.value = ''
+    return
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    Message.error('背景图片不能超过 2MB')
+    input.value = ''
+    return
+  }
+  revokePreview()
+  previewObjectURL = URL.createObjectURL(file)
+  backgroundFile.value = file
+  backgroundPreview.value = previewObjectURL
+  input.value = ''
+}
+
+function clearBackground() {
+  backgroundFile.value = null
+  backgroundPreview.value = ''
+  revokePreview()
+  if (backgroundHad.value) removeBackground.value = true
 }
 
 function lunarMonthLabel(month: number) {
@@ -544,6 +622,7 @@ function payload(): CountdownDraft {
     lunarMonth: form.lunarMonth,
     lunarDay: form.lunarDay,
     lunarLeap: form.lunarLeap,
+    lunarYear: form.lunarYear,
     icon: form.icon,
     color: form.color,
     style: form.style,
@@ -563,14 +642,32 @@ function payload(): CountdownDraft {
 async function save() {
   if (!form.name.trim() || !form.date) return
   saving.value = true
+  let savedID = editingId.value
   try {
     if (editingId.value) {
       const { status: _status, pinned: _pinned, ...patch } = payload()
-      await updateCountdown(editingId.value, patch)
+      const saved = await updateCountdown(editingId.value, patch)
+      savedID = saved.countdown.id
     } else {
-      await createCountdown(payload())
+      const saved = await createCountdown(payload())
+      savedID = saved.countdown.id
+    }
+    if (backgroundFile.value) {
+      try {
+        await uploadCountdownBackground(savedID, backgroundFile.value)
+      } catch (error) {
+        Message.error(error instanceof Error ? error.message : '背景图片上传失败')
+      }
+    } else if (removeBackground.value && savedID) {
+      try {
+        await deleteCountdownBackground(savedID)
+      } catch (error) {
+        Message.error(error instanceof Error ? error.message : '背景图片移除失败')
+      }
     }
     dialogOpen.value = false
+    backgroundFile.value = null
+    revokePreview()
     Message.success(editingId.value ? '倒数日已更新' : '倒数日已添加')
     await load()
   } catch (error) {
@@ -635,5 +732,6 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
+  revokePreview()
 })
 </script>

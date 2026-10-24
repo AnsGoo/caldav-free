@@ -24,6 +24,8 @@ type CountdownEvent struct {
 	LunarMonth        int       `gorm:"not null;default:0" json:"lunarMonth"`
 	LunarDay          int       `gorm:"not null;default:0" json:"lunarDay"`
 	LunarLeap         bool      `gorm:"not null;default:false" json:"lunarLeap"`
+	LunarYear         int       `gorm:"not null;default:0" json:"lunarYear"`
+	HasBackground     bool      `gorm:"not null;default:false" json:"hasBackground"`
 	Icon              string    `gorm:"size:40;not null;default:'⏳'" json:"icon"`
 	Color             string    `gorm:"size:20;not null;default:'#92D0FF'" json:"color"`
 	Style             string    `gorm:"size:20;not null;default:'normal'" json:"style"`
@@ -48,6 +50,15 @@ type CountdownItem struct {
 	State          string `json:"state"`
 	OccurrenceDate int    `json:"occurrenceDate"`
 	Age            int    `json:"age,omitempty"`
+	BackgroundURL  string `json:"backgroundUrl,omitempty"`
+}
+
+type CountdownBackground struct {
+	EventID   int64     `gorm:"primaryKey" json:"-"`
+	UserID    int64     `gorm:"not null;index:idx_countdown_background_user" json:"-"`
+	Mime      string    `gorm:"size:80;not null" json:"mime"`
+	Data      []byte    `gorm:"type:blob;not null" json:"-"`
+	UpdatedAt time.Time `gorm:"not null" json:"updatedAt"`
 }
 
 type CountdownPatch struct {
@@ -58,6 +69,7 @@ type CountdownPatch struct {
 	LunarMonth        *int    `json:"lunarMonth"`
 	LunarDay          *int    `json:"lunarDay"`
 	LunarLeap         *bool   `json:"lunarLeap"`
+	LunarYear         *int    `json:"lunarYear"`
 	Icon              *string `json:"icon"`
 	Color             *string `json:"color"`
 	Style             *string `json:"style"`
@@ -138,6 +150,9 @@ func (s *Store) UpdateCountdown(ctx context.Context, userID, id int64, patch *Co
 		}
 		if patch.LunarLeap != nil {
 			event.LunarLeap = *patch.LunarLeap
+		}
+		if patch.LunarYear != nil {
+			event.LunarYear = *patch.LunarYear
 		}
 		if patch.Icon != nil {
 			event.Icon = *patch.Icon
@@ -226,6 +241,7 @@ func normalizeCountdown(event *CountdownEvent) error {
 		event.LunarMonth = 0
 		event.LunarDay = 0
 		event.LunarLeap = false
+		event.LunarYear = 0
 	} else {
 		if event.LunarMonth == 0 || event.LunarDay == 0 {
 			parsed, _ := parseCountdownDate(event.Date)
@@ -240,6 +256,9 @@ func normalizeCountdown(event *CountdownEvent) error {
 		}
 		if event.LunarMonth < 1 || event.LunarMonth > 12 || event.LunarDay < 1 || event.LunarDay > 30 {
 			return fmt.Errorf("农历日期无效")
+		}
+		if event.LunarYear < 0 || event.LunarYear > 9999 {
+			return fmt.Errorf("农历年份无效")
 		}
 	}
 	if event.Icon == "" {
@@ -307,10 +326,14 @@ func countdownItem(event *CountdownEvent, now time.Time) *CountdownItem {
 	} else if event.Repeat != "none" {
 		occurrence = nextCountdownDate(original, event.Repeat, today)
 	}
+
 	item := &CountdownItem{
 		CountdownEvent: *event,
 		OccurrenceDate: stampOf(occurrence),
 		Days:           countdownDays(today, occurrence),
+	}
+	if event.HasBackground {
+		item.BackgroundURL = fmt.Sprintf("/api/admin/countdowns/%d/background?v=%d", event.ID, event.ModifiedAt.Unix())
 	}
 	switch {
 	case item.Days == 0:
@@ -322,7 +345,12 @@ func countdownItem(event *CountdownEvent, now time.Time) *CountdownItem {
 		item.Days = -item.Days
 	}
 	if event.Type == "birthday" && event.ShowAge {
-		item.Age = occurrence.Year() - original.Year()
+		if event.Calendar == "lunar" && event.LunarYear > 0 {
+			occurrenceLunar := lunarcalendar.NewLunarFromSolar(lunarcalendar.NewSolarFromDate(occurrence))
+			item.Age = occurrenceLunar.GetYear() - event.LunarYear
+		} else {
+			item.Age = occurrence.Year() - original.Year()
+		}
 		if item.Age < 0 {
 			item.Age = 0
 		}
@@ -458,4 +486,43 @@ func (s *Store) SetCountdownOrder(ctx context.Context, userID int64, ids []int64
 		}
 		return nil
 	})
+}
+
+func (s *Store) SaveCountdownBackground(ctx context.Context, userID, eventID int64, mime string, data []byte) error {
+	var event CountdownEvent
+	if err := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", eventID, userID).First(&event).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return ErrNotFound
+		}
+		return err
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("背景图片为空")
+	}
+	now := time.Now()
+	background := CountdownBackground{EventID: eventID, UserID: userID, Mime: mime, Data: data, UpdatedAt: now}
+	if err := s.db.WithContext(ctx).Save(&background).Error; err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Model(&CountdownEvent{}).Where("id = ? AND user_id = ?", eventID, userID).
+		Updates(map[string]any{"has_background": true, "modified_at": now}).Error
+}
+
+func (s *Store) GetCountdownBackground(ctx context.Context, userID, eventID int64) (*CountdownBackground, error) {
+	var background CountdownBackground
+	if err := s.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).First(&background).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &background, nil
+}
+
+func (s *Store) DeleteCountdownBackground(ctx context.Context, userID, eventID int64) error {
+	if err := s.db.WithContext(ctx).Where("event_id = ? AND user_id = ?", eventID, userID).Delete(&CountdownBackground{}).Error; err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Model(&CountdownEvent{}).Where("id = ? AND user_id = ?", eventID, userID).
+		Updates(map[string]any{"has_background": false, "modified_at": time.Now()}).Error
 }

@@ -64,6 +64,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `focus_preferences` | 专注设置：番茄/休息时长、间隔、每日目标、自动与提示音偏好 |
 | `focus_timer_states` | 服务端当前专注计时状态：模式、阶段、剩余/已用时间、revision |
 | `countdown_events` | 倒数纪念日：类型、日期、重复、提醒、样式、置顶、归档 |
+| `countdown_backgrounds` | 倒数日自定义背景图片：MIME + SQLite BLOB |
 | `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
@@ -291,7 +292,9 @@ name:   任务
 - 卡片点击打开详情弹窗，展示大数字、公历/农历日期、备注、提醒偏移和提醒时间。
 - 全部视图支持拖拽排序，通过批量 `sort_order` 更新；卡片背景使用前端预设 key，不保存远程图片。
 - 提醒默认在应用时区 09:00 触发，支持每个事件自定义 `reminderTime`，复用站内通知、Web Push、SMTP 和现有重试退避；投递 key 绑定 occurrence 与 offset，避免重复。
+- 自定义背景图片存储于 `countdown_backgrounds`，列表只返回鉴权 URL，不把 BLOB 放进 JSON。
 - `repeat=weekend` 在周末返回今天，工作日返回下一个周六；公历节日预设是 Dida 节日智能列表的近似实现。
+- 农历事件由 `lunar-go` 计算 occurrence；农历生日的年龄使用 `lunarYear` 计算。
 - 日期选择使用 Arco DatePicker，未使用原生日期控件。
 
 ## 9. 提醒

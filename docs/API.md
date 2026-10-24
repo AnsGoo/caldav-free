@@ -1,1403 +1,577 @@
-# Admin JSON API
+# caldav-free
 
-任务工作台与管理后台共用 `/api/admin` JSON API。
+一个完整、可自托管的 **CalDAV 日历服务器**，使用 Go 编写，内置 Web 管理后台。
+兼容 Apple 日历、iOS/macOS、Thunderbird、DAVx5、GNOME Evolution 等标准 CalDAV 客户端。
 
-## 1. 约定
-
-- 认证：登录后使用 `caldav_admin` HttpOnly 会话 Cookie。
-- CSRF：所有非 `GET/HEAD` 请求必须带：
-
-```http
-X-CSRF-Token: <spring session csrf>
+```
+Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 ```
 
-CSRF token 来自 `/api/admin/login` 或 `/api/admin/me` 响应中的 `csrf`。
-- 请求/响应：`application/json; charset=utf-8`。
-- 错误格式：
+## 功能
 
-```json
-{ "error": "错误说明" }
+### CalDAV / WebDAV
+
+- **RFC 4791 CalDAV**：principal 发现、calendar-home-set、MKCALENDAR、calendar-query、calendar-multiget、free-busy-query
+- **RFC 4918 WebDAV**：PROPFIND、PROPPATCH、GET/HEAD、PUT、DELETE、OPTIONS、extended MKCOL
+- **RFC 6578 WebDAV Sync**：`sync-collection`、增量同步 token、删除墓碑（tombstone）
+- 强 ETag、`If-Match` / `If-None-Match` 条件请求、`If-Modified-Since`
+- 日历级 `getctag`（CalendarServer 扩展）与 Apple `calendar-color` / `calendar-order`
+- `supported-calendar-component-set`：VEVENT / VTODO / VJOURNAL 可按日历启用
+- `calendar-data` 的 `<expand>` 展开、时间范围过滤、文本/参数/property 过滤
+- 重复事件：RRULE、RDATE、EXDATE、RECURRENCE-ID 覆盖、COUNT/UNTIL、BYSETPOS/BYDAY 等
+- 时区：IANA tzdata 内嵌，支持 VTIMEZONE 回退、Windows TZID 映射、DST 展开
+- 多用户、owner 隔离；管理员可跨用户管理
+- Basic Auth + PBKDF2-SHA256 密码哈希；认证结果短期缓存，改密立即失效
+
+### 任务工作台
+
+- 内置滴答清单风格的任务管理界面：图标栏 + 清单侧栏 + 任务列表 + 详情面板
+- 智能视图：所有、今天、最近 7 天、收集箱、已完成、垃圾桶；支持清单、标签与关键词筛选
+- 工作台各视图使用独立路径：`/tasks`、`/tasks/today`、`/tasks/matrix`、`/tasks/calendar`、`/tasks/list/:id` 等，支持直接访问、刷新和浏览器前进后退
+- 四种视图模式：清单 / 看板（按清单分列，支持拖拽移动）/ 日历 / 四象限
+- 工作台内日期、时间选择器统一使用 Arco DatePicker / TimePicker，不使用浏览器原生日期控件
+- 日历支持月、周、日、日程四种视图；周/日为时间网格，日程为未来 30 天清单
+- 日历叠加当前用户所有 CalDAV 日历的 `VEVENT`（重复事件会展开），与任务到期时间同屏显示；支持在工作台内新建、编辑、删除日程，可拖拽改期、拖动底部边缘调整时长；日程可写 CalDAV `VALARM` 提醒，页面打开时使用浏览器通知，服务端也会按提醒时间写入站内通知并投递 Web Push / 邮件，通知可直接打开对应日程实例；重复日程支持“仅此次 / 整个系列”编辑与删除
+- 四象限页：支持多套服务端保存的视图，视图可在管理弹窗中重命名、拖拽排序、修改规则；规则支持“按优先级”“优先级 + 截止日期”和“自定义”，自定义模式可为每个象限设置多组优先级、日期、清单、标签、指派人条件，条件组之间支持 AND/OR，可拖拽排序并实时预览命中数量，支持内置模板、服务端保存并可重命名/更新的自定义模板、跨象限复制/粘贴条件，还可设置象限名称与颜色；矩阵页可一键显示/隐藏已完成任务、折叠象限、手动排序和跨象限拖动排序，支持多选批量移动与象限内快速添加任务；自定义模式可直接拖拽任务并按目标象限条件自动调整；按无日期/已过期/今天/明天/未来/已完成分组，简化模式可拖拽任务修改优先级
+- 习惯页：独立 `/tasks/habit` 路由，支持周视图、列表/卡片、习惯创建编辑、按天/按周/按间隔频率、完成量目标、打卡/补卡、打卡样式切换、分组管理、拖拽排序、归档、月历热力、统计、日志编辑、今天/日历快捷打卡、日历月周日日程中的习惯条目、习惯详情深链、专注计时、专注历史与本月专注图表、单习惯导出、只读分享链接与访问限流、Dida XLSX 导入、并发打卡幂等、可配置提醒时区、站内/Web Push/邮件提醒、坚持目标进度、自动打卡日志、CSV/JSON 导出、JSON 备份导入（新增副本/跳过同名/覆盖同名）
+- 倒数纪念日：独立 `/tasks/countdown` 路由，支持纪念日/倒数日/生日/节日、今天与剩余天数、年度/月度/每周/周末重复、公历与农历日期、农历节日预设、生日年龄、置顶、归档、备注、卡片详情、样式/颜色/背景预设、自定义背景图、拖拽排序、提醒偏移与自定义提醒时间，以及站内通知/Web Push/邮件提醒
+- 专注页：独立 `/tasks/focus` 路由，支持番茄计时 / 正计时、开始暂停继续结束、圆形进度、今日与累计统计、专注记录分组与删除、手动补记、任务/习惯关联、专注笔记、番茄与休息节奏、自动开始、提示音、标签页倒计时、7 天趋势、最佳专注时段和年度热力图、独立 7/30/90/365 天统计页、多端计时状态同步
+- 统计页：未完成/已完成/逾期/完成率、每日新建与完成趋势、到期折线、按清单/标签/优先级分布、7/30/90 天周期概览
+- 摘要页：按日期/清单/状态/优先级/标签生成可编辑富文本摘要；支持分组、显示字段、下一周期、AI 内容优化、服务端模板/历史、复制与导出
+- AI 助手：接入 OpenAI 兼容接口，通过工具调用查询/创建/修改/完成/删除任务、创建清单、读取统计；支持对话中切换模型
+- AI 语音输入：支持浏览器 Web Speech API 的浏览器可直接口述任务
+- AI 设置：选择服务商自动填充接口地址，填写 API Key 后可拉取模型，列表带推荐/工具调用/视觉/推理等标签；支持连接与工具调用测试、对话顶部切换模型、多候选自动回退、最近模型和耗时统计；也支持环境变量初始化
+- 重复任务：每天、工作日、每周、每月、每年，或自定义 RRULE；完成后自动滚到下一次
+- 多提醒：一个任务可设置最多 10 个提醒（准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天或客户端自定义），每个提醒写入独立 CalDAV `VALARM`；同时支持页面内浏览器提醒、服务端 Web Push 与 SMTP 邮件提醒
+- 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
+- 清单共享：按用户名把清单共享给其他管理员，可授予只读或编辑权限，可直接修改现有成员角色；编辑者可在共享清单中新建、修改、完成、删除和指派任务
+- 协作通知：任务被指派时生成站内通知，并尽力通过 Web Push / SMTP 邮件提醒被指派人
+- 通知中心通过 SSE 实时更新未读数；任务和日程提醒都支持站内通知与“稍后 10 分钟 / 30 分钟 / 1 小时 / 1 天”，任务通知可直接完成，并由服务端重新投递站内/Push/邮件
+- 任务动态：记录创建、指派、完成/重新打开，以及标题、日期、优先级、标签、备注、重复、提醒、清单变更；同一用户 2 分钟内的连续字段修改自动合并
+- 任务评论：共享成员可评论，使用 `@用户名` 提及成员并触发站内/推送/邮件通知；评论支持附件（单文件最大 10MB）、图片预览和作者编辑
+- 保存过滤器：按清单、标签、优先级、日期、状态、关键词组合筛选并命名保存
+- 标签管理：重命名/删除标签，变更回写到所有任务与 VTODO `CATEGORIES`；每个标签可设置独立颜色
+- 垃圾桶：删除后可恢复、单条彻底删除或清空垃圾桶
+- 多选批量操作：批量完成、移动到清单、删除
+- 手动排序：拖拽调整任务顺序并持久化
+- 快速添加支持自然语言：`明天下午 3 点和张三开会 #工作 !!`
+  - 中文相对日期：今天、明天、后天、今晚、周一…周日、下周一、10 月 25 日
+  - 时间：`下午 3 点`、`15:30`、`3 点半`；无日期时默认当天
+  - `#标签`、`!` / `!!` / `!!!` 优先级
+- 任务详情：标题、备注、日期/全天、重复、提醒、清单、优先级、标签、子任务，输入后自动保存
+- 逾期任务一键顺延到今天；已完成任务自动归档；删除清单时任务移入收集箱
+- 深色 / 浅色主题跟随系统并可手动切换；响应式布局支持手机浏览器
+- 管理员账号拥有自己的任务空间
+- **CalDAV VTODO 同步**：每个用户自动获得一个“任务”日历（slug `caldav-tasks`），工作台里的新建、修改、完成、删除都会写入标准 `VTODO` 对象；CalDAV 客户端（Apple 提醒事项、DAVx5、Thunderbird 等）对任务的修改会在下次打开工作台时回写
+- 任务与客户端冲突时以工作台的最新修改为准；任务日历由工作台维护，管理后台不能删除
+
+### 管理后台
+
+- Vue 3 + Vite+ + Arco Design Vue 单页应用，Go `embed` 进单个二进制
+- 用户创建、资料修改、密码重置、管理员权限、删除
+- 日历创建、颜色、排序、时区、描述、组件类型、删除
+- 新建日历时区默认 `Asia/Shanghai`（东八区），已有日历保持原时区
+- 事件列表、创建（含重复规则与全天事件）、原始 ICS 编辑、查看源码、删除
+- 控制台统计、客户端接入地址一键复制
+- JSON API + HttpOnly/SameSite 会话、CSRF、CSP、登录限速
+- 响应式布局，手机浏览器可直接管理
+
+## 文档
+
+- [任务工作台使用指南](docs/任务工作台.md)：界面、自然语言、重复/提醒、日历、统计、AI、VTODO 同步、配置与限制
+- [专注模块复刻记录](docs/专注模块.md)：REA 证据、番茄/正计时、设置、记录、统计与未对齐项
+- [倒数纪念日复刻记录](docs/倒数纪念日模块.md)：REA 证据、卡片、周期、提醒与未对齐项
+- [习惯模块复刻记录](docs/习惯模块.md)：REA 证据、打卡、提醒、统计、导入导出与未对齐项
+- [Admin JSON API](docs/API.md)：任务/清单/文件夹/过滤器/标签/日历/统计/AI 接口与示例
+- [架构与同步设计](docs/ARCHITECTURE.md)：数据表、VTODO 对账、事件展开、统计聚合、AI 工具循环
+- [实现进度与路线图](docs/ROADMAP.md)：已完成批次、提交记录、未实现能力与优先级
+
+## 快速开始
+
+### 本地运行
+
+```bash
+go run ./cmd/caldav-free -data ./data -addr :5232
 ```
 
-- 仅管理员可访问；普通 CalDAV 用户不能使用这些接口。
-- 时间：RFC3339（如 `2026-10-30T15:00:00+08:00`）或 `YYYY-MM-DDTHH:mm`；仅日期按全天处理。
-- 任务接口中 `due` 传空字符串表示清除日期。
+首次启动会创建管理员账号。没有提供密码时会生成一个随机密码并打印在终端：
 
-## 2. 认证
-
-### POST /api/admin/login
-
-```json
-{
-  "username": "admin",
-  "password": "your-password"
-}
+```
+Initial admin password (save it now):
+xxxxxxxxxxxxxxxx
 ```
 
-响应：
+打开 <http://localhost:5232/admin> 登录管理后台。
 
-```json
-{
-  "user": { "id": 1, "username": "admin", "isAdmin": true },
-  "csrf": "token",
-  "baseUrl": "https://dav.example.com",
-  "caldavUrl": ""
-}
+也可以显式指定初始管理员：
+
+```bash
+go run ./cmd/caldav-free \
+  -addr :5232 \
+  -data ./data \
+  -admin-user admin \
+  -admin-pass 'a-strong-password' \
+  -external-url 'https://dav.example.com'
 ```
 
-### GET /api/admin/me
+> 只有数据库为空（没有任何用户）时才会创建初始管理员。之后的账号请在后台创建。
 
-返回当前用户、CSRF、baseUrl、CalDAV 地址。
+### 编译
 
-### POST /api/admin/logout
+前端使用 Vue 3 + Vite+ + Arco Design Vue，构建产物输出到 `internal/web/dist`，再由 Go `embed` 打包：
 
-注销会话。
+```bash
+make web-deps       # 首次安装前端依赖
+make web-build      # 构建 internal/web/dist
+make build          # 产出 bin/caldav-free
+make test           # 运行全部测试
+make run            # 本地启动
+```
 
-## 3. 工作台数据
+> `go build` 需要 `internal/web/dist` 存在；仓库已包含一次构建产物。修改前端后请先执行 `make web-build`。
 
-### GET /api/admin/tasks
+前端开发模式：
 
-查询参数：
+```bash
+cd web
+npm run dev         # Vite+ dev server: http://localhost:5175/admin/
+```
 
-| 参数 | 说明 |
+静态二进制（无 CGO）：
+
+```bash
+CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o caldav-free ./cmd/caldav-free
+```
+
+### Docker
+
+```bash
+docker compose up -d --build
+```
+
+或：
+
+```bash
+docker build -t caldav-free .
+docker run -d --name caldav \
+  -p 5232:5232 \
+  -v "$PWD/data:/data" \
+  -e CALDAV_ADMIN_PASSWORD='a-strong-password' \
+  -e CALDAV_EXTERNAL_URL='https://dav.example.com' \
+  caldav-free
+```
+
+## 配置
+
+| 参数 | 环境变量 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `-addr` | `CALDAV_ADDR` | `:5232` | HTTP 监听地址 |
+| `-data` | `CALDAV_DATA` | `./data` | 数据目录（SQLite 文件位置） |
+| `-admin-user` | `CALDAV_ADMIN_USER` | `admin` | 首次启动创建的管理员用户名 |
+| `-admin-pass` | `CALDAV_ADMIN_PASSWORD` | 随机生成 | 首次启动管理员密码（至少 8 位） |
+| `-admin-email` | `CALDAV_ADMIN_EMAIL` | 空 | 管理员邮箱（用于 calendar-user-address-set） |
+| `-external-url` | `CALDAV_EXTERNAL_URL` | 自动推导 | 对外访问地址，用于管理后台展示 |
+| `-caldav-url` | `CALDAV_PUBLIC_URL` | 自动推导 | 管理后台展示的 CalDAV 公网地址（例如手机隧道地址） |
+| `-tls-cert` | — | 空 | TLS 证书；与 `-tls-key` 同时提供时启用 HTTPS |
+| `-tls-key` | — | 空 | TLS 私钥 |
+| `-debug` | — | false | 调试日志 |
+| — | `CALDAV_AI_BASE_URL` | 空 | AI 接口 Base URL（OpenAI 兼容） |
+| — | `CALDAV_AI_MODEL` | 空 | AI 模型名称 |
+| — | `CALDAV_AI_API_KEY` | 空 | AI API Key（页面保存优先） |
+| — | `CALDAV_REMINDERS` | 开启 | 设为 `off` 关闭服务端提醒调度器 |
+| — | `CALDAV_REMINDER_INTERVAL` | `30s` | 调度器检查间隔，最小 `10s` |
+| — | `CALDAV_PUSH_SUBJECT` | `mailto:admin@example.com` | VAPID 联系人，建议改成真实邮箱或站点 URL |
+| — | `CALDAV_SMTP_ENABLED` | `0` | 设为 `1` 启用邮件提醒（页面保存后以页面配置为准） |
+| — | `CALDAV_SMTP_HOST` | 空 | SMTP 服务器 |
+| — | `CALDAV_SMTP_PORT` | `587` | SMTP 端口 |
+| — | `CALDAV_SMTP_USER` | 空 | SMTP 用户名 |
+| — | `CALDAV_SMTP_PASSWORD` | 空 | SMTP 密码或授权码 |
+| — | `CALDAV_SMTP_FROM` | 空 | 发件人，缺省使用用户名 |
+| — | `CALDAV_SMTP_SECURITY` | `starttls` | `starttls` / `tls` / `none` |
+| `-version` | — | — | 输出版本号 |
+
+数据库文件位于 `<data>/caldav-free.db`，使用 WAL 模式。
+
+## 客户端接入
+
+所有客户端都使用 **CalDAV 账户** + Basic Auth：
+
+| 项目 | 值 |
 | --- | --- |
-| `view` | `all`、`today`、`next7`、`inbox`、`completed`、`trash`、`list`、`filter` |
-| `listId` | `view=list` 时使用 |
-| `filterId` | 应用保存过滤器 |
-| `q` | 标题/备注关键词 |
+| 服务器 / Principal URL | `https://dav.example.com/principals/{用户名}/` |
+| Calendar Home | `https://dav.example.com/calendars/{用户名}/` |
+| 用户名 | 后台创建的用户名（不区分大小写，存储为小写） |
+| 密码 | 后台设置的密码 |
+| 传输 | 推荐 HTTPS |
 
-响应：
+### Apple 日历（macOS）
 
-```json
-{
-  "lists": [
-    {
-      "id": 2,
-      "folderId": 1,
-      "name": "工作",
-      "color": "#4772fa",
-      "order": 1,
-      "isInbox": false,
-      "count": 5
-    }
-  ],
-  "folders": [
-    { "id": 1, "name": "项目", "order": 1 }
-  ],
-  "filters": [
-    {
-      "id": 1,
-      "name": "高优工作",
-      "color": "#4772fa",
-      "order": 1,
-      "conditions": {
-        "listIds": [2],
-        "tags": ["工作"],
-        "tagMode": "any",
-        "priorities": [3],
-        "status": "open",
-        "date": "any",
-        "keyword": ""
-      }
-    }
-  ],
-  "tasks": [],
-  "counts": {
-    "all": 5,
-    "today": 2,
-    "next7": 4,
-    "inbox": 1,
-    "completed": 3,
-    "trash": 0
-  },
-  "tags": ["工作", "生活"],
-  "tagCounts": [
-    { "name": "工作", "count": 4 }
-  ],
-  "inbox": 1
-}
-```
+日历 → 添加账户 → 其他 CalDAV 账户 → 服务器地址填 Calendar Home URL → 输入用户名密码。
 
-`tasks` 中每项结构见“任务对象”。
+### iPhone / iPad
 
-## 4. 任务 CRUD
+设置 → 日历 → 账户 → 添加账户 → 其他 → 添加 CalDAV 账户 → 服务器填 `https://dav.example.com`，路径通常可留空（系统会走 `.well-known/caldav`）。
 
-### 任务对象
+### Thunderbird
 
-```json
-{
-  "id": 12,
-  "listId": 2,
-  "listName": "工作",
-  "listColor": "#4772fa",
-  "title": "写周报",
-  "notes": "汇总本周进度",
-  "priority": 2,
-  "due": "2026-10-30T18:00:00+08:00",
-  "allDay": false,
-  "recurrence": "FREQ=WEEKLY",
-  "reminderOffset": 60,
-  "reminderOffsets": [0, 15, 60],
-  "assignee": "bob",
-  "completed": false,
-  "completedAt": "",
-  "deletedAt": "",
-  "tags": ["工作"],
-  "checklist": [
-    { "id": "c1", "title": "整理数据", "done": true }
-  ],
-  "order": 3,
-  "createdAt": "2026-10-22T10:00:00Z",
-  "modifiedAt": "2026-10-22T10:00:00Z"
-}
-```
+新建日历 → 位于网络上 → CalDAV → 填写用户名与 Calendar Home URL。
 
-字段：
+### DAVx5（Android）
 
-| 字段 | 说明 |
+添加账户 → 使用 URL 和用户名登录 → 选择 CalDAV → 填入 Calendar Home URL。
+
+> 服务端只提供 CalDAV，不提供 CardDAV。DAVx5 中选择仅日历即可。
+
+## 服务端端点
+
+| 路径 | 说明 |
 | --- | --- |
-| `priority` | 0 无、1 低、2 中、3 高 |
-| `recurrence` | RRULE 主体，如 `FREQ=DAILY`；空表示不重复 |
-| `reminderOffset` | 单个提醒的兼容字段；多提醒时等于最早的一个（最大偏移） |
-| `reminderOffsets` | 提醒偏移数组，按分钟升序；为空表示不提醒，最多 10 个。写入时优先于 `reminderOffset` |
-| `assignee` | 指派人用户名；必须是清单所有者或共享成员，空表示未指派 |
-| `allDay` | 全天任务 |
-| `checklist` | 子任务列表 |
+| `/.well-known/caldav` | 301 → `/`，principal 发现 |
+| `/` | PROPFIND 返回当前用户 `current-user-principal` |
+| `/principals/` | principal 集合 |
+| `/principals/{user}/` | principal，返回 `calendar-home-set` |
+| `/calendars/{user}/` | 日历集合（calendar home） |
+| `/calendars/{user}/{calendar}/` | 日历集合；支持 GET 聚合 ICS |
+| `/calendars/{user}/{calendar}/{name}.ics` | 日历对象资源 |
+| `/admin` | Vue 管理后台（仅管理员） |
+| `/admin/tasks` | 任务工作台（清单 / 看板 / 日历） |
+| `/api/admin/*` | 管理后台 JSON API（会话 + CSRF） |
+| `/api/admin/tasks` | 任务工作台数据与任务 CRUD |
+| `/api/admin/tasks/reminders` | 提醒候选任务（页面内提醒） |
+| `/api/admin/tasks/push/public-key` | Web Push VAPID 公钥 |
+| `/api/admin/tasks/push/subscriptions` | 当前用户已登记的推送设备数 |
+| `/api/admin/tasks/push/subscribe` | 新增或删除浏览器推送订阅 |
+| `/api/admin/tasks/notifications/email` | 读取/保存 SMTP 邮件提醒设置 |
+| `/api/admin/tasks/notifications/email/test` | 向当前账号邮箱发送测试邮件 |
+| `/api/admin/tasks/calendar` | 指定日期范围内的 CalDAV 事件（展开重复） |
+| `/api/admin/tasks/stats` | 任务统计（天数可配置） |
+| `/api/admin/tasks/summary` | 按筛选条件生成摘要数据 |
+| `/api/admin/tasks/summary/optimize` | AI 润色摘要 |
+| `/api/admin/task-summary-documents` | 摘要模板/历史文档 CRUD |
+| `/api/admin/tasks/ai/settings` | AI 模型配置（读取/保存，Key 不回传） |
+| `/api/admin/tasks/ai/models` | 使用当前接口和 Key 拉取可用模型（兼容 Ollama 原生列表） |
+| `/api/admin/tasks/ai/test` | 测试指定模型的对话连通性 |
+| `/api/admin/tasks/ai/chat` | AI 对话与工具调用 |
+| `/api/admin/tasks/batch` | 批量完成 / 移动 / 删除 |
+| `/api/admin/tasks/reorder` | 手动排序 |
+| `/api/admin/tasks/{id}/restore` | 从垃圾桶恢复 |
+| `/api/admin/tasks/{id}/purge` | 彻底删除垃圾桶任务 |
+| `/api/admin/task-lists` | 清单 CRUD（支持文件夹） |
+| `/api/admin/task-lists/{id}/shares` | 清单共享成员与角色管理 |
+| `/api/admin/task-lists/{id}/members` | 清单所有者与成员列表（用于指派） |
+| `/api/admin/tasks/shared` | 共享清单任务列表 |
+| `/api/admin/notifications` | 站内通知列表与未读数 |
+| `/api/admin/notifications/stream` | 通知未读数 SSE 流 |
+| `/api/admin/notifications/read` | 单条或全部标记已读 |
+| `/api/admin/notifications/{id}/snooze` | 日程通知稍后提醒 |
+| `/api/admin/tasks/{id}/activities` | 任务动态时间线 |
+| `/api/admin/tasks/{id}/comments` | 任务评论列表与发表评论 |
+| `/api/admin/tasks/{id}/comments/{commentId}` | 编辑/删除评论 |
+| `/api/admin/tasks/{id}/comments/{commentId}/attachments` | 上传评论附件 |
+| `/api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}` | 下载/删除评论附件 |
+| `/api/admin/task-folders` | 清单文件夹 CRUD |
+| `/api/admin/task-filters` | 保存过滤器 CRUD |
+| `/api/admin/task-tags` | 标签统计、重命名、删除 |
+| `/healthz` | 健康检查 |
 
-### POST /api/admin/tasks
+支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
 
-```json
-{
-  "title": "写周报",
-  "listId": 2,
-  "due": "2026-10-30T18:00:00+08:00",
-  "priority": 2,
-  "tags": ["工作"],
-  "notes": "汇总进度",
-  "recurrence": "FREQ=WEEKLY",
-  "reminderOffset": 60,
-  "reminderOffsets": [0, 15, 60],
-  "assignee": "bob",
-  "checklist": [{ "id": "c1", "title": "整理数据", "done": false }],
-  "timezone": "Asia/Shanghai"
+REPORT 支持：
+
+- `calendar-query`
+- `calendar-multiget`
+- `sync-collection`
+- `free-busy-query`
+
+### 手动验证
+
+```bash
+BASE=http://localhost:5232
+AUTH='alice:your-password'
+
+# 发现当前 principal
+curl -su "$AUTH" -X PROPFIND -H 'Depth: 0' "$BASE/"
+
+# 创建日历
+curl -su "$AUTH" -X MKCALENDAR \
+  -H 'Content-Type: application/xml' \
+  --data '<C:mkcalendar xmlns:C="urn:ietf:params:xml:ns:caldav" xmlns:D="DAV:"><D:set><D:prop><D:displayname>Work</D:displayname></D:prop></D:set></C:mkcalendar>' \
+  "$BASE/calendars/alice/work/"
+
+# 上传事件
+curl -su "$AUTH" -X PUT \
+  -H 'Content-Type: text/calendar; charset=utf-8' \
+  --data-binary @event.ics \
+  "$BASE/calendars/alice/work/event.ics"
+
+# 时间范围查询
+curl -su "$AUTH" -X REPORT -H 'Depth: 1' \
+  -H 'Content-Type: application/xml' \
+  --data '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><D:getetag/><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"><C:time-range start="20260101T000000Z" end="20270101T000000Z"/></C:comp-filter></C:comp-filter></C:filter></C:calendar-query>' \
+  "$BASE/calendars/alice/work/"
+```
+
+## 架构
+
+```
+cmd/caldav-free/       启动入口、配置、优雅关闭
+internal/auth          PBKDF2 密码哈希、随机 token
+internal/store         GORM + SQLite 数据层（用户/日历/对象/同步日志）
+internal/ical          iCalendar 解析、序列化、时区、重复展开、过滤、free-busy
+internal/dav           CalDAV/WebDAV HTTP 处理器、XML、属性、REPORT
+internal/tasks         任务快速添加的自然语言解析（日期、时间、标签、优先级）
+internal/tasksync      任务与 CalDAV VTODO 集合的双向同步、冲突处理与对象恢复
+internal/web           管理后台（模板、会话、CSRF、静态资源 embed）
+```
+
+数据表：
+
+- `users`：principal 与凭据
+- `calendars`：日历集合、时区、组件、sync 序号
+- `objects`：ICS 原文、ETag、时间范围缓存、墓碑
+- `sync_changes`：每次变更的序号日志，用于 sync-collection
+- `settings`：服务端设置
+- `task_folders`：清单文件夹
+- `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹）
+- `task_filters`：保存的过滤器条件（JSON）
+- `task_list_shares`：清单共享成员与角色（viewer/editor）
+- `tasks.assignee`：指派人用户名
+- `notifications`：站内通知（任务指派、评论、@提及、日程提醒）
+- `event_reminder_deliveries`：服务端日程提醒成功投递去重记录
+- `task_activities`：任务动态（创建、指派、完成、重新打开）
+- `task_tag_colors`：用户标签颜色
+- `matrix_views`：保存的四象限视图名称、simple/complex/custom 规则和排序
+- `matrix_rule_templates`：用户保存的四象限规则模板
+- `habits` / `habit_sections` / `habit_checkins` / `habit_records` / `habit_preferences`：习惯、分组、打卡、日志和偏好
+- `task_comments`：任务评论与作者
+- `comment_attachments`：评论附件元数据与文件内容（SQLite BLOB）
+- `summary_documents`：摘要模板与历史文档
+- `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
+- `reminder_deliveries`：服务端提醒成功投递记录
+- `reminder_attempts`：失败投递的退避重试状态
+- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
+
+### 同步模型
+
+每次对象 PUT/DELETE 会在同一事务中：
+
+1. 更新 `objects`；
+2. `calendars.sync_seq + 1`；
+3. 写入 `sync_changes(calendar_id, seq, href, op)`。
+
+`sync-collection` 返回自 token 之后每个 href 的最新变更；删除以 `404 Not Found` 响应表示。
+同步日志目前永久保留，适合个人/小团队规模。
+
+## 备份与迁移
+
+- 停止服务后复制 `data/caldav-free.db` 即可（WAL 模式下建议同时复制 `-wal` / `-shm`，或先停服务）。
+- 也可以在运行中执行 `sqlite3 data/caldav-free.db ".backup 'backup.db'"`。
+- 迁移到新机器：复制整个 data 目录，保持文件权限，重新启动。
+
+## 反向代理与 HTTPS
+
+强烈建议在公网部署时使用 HTTPS。Basic Auth 密码仅应通过 TLS 传输。
+
+### Caddy
+
+```caddyfile
+dav.example.com {
+    reverse_proxy 127.0.0.1:5232
 }
 ```
 
-也支持自然语言：
+### Nginx
 
-```json
-{
-  "text": "明天下午 3 点和张三开会 #工作 !!",
-  "listId": 2,
-  "timezone": "Asia/Shanghai"
-}
-```
+```nginx
+server {
+    listen 443 ssl;
+    server_name dav.example.com;
+    client_max_body_size 20m;
 
-`text` 与 `title` 同时存在时，`title` 优先，`text` 只填充未设置的日期/优先级/标签。
-
-响应 `201`：
-
-```json
-{ "task": { "...": "任务对象" } }
-```
-
-### PATCH /api/admin/tasks/{id}
-
-只传需要修改的字段：
-
-```json
-{
-  "title": "写月报",
-  "due": "2026-11-01T18:00:00+08:00",
-  "priority": 3,
-  "tags": ["工作", "月度"],
-  "reminderOffset": 60,
-  "completed": false
-}
-```
-
-特殊行为：
-
-- `completed: true`：普通任务完成；有到期时间的重复任务推进到下一次，返回 `completed: false`
-- `due: ""`：清除日期
-- `recurrence: ""`：取消重复
-
-响应：
-
-```json
-{ "task": { "...": "任务对象" } }
-```
-
-### DELETE /api/admin/tasks/{id}
-
-软删除到垃圾桶，返回 `204`。同时删除对应 VTODO。
-
-## 5. 批量、排序、垃圾桶
-
-### POST /api/admin/tasks/batch
-
-```json
-{
-  "ids": [12, 13, 14],
-  "action": "move",
-  "listId": 3
-}
-```
-
-`action`：
-
-- `complete`
-- `uncomplete`
-- `move`（需要 `listId`）
-- `delete`
-
-响应：
-
-```json
-{ "updated": 3 }
-```
-
-### POST /api/admin/tasks/reorder
-
-```json
-{ "ids": [13, 12, 14] }
-```
-
-按数组顺序写入 `order_index`，返回 `204`。
-
-### POST /api/admin/tasks/{id}/restore
-
-恢复垃圾桶任务。返回：
-
-```json
-{ "task": { "...": "任务对象" } }
-```
-
-恢复时会清空旧 VTODO 身份并重新推送。
-
-### DELETE /api/admin/tasks/{id}/purge
-
-彻底删除垃圾桶中的单条任务，返回 `204`。
-
-### DELETE /api/admin/tasks/trash
-
-清空垃圾桶，返回 `204`。
-
-## 6. 提醒
-
-### GET /api/admin/tasks/reminders
-
-返回未完成、带提醒且有时间字段的任务：
-
-```json
-{
-  "tasks": [
-    {
-      "id": 12,
-      "title": "开会",
-      "due": "2026-10-30T15:00:00+08:00",
-      "reminderOffset": 15
+    location / {
+        proxy_pass http://127.0.0.1:5232;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 120s;
     }
-  ]
 }
 ```
 
-浏览器端据此计算提醒时间并显示通知；任务对象同时包含 `reminderOffsets`，每个偏移独立计算。
+启动时加 `-external-url https://dav.example.com`，让管理后台显示正确的接入地址（DAV 响应本身使用相对路径，不受影响）。
 
-### GET /api/admin/tasks/push/public-key
+### systemd
 
-返回 VAPID 公钥，首次调用时自动生成并保存到 `settings`：
+```ini
+[Unit]
+Description=caldav-free
+After=network.target
 
-```json
-{ "publicKey": "B..." }
+[Service]
+User=caldav
+ExecStart=/usr/local/bin/caldav-free -addr 127.0.0.1:5232 -data /var/lib/caldav-free -external-url https://dav.example.com
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/caldav-free
+
+[Install]
+WantedBy=multi-user.target
 ```
 
-### GET /api/admin/tasks/push/subscriptions
+### 局域网 HTTPS（自签名本地 CA）
 
-返回当前用户已登记的推送设备：
+如果没有公网域名，公共 CA 无法为 `192.168.x.x` 这类私有地址签发证书。可以生成一个本地 CA，并把 CA 证书安装到手机/客户端：
 
-```json
-{ "count": 1, "subscribed": true }
+```bash
+make tls
+# 或者：./scripts/gen-local-tls.sh ./data 192.168.124.8 my-mac
 ```
 
-### POST /api/admin/tasks/push/subscribe
-
-保存浏览器 `PushSubscription.toJSON()` 的结果：
-
-```json
-{
-  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
-  "keys": {
-    "p256dh": "B...",
-    "auth": "..."
-  }
-}
-```
-
-同一 endpoint 会更新而不是重复插入。
-
-### DELETE /api/admin/tasks/push/subscribe
-
-```json
-{ "endpoint": "https://fcm.googleapis.com/fcm/send/..." }
-```
-
-服务端调度器由 `CALDAV_REMINDERS` 控制，默认每 `CALDAV_REMINDER_INTERVAL`（30 秒）检查一次。VAPID 联系人通过 `CALDAV_PUSH_SUBJECT` 配置。
-
-### GET /api/admin/tasks/notifications/email
-
-读取 SMTP 邮件提醒设置。密码只返回 `passwordSet`，不回传明文：
-
-```json
-{
-  "enabled": true,
-  "host": "smtp.example.com",
-  "port": 587,
-  "username": "caldav",
-  "from": "CalDAV <caldav@example.com>",
-  "security": "starttls",
-  "passwordSet": true,
-  "recipientEmail": "admin@example.com"
-}
-```
-
-### PUT /api/admin/tasks/notifications/email
-
-保存配置。`security` 为 `starttls` / `tls` / `none`。`password` 为空表示保留旧密码：
-
-```json
-{
-  "enabled": true,
-  "host": "smtp.example.com",
-  "port": 587,
-  "username": "caldav",
-  "password": "app-password",
-  "from": "CalDAV <caldav@example.com>",
-  "security": "starttls"
-}
-```
-
-传 `"clearPassword": true` 可清除已保存密码。
-
-### POST /api/admin/tasks/notifications/email/test
-
-向当前账号邮箱发送测试邮件：
-
-```json
-{ "sent": true, "to": "admin@example.com" }
-```
-
-SMTP 失败返回 `502` 和具体错误。失败的任务提醒按 1 分钟、2 分钟、4 分钟……最长 2 小时退避重试，记录在 `reminder_attempts`。
-
-## 7. 日历事件
-
-### GET /api/admin/tasks/calendar?from=...&to=...
-
-示例：
+这会生成：
 
 ```text
-/api/admin/tasks/calendar?from=2026-10-01T00:00:00%2B08:00&to=2026-11-01T00:00:00%2B08:00
+data/tls/ca.crt        # 安装到手机/客户端
+data/tls/server.crt    # 服务端证书
+data/tls/server.key    # 服务端私钥（不要外传）
 ```
 
-响应：
+启动 HTTPS：
 
-```json
-{
-  "from": "2026-10-01T00:00:00+08:00",
-  "to": "2026-11-01T00:00:00+08:00",
-  "calendars": [
-    { "id": 2, "name": "工作日历", "color": "#0ea5e9" }
-  ],
-  "events": [
-    {
-      "id": "2:meeting.ics:1760000000",
-      "uid": "meeting@example",
-      "href": "meeting.ics",
-      "calendarId": 2,
-      "calendarName": "工作日历",
-      "color": "#0ea5e9",
-      "summary": "产品评审",
-      "location": "会议室 A",
-      "description": "评审材料",
-      "rrule": "FREQ=WEEKLY",
-      "reminders": [15],
-      "start": "2026-10-22T14:00:00+08:00",
-      "end": "2026-10-22T15:00:00+08:00",
-      "allDay": false,
-      "recurring": false
-    }
-  ]
-}
+```bash
+./bin/caldav-free \
+  -addr :5232 \
+  -data ./data \
+  -tls-cert ./data/tls/server.crt \
+  -tls-key ./data/tls/server.key \
+  -external-url https://192.168.124.8:5232
 ```
 
-- 排除 `caldav-tasks` 任务同步日历和未启用 `VEVENT` 的日历
-- 重复 `VEVENT` 在范围内展开
-- 范围最长 120 天
-- 最多 2000 个实例
-
-### POST /api/admin/calendars/{id}/events
-
-结构化创建 VEVENT：
-
-```json
-{
-  "summary": "产品评审",
-  "location": "会议室 A",
-  "description": "评审材料",
-  "start": "2026-10-23T10:00",
-  "end": "2026-10-23T11:00",
-  "allDay": false,
-  "rrule": "FREQ=WEEKLY",
-  "count": 5,
-  "reminders": [15]
-}
-```
-
-全天事件的 `start` / `end` 使用 `YYYY-MM-DD`，`end` 为不包含的结束日期。`reminders` 为提前分钟数组，最多 5 个，写入 `VALARM`；当前工作台界面只编辑一个提醒。
-
-### PATCH /api/admin/calendars/{id}/events/{name}
-
-按结构化字段更新事件，保留原 UID，重建 VEVENT 标准字段。默认修改整个系列：
-
-```json
-{
-  "summary": "产品评审（改）",
-  "start": "2026-10-24T10:00",
-  "end": "2026-10-24T11:00",
-  "allDay": false,
-  "rrule": "FREQ=WEEKLY",
-  "reminders": [60]
-}
-```
-
-只修改某一次重复日程时附加：
-
-```json
-{
-  "scope": "single",
-  "recurrenceId": "2026-10-26T10:00:00+08:00"
-}
-```
-
-后端会生成带 `RECURRENCE-ID` 的独立 VEVENT 例外，原系列保持不变。
-
-### DELETE /api/admin/calendars/{id}/events/{name}
-
-删除整个事件返回 `204`。删除单次实例使用查询参数：
+客户端访问：
 
 ```text
-DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00%3A00%2B08%3A00
+https://192.168.124.8:5232/calendars/admin/
 ```
 
-后端会移除对应例外并向主事件添加 `EXDATE`。
+手机必须先信任 `ca.crt`。以 HarmonyOS 为例：设置 → 安全 → 更多安全设置 → 加密和凭据 → 安装证书 → CA 证书。不同版本菜单名称可能略有差异。
 
-## 8. 清单共享
+如果手机不方便传文件，可以在电脑上临时开一个只包含 CA 证书的 HTTP 下载页：
 
-### GET /api/admin/task-lists/{id}/shares
-
-返回当前用户清单的共享成员：
-
-```json
-{
-  "shares": [
-    { "userId": 2, "username": "bob", "displayName": "Bob", "role": "viewer", "createdAt": "2026-10-23T15:42:03Z" }
-  ]
-}
+```bash
+mkdir -p data/tls/public
+cp data/tls/ca.crt data/tls/public/
+python3 -m http.server 8081 --bind 0.0.0.0 --directory data/tls/public
 ```
 
-### POST /api/admin/task-lists/{id}/shares
+手机浏览器打开 `http://<电脑IP>:8081/ca.crt` 下载后安装。
 
-```json
-{ "username": "bob", "role": "editor" }
+> 部分系统的内置日历可能不信任用户安装的 CA。如果安装后仍提示证书错误，可改用 Cloudflare Tunnel / 反向代理 + 公网域名证书，或使用支持自定义 CA 的客户端。
+
+### 临时公网 HTTPS（Cloudflare Quick Tunnel）
+
+如果客户端只信任公共 CA（例如部分华为日历），又没有自己的域名，可以用 Cloudflare Quick Tunnel 临时获得一个受信任的 HTTPS 地址：
+
+```bash
+brew install cloudflared
+./scripts/start-quick-tunnel.sh
 ```
 
-`role` 支持 `viewer`（只读）和 `editor`（可编辑）。收集箱不能共享。
+脚本会：
 
-### DELETE /api/admin/task-lists/{id}/shares/{userId}
+- 在 `127.0.0.1:5233` 启动一个只转发 CalDAV/WebDAV 的本地代理；
+- 屏蔽 `/admin`、`/login`、`/assets` 和所有 POST 请求；
+- 通过 Cloudflare 生成一个 `https://xxxx.trycloudflare.com` 地址。
 
-移除共享成员，返回 `204`。
+注意：
 
-### GET /api/admin/task-matrix-templates
+- 该地址会临时把 CalDAV 暴露到公网，必须使用强密码；
+- URL 每次重启都会变化；
+- 管理后台仍只能在局域网内访问；
+- 本机休眠、断网或关闭 `cloudflared` 后隧道失效；
+- 测试完成后执行 `pkill -f 'cloudflared tunnel --url'` 和 `lsof -ti tcp:5233 | xargs kill` 关闭。
 
-返回当前用户保存的四象限规则模板：
+## 测试
 
-```json
-{
-  "templates": [
-    {
-      "id": 1,
-      "name": "我的工作规则",
-      "rules": {
-        "q1": { "name": "立即去做", "color": "#e5484d", "match": "all", "groups": [{ "priorities": [3], "due": "urgent" }] },
-        "q2": { "name": "计划推进", "color": "#f2a900", "match": "all", "groups": [{ "priorities": [2], "due": "any" }] },
-        "q3": {},
-        "q4": {}
-      }
-    }
-  ]
-}
+```bash
+go test ./... -v
+go vet ./...
 ```
 
-### POST /api/admin/task-matrix-templates
-
-```json
-{
-  "name": "我的工作规则",
-  "rules": {
-    "q1": { "match": "all", "groups": [{ "priorities": [3] }] },
-    "q2": {},
-    "q3": {},
-    "q4": {}
-  }
-}
-```
-
-`name` 必填，`rules` 必须是 JSON 对象，最大 16KB。返回 `201` 和完整模板。
-
-### PATCH /api/admin/task-matrix-templates/{id}
-
-```json
-{
-  "name": "重命名后的模板",
-  "rules": { "q1": { "match": "all", "groups": [{ "priorities": [3] }] }, "q2": {}, "q3": {}, "q4": {} }
-}
-```
-
-`name` 和 `rules` 均可选，只传需要修改的字段。返回更新后的完整模板。
-
-### DELETE /api/admin/task-matrix-templates/{id}
-
-返回 `204`。
-
-### GET /api/admin/task-matrix-views
-
-返回当前用户保存的四象限视图：
-
-```json
-{
-  "views": [
-    {
-      "id": 1,
-      "name": "工作矩阵",
-      "mode": "custom",
-      "rules": {
-        "q1": {
-          "name": "立即去做",
-          "color": "#e5484d",
-          "match": "any",
-          "groups": [
-            { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
-            { "priorities": [], "due": "any", "listId": 0, "tag": "工作", "assignee": "" }
-          ]
-        },
-        "q2": {
-          "name": "计划推进",
-          "color": "#f2a900",
-          "match": "all",
-          "groups": [
-            { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" }
-          ]
-        },
-        "q3": {},
-        "q4": {}
-      },
-      "order": 1
-    }
-  ]
-}
-```
-
-### POST /api/admin/task-matrix-views
-
-```json
-{
-  "name": "工作矩阵",
-  "mode": "custom",
-  "rules": {
-    "q1": {
-      "name": "立即去做",
-      "color": "#e5484d",
-      "match": "any",
-      "groups": [
-        { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
-        { "priorities": [], "due": "any", "listId": 0, "tag": "工作", "assignee": "" }
-      ]
-    },
-    "q2": {
-      "name": "计划推进",
-      "color": "#f2a900",
-      "match": "all",
-      "groups": [
-        { "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" }
-      ]
-    },
-    "q3": {},
-    "q4": {}
-  }
-}
-```
-
-`mode` 为 `simple`、`complex` 或 `custom`。`rules` 仅在自定义模式使用，保存后原样返回。
-
-每个象限包含：
-
-- `match`：`all` 表示满足全部条件组，`any` 表示满足任一条件组。
-- `groups`：条件组数组，最多 12 组；每组内部各字段之间为 AND。
-- `name` / `color`：象限显示名称与十六进制颜色，可省略。
-- 条件组字段：`priorities`（0–3 数组）、`due`、`listId`、`tag`、`assignee`。
-
-日期条件：`any`、`urgent`、`overdue`、`today`、`tomorrow`、`next7`、`later`、`none`。空的 `groups` 或空条件组按任意条件处理；未匹配任何规则的任务归入 Q4。
-
-旧版平铺条件（直接写 `priorities`、`due` 等字段）仍可读取，前端会将其自动迁移为单个条件组。
-
-### PATCH /api/admin/task-matrix-views/{id}
-
-```json
-{
-  "name": "工作矩阵",
-  "mode": "custom",
-  "rules": {
-    "q1": {
-      "match": "any",
-      "groups": [
-        { "priorities": [3], "due": "urgent", "listId": 0, "tag": "", "assignee": "" },
-        { "priorities": [], "due": "any", "listId": 0, "tag": "工作", "assignee": "" }
-      ]
-    },
-    "q2": { "match": "all", "groups": [{ "priorities": [2], "due": "any", "listId": 0, "tag": "", "assignee": "" }] },
-    "q3": {},
-    "q4": {}
-  },
-  "order": 1
-}
-```
-
-`name`、`mode`、`rules`、`order` 均可选；只传需要修改的字段。
-
-### DELETE /api/admin/task-matrix-views/{id}
-
-返回 `204`。
-
-### GET /api/admin/tasks/{id}/activities
-
-返回任务动态时间线（最近 50 条，倒序）：
-
-```json
-{
-  "activities": [
-    {
-      "id": 4,
-      "type": "assign",
-      "detail": "指派给 @bob",
-      "username": "admin",
-      "displayName": "Administrator",
-      "createdAt": "2026-10-24T00:40:00Z"
-    }
-  ]
-}
-```
-
-### GET /api/admin/tasks/{id}/comments
-
-返回任务评论，按时间正序：
-
-```json
-{
-  "comments": [
-    {
-      "id": 1,
-      "taskId": 8,
-      "userId": 2,
-      "username": "bob",
-      "displayName": "Bob",
-      "body": "@admin 请确认",
-      "createdAt": "2026-10-23T16:04:48Z",
-      "canDelete": true
-    }
-  ]
-}
-```
-
-### POST /api/admin/tasks/{id}/comments
-
-```json
-{ "body": "@admin 请确认" }
-```
-
-评论中的 `@username` 只对清单成员生效；作者、所有者/编辑者可发表评论。被提及成员、任务所有者和指派人会收到通知。
-
-### PATCH /api/admin/tasks/{id}/comments/{commentId}
-
-评论作者编辑正文：
-
-```json
-{ "body": "更新后的评论" }
-```
-
-返回更新后的评论，并设置 `editedAt`。
-
-### DELETE /api/admin/tasks/{id}/comments/{commentId}
-
-作者或清单所有者可删除，返回 `204`，同时级联删除附件。
-
-### POST /api/admin/tasks/{id}/comments/{commentId}/attachments
-
-使用 `multipart/form-data` 上传字段 `file`，单文件最大 10MB：
-
-```json
-{
-  "attachment": {
-    "id": 1,
-    "commentId": 8,
-    "filename": "note.txt",
-    "contentType": "text/plain",
-    "size": 16,
-    "canDelete": true
-  }
-}
-```
-
-附件随评论/任务权限校验；下载使用：
-
-```text
-GET /api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}
-```
-
-删除使用 `DELETE` 同一路径。
-
-### GET /api/admin/notifications
-
-返回最近 50 条站内通知和未读数：
-
-```json
-{
-  "notifications": [
-    {
-      "id": 3,
-      "type": "assignment",
-      "title": "任务指派",
-      "body": "Administrator 将任务「写周报」指派给你",
-      "url": "/tasks?view=shared&shared=2&task=8",
-      "taskId": 8,
-      "read": false,
-      "createdAt": "2026-10-23T16:01:28Z"
-    }
-  ],
-  "unread": 1
-}
-```
-
-### GET /api/admin/notifications/stream
-
-SSE 长连接，连接时和新增通知时发送：
-
-```text
-data: {"unread":2}
-```
-
-服务端每 25 秒发送一次注释心跳，连接随请求关闭而释放。
-
-### POST /api/admin/notifications/read
-
-单条：
-
-```json
-{ "id": 3 }
-```
-
-全部：
-
-```json
-{ "all": true }
-```
-
-返回 `{ "unread": 0 }`。
-
-### POST /api/admin/notifications/{id}/snooze
-
-对 `type=event` 的日程通知和 `type=task` 的任务提醒通知有效：
-
-```json
-{ "minutes": 10 }
-```
-
-`minutes` 支持 1–1440，界面提供 10/30/60/1440。服务端会创建一条延迟提醒，返回：
-
-```json
-{
-  "snooze": { "id": 1, "remindAt": "2026-10-24T00:40:00Z" },
-  "unread": 0
-}
-```
-
-### GET /api/admin/task-lists/{id}/members
-
-返回所有者与共享成员，用于指派人选择：
-
-```json
-{
-  "members": [
-    { "username": "admin", "displayName": "Administrator", "role": "owner" },
-    { "username": "bob", "displayName": "Bob", "role": "editor" }
-  ]
-}
-```
-
-### GET /api/admin/tasks/shared?listId=...
-
-返回共享给当前用户的清单和任务。写操作仍使用普通任务接口：编辑者在共享清单中新建任务时传共享清单 ID，修改/删除任务使用普通 PATCH/DELETE；后端会校验共享角色。
-
-
-## 9. 统计
-
-### GET /api/admin/tasks/stats?days=30
-
-`days`：1–365，默认 30。
-
-```json
-{
-  "stats": {
-    "days": 30,
-    "open": 5,
-    "completed": 12,
-    "overdue": 2,
-    "today": 3,
-    "trash": 1,
-    "completionRate": 70.5,
-    "createdInPeriod": 20,
-    "completedInPeriod": 14,
-    "dueInPeriod": 18,
-    "onTimeInPeriod": 11,
-    "avgCompletionHours": 27.4,
-    "daily": [
-      { "date": "2026-10-01", "created": 2, "completed": 1, "due": 3 }
-    ],
-    "lists": [
-      {
-        "id": 2,
-        "name": "工作",
-        "color": "#4772fa",
-        "open": 4,
-        "completed": 8,
-        "overdue": 1
-      }
-    ],
-    "tags": [
-      { "name": "工作", "open": 3, "completed": 2, "overdue": 1 }
-    ],
-    "priorities": [
-      { "priority": 3, "open": 2, "completed": 4 }
-    ]
-  }
-}
-```
-
-## 10. 摘要
-
-### GET /api/admin/tasks/summary
-
-查询参数：
-
-| 参数 | 说明 |
-| --- | --- |
-| `from` / `to` | 时间范围，RFC3339 或 `YYYY-MM-DD`；`to` 为开区间 |
-| `listId` | 可选，限定清单 |
-| `status` | `all`、`completed`、`open` |
-| `priority` | 1–3，可选 |
-| `tag` | 标签名，可选 |
-| `includeNext` | `1` 时追加下一周期任务 |
-
-示例：
-
-```text
-/api/admin/tasks/summary?from=2026-09-01T00:00:00%2B08:00&to=2026-10-01T00:00:00%2B08:00&status=all
-```
-
-响应：
-
-```json
-{
-  "title": "9月1日-9月30日",
-  "from": "2026-09-01T00:00:00+08:00",
-  "to": "2026-10-01T00:00:00+08:00",
-  "tasks": [
-    {
-      "id": 12,
-      "title": "研发日报",
-      "listId": 1,
-      "listName": "收集箱",
-      "listColor": "#4772fa",
-      "completed": true,
-      "completedAt": "2026-09-04T10:00:00+08:00",
-      "priority": 0,
-      "tags": [],
-      "notes": "",
-      "checklist": [],
-      "createdAt": "2026-09-03T09:00:00+08:00"
-    }
-  ],
-  "nextTasks": [],
-  "counts": {
-    "completed": 8,
-    "open": 2
-  }
-}
-```
-
-规则：
-
-- 已完成任务按 `completedAt` 是否落在范围内筛选
-- 未完成任务按 `due` 是否落在范围内筛选；没有到期时间时按 `createdAt`
-- 已完成条目排在未完成之前，已完成按完成时间倒序
-- `includeNext=1` 时，返回下一段等长范围内到期的未完成任务
-
-### POST /api/admin/tasks/summary/optimize
-
-使用已配置的 AI 模型润色摘要。
-
-```json
-{
-  "title": "9月1日-9月30日",
-  "text": "已完成\n- 研发日报\n未完成\n- 周报"
-}
-```
-
-响应：
-
-```json
-{
-  "markdown": "## 9 月回顾\n\n### 完成情况\n- ...",
-  "model": "gpt-4o-mini"
-}
-```
-
-未配置模型返回 `503`。
-
-### GET /api/admin/task-summary-documents
-
-参数：`kind=template` 或 `kind=history`，可省略返回全部。
-
-```json
-{
-  "documents": [
-    {
-      "id": 1,
-      "kind": "template",
-      "name": "周报模板",
-      "content": "<h2>...</h2>",
-      "createdAt": "2026-10-23T10:00:00Z",
-      "modifiedAt": "2026-10-23T10:00:00Z"
-    }
-  ]
-}
-```
-
-### POST /api/admin/task-summary-documents
-
-```json
-{
-  "kind": "history",
-  "name": "10月18日-10月24日",
-  "content": "<h2>...</h2>"
-}
-```
-
-响应 `201`，`{ "document": {...} }`。内容上限 300KB。
-
-### PATCH /api/admin/task-summary-documents/{id}
-
-```json
-{ "name": "新名称", "content": "<h2>...</h2>" }
-```
-
-### DELETE /api/admin/task-summary-documents/{id}
-
-返回 `204`。
-
-## 11. 清单与文件夹
-
-### POST /api/admin/task-lists
-
-```json
-{ "name": "工作", "color": "#4772fa", "folderId": 1 }
-```
-
-响应 `201`：
-
-```json
-{ "list": { "...": "清单对象" } }
-```
-
-### PATCH /api/admin/task-lists/{id}
-
-```json
-{ "name": "工作台", "color": "#2ea88a", "order": 3, "folderId": 2 }
-```
-
-`folderId: 0` 表示移到根目录。
-
-### DELETE /api/admin/task-lists/{id}
-
-删除清单，任务移动到收集箱；同步日历 `caldav-tasks` 不能删除。
-
-### POST /api/admin/task-folders
-
-```json
-{ "name": "项目" }
-```
-
-### PATCH /api/admin/task-folders/{id}
-
-```json
-{ "name": "项目 Alpha", "order": 2 }
-```
-
-### DELETE /api/admin/task-folders/{id}
-
-删除文件夹，其中的清单回到根目录。
-
-## 12. 标签
-
-### GET /api/admin/task-tags
-
-```json
-{
-  "tags": [
-    { "name": "工作", "count": 4 },
-    { "name": "生活", "count": 2 }
-  ]
-}
-```
-
-### PUT /api/admin/task-tags/color
-
-设置或清除标签颜色：
-
-```json
-{ "tag": "工作", "color": "#e5484d" }
-```
-
-`color` 为空字符串时清除颜色。必须是 `#RRGGBB` 格式。返回更新后的标签统计。
-
-### POST /api/admin/task-tags/rename
-
-```json
-{ "from": "工作", "to": "项目" }
-```
-
-会更新任务、VTODO `CATEGORIES` 和保存过滤器条件。
-
-### POST /api/admin/task-tags/delete
-
-```json
-{ "tag": "工作" }
-```
-
-两个接口都返回更新后的标签列表。
-
-## 13. 保存过滤器
-
-### GET /api/admin/task-filters
-
-### POST /api/admin/task-filters
-
-```json
-{
-  "name": "高优工作",
-  "color": "#4772fa",
-  "conditions": {
-    "listIds": [2],
-    "tags": ["工作"],
-    "tagMode": "any",
-    "priorities": [3],
-    "status": "open",
-    "date": "any",
-    "keyword": ""
-  }
-}
-```
-
-`status`：`open` / `completed` / `all`。
-`date`：`any` / `today` / `next7` / `overdue` / `none`。
-`tagMode`：`any` / `all`。
-
-### PATCH /api/admin/task-filters/{id}
-
-```json
-{
-  "name": "高优工作",
-  "conditions": {
-    "tags": ["项目"],
-    "status": "open",
-    "date": "next7"
-  }
-}
-```
-
-### DELETE /api/admin/task-filters/{id}
-
-返回 `204`。
-
-## 14. AI 助手
-
-### GET /api/admin/tasks/ai/settings
-
-```json
-{
-  "provider": "openai",
-  "baseUrl": "https://api.openai.com/v1",
-  "model": "gpt-4o-mini",
-  "models": ["gpt-4o-mini", "gpt-4o"],
-  "recentModels": ["gpt-4o-mini"],
-  "modelStats": {
-    "gpt-4o-mini": { "calls": 12, "totalMs": 9840, "lastMs": 760, "lastAt": "2026-10-24T01:40:55Z" }
-  },
-  "hasKey": true,
-  "configured": true
-}
-```
-
-API Key 永不返回。
-
-### PUT /api/admin/tasks/ai/settings
-
-```json
-{
-  "provider": "openai",
-  "baseUrl": "https://api.openai.com/v1",
-  "model": "gpt-4o-mini",
-  "apiKey": "sk-...",
-  "clearKey": false
-}
-```
-
-`apiKey` 为空表示保留原值；`clearKey: true` 清除已保存 Key。
-
-### POST /api/admin/tasks/ai/models
-
-使用指定或已保存的 Base URL 和 API Key 拉取 OpenAI 兼容的 `/models` 列表：
-
-```json
-{
-  "provider": "openai",
-  "baseUrl": "https://api.openai.com/v1",
-  "apiKey": "sk-..."
-}
-```
-
-`baseUrl`、`apiKey` 可省略，省略时使用已保存配置。响应：
-
-```json
-{
-  "models": ["gpt-4o-mini", "gpt-4o", "o3-mini"]
-}
-```
-
-仅管理员可调用；服务商返回错误时返回 `502`。`provider` 为 `ollama` 时会优先请求原生 `/api/tags`，失败后再尝试 OpenAI 兼容 `/models`。获取成功的列表会写入 `ai.models`，供设置接口和对话模型下拉框复用。
-
-### POST /api/admin/tasks/ai/test
-
-测试指定模型的对话连通性，不会创建或修改任务：
-
-```json
-{
-  "provider": "openai",
-  "baseUrl": "https://api.openai.com/v1",
-  "apiKey": "sk-...",
-  "model": "gpt-4o-mini",
-  "mode": "chat"
-}
-```
-
-`mode` 为 `chat`（默认）或 `tools`。`tools` 会发送一个 ping 工具，检查模型是否返回 function call。
-
-成功返回：
-
-```json
-{
-  "ok": true,
-  "model": "gpt-4o-mini",
-  "latencyMs": 842,
-  "sample": "OK",
-  "toolsSupported": true
-}
-```
-
-`toolsSupported` 仅在 `mode: "tools"` 时返回。
-
-`baseUrl`、`apiKey` 可省略，省略时使用已保存配置。
-
-### POST /api/admin/tasks/ai/chat
-
-```json
-{
-  "messages": [
-    { "role": "user", "content": "明天下午 3 点提醒我和张三开会" }
-  ],
-  "timezone": "Asia/Shanghai",
-  "model": "gpt-4o-mini"
-}
-```
-
-响应：
-
-```json
-{
-  "message": "已创建任务「和张三开会」，定在明天 15:00。",
-  "recentModels": ["gpt-4o-mini"],
-  "modelStats": { "gpt-4o-mini": { "calls": 13, "totalMs": 10600, "lastMs": 760, "lastAt": "2026-10-24T01:42:55Z" } },
-  "latencyMs": 760,
-  "fallbackFrom": "bad-model",
-  "actions": [
-    {
-      "type": "create_task",
-      "label": "已创建任务「和张三开会」",
-      "taskId": 21
-    }
-  ],
-  "model": "gpt-4o-mini"
-}
-```
-
-未配置模型返回：
-
-```json
-HTTP 503
-{ "error": "尚未配置 AI 模型，请先在 AI 设置中填写 Base URL 与模型" }
-```
-
-支持的 AI 工具：
-
-```text
-list_lists
-list_tasks
-get_stats
-create_task
-update_task
-complete_task
-delete_task
-create_list
-```
-
-## 15. 专注
-
-### GET /api/admin/focus
-
-返回专注偏好、今日/累计统计、最近记录、最近 7 天、年度热力图和 24 小时分布。
-
-### PATCH /api/admin/focus/preferences
-
-```json
-{
-  "pomodoroMinutes": 25,
-  "shortBreakMinutes": 5,
-  "longBreakMinutes": 15,
-  "longBreakInterval": 4,
-  "dailyGoal": 4,
-  "autoStartPomodoro": false,
-  "autoStartBreak": false,
-  "soundEnabled": true,
-  "tabTitleEnabled": false
-}
-```
-
-### POST /api/admin/focus/sessions
-
-```json
-{
-  "mode": "pomodoro",
-  "startedAt": "2026-10-24T10:00:00+08:00",
-  "endedAt": "2026-10-24T10:25:00+08:00",
-  "durationSeconds": 1500,
-  "pomodoroCount": 1,
-  "note": "完成方案初稿",
-  "taskId": 12
-}
-```
-
-`mode` 为 `pomodoro` 或 `stopwatch`；`taskId` / `habitId` 二选一，也可都不传。
-
-### DELETE /api/admin/focus/sessions/{id}
-
-删除当前用户的一条专注记录。
-
-### GET /api/admin/focus/stats?days=30
-
-返回 7/30/90/365 天专注统计：总量、活跃天数、日均、每日/小时趋势、模式拆分、专注对象拆分和记录列表。
-
-### GET /api/admin/focus/timer
-
-返回服务端当前计时状态；没有活动状态时返回：
-
-```json
-{ "timer": null, "serverNow": "..." }
-```
-
-### PUT /api/admin/focus/timer
-
-保存当前计时状态。服务端返回带 `revision`、`remainingSeconds`、`elapsedSeconds` 和 `serverNow` 的视图。
-
-### DELETE /api/admin/focus/timer
-
-清除服务端当前计时状态。
-
-## 16. 倒数纪念日
-
-### GET /api/admin/countdowns
-
-返回当前用户的倒数日；`?archived=1` 只返回已归档记录。
-
-### POST /api/admin/countdowns
-
-```json
-{
-  "name": "产品发布日",
-  "type": "countdown",
-  "date": 20261103,
-  "icon": "⏳",
-  "color": "#92D0FF",
-  "style": "normal",
-  "repeat": "none",
-  "reminders": "[0,3]",
-  "dateDisplayFormat": "day",
-  "remark": ""
-}
-```
-
-`type`：`anniversary`、`countdown`、`birthday`、`festival`
-`calendar`：`solar`、`lunar`
-`repeat`：`none`、`yearly`、`monthly`、`weekly`、`weekend`
-`reminderTime`：`HH:mm`，默认 `09:00`
-`lunarMonth` / `lunarDay` / `lunarLeap`：农历日期字段
-`background`：`''`、`aurora`、`sunset`、`mint`、`rose` 等背景预设
-
-### POST /api/admin/countdowns/reorder
-
-```json
-{ "ids": [3, 1, 2] }
-```
-
-按数组顺序更新当前用户的 `sort_order`。
-
-### PATCH /api/admin/countdowns/{id}
-
-支持更新名称、日期、类型、图标、颜色、样式、备注、提醒、重复、归档状态和置顶。
-
-### DELETE /api/admin/countdowns/{id}
-
-删除当前用户的倒数记录。
-
-## 17. 状态码
-
-| 状态码 | 说明 |
-| --- | --- |
-| 200 | 成功 |
-| 201 | 创建成功 |
-| 204 | 成功，无响应体 |
-| 400 | 参数错误 |
-| 401 | 未登录/会话过期 |
-| 403 | 非管理员或 CSRF 失败 |
-| 404 | 资源不存在 |
-| 409 | 同名清单/文件夹冲突，或任务同步日历不能删除 |
-| 503 | AI 未配置 |
-| 502 | AI 上游请求失败 |
+覆盖：
+
+- iCalendar 解析/序列化、折叠行、时区、DST、VTIMEZONE 回退
+- RRULE/RDATE/EXDATE/RECURRENCE-ID、COUNT/UNTIL、全天事件
+- 时间范围过滤、文本过滤、free-busy 合并
+- CalDAV 发现、MKCALENDAR、PROPFIND/PROPPATCH、PUT/GET/DELETE、ETag 条件请求
+- calendar-query、calendar-multiget、sync-collection（初始/增量/删除）、free-busy
+- 时区属性、组件限制、extended MKCOL、管理员跨用户访问、改密后缓存失效
+- GORM 数据层事务与同步日志
+- 管理后台登录、CSRF、用户/日历/事件 CRUD（JSON API）
+- 任务清单/任务 CRUD、智能视图计数、完成/删除、快速添加解析
+- 重复任务推进、提醒字段、垃圾桶恢复/彻底删除、批量操作、手动排序
+- 文件夹归类、保存过滤器条件应用、标签重命名/删除
+- 日历事件范围展开、周/日/日程视图、跨日历事件叠加
+- 重复 VEVENT 范围展开、跨日历事件查询与非法范围校验
+- 统计接口的总数、逾期、完成率、每日趋势、清单/标签/优先级分布
+- 摘要范围筛选、完成/未完成分组、下一周期、清单/标签/优先级筛选
+- AI 设置保存与 Key 脱敏、服务商预设、模型列表拉取、无配置时的 503、工具调用创建任务、Mock OpenAI 上游往返
+- VTODO 推送、客户端修改导入、客户端删除识别、任务日历重建
+- Vue SPA 路由回退与静态资源嵌入
+
+## 安全说明
+
+- 密码使用 PBKDF2-SHA256（210,000 次迭代，随机盐）存储。
+- 管理后台会话为服务端内存会话，12 小时过期；重启后需重新登录。
+- 所有管理 POST 请求校验 CSRF token。
+- 响应带 CSP、`X-Frame-Options: DENY`、`X-Content-Type-Options: nosniff`。
+- 路径分段校验，拒绝 `..`、斜杠、控制字符；对象名长度限制。
+- 请求体上限 12 MiB；XML 解析不启用外部实体。
+- Basic Auth 失败统一返回 401，未知用户也执行一次等价开销的校验。
+- 公网部署请务必配置 HTTPS，并定期备份数据库。
+
+## 已知限制
+
+- 任务工作台通过自动创建的 `caldav-tasks` 日历同步 `VTODO`；任务日历被客户端删除后，下次打开工作台会自动重建并恢复任务对象。
+- 工作台与客户端同时修改同一任务时采用“工作台优先”的最后写入策略，不做字段级合并。
+- 重复任务在完成时会把当前 VTODO 的 `DTSTART` / `DUE` 推进到下一次，不保留每次完成的历史实例；带 `COUNT` / `UNTIL` 的复杂规则会以当前到期时间重新锚定。
+- 手动排序只保证当前筛选结果内的相对顺序；跨日期分组的排序在重新加载后仍以手动顺序为准。
+- 服务端 Web Push 需要 HTTPS（或 localhost）、浏览器允许通知并完成设备订阅；浏览器完全退出时通知可能延迟到下次启动。
+- 邮件提醒需要可用 SMTP；SMTP 密码以明文保存在 SQLite 中，建议使用应用专用授权码并限制数据库访问权限。
+- 失败投递按 1 分钟、2 分钟、4 分钟…最长 2 小时退避重试，超过 6 小时补发窗口后不再发送。
+- CalDAV `VALARM` 仍由客户端负责触发；页面内浏览器提醒依赖页面保持打开。
+- 垃圾桶没有自动清理期限，需要手动彻底删除或清空。
+- 保存过滤器、清单文件夹与标签管理属于工作台组织能力，不映射到 CalDAV 日历结构。
+- 标签颜色保存在工作台，不写入 CalDAV `CATEGORIES`。
+- 工作日历中的多日定时事件只在开始日显示；跨天片段暂不拆分。
+- 工作台支持日程的结构化新建、编辑、删除、拖拽改期和 `VALARM` 提醒；重复日程编辑/删除可选“仅此次”或“整个系列”，拖拽/调整时长仍默认修改整个系列。
+- 日程提醒同时支持页面内通知和服务端 Web Push/邮件；页面关闭时仍可收到服务端提醒。
+- 服务端日程推送/邮件包含日历、事件文件和实例时间深链，点击后打开对应日程编辑弹窗。
+- 结构化编辑会重建 VEVENT 的标准字段，客户端额外写入的自定义属性或参与者可能丢失；需要保留原始 ICS 时使用管理后台事件编辑页。
+- 清单共享支持只读和编辑，并支持清单内任务指派；指派人不会写入 CalDAV。
+- 指派通知包含站内消息、Web Push 和邮件，但推送/邮件依赖设备订阅和 SMTP 配置；通知不是实时推送，前端每 60 秒刷新未读数。
+- 还没有评论编辑、富文本、附件和协作动态；评论不写入 CalDAV。
+- 日历事件查询窗口一次最多 120 天，最多返回 2000 个实例。
+- 统计基于当前仍保留的任务数据；彻底删除或清空垃圾桶会移除对应历史。
+- 统计不含习惯打卡、番茄专注与 CalDAV 事件时长，仅覆盖任务工作台数据。
+- 摘要编辑器为浏览器 contenteditable，格式能力为基础富文本；模板与历史文档保存在服务端 SQLite。
+- 摘要“下一周期任务”追加的是当前范围之后同等长度时间段内到期的未完成任务，不是重复任务实例展开。
+- 摘要暂不支持指派人、专注数据、进度等字段；AI 内容优化需要先配置模型。
+- 摘要导出支持 HTML、PNG 图片、打印/PDF、邮件（mailto）；图片通过 SVG foreignObject + canvas 在浏览器端生成。
+- AI 助手需要兼容 OpenAI Chat Completions 且支持 tools/function calling 的接口；Ollama 等本地接口也需开启对应能力。
+- AI 对话为非流式请求，回复期间显示“思考中”；对话记录只保存在浏览器 localStorage，不写入服务端。
+- AI 会按你的指令直接创建/修改/完成任务；删除任务会进入垃圾桶，但模型是否先确认取决于其遵循系统提示的程度。
+- AI 请求会把对话、任务、清单和统计数据发送到你配置的模型服务；API Key 以明文保存在 SQLite 中，请限制数据库访问权限。
+- 暂不支持录音转写/会议摘要、MCP / CLI / OpenClaw 自动化，也未内置模型额度计费。
+- 子任务与标签分别存储在 `X-CALDDAV-CHECKLIST`、`CATEGORIES`；少数不保留扩展属性的客户端在编辑后可能丢失子任务，备注与完成状态不受影响。
+- 任务智能视图的“今天”边界使用服务端默认时区 `Asia/Shanghai`；快速添加会按浏览器的时区解析自然语言日期。
+- 任务工作台仅管理员可用，且只展示当前登录管理员自己的任务。
+- 不实现 CardDAV（联系人）。
+- 不实现 RFC 6638 日程邀请/调度（iTIP/iMIP）、scheduling inbox/outbox。
+- 不实现 WebDAV 锁（LOCK/UNLOCK）与细粒度 ACL；权限模型为“所有者读写，管理员全权”。
+- 同步日志不自动清理；大量历史变更后建议在维护窗口重建或归档。
+- `RECURRENCE-ID;RANGE=THISANDFUTURE` 按单次覆盖处理，不扩展后续实例。
+- 时区回退对无法识别的自定义 TZID 使用 VTIMEZONE 的固定偏移，跨 DST 的极少数事件可能有 1 小时偏差；常见 IANA / Windows 时区不受影响。
+
+## License
+
+未指定。使用前请根据你的项目需要补充许可证。

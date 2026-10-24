@@ -784,6 +784,9 @@ export interface CountdownItem {
   lunarMonth: number
   lunarDay: number
   lunarLeap: boolean
+  lunarYear: number
+  hasBackground: boolean
+  backgroundUrl?: string
   icon: string
   color: string
   style: 'normal' | 'color' | 'soft' | 'outline'
@@ -814,6 +817,7 @@ export interface CountdownDraft {
   lunarMonth: number
   lunarDay: number
   lunarLeap: boolean
+  lunarYear: number
   icon: string
   color: string
   style: 'normal' | 'color' | 'soft' | 'outline'

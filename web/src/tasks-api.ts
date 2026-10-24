@@ -641,3 +641,13 @@ export function deleteCountdown(id: number) {
 export function reorderCountdowns(ids: number[]) {
   return api<void>('/countdowns/reorder', { method: 'POST', body: JSON.stringify({ ids }) })
 }
+
+export function uploadCountdownBackground(id: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return apiForm<{ ok: boolean }>(`/countdowns/${id}/background`, form)
+}
+
+export function deleteCountdownBackground(id: number) {
+  return api<void>(`/countdowns/${id}/background`, { method: 'DELETE' })
+}

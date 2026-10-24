@@ -494,16 +494,35 @@ function toLocalInput(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
+let dashboardSequence = 0
+
 async function loadDashboard() {
+  const sequence = ++dashboardSequence
   try {
-    dashboard.value = await fetchFocusDashboard()
-    preferences.value = { ...dashboard.value.preferences }
+    const data = await fetchFocusDashboard()
+    if (sequence !== dashboardSequence) return
+    dashboard.value = data
+    preferences.value = { ...data.preferences }
     if (timerState.value === 'idle' && phase.value === 'focus' && mode.value === 'pomodoro') {
       resetCountdown()
     }
   } catch (error) {
-    Message.error(error instanceof Error ? error.message : '加载专注数据失败')
+    if (sequence === dashboardSequence) {
+      Message.error(error instanceof Error ? error.message : '加载专注数据失败')
+    }
   }
+}
+
+function insertSession(session: FocusSession) {
+  if (!dashboard.value || dashboard.value.sessions.some((item) => item.id === session.id)) return
+  dashboard.value.sessions = [session, ...dashboard.value.sessions].slice(0, 100)
+  const stats = dashboard.value.stats
+  stats.todayPomodoroCount += session.pomodoroCount
+  stats.totalPomodoroCount += session.pomodoroCount
+  stats.todayFocusSeconds += session.durationSeconds
+  stats.totalFocusSeconds += session.durationSeconds
+  stats.todayFocusMinutes = Math.floor(stats.todayFocusSeconds / 60)
+  stats.totalFocusMinutes = Math.floor(stats.totalFocusSeconds / 60)
 }
 
 async function loadHabits() {
@@ -624,12 +643,14 @@ function syncClock() {
 }
 
 function completePhase() {
+  if (timerState.value !== 'running') return
   stopTicker()
   if (phase.value === 'focus') {
     const startedAt = sessionStartedAt.value || new Date(Date.now() - focusTotal.value * 1000)
     const endedAt = new Date()
     const duration = mode.value === 'stopwatch' ? elapsed.value : phaseTotal.value
     if (duration >= 1) {
+      const clientId = sessionId.value
       void saveSession({
         mode: mode.value,
         startedAt: startedAt.toISOString(),
@@ -638,8 +659,9 @@ function completePhase() {
         durationSeconds: duration,
         pomodoroCount: mode.value === 'pomodoro' ? 1 : 0,
         note: note.value,
-      })
+      }, clientId)
     }
+    sessionId.value = ''
     if (mode.value === 'pomodoro') {
       cyclePomodoros.value += 1
       const isLong = cyclePomodoros.value % Math.max(1, preferences.value.longBreakInterval) === 0
@@ -685,6 +707,7 @@ function endCurrentTimer() {
       : Math.max(0, phaseTotal.value - remaining.value)
     if ((mode.value === 'stopwatch' && duration >= 1) || duration >= 60) {
       const startedAt = sessionStartedAt.value || new Date(Date.now() - duration * 1000)
+      const clientId = sessionId.value
       void saveSession({
         mode: mode.value,
         startedAt: startedAt.toISOString(),
@@ -693,7 +716,7 @@ function endCurrentTimer() {
         durationSeconds: duration,
         pomodoroCount: 0,
         note: note.value,
-      })
+      }, clientId)
     }
   }
   stopTicker()
@@ -708,14 +731,15 @@ async function saveSession(payload: {
   durationSeconds: number
   pomodoroCount: number
   note: string
-}) {
+}, clientId = sessionId.value) {
   try {
-    await createFocusSession({
+    const { session } = await createFocusSession({
       ...payload,
-      clientId: sessionId.value || undefined,
+      clientId: clientId || undefined,
       taskId: target.value?.type === 'task' ? target.value.id : undefined,
       habitId: target.value?.type === 'habit' ? target.value.id : undefined,
     })
+    insertSession(session)
     Message.success('专注记录已保存')
     await loadDashboard()
   } catch (error) {
@@ -1101,6 +1125,7 @@ watch([timerState, timerDisplay, preferences], () => {
 onMounted(async () => {
   await Promise.all([loadDashboard(), loadHabits()])
   let adoptedServer = false
+  let serverTimerMissing = false
   try {
     const { timer } = await fetchFocusTimer()
     if (timer) {
@@ -1110,12 +1135,19 @@ onMounted(async () => {
         applyServerTimer(timer)
         adoptedServer = true
       }
+    } else {
+      serverTimerMissing = true
     }
   } catch {
     // Fall back to the local snapshot.
   }
   if (!adoptedServer && !restoreTimer()) {
     resetCountdown()
+  }
+  if (serverTimerMissing) {
+    // GET /focus/timer can finalize an expired running timer on the server.
+    // Reload the dashboard so the new session appears immediately.
+    await loadDashboard()
   }
   syncReady.value = true
   if (!adoptedServer && timerState.value !== 'idle') void pushTimerState()

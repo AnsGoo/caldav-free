@@ -114,12 +114,15 @@ export function groupTasks(tasks: TaskItem[], view: string): TaskGroup[] {
     push('done', '已完成', done, 'done')
     return groups
   }
-  const overdue = open.filter(isOverdue)
-  const today = open.filter((task) => !isOverdue(task) && isToday(task))
-  const tomorrow = open.filter(isTomorrow)
-  const week = open.filter(isThisWeek)
-  const later = open.filter(isLater)
-  const none = open.filter((task) => !task.due)
+  const pinned = open.filter((task) => task.pinned)
+  const rest = open.filter((task) => !task.pinned)
+  const overdue = rest.filter(isOverdue)
+  const today = rest.filter((task) => !isOverdue(task) && isToday(task))
+  const tomorrow = rest.filter(isTomorrow)
+  const week = rest.filter(isThisWeek)
+  const later = rest.filter(isLater)
+  const none = rest.filter((task) => !task.due)
+  push('pinned', '置顶', pinned)
   push('overdue', '已过期', overdue, 'overdue')
   push('today', '今天', today, 'today')
   if (view === 'all' || view === 'list' || view === 'inbox') {

@@ -48,8 +48,11 @@
         >
           <TaskIcon name="bell" :size="20" />
         </button>
-        <button class="tw-rail-button" :title="theme === 'dark' ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
-          <TaskIcon :name="theme === 'dark' ? 'sun' : 'moon'" :size="20" />
+        <button class="tw-rail-button" :title="`主题：${themeLabel}`" @click="themeDialogOpen = true">
+          <TaskIcon name="palette" :size="20" />
+        </button>
+        <button class="tw-rail-button" :title="isDarkTheme(theme) ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
+          <TaskIcon :name="isDarkTheme(theme) ? 'sun' : 'moon'" :size="20" />
         </button>
         <router-link class="tw-rail-button" to="/" title="管理后台">
           <TaskIcon name="settings" :size="20" />
@@ -82,12 +85,15 @@
       @create-list="createList"
       @edit-list="openEditList"
       @delete-list="confirmDeleteList"
+      @pin-list="toggleListPin"
       @create-folder="openCreateFolder"
       @edit-folder="openEditFolder"
       @delete-folder="confirmDeleteFolder"
       @create-filter="openCreateFilter"
       @edit-filter="openEditFilter"
       @delete-filter="confirmDeleteFilter"
+      @pin-filter="toggleFilterPin"
+      @reorder-filters="reorderSidebarFilters"
       @reorder-lists="reorderSidebarLists"
       @reorder-folders="reorderSidebarFolders"
       @select-tag="selectTag"
@@ -322,6 +328,7 @@
                   :drag-target="dragOverId === task.id"
                   @toggle="toggleTask"
                   @open="openTask"
+                  @pin="toggleTaskPin"
                   @remove="confirmRemoveTask"
                   @select="toggleSelect"
                   @dragstart="onRowDragStart(task, $event)"
@@ -546,10 +553,37 @@
               <select v-model="filterForm.conditions.date" class="tw-field-select">
                 <option value="any">不限</option>
                 <option value="today">今天</option>
+                <option value="tomorrow">明天</option>
                 <option value="next7">最近 7 天</option>
                 <option value="overdue">已逾期</option>
                 <option value="none">无日期</option>
+                <option value="yesterday">昨天</option>
+                <option value="thisWeek">本周</option>
+                <option value="lastWeek">上周</option>
+                <option value="thisMonth">本月</option>
+                <option value="lastMonth">上月</option>
+                <option value="range">时间段</option>
               </select>
+            </label>
+            <label v-if="filterForm.conditions.date === 'range'" class="tw-modal-label tw-modal-span">
+              时间段
+              <span class="tw-range-row">
+                <a-date-picker
+                  v-model="filterForm.conditions.dateFrom"
+                  class="tw-date-control"
+                  value-format="YYYY-MM-DD"
+                  placeholder="开始日期"
+                  allow-clear
+                />
+                <span class="tw-range-sep">至</span>
+                <a-date-picker
+                  v-model="filterForm.conditions.dateTo"
+                  class="tw-date-control"
+                  value-format="YYYY-MM-DD"
+                  placeholder="结束日期"
+                  allow-clear
+                />
+              </span>
             </label>
             <label class="tw-modal-label">
               标签匹配
@@ -816,6 +850,29 @@
       @toggle-browser="toggleReminders"
       @close="reminderSettingsOpen = false"
     />
+
+    <ThemePicker
+      v-if="themeDialogOpen"
+      :model-value="theme"
+      @select="applyTheme"
+      @close="themeDialogOpen = false"
+    />
+
+    <ShortcutHelp
+      v-if="shortcutHelpOpen"
+      :bindings="shortcutBindings"
+      :is-mac="isMac"
+      @save="onShortcutSave"
+      @close="shortcutHelpOpen = false"
+    />
+
+    <CommandPalette
+      v-if="commandOpen"
+      :commands="paletteCommands"
+      :hint="isMac ? '⌘ K' : 'Ctrl K'"
+      @run="runPalette"
+      @close="commandOpen = false"
+    />
   </div>
 </template>
 
@@ -894,6 +951,20 @@ import CalendarEventDialog from '../components/tasks/CalendarEventDialog.vue'
 import NotificationDialog from '../components/tasks/NotificationDialog.vue'
 import TaskListShareDialog from '../components/tasks/TaskListShareDialog.vue'
 import ReminderSettingsDialog from '../components/tasks/ReminderSettingsDialog.vue'
+import ThemePicker from '../components/tasks/ThemePicker.vue'
+import ShortcutHelp from '../components/tasks/ShortcutHelp.vue'
+import CommandPalette, { type PaletteCommand } from '../components/tasks/CommandPalette.vue'
+import {
+  comboLabel,
+  findAction,
+  isMacPlatform,
+  isPrefix,
+  keyEventToCombo,
+  loadBindings,
+  saveBindings,
+  type ShortcutBindings,
+} from '../shortcuts'
+import { TASK_THEMES, isDarkTheme, themeById } from '../themes'
 import TaskIcon from '../components/tasks/TaskIcon.vue'
 
 type Mode = 'list' | 'board' | 'calendar'
@@ -959,7 +1030,14 @@ try {
   /* ignore */
 }
 const matrixViewBusy = ref(false)
-const theme = ref<'dark' | 'light'>('dark')
+const theme = ref<string>('default')
+const themeDialogOpen = ref(false)
+const shortcutHelpOpen = ref(false)
+const commandOpen = ref(false)
+const shortcutBindings = ref<ShortcutBindings>(loadBindings())
+const isMac = isMacPlatform()
+let sequenceBuffer = ''
+let sequenceTimer: ReturnType<typeof setTimeout> | undefined
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
 const manualSort = ref(false)
@@ -1118,6 +1196,7 @@ const detailLists = computed<TaskList[]>(() => {
       name: shared.name,
       color: shared.color,
       order: 0,
+      pinned: false,
       isInbox: false,
       count: shared.count,
     },
@@ -1415,6 +1494,42 @@ async function toggleTask(task: TaskItem) {
   }
 }
 
+async function toggleTaskPin(task: TaskItem) {
+  if (sharedReadonly.value) {
+    Message.info('共享清单为只读')
+    return
+  }
+  const target = !task.pinned
+  task.pinned = target
+  try {
+    const { task: updated } = await updateTask(task.id, { pinned: target })
+    replaceTask(updated)
+    Message.success(target ? '已置顶任务' : '已取消置顶')
+    scheduleRefresh()
+  } catch (error) {
+    task.pinned = !target
+    Message.error(error instanceof Error ? error.message : '更新置顶失败')
+  }
+}
+
+async function toggleListPin(list: TaskList) {
+  try {
+    await updateTaskList(list.id, { pinned: !list.pinned })
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '更新清单置顶失败')
+  }
+}
+
+async function toggleFilterPin(filter: SavedFilter) {
+  try {
+    await updateSavedFilter(filter.id, { pinned: !filter.pinned })
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '更新过滤器置顶失败')
+  }
+}
+
 function onQuickEnter(event: KeyboardEvent) {
   if (event.isComposing) return
   event.preventDefault()
@@ -1504,6 +1619,15 @@ async function reorderSidebarLists(ids: number[]) {
     await loadWorkspace(true)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '保存清单排序失败')
+  }
+}
+
+async function reorderSidebarFilters(ids: number[]) {
+  try {
+    await Promise.all(ids.map((id, index) => updateSavedFilter(id, { order: index + 1 })))
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存过滤器排序失败')
   }
 }
 
@@ -2072,9 +2196,9 @@ function closeSearch() {
   syncURL()
 }
 
-function applyTheme(next: 'dark' | 'light') {
+function applyTheme(next: string) {
   theme.value = next
-  document.documentElement.dataset.theme = next
+  document.documentElement.dataset.theme = isDarkTheme(next) ? 'dark' : 'light'
   try {
     localStorage.setItem('caldav-task-theme', next)
   } catch {
@@ -2083,8 +2207,10 @@ function applyTheme(next: 'dark' | 'light') {
 }
 
 function toggleTheme() {
-  applyTheme(theme.value === 'dark' ? 'light' : 'dark')
+  applyTheme(isDarkTheme(theme.value) ? 'default' : 'dark')
 }
+
+const themeLabel = computed(() => themeById(theme.value).label)
 
 async function handleLogout() {
   try {
@@ -2095,23 +2221,234 @@ async function handleLogout() {
   }
 }
 
+const paletteCommands = computed<PaletteCommand[]>(() => {
+  const keyOf = (id: string) => {
+    const combo = (shortcutBindings.value[id] || [])[0]
+    return combo ? comboLabel(combo, isMac) : ''
+  }
+  const rows: PaletteCommand[] = [
+    { id: 'new-task', label: '新建任务', group: '操作', keys: [keyOf('newTask')].filter(Boolean) },
+    { id: 'search', label: '搜索任务', group: '操作', keys: [keyOf('search')].filter(Boolean) },
+    { id: 'theme', label: '切换主题', group: '操作', keys: [] },
+    { id: 'shortcuts', label: '快捷键', group: '帮助', keys: [keyOf('shortcutHelp')].filter(Boolean) },
+    { id: 'nav-all', label: '前往“所有”', group: '导航', keys: [keyOf('navAll')].filter(Boolean) },
+    { id: 'nav-today', label: '前往“今天”', group: '导航', keys: [keyOf('navToday')].filter(Boolean) },
+    { id: 'nav-next7', label: '前往“最近 7 天”', group: '导航', keys: [keyOf('navNext7')].filter(Boolean) },
+    { id: 'nav-inbox', label: '前往“收集箱”', group: '导航', keys: [keyOf('navInbox')].filter(Boolean) },
+    { id: 'nav-completed', label: '前往“已完成”', group: '导航', keys: [keyOf('navCompleted')].filter(Boolean) },
+    { id: 'nav-summary', label: '前往“摘要”', group: '导航', keys: [keyOf('navSummary')].filter(Boolean) },
+    { id: 'nav-trash', label: '前往“垃圾桶”', group: '导航', keys: [keyOf('navTrash')].filter(Boolean) },
+    { id: 'nav-matrix', label: '前往“四象限”', group: '导航', keys: [keyOf('navMatrix')].filter(Boolean) },
+    { id: 'nav-habit', label: '前往“习惯”', group: '导航', keys: [keyOf('navHabit')].filter(Boolean) },
+    { id: 'nav-focus', label: '前往“专注”', group: '导航', keys: [keyOf('navFocus')].filter(Boolean) },
+    { id: 'nav-countdown', label: '前往“倒数纪念日”', group: '导航', keys: [keyOf('navCountdown')].filter(Boolean) },
+    { id: 'nav-stats', label: '前往“统计”', group: '导航', keys: [keyOf('navStats')].filter(Boolean) },
+    { id: 'mode-list', label: '列表视图', group: '视图', keys: [keyOf('listMode')].filter(Boolean) },
+    { id: 'mode-board', label: '看板视图', group: '视图', keys: [keyOf('boardMode')].filter(Boolean) },
+    { id: 'mode-calendar', label: '日历视图', group: '视图', keys: [keyOf('calendarMode')].filter(Boolean) },
+  ]
+  if (selectedTask.value && !selectedTask.value.completed) {
+    rows.splice(2, 0, { id: 'complete-selected', label: `完成任务「${selectedTask.value.title}」`, group: '操作', keys: [keyOf('completeTask')].filter(Boolean) })
+    rows.splice(3, 0, { id: 'pin-selected', label: `${selectedTask.value.pinned ? '取消置顶' : '置顶'}任务「${selectedTask.value.title}」`, group: '操作', keys: [keyOf('pinTask')].filter(Boolean) })
+  }
+  return rows
+})
+
+function onShortcutSave(next: ShortcutBindings) {
+  shortcutBindings.value = next
+  saveBindings(next)
+  shortcutHelpOpen.value = false
+  Message.success('快捷键已保存')
+}
+
+function focusQuickAdd() {
+  if (view.value === 'trash') return
+  if (mode.value === 'calendar') mode.value = 'list'
+  requestAnimationFrame(() => quickInputEl.value?.focus())
+}
+
+function runPalette(id: string) {
+  commandOpen.value = false
+  switch (id) {
+    case 'new-task':
+      return focusQuickAdd()
+    case 'search':
+      return toggleSearch()
+    case 'theme':
+      themeDialogOpen.value = true
+      return
+    case 'shortcuts':
+      shortcutHelpOpen.value = true
+      return
+    case 'complete-selected':
+      if (selectedTask.value) void toggleTask(selectedTask.value)
+      return
+    case 'pin-selected':
+      if (selectedTask.value) void toggleTaskPin(selectedTask.value)
+      return
+    case 'mode-list':
+      return switchMode('list')
+    case 'mode-board':
+      return switchMode('board')
+    case 'mode-calendar':
+      return switchMode('calendar')
+  }
+  if (id.startsWith('nav-')) runShortcut(id.replace('nav-', 'nav').replace(/(^nav)(\w)/, (_, a, b) => a + b.toUpperCase()))
+}
+
+function runShortcut(id: string) {
+  const task = selectedTask.value
+  const taskAction = async (action: () => Promise<unknown>) => {
+    if (!task) {
+      Message.info('先选择一个任务')
+      return
+    }
+    try {
+      await action()
+      await loadWorkspace(true)
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : '操作失败')
+    }
+  }
+  const setDue = (offset: number) => {
+    const date = new Date()
+    date.setDate(date.getDate() + offset)
+    return taskAction(() => updateTask(task!.id, { due: `${dayKey(date)}T00:00`, allDay: true }))
+  }
+  switch (id) {
+    case 'commandPalette':
+      commandOpen.value = true
+      return
+    case 'shortcutHelp':
+      shortcutHelpOpen.value = true
+      return
+    case 'search':
+      return toggleSearch()
+    case 'newTask':
+      return focusQuickAdd()
+    case 'toggleSidebar':
+      sidebarOpen.value = !sidebarOpen.value
+      return
+    case 'pinTask':
+      if (task) void toggleTaskPin(task)
+      return
+    case 'completeTask':
+      if (task && !task.completed) void toggleTask(task)
+      return
+    case 'setToday':
+      return setDue(0)
+    case 'setTomorrow':
+      return setDue(1)
+    case 'clearDate':
+      return taskAction(() => updateTask(task!.id, { due: '' }))
+    case 'priorityNone':
+      return taskAction(() => updateTask(task!.id, { priority: 0 }))
+    case 'priorityLow':
+      return taskAction(() => updateTask(task!.id, { priority: 1 }))
+    case 'priorityMedium':
+      return taskAction(() => updateTask(task!.id, { priority: 2 }))
+    case 'priorityHigh':
+      return taskAction(() => updateTask(task!.id, { priority: 3 }))
+    case 'listMode':
+      return switchMode('list')
+    case 'boardMode':
+      return switchMode('board')
+    case 'calendarMode':
+      return switchMode('calendar')
+    case 'navAll':
+      return selectView('all')
+    case 'navToday':
+      return selectView('today')
+    case 'navNext7':
+      return selectView('next7')
+    case 'navInbox':
+      return selectView('inbox')
+    case 'navCompleted':
+      return selectView('completed')
+    case 'navSummary':
+      return selectView('summary')
+    case 'navTrash':
+      return selectView('trash')
+    case 'navMatrix':
+      return selectView('matrix')
+    case 'navHabit':
+      return selectView('habit')
+    case 'navFocus':
+      return selectView('focus')
+    case 'navCountdown':
+      return selectView('countdown')
+    case 'navStats':
+      return openStats()
+    case 'navAI':
+      return openAI()
+  }
+}
+
+function clearSequence() {
+  sequenceBuffer = ''
+  if (sequenceTimer) {
+    clearTimeout(sequenceTimer)
+    sequenceTimer = undefined
+  }
+}
+
+let tabArmedUntil = 0
+
 function onKeydown(event: KeyboardEvent) {
+  if (themeDialogOpen.value) {
+    if (event.key === 'Escape') themeDialogOpen.value = false
+    return
+  }
+  if (shortcutHelpOpen.value) {
+    if (event.key === 'Escape') shortcutHelpOpen.value = false
+    return
+  }
+  if (commandOpen.value) return
   const target = event.target as HTMLElement | null
   const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
   if (typing) return
-  if (event.key === 'n' || event.key === 'N') {
-    if (view.value === 'trash') return
-    event.preventDefault()
-    if (mode.value === 'calendar') mode.value = 'list'
-    requestAnimationFrame(() => quickInputEl.value?.focus())
-  }
   if (event.key === 'Escape') {
+    clearSequence()
     selectedId.value = 0
+    return
+  }
+  // Tab is kept as a normal focus key; a following key within 900ms can form
+  // a Tab-prefixed shortcut such as Tab+N.
+  if (event.key === 'Tab') {
+    tabArmedUntil = Date.now() + 900
+    return
+  }
+  let combo = keyEventToCombo(event)
+  if (!combo) return
+  if (Date.now() < tabArmedUntil) {
+    combo = `tab+${combo}`
+    tabArmedUntil = 0
+  }
+  const candidate = sequenceBuffer ? `${sequenceBuffer} ${combo}` : combo
+  const action = findAction(shortcutBindings.value, candidate)
+  if (action) {
+    event.preventDefault()
+    clearSequence()
+    runShortcut(action.id)
+    return
+  }
+  if (isPrefix(shortcutBindings.value, candidate)) {
+    event.preventDefault()
+    sequenceBuffer = candidate
+    if (sequenceTimer) clearTimeout(sequenceTimer)
+    sequenceTimer = setTimeout(clearSequence, 900)
+    return
+  }
+  clearSequence()
+  const single = findAction(shortcutBindings.value, combo)
+  if (single) {
+    event.preventDefault()
+    runShortcut(single.id)
   }
 }
 
 function emptyConditions(): TaskFilterConditions {
-  return { listIds: [], tags: [], tagMode: 'any', priorities: [], status: 'open', date: 'any', keyword: '' }
+  return { listIds: [], tags: [], tagMode: 'any', priorities: [], status: 'open', date: 'any', dateFrom: '', dateTo: '', keyword: '' }
 }
 
 function openCreateFolder() {
@@ -2172,6 +2509,8 @@ function openEditFilter(filter: SavedFilter) {
     priorities: [...(cond.priorities || [])],
     status: cond.status || 'open',
     date: cond.date || 'any',
+    dateFrom: cond.dateFrom || '',
+    dateTo: cond.dateTo || '',
     keyword: cond.keyword || '',
   }
   filterVisible.value = true
@@ -2196,6 +2535,17 @@ async function saveFilter() {
   if (!name) {
     Message.warning('过滤器名称不能为空')
     return
+  }
+  if (filterForm.conditions.date === 'range') {
+    const { dateFrom, dateTo } = filterForm.conditions
+    if (!dateFrom && !dateTo) {
+      Message.warning('请选择时间段的起止日期')
+      return
+    }
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+      Message.warning('开始日期不能晚于结束日期')
+      return
+    }
   }
   filterBusy.value = true
   try {
@@ -2630,9 +2980,9 @@ function hydrateFromRoute() {
 onMounted(async () => {
   try {
     const stored = localStorage.getItem('caldav-task-theme')
-    if (stored === 'dark' || stored === 'light') theme.value = stored
-    else theme.value = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-    document.documentElement.dataset.theme = theme.value
+    if (stored && TASK_THEMES.some((item) => item.id === stored)) theme.value = stored
+    else theme.value = window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'default'
+    document.documentElement.dataset.theme = isDarkTheme(theme.value) ? 'dark' : 'light'
     const collapsedRaw = localStorage.getItem('caldav-task-collapsed')
     if (collapsedRaw) collapsed.value = new Set(JSON.parse(collapsedRaw) as string[])
     manualSort.value = localStorage.getItem('caldav-task-sort') === 'manual'
@@ -2662,6 +3012,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
+  clearSequence()
   if (searchTimer) clearTimeout(searchTimer)
   if (refreshTimer) clearTimeout(refreshTimer)
   if (notificationTimer) clearInterval(notificationTimer)

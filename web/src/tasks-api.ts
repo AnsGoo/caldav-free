@@ -37,6 +37,7 @@ export interface TaskDraft {
   reminderOffset?: number
   reminderOffsets?: number[]
   assignee?: string
+  pinned?: boolean
   timezone?: string
 }
 
@@ -65,7 +66,7 @@ export function createTaskList(name: string, color: string, folderId?: number) {
   })
 }
 
-export function updateTaskList(id: number, patch: { name?: string; color?: string; order?: number; folderId?: number }) {
+export function updateTaskList(id: number, patch: { name?: string; color?: string; order?: number; folderId?: number; pinned?: boolean }) {
   return api<{ list: TaskList }>(`/task-lists/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
@@ -97,7 +98,7 @@ export function createSavedFilter(payload: { name: string; color?: string; condi
   })
 }
 
-export function updateSavedFilter(id: number, payload: { name?: string; color?: string; conditions?: unknown; order?: number }) {
+export function updateSavedFilter(id: number, payload: { name?: string; color?: string; conditions?: unknown; order?: number; pinned?: boolean }) {
   return api<{ filter: SavedFilter }>(`/task-filters/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),

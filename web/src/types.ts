@@ -110,6 +110,7 @@ export interface TaskItem {
   reminderOffset: number
   reminderOffsets: number[]
   assignee: string
+  pinned: boolean
   completed: boolean
   completedAt?: string
   deletedAt?: string
@@ -126,6 +127,7 @@ export interface TaskList {
   name: string
   color: string
   order: number
+  pinned: boolean
   isInbox: boolean
   count: number
 }
@@ -142,7 +144,21 @@ export interface TaskFilterConditions {
   tagMode: 'any' | 'all'
   priorities: number[]
   status: 'open' | 'completed' | 'all'
-  date: 'any' | 'today' | 'next7' | 'overdue' | 'none'
+  date:
+    | 'any'
+    | 'today'
+    | 'tomorrow'
+    | 'next7'
+    | 'overdue'
+    | 'none'
+    | 'yesterday'
+    | 'thisWeek'
+    | 'lastWeek'
+    | 'thisMonth'
+    | 'lastMonth'
+    | 'range'
+  dateFrom?: string
+  dateTo?: string
   keyword: string
 }
 
@@ -152,6 +168,7 @@ export interface SavedFilter {
   color: string
   conditions: TaskFilterConditions
   order: number
+  pinned: boolean
 }
 
 export type MatrixRuleMode = 'simple' | 'complex' | 'custom'

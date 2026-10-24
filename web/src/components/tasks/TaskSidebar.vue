@@ -13,6 +13,31 @@
       </button>
     </div>
 
+    <div v-if="pinnedLists.length || pinnedFilters.length" class="tw-pinned-strip">
+      <button
+        v-for="list in pinnedLists"
+        :key="`pinned-list-${list.id}`"
+        class="tw-pinned-item"
+        :class="{ active: activeListId === list.id }"
+        :title="`${list.name}（已置顶）`"
+        @click="$emit('select-list', list.id)"
+      >
+        <span class="tw-pinned-dot" :style="{ background: list.color || '#4772fa' }" />
+        <span class="tw-pinned-name">{{ list.name }}</span>
+      </button>
+      <button
+        v-for="filter in pinnedFilters"
+        :key="`pinned-filter-${filter.id}`"
+        class="tw-pinned-item"
+        :class="{ active: activeFilterId === filter.id }"
+        :title="`${filter.name}（已置顶）`"
+        @click="$emit('select-filter', filter.id)"
+      >
+        <TaskIcon name="filter" :size="14" />
+        <span class="tw-pinned-name">{{ filter.name }}</span>
+      </button>
+    </div>
+
     <nav class="tw-smart-nav">
       <button
         v-for="item in smartItems"
@@ -84,6 +109,14 @@
                 <span v-if="row.list!.count" class="tw-nav-count">{{ row.list!.count }}</span>
               </button>
               <div class="tw-list-actions">
+                <button
+                  class="tw-icon-button"
+                  :class="{ 'is-pinned': row.list!.pinned }"
+                  :title="row.list!.pinned ? '取消置顶清单' : '置顶清单'"
+                  @click.stop="$emit('pin-list', row.list!)"
+                >
+                  <TaskIcon name="pin" :size="14" />
+                </button>
                 <button v-if="!row.list!.isInbox" class="tw-icon-button" title="共享清单" @click.stop="$emit('share-list', row.list!)">
                   <TaskIcon name="share" :size="14" />
                 </button>
@@ -98,7 +131,7 @@
           </template>
         </ul>
 
-        <p v-if="!customLists.length" class="tw-side-hint">
+        <p v-if="!customLists.length && !pinnedLists.length" class="tw-side-hint">
           用清单来分类收集、组织和管理你的任务与笔记。
         </p>
       </section>
@@ -111,7 +144,15 @@
           </button>
         </header>
         <ul class="tw-list-nav">
-          <li v-for="filter in filters" :key="filter.id">
+          <li
+            v-for="filter in unpinnedFilters"
+            :key="filter.id"
+            draggable="true"
+            @dragstart="startFilterDrag(filter.id, $event)"
+            @dragover.prevent
+            @drop.prevent="dropFilter(filter.id)"
+            @dragend="endSidebarDrag"
+          >
             <button
               class="tw-nav-item tw-filter-item"
               :class="{ active: activeFilterId === filter.id }"
@@ -121,6 +162,14 @@
               <span class="tw-nav-label">{{ filter.name }}</span>
             </button>
             <div class="tw-list-actions">
+              <button
+                class="tw-icon-button"
+                :class="{ 'is-pinned': filter.pinned }"
+                :title="filter.pinned ? '取消置顶过滤器' : '置顶过滤器'"
+                @click.stop="$emit('pin-filter', filter)"
+              >
+                <TaskIcon name="pin" :size="14" />
+              </button>
               <button class="tw-icon-button" title="编辑过滤器" @click.stop="$emit('edit-filter', filter)">
                 <TaskIcon name="edit" :size="14" />
               </button>
@@ -243,12 +292,15 @@ const emit = defineEmits<{
   (event: 'create-list', name: string): void
   (event: 'edit-list', list: TaskList): void
   (event: 'delete-list', list: TaskList): void
+  (event: 'pin-list', list: TaskList): void
   (event: 'create-folder'): void
   (event: 'edit-folder', folder: TaskFolder): void
   (event: 'delete-folder', folder: TaskFolder): void
   (event: 'create-filter'): void
   (event: 'edit-filter', filter: SavedFilter): void
   (event: 'delete-filter', filter: SavedFilter): void
+  (event: 'pin-filter', filter: SavedFilter): void
+  (event: 'reorder-filters', ids: number[]): void
   (event: 'reorder-lists', ids: number[]): void
   (event: 'reorder-folders', ids: number[]): void
   (event: 'share-list', list: TaskList): void
@@ -265,9 +317,13 @@ const nameInput = ref<HTMLInputElement | null>(null)
 const collapsedFolders = ref(new Set<number>())
 const draggingFolderId = ref(0)
 const draggingListId = ref(0)
+const draggingFilterId = ref(0)
 
 const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
-const customLists = computed(() => props.lists.filter((list) => !list.isInbox))
+const pinnedLists = computed(() => props.lists.filter((list) => list.pinned))
+const pinnedFilters = computed(() => props.filters.filter((filter) => filter.pinned))
+const unpinnedFilters = computed(() => props.filters.filter((filter) => !filter.pinned))
+const customLists = computed(() => props.lists.filter((list) => !list.isInbox && !list.pinned))
 
 type ListRow =
   | { kind: 'folder'; key: string; folder: TaskFolder; count: number }
@@ -379,9 +435,28 @@ function dropList(targetId: number) {
   emit('reorder-lists', list.filter((item) => item.folderId === source.folderId).map((item) => item.id))
 }
 
+function startFilterDrag(id: number, event: DragEvent) {
+  draggingFilterId.value = id
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function dropFilter(targetId: number) {
+  const sourceId = draggingFilterId.value
+  endSidebarDrag()
+  if (!sourceId || sourceId === targetId) return
+  const list = props.filters.filter((filter) => !filter.pinned)
+  const from = list.findIndex((filter) => filter.id === sourceId)
+  const to = list.findIndex((filter) => filter.id === targetId)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  emit('reorder-filters', list.map((filter) => filter.id))
+}
+
 function endSidebarDrag() {
   draggingFolderId.value = 0
   draggingListId.value = 0
+  draggingFilterId.value = 0
 }
 
 // Restore folder collapse state on first render.

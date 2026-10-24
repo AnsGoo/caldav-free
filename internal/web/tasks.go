@@ -28,6 +28,7 @@ type apiTaskList struct {
 	Name     string `json:"name"`
 	Color    string `json:"color"`
 	Order    int    `json:"order"`
+	Pinned   bool   `json:"pinned"`
 	IsInbox  bool   `json:"isInbox"`
 	Count    int64  `json:"count"`
 }
@@ -44,6 +45,7 @@ type apiSavedFilter struct {
 	Color      string                     `json:"color"`
 	Conditions store.TaskFilterConditions `json:"conditions"`
 	Order      int                        `json:"order"`
+	Pinned     bool                       `json:"pinned"`
 }
 
 type apiTask struct {
@@ -64,6 +66,7 @@ type apiTask struct {
 	ReminderOffset  int                `json:"reminderOffset"`
 	ReminderOffsets []int              `json:"reminderOffsets"`
 	Assignee        string             `json:"assignee"`
+	Pinned          bool               `json:"pinned"`
 	DeletedAt       string             `json:"deletedAt,omitempty"`
 	Tags            []string           `json:"tags"`
 	Checklist       []apiChecklistItem `json:"checklist"`
@@ -89,6 +92,7 @@ type taskPatch struct {
 	ReminderOffset  *int                `json:"reminderOffset"`
 	ReminderOffsets *[]int              `json:"reminderOffsets"`
 	Assignee        *string             `json:"assignee"`
+	Pinned          *bool               `json:"pinned"`
 	Timezone        string              `json:"timezone"`
 }
 
@@ -151,6 +155,7 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 		ReminderOffset:  task.ReminderOffset,
 		ReminderOffsets: task.ReminderValues(),
 		Assignee:        task.Assignee,
+		Pinned:          task.PinnedAt != nil,
 		Tags:            append([]string(nil), task.Tags...),
 		Checklist:       decodeChecklist(task.Checklist),
 		Order:           task.Order,
@@ -189,6 +194,7 @@ func apiTaskListDTO(list *store.TaskList, count int64) apiTaskList {
 		Name:     list.Name,
 		Color:    list.Color,
 		Order:    list.Order,
+		Pinned:   list.Pinned,
 		IsInbox:  list.IsInbox,
 		Count:    count,
 	}
@@ -199,7 +205,7 @@ func apiTaskFolderDTO(folder *store.TaskFolder) apiTaskFolder {
 }
 
 func apiSavedFilterDTO(filter *store.SavedFilter) apiSavedFilter {
-	dto := apiSavedFilter{ID: filter.ID, Name: filter.Name, Color: filter.Color, Order: filter.Order}
+	dto := apiSavedFilter{ID: filter.ID, Name: filter.Name, Color: filter.Color, Order: filter.Order, Pinned: filter.Pinned}
 	if filter.Conditions != "" {
 		_ = json.Unmarshal([]byte(filter.Conditions), &dto.Conditions)
 	}
@@ -550,6 +556,10 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.Completed != nil {
 		task.Completed = *body.Completed
 	}
+	if body.Pinned != nil && *body.Pinned {
+		now := time.Now().UTC()
+		task.PinnedAt = &now
+	}
 	if body.Start != nil && strings.TrimSpace(*body.Start) != "" {
 		start, allDay, ok := parseTaskDue(*body.Start, body.Timezone, task.AllDay)
 		if !ok {
@@ -688,6 +698,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	previousReminders := task.ReminderValues()
 	previousAllDay := task.AllDay
 	previousListID := task.ListID
+	previousPinned := task.PinnedAt != nil
 	var previousDue time.Time
 	hasPreviousDue := task.DueAt != nil
 	if hasPreviousDue {
@@ -779,6 +790,16 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.Completed != nil {
 		applyTaskCompletion(task, *body.Completed)
 	}
+	if body.Pinned != nil {
+		if *body.Pinned {
+			if task.PinnedAt == nil {
+				now := time.Now().UTC()
+				task.PinnedAt = &now
+			}
+		} else {
+			task.PinnedAt = nil
+		}
+	}
 	if body.Text != nil && strings.TrimSpace(*body.Text) != "" {
 		parsed := taskparse.Parse(*body.Text, time.Now(), taskLocation(body.Timezone))
 		if task.Title == "" {
@@ -832,6 +853,13 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if previousListID != task.ListID {
 		changed = append(changed, "清单")
+	}
+	if previousPinned != (task.PinnedAt != nil) {
+		if task.PinnedAt != nil {
+			changed = append(changed, "置顶")
+		} else {
+			changed = append(changed, "取消置顶")
+		}
 	}
 	dueChanged := hasPreviousDue != (task.DueAt != nil)
 	if !dueChanged && hasPreviousDue && task.DueAt != nil {
@@ -946,6 +974,7 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 		Name     string `json:"name"`
 		Color    string `json:"color"`
 		Order    *int   `json:"order"`
+		Pinned   *bool  `json:"pinned"`
 		FolderID *int64 `json:"folderId"`
 	}
 	if !readAPIJSON(w, r, &body) {
@@ -978,6 +1007,12 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 	if body.FolderID != nil {
 		if err := s.store.SetTaskListFolder(r.Context(), current.ID, id, *body.FolderID); err != nil {
 			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
+	}
+	if body.Pinned != nil {
+		if _, err := s.store.SetTaskListPinned(r.Context(), current.ID, id, *body.Pinned); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "更新置顶失败")
 			return
 		}
 	}
@@ -1405,12 +1440,35 @@ func normalizeFilterConditions(cond store.TaskFilterConditions) (store.TaskFilte
 		cond.Status = "open"
 	}
 	switch cond.Date {
-	case "", "any", "today", "next7", "overdue", "none":
+	case "", "any", "today", "tomorrow", "next7", "overdue", "none",
+		"yesterday", "thisWeek", "lastWeek", "thisMonth", "lastMonth", "range":
 	default:
 		return cond, fmt.Errorf("无效的日期条件")
 	}
 	if cond.Date == "" {
 		cond.Date = "any"
+	}
+	cond.DateFrom = strings.TrimSpace(cond.DateFrom)
+	cond.DateTo = strings.TrimSpace(cond.DateTo)
+	if cond.Date == "range" {
+		parse := func(value string) (time.Time, bool) {
+			parsed, err := time.ParseInLocation("2006-01-02", value, taskLocation(""))
+			return parsed, err == nil
+		}
+		from, hasFrom := parse(cond.DateFrom)
+		to, hasTo := parse(cond.DateTo)
+		if cond.DateFrom != "" && !hasFrom {
+			return cond, fmt.Errorf("起始日期格式应为 YYYY-MM-DD")
+		}
+		if cond.DateTo != "" && !hasTo {
+			return cond, fmt.Errorf("结束日期格式应为 YYYY-MM-DD")
+		}
+		if hasFrom && hasTo && from.After(to) {
+			return cond, fmt.Errorf("起始日期不能晚于结束日期")
+		}
+	} else {
+		cond.DateFrom = ""
+		cond.DateTo = ""
 	}
 	if cond.TagMode != "all" {
 		cond.TagMode = "any"
@@ -1512,10 +1570,11 @@ func (s *Server) apiUpdateSavedFilter(w http.ResponseWriter, r *http.Request, cu
 		return
 	}
 	var body struct {
-		Name       string                     `json:"name"`
-		Color      string                     `json:"color"`
-		Conditions store.TaskFilterConditions `json:"conditions"`
-		Order      *int                       `json:"order"`
+		Name       string                      `json:"name"`
+		Color      string                      `json:"color"`
+		Conditions *store.TaskFilterConditions `json:"conditions"`
+		Order      *int                        `json:"order"`
+		Pinned     *bool                       `json:"pinned"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
@@ -1526,10 +1585,13 @@ func (s *Server) apiUpdateSavedFilter(w http.ResponseWriter, r *http.Request, cu
 	if body.Color == "" {
 		body.Color = existing.Color
 	}
-	conditions, err := filterConditionsJSON(body.Conditions)
-	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, err.Error())
-		return
+	conditions := existing.Conditions
+	if body.Conditions != nil {
+		conditions, err = filterConditionsJSON(*body.Conditions)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 	}
 	order := existing.Order
 	if body.Order != nil {
@@ -1538,6 +1600,12 @@ func (s *Server) apiUpdateSavedFilter(w http.ResponseWriter, r *http.Request, cu
 	if err := s.store.UpdateSavedFilter(r.Context(), current.ID, id, body.Name, body.Color, conditions, order); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if body.Pinned != nil {
+		if _, err := s.store.SetSavedFilterPinned(r.Context(), current.ID, id, *body.Pinned); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "更新置顶失败")
+			return
+		}
 	}
 	updated, _ := s.store.GetSavedFilter(r.Context(), current.ID, id)
 	writeAPIJSON(w, http.StatusOK, map[string]any{"filter": apiSavedFilterDTO(updated)})

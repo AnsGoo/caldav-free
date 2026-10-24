@@ -31,6 +31,7 @@ type taskResponse struct {
 		ReminderOffset  int      `json:"reminderOffset"`
 		ReminderOffsets []int    `json:"reminderOffsets"`
 		Order           int      `json:"order"`
+		Pinned          bool     `json:"pinned"`
 	} `json:"task"`
 }
 
@@ -662,5 +663,98 @@ func TestTaskAttachmentsAPI(t *testing.T) {
 	status, _ = env.request(t, http.MethodDelete, "/api/admin/tasks/"+itoa(task.Task.ID)+"/attachments/"+itoa(created.Attachment.ID), nil, env.csrf)
 	if status != http.StatusNoContent {
 		t.Fatalf("delete attachment = %d", status)
+	}
+}
+
+func TestTaskPinAndFilterRangeAPI(t *testing.T) {
+	env := newAPIEnv(t)
+	now := time.Now().In(time.Local)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 9, 0, 0, 0, time.Local)
+	from := today.AddDate(0, 0, -1).Format("2006-01-02")
+	to := today.AddDate(0, 0, 1).Format("2006-01-02")
+
+	status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{"name": "置顶测试"}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID int64 `json:"id"`
+		} `json:"list"`
+	}](t, body)
+
+	status, body = env.request(t, "PATCH", "/api/admin/task-lists/"+itoa(list.List.ID), map[string]any{"pinned": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("pin list = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=all", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("workspace = %d: %s", status, body)
+	}
+	ws := decode[workspaceResponse](t, body)
+	if len(ws.Lists) == 0 || ws.Lists[0].ID != list.List.ID {
+		t.Fatalf("pinned list should be first: %+v", ws.Lists)
+	}
+
+	var taskIDs []int64
+	for _, day := range []time.Time{today, today.AddDate(0, 0, 1)} {
+		status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+			"title": day.Format("01-02"), "listId": list.List.ID, "due": day.Format(time.RFC3339), "allDay": false,
+		}, env.csrf)
+		if status != http.StatusCreated {
+			t.Fatalf("create task = %d: %s", status, body)
+		}
+		created := decode[taskResponse](t, body)
+		taskIDs = append(taskIDs, created.Task.ID)
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(taskIDs[1]), map[string]any{"pinned": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("pin task = %d: %s", status, body)
+	}
+	pinned := decode[taskResponse](t, body)
+	if !pinned.Task.Pinned {
+		t.Fatalf("task not pinned: %+v", pinned.Task)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(list.List.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("list workspace = %d: %s", status, body)
+	}
+	ws = decode[workspaceResponse](t, body)
+	if len(ws.Tasks) != 2 || ws.Tasks[0].ID != taskIDs[1] {
+		t.Fatalf("pinned task should sort first: %+v", ws.Tasks)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/task-filters", map[string]any{
+		"name": "时间段", "conditions": map[string]any{
+			"status": "open", "date": "range", "dateFrom": from, "dateTo": to,
+		},
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create filter = %d: %s", status, body)
+	}
+	filter := decode[struct {
+		Filter struct {
+			ID int64 `json:"id"`
+		} `json:"filter"`
+	}](t, body)
+	status, body = env.request(t, "GET", "/api/admin/tasks?filterId="+itoa(filter.Filter.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("filter workspace = %d: %s", status, body)
+	}
+	filtered := decode[workspaceResponse](t, body)
+	if len(filtered.Tasks) != 2 {
+		t.Fatalf("range filter tasks = %d, want 2", len(filtered.Tasks))
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/task-filters/"+itoa(filter.Filter.ID), map[string]any{"pinned": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("pin filter = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?filterId="+itoa(filter.Filter.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("filter workspace after pin = %d: %s", status, body)
+	}
+	filtered = decode[workspaceResponse](t, body)
+	if len(filtered.Tasks) != 2 {
+		t.Fatalf("pinning a filter must preserve its conditions, got %d tasks", len(filtered.Tasks))
 	}
 }

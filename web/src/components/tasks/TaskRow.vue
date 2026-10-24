@@ -31,6 +31,9 @@
 
     <div class="tw-row-body">
       <div class="tw-row-title">
+        <span v-if="task.pinned && !trashMode" class="tw-row-pinned" title="已置顶">
+          <TaskIcon name="pin" :size="12" />
+        </span>
         <span class="tw-title-text">{{ task.title }}</span>
         <span
           v-for="tag in task.tags.slice(0, 3)"
@@ -76,7 +79,16 @@
         <TaskIcon name="trash" :size="15" />
       </button>
     </div>
-    <button v-else-if="!selectable" class="tw-row-remove" title="删除任务" @click.stop="$emit('remove', task)">
+    <button
+      v-if="!trashMode && !selectable"
+      class="tw-row-pin-toggle"
+      :class="{ active: task.pinned }"
+      :title="task.pinned ? '取消置顶' : '置顶任务'"
+      @click.stop="$emit('pin', task)"
+    >
+      <TaskIcon name="pin" :size="14" />
+    </button>
+    <button v-if="!trashMode && !selectable" class="tw-row-remove" title="删除任务" @click.stop="$emit('remove', task)">
       <TaskIcon name="trash" :size="15" />
     </button>
   </article>
@@ -104,6 +116,7 @@ const emit = defineEmits<{
   (event: 'toggle', task: TaskItem): void
   (event: 'open', task: TaskItem): void
   (event: 'remove', task: TaskItem): void
+  (event: 'pin', task: TaskItem): void
   (event: 'select', task: TaskItem): void
   (event: 'restore', task: TaskItem): void
   (event: 'purge', task: TaskItem): void

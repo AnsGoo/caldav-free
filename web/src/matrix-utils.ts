@@ -149,6 +149,7 @@ export function blankTaskForMatrix(title: string): TaskItem {
     reminderOffset: -1,
     reminderOffsets: [],
     assignee: '',
+    pinned: false,
     completed: false,
     tags: [],
     checklist: [],

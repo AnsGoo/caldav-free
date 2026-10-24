@@ -21,6 +21,7 @@ type TaskList struct {
 	Name       string    `gorm:"size:190;not null;uniqueIndex:idx_tasklist_owner_name,priority:2"`
 	Color      string    `gorm:"size:32;not null;default:''"`
 	Order      int       `gorm:"column:order_index;not null;default:0"`
+	Pinned     bool      `gorm:"not null;default:false;index:idx_tasklist_pinned"`
 	IsInbox    bool      `gorm:"not null;default:false"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
@@ -51,6 +52,7 @@ type Task struct {
 	Assignee    string `gorm:"size:190;not null;default:''"`
 	Completed   bool   `gorm:"not null;default:false;index:idx_task_user_completed,priority:2;index:idx_task_list_completed,priority:2"`
 	CompletedAt *time.Time
+	PinnedAt    *time.Time `gorm:"index:idx_task_pinned"`
 	Tags        StringList `gorm:"not null"`
 	Checklist   string     `gorm:"type:text;not null;default:''"`
 	Order       int        `gorm:"column:order_index;not null;default:0"`
@@ -181,7 +183,7 @@ func (s *Store) ListTaskLists(ctx context.Context, userID int64) ([]*TaskList, e
 	var lists []*TaskList
 	err := s.db.WithContext(ctx).
 		Where("user_id = ?", userID).
-		Order("is_inbox DESC, order_index ASC, id ASC").
+		Order("pinned DESC, is_inbox DESC, order_index ASC, id ASC").
 		Find(&lists).Error
 	if err != nil {
 		return nil, fmt.Errorf("list task lists: %w", err)
@@ -347,7 +349,7 @@ func (s *Store) ListTasks(ctx context.Context, userID int64, filter TaskFilter) 
 	var open []*Task
 	if filter.View != "completed" {
 		err := s.taskQuery(ctx, userID, filter, false).
-			Order("CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, order_index ASC, id DESC").
+			Order("CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END, pinned_at DESC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, order_index ASC, id DESC").
 			Limit(limit).Find(&open).Error
 		if err != nil {
 			return nil, fmt.Errorf("list tasks: %w", err)
@@ -514,6 +516,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 		"all_day":          task.AllDay,
 		"completed":        task.Completed,
 		"completed_at":     task.CompletedAt,
+		"pinned_at":        task.PinnedAt,
 		"tags":             task.Tags,
 		"checklist":        task.Checklist,
 		"order_index":      task.Order,
@@ -530,6 +533,40 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	}
 	*task = *updated
 	return nil
+}
+
+// SetTaskPinned moves a task into the pinned group. Pinning is workspace-only,
+// so it does not mark the VTODO as pending.
+func (s *Store) SetTaskPinned(ctx context.Context, userID, id int64, pinned bool) (*Task, error) {
+	var pinnedAt *time.Time
+	if pinned {
+		now := time.Now().UTC()
+		pinnedAt = &now
+	}
+	res := s.db.WithContext(ctx).Model(&Task{}).
+		Where("id = ? AND user_id = ? AND deleted = ?", id, userID, false).
+		Update("pinned_at", pinnedAt)
+	if res.Error != nil {
+		return nil, fmt.Errorf("pin task: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetTask(ctx, userID, id)
+}
+
+// SetTaskListPinned pins or unpins a list in the sidebar.
+func (s *Store) SetTaskListPinned(ctx context.Context, userID, id int64, pinned bool) (*TaskList, error) {
+	res := s.db.WithContext(ctx).Model(&TaskList{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("pinned", pinned)
+	if res.Error != nil {
+		return nil, fmt.Errorf("pin task list: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetTaskList(ctx, userID, id)
 }
 
 // SetTaskCompleted toggles completion for one task and its children.

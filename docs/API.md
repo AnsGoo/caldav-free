@@ -271,9 +271,16 @@ docker run -d --name caldav \
 | `/api/admin/tasks/{id}/comments/{commentId}/attachments` | 上传评论附件 |
 | `/api/admin/tasks/{id}/comments/{commentId}/attachments/{attachmentId}` | 下载/删除评论附件 |
 | `/api/admin/task-folders` | 清单文件夹 CRUD |
-| `/api/admin/task-filters` | 保存过滤器 CRUD |
+| `/api/admin/task-filters` | 保存过滤器 CRUD（支持 `pinned` 与 `order`） |
 | `/api/admin/task-tags` | 标签统计、重命名、删除 |
 | `/healthz` | 健康检查 |
+
+置顶与过滤器日期：
+
+- `tasks`、`task-lists`、`task-filters` 的响应均包含 `pinned`；PATCH 时传 `{"pinned":true}` 或 `{"pinned":false}`。
+- 置顶任务在列表中单独成组；置顶清单和过滤器进入侧栏顶部图标条。
+- 过滤器日期条件支持 `any`、`today`、`tomorrow`、`next7`、`overdue`、`none`、`yesterday`、`thisWeek`、`lastWeek`、`thisMonth`、`lastMonth`、`range`。
+- `range` 使用 `dateFrom` / `dateTo`（`YYYY-MM-DD`，含首尾），可只传一端。
 
 支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
 
@@ -333,8 +340,8 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `sync_changes`：每次变更的序号日志，用于 sync-collection
 - `settings`：服务端设置
 - `task_folders`：清单文件夹
-- `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹）
-- `task_filters`：保存的过滤器条件（JSON）
+- `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹，`pinned` 置顶）
+- `task_filters`：保存的过滤器条件（JSON）、`pinned` 与排序
 - `task_list_shares`：清单共享成员与角色（viewer/editor）
 - `tasks.assignee`：指派人用户名
 - `notifications`：站内通知（任务指派、评论、@提及、日程提醒）
@@ -350,7 +357,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
 - `reminder_attempts`：失败投递的退避重试状态
-- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
+- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
 

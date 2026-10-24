@@ -28,8 +28,12 @@ type TaskFilterConditions struct {
 	TagMode    string   `json:"tagMode"` // any | all
 	Priorities []int    `json:"priorities"`
 	Status     string   `json:"status"` // open | completed | all
-	Date       string   `json:"date"`   // any | today | next7 | overdue | none
-	Keyword    string   `json:"keyword"`
+	// Date supports any | today | tomorrow | next7 | overdue | none |
+	// yesterday | thisWeek | lastWeek | thisMonth | lastMonth | range.
+	Date     string `json:"date"`
+	DateFrom string `json:"dateFrom,omitempty"`
+	DateTo   string `json:"dateTo,omitempty"`
+	Keyword  string `json:"keyword"`
 }
 
 // SavedFilter is a named set of task filter conditions.
@@ -40,6 +44,7 @@ type SavedFilter struct {
 	Color      string    `gorm:"size:32;not null;default:''"`
 	Conditions string    `gorm:"type:text;not null;default:''"`
 	Order      int       `gorm:"column:order_index;not null;default:0"`
+	Pinned     bool      `gorm:"not null;default:false;index:idx_savedfilter_pinned"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
 }
@@ -285,7 +290,7 @@ func containsTag(tags []string, want string) bool {
 func (s *Store) ListSavedFilters(ctx context.Context, userID int64) ([]*SavedFilter, error) {
 	var filters []*SavedFilter
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).
-		Order("order_index ASC, id ASC").Find(&filters).Error
+		Order("pinned DESC, order_index ASC, id ASC").Find(&filters).Error
 	if err != nil {
 		return nil, fmt.Errorf("list saved filters: %w", err)
 	}
@@ -338,6 +343,20 @@ func (s *Store) UpdateSavedFilter(ctx context.Context, userID, id int64, name, c
 	return nil
 }
 
+// SetSavedFilterPinned pins or unpins a saved filter in the sidebar.
+func (s *Store) SetSavedFilterPinned(ctx context.Context, userID, id int64, pinned bool) (*SavedFilter, error) {
+	res := s.db.WithContext(ctx).Model(&SavedFilter{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("pinned", pinned)
+	if res.Error != nil {
+		return nil, fmt.Errorf("pin saved filter: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return nil, ErrNotFound
+	}
+	return s.GetSavedFilter(ctx, userID, id)
+}
+
 // DeleteSavedFilter removes a filter.
 func (s *Store) DeleteSavedFilter(ctx context.Context, userID, id int64) error {
 	res := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).Delete(&SavedFilter{})
@@ -348,6 +367,26 @@ func (s *Store) DeleteSavedFilter(ctx context.Context, userID, id int64) error {
 }
 
 // ListFilteredTasks applies saved-filter conditions.
+func filterLocation() *time.Location {
+	if loc, err := time.LoadLocation(DefaultTimezone); err == nil {
+		return loc
+	}
+	return time.UTC
+}
+
+// parseFilterDate reads a YYYY-MM-DD boundary in the deployment timezone.
+func parseFilterDate(raw string) (time.Time, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return time.Time{}, false
+	}
+	parsed, err := time.ParseInLocation("2006-01-02", raw, filterLocation())
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsed.UTC(), true
+}
+
 func (s *Store) ListFilteredTasks(ctx context.Context, userID int64, cond TaskFilterConditions, limit int) ([]*Task, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 300
@@ -367,16 +406,44 @@ func (s *Store) ListFilteredTasks(ctx context.Context, userID int64, cond TaskFi
 		query = query.Where("priority IN ?", cond.Priorities)
 	}
 	now := time.Now().UTC()
-	today := taskTodayStart(now)
+	loc := filterLocation()
+	localNow := now.In(loc)
+	dayStart := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, loc)
+	today := dayStart.UTC()
+	weekday := int(dayStart.Weekday())
+	if weekday == 0 {
+		weekday = 7 // Monday-based week
+	}
+	weekStart := dayStart.AddDate(0, 0, -(weekday - 1))
+	monthStart := time.Date(dayStart.Year(), dayStart.Month(), 1, 0, 0, 0, 0, loc)
 	switch cond.Date {
 	case "today":
-		query = query.Where("due_at IS NOT NULL AND due_at < ?", today.AddDate(0, 0, 1))
+		query = query.Where("due_at IS NOT NULL AND due_at < ?", dayStart.AddDate(0, 0, 1).UTC())
+	case "tomorrow":
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", dayStart.AddDate(0, 0, 1).UTC(), dayStart.AddDate(0, 0, 2).UTC())
 	case "next7":
-		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", today, today.AddDate(0, 0, 7))
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", today, dayStart.AddDate(0, 0, 7).UTC())
 	case "overdue":
 		query = query.Where("((all_day = ? AND due_at < ?) OR (all_day = ? AND due_at < ?))", false, now, true, today)
 	case "none":
 		query = query.Where("due_at IS NULL")
+	case "yesterday":
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", dayStart.AddDate(0, 0, -1).UTC(), today)
+	case "thisWeek":
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", weekStart.UTC(), weekStart.AddDate(0, 0, 7).UTC())
+	case "lastWeek":
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", weekStart.AddDate(0, 0, -7).UTC(), weekStart.UTC())
+	case "thisMonth":
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", monthStart.UTC(), monthStart.AddDate(0, 1, 0).UTC())
+	case "lastMonth":
+		query = query.Where("due_at IS NOT NULL AND due_at >= ? AND due_at < ?", monthStart.AddDate(0, -1, 0).UTC(), monthStart.UTC())
+	case "range":
+		if from, ok := parseFilterDate(cond.DateFrom); ok {
+			query = query.Where("due_at IS NOT NULL AND due_at >= ?", from)
+		}
+		if to, ok := parseFilterDate(cond.DateTo); ok {
+			query = query.Where("due_at IS NOT NULL AND due_at < ?", to.AddDate(0, 0, 1))
+		}
 	}
 	if len(cond.Tags) > 0 {
 		clauses := make([]string, 0, len(cond.Tags))
@@ -396,7 +463,7 @@ func (s *Store) ListFilteredTasks(ctx context.Context, userID int64, cond TaskFi
 		query = query.Where(`(title LIKE ? ESCAPE '\' OR notes LIKE ? ESCAPE '\')`, like, like)
 	}
 	var tasks []*Task
-	if err := query.Order("CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, order_index ASC, id DESC").
+	if err := query.Order("CASE WHEN pinned_at IS NULL THEN 1 ELSE 0 END, pinned_at DESC, CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, order_index ASC, id DESC").
 		Limit(limit).Find(&tasks).Error; err != nil {
 		return nil, fmt.Errorf("list filtered tasks: %w", err)
 	}

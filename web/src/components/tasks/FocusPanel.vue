@@ -331,6 +331,7 @@ const pickerLists = computed(() => {
 
 let ticker: ReturnType<typeof setInterval> | undefined
 let syncTicker: ReturnType<typeof setInterval> | undefined
+let focusSource: EventSource | null = null
 let syncDebounce: ReturnType<typeof setTimeout> | undefined
 let transitionTimer: ReturnType<typeof setTimeout> | undefined
 let audioContext: AudioContext | null = null
@@ -951,23 +952,28 @@ function applyServerTimer(timer: FocusTimerView) {
   setTimeout(() => { applyingRemote.value = false }, 0)
 }
 
+function applyTimerSnapshot(timer: FocusTimerView | null) {
+  if (!syncReady.value || applyingRemote.value) return
+  if (timer) {
+    if (timer.revision > serverRevision.value) applyServerTimer(timer)
+    return
+  }
+  if (serverTimerKnown.value && timerState.value !== 'idle') {
+    stopTicker()
+    resetForFocus()
+    serverTimerKnown.value = false
+    serverRevision.value = 0
+    void loadDashboard()
+  } else if (timerState.value !== 'idle') {
+    void pushTimerState()
+  }
+}
+
 async function syncFromServer() {
   if (!syncReady.value || applyingRemote.value) return
   try {
     const { timer } = await fetchFocusTimer()
-    if (timer) {
-      if (timer.revision > serverRevision.value) applyServerTimer(timer)
-      return
-    }
-    if (serverTimerKnown.value && timerState.value !== 'idle') {
-      stopTicker()
-      resetForFocus()
-      serverTimerKnown.value = false
-      serverRevision.value = 0
-      await loadDashboard()
-    } else if (timerState.value !== 'idle') {
-      void pushTimerState()
-    }
+    applyTimerSnapshot(timer)
   } catch {
     // Keep the local timer if the server cannot be reached.
   }
@@ -975,13 +981,30 @@ async function syncFromServer() {
 
 function startTimerSync() {
   stopTimerSync()
-  syncTicker = setInterval(() => { void syncFromServer() }, 10000)
+  if (typeof EventSource !== 'undefined') {
+    focusSource = new EventSource('/api/admin/focus/stream')
+    focusSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as { timer: FocusTimerView | null }
+        applyTimerSnapshot(payload.timer || null)
+      } catch {
+        // Ignore malformed keepalive data; EventSource will reconnect.
+      }
+    }
+    // SSE pushes changes immediately; a slow poll covers proxies that buffer
+    // event streams and browsers without EventSource.
+    syncTicker = setInterval(() => { void syncFromServer() }, 60000)
+  } else {
+    syncTicker = setInterval(() => { void syncFromServer() }, 10000)
+  }
   document.addEventListener('visibilitychange', onFocusVisibility)
 }
 
 function stopTimerSync() {
   if (syncTicker) clearInterval(syncTicker)
   syncTicker = undefined
+  if (focusSource) focusSource.close()
+  focusSource = null
   document.removeEventListener('visibilitychange', onFocusVisibility)
 }
 

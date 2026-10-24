@@ -82,6 +82,7 @@ func (s *Server) apiFocusTimer(w http.ResponseWriter, r *http.Request, current *
 			s.apiServerError(w, err)
 			return
 		}
+		s.focusStreams.publish(current.ID)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -108,6 +109,7 @@ func (s *Server) apiFocusTimer(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	s.focusStreams.publish(current.ID)
 	writeAPIJSON(w, http.StatusOK, map[string]any{"timer": timer, "serverNow": timer.ServerNow})
 }
 

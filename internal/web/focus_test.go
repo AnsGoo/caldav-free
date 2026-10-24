@@ -127,3 +127,15 @@ func TestFocusTimerAPI(t *testing.T) {
 		t.Fatalf("clear timer = %d", status)
 	}
 }
+
+func TestFocusHubPublish(t *testing.T) {
+	hub := newFocusHub()
+	ch, unsubscribe := hub.subscribe(42)
+	defer unsubscribe()
+	hub.publish(42)
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("focus hub did not publish")
+	}
+}

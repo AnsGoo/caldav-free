@@ -57,6 +57,7 @@ type Server struct {
 	CalDAVURL     string
 	taskSync      *tasksync.Syncer
 	notifications *notificationHub
+	focusStreams  *focusHub
 }
 
 // New creates the admin web server. externalURL may be empty to derive URLs
@@ -99,6 +100,7 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 	return &Server{
 		store:         st,
 		notifications: notifications,
+		focusStreams:  newFocusHub(),
 		dav:           davHandler,
 		logger:        logger,
 		templates:     tmpl,
@@ -131,6 +133,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/dashboard", s.apiAdmin(s.apiDashboard))
 	mux.HandleFunc("GET /api/admin/notifications", s.apiAdmin(s.apiNotifications))
 	mux.HandleFunc("GET /api/admin/notifications/stream", s.apiAdmin(s.apiNotificationStream))
+	mux.HandleFunc("GET /api/admin/focus/stream", s.apiAdmin(s.apiFocusStream))
 	mux.HandleFunc("POST /api/admin/notifications/read", s.apiAdmin(s.apiNotificationsRead))
 	mux.HandleFunc("POST /api/admin/notifications/{id}/snooze", s.apiAdmin(s.apiSnoozeNotification))
 	mux.HandleFunc("GET /api/admin/users", s.apiAdmin(s.apiUsers))

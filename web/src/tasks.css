@@ -7964,3 +7964,8 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-habit-content.card-mode .tw-habit-items { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .tw-habit-content.card-mode .tw-habit-info { min-width: 0; }
 .tw-habit-content.card-mode .tw-habit-item { gap: 10px; }
+
+.tw-cal-legend button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.tw-cal-legend button:hover { color: var(--tw-text-2); }
+.tw-cal-legend button.off { opacity: .42; }
+.tw-cal-legend button.off i { background: var(--tw-text-3) !important; }

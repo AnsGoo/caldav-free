@@ -30,13 +30,13 @@
     </header>
 
     <div v-if="sources.length || habitEntries.length" class="tw-cal-legend">
-      <span v-for="source in sources" :key="source.id">
+      <button v-for="source in sources" :key="source.id" :class="{ off: hiddenCalendarIds.has(source.id) }" @click="toggleCalendar(source.id)">
         <i :style="{ background: source.color || '#4772fa' }" />
         {{ source.name }}
-      </span>
+      </button>
       <span class="tw-cal-legend-gap" />
-      <span class="tw-cal-legend-tasks"><i />任务</span>
-      <span class="tw-cal-legend-habits"><i />习惯</span>
+      <button class="tw-cal-legend-tasks" :class="{ off: hiddenTasks }" @click="toggleTasks"><i />任务</button>
+      <button class="tw-cal-legend-habits" :class="{ off: hiddenHabits }" @click="toggleHabits"><i />习惯</button>
       <span v-if="eventsLoading" class="tw-cal-loading">事件加载中…</span>
     </div>
 
@@ -325,6 +325,9 @@ const todayKey = dayKey(startOfToday())
 const events = ref<CalendarEvent[]>([])
 const habitEntries = ref<HabitCalendarEntry[]>([])
 const sources = ref<CalendarSource[]>([])
+const hiddenCalendarIds = ref<Set<number>>(new Set())
+const hiddenTasks = ref(false)
+const hiddenHabits = ref(false)
 const eventsLoading = ref(false)
 const editingDay = ref('')
 const newTitle = ref('')
@@ -420,20 +423,24 @@ const rangeTitle = computed(() => {
   return `${props.cursor.getMonth() + 1} 月 ${props.cursor.getDate()} 日 - ${end.getMonth() + 1} 月 ${end.getDate()} 日`
 })
 
+const visibleTasks = computed(() => hiddenTasks.value ? [] : props.tasks)
+const visibleHabitEntries = computed(() => hiddenHabits.value ? [] : habitEntries.value)
+const visibleEvents = computed(() => events.value.filter((event) => !hiddenCalendarIds.value.has(event.calendarId)))
+
 const summaryText = computed(() => {
-  const taskCount = props.viewMode === 'month' ? tasksInMonth.value : tasksInRange.value
-  return `${taskCount} 个任务 · ${events.value.length} 个日程`
+  const taskCount = hiddenTasks.value ? 0 : (props.viewMode === 'month' ? tasksInMonth.value : tasksInRange.value)
+  return `${taskCount} 个任务 · ${visibleEvents.value.length} 个日程`
 })
 
 const tasksInMonth = computed(() => {
   const prefix = `${props.cursor.getFullYear()}-${String(props.cursor.getMonth() + 1).padStart(2, '0')}`
-  return props.tasks.filter((task) => taskDayKey(task).startsWith(prefix)).length
+  return visibleTasks.value.filter((task) => taskDayKey(task).startsWith(prefix)).length
 })
 
 const tasksInRange = computed(() => {
   const from = dayKey(range.value.start)
   const to = dayKey(range.value.end)
-  return props.tasks.filter((task) => {
+  return visibleTasks.value.filter((task) => {
     const key = taskDayKey(task)
     return key >= from && key < to
   }).length
@@ -463,7 +470,7 @@ const itemsByDay = computed(() => {
     if (!map[key]) map[key] = []
     map[key].push(item)
   }
-  for (const task of props.tasks) {
+  for (const task of visibleTasks.value) {
     if (!task.due) continue
     const start = new Date(task.due)
     const key = dayKey(start)
@@ -479,7 +486,7 @@ const itemsByDay = computed(() => {
       task,
     })
   }
-  for (const entry of habitEntries.value) {
+  for (const entry of visibleHabitEntries.value) {
     push(entry.date, {
       key: `habit-${entry.habitId}-${entry.date}`,
       kind: 'habit',
@@ -491,7 +498,7 @@ const itemsByDay = computed(() => {
       habitDone: entry.done,
     })
   }
-  for (const event of events.value) {
+  for (const event of visibleEvents.value) {
     const start = new Date(event.start)
     const end = new Date(event.end)
     if (event.allDay) {
@@ -797,6 +804,47 @@ function cleanupResize() {
 
 onBeforeUnmount(cleanupResize)
 
+function toggleCalendar(id: number) {
+  const next = new Set(hiddenCalendarIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  hiddenCalendarIds.value = next
+  persistCalendarVisibility()
+}
+
+function toggleTasks() {
+  hiddenTasks.value = !hiddenTasks.value
+  persistCalendarVisibility()
+}
+
+function toggleHabits() {
+  hiddenHabits.value = !hiddenHabits.value
+  persistCalendarVisibility()
+}
+
+function persistCalendarVisibility() {
+  try {
+    localStorage.setItem('caldav-calendar-visibility', JSON.stringify({
+      calendars: [...hiddenCalendarIds.value], tasks: hiddenTasks.value, habits: hiddenHabits.value,
+    }))
+  } catch {
+    // Ignore private mode/storage failures.
+  }
+}
+
+function restoreCalendarVisibility() {
+  try {
+    const raw = localStorage.getItem('caldav-calendar-visibility')
+    if (!raw) return
+    const value = JSON.parse(raw) as { calendars?: number[]; tasks?: boolean; habits?: boolean }
+    hiddenCalendarIds.value = new Set(Array.isArray(value.calendars) ? value.calendars : [])
+    hiddenTasks.value = Boolean(value.tasks)
+    hiddenHabits.value = Boolean(value.habits)
+  } catch {
+    // Ignore malformed or unavailable storage.
+  }
+}
+
 async function loadEvents() {
   const current = ++requestId
   eventsLoading.value = true
@@ -825,6 +873,12 @@ async function loadEvents() {
 function openFocusEvent() {
   const focus = props.focus
   if (!focus) return
+  if (hiddenCalendarIds.value.has(focus.calendarId)) {
+    const next = new Set(hiddenCalendarIds.value)
+    next.delete(focus.calendarId)
+    hiddenCalendarIds.value = next
+    persistCalendarVisibility()
+  }
   const candidates = events.value.filter((event) => event.calendarId === focus.calendarId && event.href === focus.href)
   const target = candidates.find((event) => sameInstant(event.start, focus.occurrence)) || candidates[0]
   if (!target) return
@@ -845,6 +899,8 @@ watch([() => props.viewMode, () => props.cursor, () => props.reloadKey], () => {
   void loadEvents()
   if (props.viewMode === 'week' || props.viewMode === 'day') void scrollToMorning()
 })
+
+restoreCalendarVisibility()
 
 onMounted(() => {
   void loadEvents()

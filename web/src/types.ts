@@ -798,12 +798,14 @@ export interface CountdownItem {
   ignoreYear: boolean
   showAge: boolean
   dateDisplayFormat: 'day' | 'full'
+  daysOption: 'day' | 'hour'
   status: number
   pinned: boolean
   sortOrder: number
   createdAt: string
   modifiedAt: string
   days: number
+  hours: number
   state: 'today' | 'future' | 'past'
   occurrenceDate: number
   age?: number
@@ -829,6 +831,7 @@ export interface CountdownDraft {
   ignoreYear: boolean
   showAge: boolean
   dateDisplayFormat: 'day' | 'full'
+  daysOption: 'day' | 'hour'
   status: number
   pinned: boolean
 }

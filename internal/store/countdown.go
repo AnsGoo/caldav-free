@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -37,6 +38,7 @@ type CountdownEvent struct {
 	IgnoreYear        bool      `gorm:"not null" json:"ignoreYear"`
 	ShowAge           bool      `gorm:"not null" json:"showAge"`
 	DateDisplayFormat string    `gorm:"size:20;not null;default:'day'" json:"dateDisplayFormat"`
+	DaysOption        string    `gorm:"size:10;not null;default:'day'" json:"daysOption"`
 	Status            int       `gorm:"not null;default:0" json:"status"`
 	Pinned            bool      `gorm:"not null;default:false;index:idx_countdown_pinned" json:"pinned"`
 	SortOrder         int64     `gorm:"not null;default:0" json:"sortOrder"`
@@ -47,6 +49,7 @@ type CountdownEvent struct {
 type CountdownItem struct {
 	CountdownEvent
 	Days           int    `json:"days"`
+	Hours          int    `json:"hours"`
 	State          string `json:"state"`
 	OccurrenceDate int    `json:"occurrenceDate"`
 	Age            int    `json:"age,omitempty"`
@@ -81,6 +84,7 @@ type CountdownPatch struct {
 	IgnoreYear        *bool   `json:"ignoreYear"`
 	ShowAge           *bool   `json:"showAge"`
 	DateDisplayFormat *string `json:"dateDisplayFormat"`
+	DaysOption        *string `json:"daysOption"`
 	Status            *int    `json:"status"`
 	Pinned            *bool   `json:"pinned"`
 }
@@ -187,6 +191,9 @@ func (s *Store) UpdateCountdown(ctx context.Context, userID, id int64, patch *Co
 		if patch.DateDisplayFormat != nil {
 			event.DateDisplayFormat = *patch.DateDisplayFormat
 		}
+		if patch.DaysOption != nil {
+			event.DaysOption = *patch.DaysOption
+		}
 		if patch.Status != nil {
 			event.Status = *patch.Status
 		}
@@ -286,6 +293,9 @@ func normalizeCountdown(event *CountdownEvent) error {
 	if event.DateDisplayFormat != "full" {
 		event.DateDisplayFormat = "day"
 	}
+	if event.DaysOption != "hour" {
+		event.DaysOption = "day"
+	}
 	if strings.TrimSpace(event.Reminders) == "" {
 		event.Reminders = "[]"
 	}
@@ -331,6 +341,13 @@ func countdownItem(event *CountdownEvent, now time.Time) *CountdownItem {
 		CountdownEvent: *event,
 		OccurrenceDate: stampOf(occurrence),
 		Days:           countdownDays(today, occurrence),
+	}
+	if event.DaysOption == "hour" {
+		duration := occurrence.Sub(now)
+		if duration < 0 {
+			duration = -duration
+		}
+		item.Hours = int(math.Ceil(duration.Hours()))
 	}
 	if event.HasBackground {
 		item.BackgroundURL = fmt.Sprintf("/api/admin/countdowns/%d/background?v=%d", event.ID, event.ModifiedAt.Unix())

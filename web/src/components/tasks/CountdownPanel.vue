@@ -53,7 +53,7 @@
         </header>
         <div class="tw-countdown-number" :class="item.state">
           <template v-if="item.state === 'today'">今天</template>
-          <template v-else>{{ item.days }}</template>
+          <template v-else>{{ countdownNumber(item) }}<small v-if="item.daysOption === 'hour'">小时</small></template>
         </div>
         <p class="tw-countdown-subtitle">
           <template v-if="item.state === 'today'">{{ formatDate(item.occurrenceDate, item.dateDisplayFormat) }}</template>
@@ -85,7 +85,8 @@
         <div class="tw-countdown-detail-body" :class="{ 'has-image': !!detailItem.backgroundUrl }" :style="cardStyle(detailItem)">
           <div class="tw-countdown-detail-icon" :style="{ backgroundColor: detailItem.color }">{{ detailItem.icon || '⏳' }}</div>
           <div class="tw-countdown-detail-number" :class="detailItem.state">
-            {{ detailItem.state === 'today' ? '今天' : detailItem.days }}
+            <template v-if="detailItem.state === 'today'">今天</template>
+            <template v-else>{{ countdownNumber(detailItem) }}<small v-if="detailItem.daysOption === 'hour'">小时</small></template>
           </div>
           <p class="tw-countdown-detail-date">
             <template v-if="detailItem.state === 'today'">{{ formatDate(detailItem.occurrenceDate, detailItem.dateDisplayFormat) }}</template>
@@ -148,6 +149,7 @@
           </div>
           <div class="tw-countdown-form-grid">
             <label class="tw-countdown-field"><span>显示格式</span><select v-model="form.dateDisplayFormat" class="tw-field-select"><option value="day">标准</option><option value="full">完整日期</option></select></label>
+            <label class="tw-countdown-field"><span>显示单位</span><select v-model="form.daysOption" class="tw-field-select"><option value="day">按天</option><option value="hour">按小时</option></select></label>
             <label v-if="form.type === 'birthday'" class="tw-countdown-check"><input v-model="form.showAge" type="checkbox" /><span>显示年龄</span></label>
             <label v-else class="tw-countdown-check"><input v-model="form.ignoreYear" type="checkbox" /><span>忽略年份</span></label>
           </div>
@@ -286,6 +288,7 @@ const form = reactive({
   reminderOffsets: [0, 3] as number[],
   reminderTime: '09:00',
   lunarYear: new Date().getFullYear() - 30,
+  daysOption: 'day' as 'day' | 'hour',
 })
 const filteredItems = computed(() => filter.value === 'all' ? items.value : items.value.filter((item) => item.type === filter.value))
 
@@ -347,6 +350,10 @@ function parseReminders(raw: string) {
   } catch {
     return []
   }
+}
+
+function countdownNumber(item: CountdownItem) {
+  return item.daysOption === 'hour' ? item.hours : item.days
 }
 
 function cardStyle(item: CountdownItem) {
@@ -455,6 +462,7 @@ function resetForm() {
   form.reminderOffsets = [0, 3]
   form.reminderTime = '09:00'
   form.lunarYear = new Date().getFullYear() - 30
+  form.daysOption = 'day'
   backgroundFile.value = null
   backgroundPreview.value = ''
   backgroundHad.value = false
@@ -489,6 +497,7 @@ function openEdit(item: CountdownItem) {
   form.reminderOffsets = parseReminders(item.reminders)
   form.reminderTime = item.reminderTime || '09:00'
   form.lunarYear = item.lunarYear || new Date().getFullYear() - 30
+  form.daysOption = item.daysOption === 'hour' ? 'hour' : 'day'
   backgroundFile.value = null
   backgroundPreview.value = item.backgroundUrl || ''
   backgroundHad.value = !!item.backgroundUrl
@@ -623,6 +632,7 @@ function payload(): CountdownDraft {
     lunarDay: form.lunarDay,
     lunarLeap: form.lunarLeap,
     lunarYear: form.lunarYear,
+    daysOption: form.daysOption,
     icon: form.icon,
     color: form.color,
     style: form.style,

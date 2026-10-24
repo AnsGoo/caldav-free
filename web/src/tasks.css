@@ -7935,3 +7935,6 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 
 .tw-focus-remote-note { align-self: center; display: inline-flex; align-items: center; gap: 7px; margin: -2px 0 8px; padding: 5px 7px 5px 10px; border: 1px solid color-mix(in srgb, var(--tw-accent) 32%, var(--tw-border)); border-radius: 999px; background: var(--tw-accent-soft); color: var(--tw-accent); font-size: 10.5px; }
 .tw-focus-remote-note .tw-icon-button { width: 20px; height: 20px; color: var(--tw-accent); }
+
+.tw-countdown-number small, .tw-countdown-detail-number small { margin-left: 4px; color: var(--tw-text-3); font-size: 10px; font-weight: 500; letter-spacing: 0; }
+.tw-countdown-card.has-image .tw-countdown-number small, .tw-countdown-detail-body.has-image .tw-countdown-detail-number small { color: rgba(255,255,255,0.72); }

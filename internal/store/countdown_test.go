@@ -251,3 +251,31 @@ func TestCreateCountdownLeapMonthDoesNotPanic(t *testing.T) {
 		t.Fatalf("unexpected leap-month occurrence: %+v", item)
 	}
 }
+
+func TestCountdownHourDisplayOption(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	now := time.Now()
+	item, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "小时倒数", Type: "countdown",
+		Date: stampOf(now.AddDate(0, 0, 1)), Repeat: "none", DaysOption: "hour",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.DaysOption != "hour" {
+		t.Fatalf("days option = %q", item.DaysOption)
+	}
+	if item.Hours <= 0 || item.Hours > 48 {
+		t.Fatalf("hours = %d", item.Hours)
+	}
+	defaultItem, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "默认按天", Type: "countdown", Date: stampOf(now.AddDate(0, 0, 2)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if defaultItem.DaysOption != "day" {
+		t.Fatalf("default days option = %q", defaultItem.DaysOption)
+	}
+}

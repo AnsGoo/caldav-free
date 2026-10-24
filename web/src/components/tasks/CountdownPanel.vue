@@ -120,7 +120,7 @@
         <div class="tw-dialog-body tw-countdown-form">
           <div class="tw-countdown-form-top">
             <button class="tw-countdown-icon-editor" :style="{ backgroundColor: form.color }" @click="cycleIcon">{{ form.icon }}</button>
-            <input v-model="form.name" class="tw-dialog-input" maxlength="64" placeholder="名称" />
+            <a-input v-model="form.name" class="tw-countdown-name" size="small" :max-length="64" placeholder="名称" allow-clear />
           </div>
           <div class="tw-countdown-type-row">
             <button v-for="item in typeOptions" :key="item.value" class="tw-countdown-type" :class="{ active: form.type === item.value }" @click="form.type = item.value">{{ item.label }}</button>
@@ -137,30 +137,75 @@
             <button :class="{ active: form.calendar === 'lunar' }" @click="setCalendar('lunar')">农历</button>
           </div>
           <div v-if="form.calendar === 'solar'" class="tw-countdown-form-grid">
-            <label class="tw-countdown-field"><span>日期</span><a-date-picker v-model="form.date" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" /></label>
-            <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="none">不重复</option><option value="yearly">每年</option><option value="monthly">每月</option><option value="weekly">每周</option><option value="weekend">每个周末</option></select></label>
+            <div class="tw-countdown-field">
+              <span>日期</span>
+              <a-date-picker v-model="form.date" class="tw-date-control tw-countdown-control" size="small" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
+            </div>
+            <div class="tw-countdown-field">
+              <span>重复</span>
+              <a-select v-model="form.repeat" class="tw-countdown-control" size="small">
+                <a-option value="none">不重复</a-option>
+                <a-option value="yearly">每年</a-option>
+                <a-option value="monthly">每月</a-option>
+                <a-option value="weekly">每周</a-option>
+                <a-option value="weekend">每个周末</a-option>
+              </a-select>
+            </div>
           </div>
           <div v-else class="tw-countdown-form-grid lunar">
-            <label class="tw-countdown-field"><span>农历月份</span><select v-model.number="form.lunarMonth" class="tw-field-select"><option v-for="month in 12" :key="month" :value="month">{{ lunarMonthLabel(month) }}</option></select></label>
-            <label class="tw-countdown-field"><span>农历日期</span><select v-model.number="form.lunarDay" class="tw-field-select"><option v-for="day in 30" :key="day" :value="day">{{ lunarDayLabel(day) }}</option></select></label>
-            <label class="tw-countdown-check"><input v-model="form.lunarLeap" type="checkbox" /><span>闰月</span></label>
-            <label v-if="form.type === 'birthday'" class="tw-countdown-field"><span>出生年份</span><input v-model.number="form.lunarYear" type="number" min="1900" max="2100" /></label>
-            <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="yearly">每年</option><option value="none">不重复</option></select></label>
+            <div class="tw-countdown-field">
+              <span>农历月份</span>
+              <a-select v-model="form.lunarMonth" class="tw-countdown-control" size="small">
+                <a-option v-for="month in 12" :key="month" :value="month">{{ lunarMonthLabel(month) }}</a-option>
+              </a-select>
+            </div>
+            <div class="tw-countdown-field">
+              <span>农历日期</span>
+              <a-select v-model="form.lunarDay" class="tw-countdown-control" size="small">
+                <a-option v-for="day in 30" :key="day" :value="day">{{ lunarDayLabel(day) }}</a-option>
+              </a-select>
+            </div>
+            <a-checkbox v-model="form.lunarLeap" class="tw-countdown-check">闰月</a-checkbox>
+            <div v-if="form.type === 'birthday'" class="tw-countdown-field">
+              <span>出生年份</span>
+              <a-input-number v-model="form.lunarYear" class="tw-countdown-control" size="small" :min="1900" :max="2100" />
+            </div>
+            <div class="tw-countdown-field">
+              <span>重复</span>
+              <a-select v-model="form.repeat" class="tw-countdown-control" size="small">
+                <a-option value="yearly">每年</a-option>
+                <a-option value="none">不重复</a-option>
+              </a-select>
+            </div>
           </div>
           <div class="tw-countdown-form-grid">
-            <label class="tw-countdown-field"><span>显示格式</span><select v-model="form.dateDisplayFormat" class="tw-field-select"><option value="day">标准</option><option value="full">完整日期</option></select></label>
-            <label class="tw-countdown-field"><span>显示单位</span><select v-model="form.daysOption" class="tw-field-select"><option value="day">按天</option><option value="hour">按小时</option><option value="minute">按分钟</option><option value="second">按秒</option></select></label>
-            <label v-if="form.type === 'birthday'" class="tw-countdown-check"><input v-model="form.showAge" type="checkbox" /><span>显示年龄</span></label>
-            <label v-else class="tw-countdown-check"><input v-model="form.ignoreYear" type="checkbox" /><span>忽略年份</span></label>
+            <div class="tw-countdown-field">
+              <span>显示格式</span>
+              <a-select v-model="form.dateDisplayFormat" class="tw-countdown-control" size="small">
+                <a-option value="day">标准</a-option>
+                <a-option value="full">完整日期</a-option>
+              </a-select>
+            </div>
+            <div class="tw-countdown-field">
+              <span>显示单位</span>
+              <a-select v-model="form.daysOption" class="tw-countdown-control" size="small">
+                <a-option value="day">按天</a-option>
+                <a-option value="hour">按小时</a-option>
+                <a-option value="minute">按分钟</a-option>
+                <a-option value="second">按秒</a-option>
+              </a-select>
+            </div>
+            <a-checkbox v-if="form.type === 'birthday'" v-model="form.showAge" class="tw-countdown-check">显示年龄</a-checkbox>
+            <a-checkbox v-else v-model="form.ignoreYear" class="tw-countdown-check">忽略年份</a-checkbox>
           </div>
           <div class="tw-countdown-form-section">
             <span>提醒</span>
-            <div class="tw-countdown-checks">
-              <label v-for="offset in reminderOptions" :key="offset.value" class="tw-countdown-check"><input v-model="form.reminderOffsets" type="checkbox" :value="offset.value" /><span>{{ offset.label }}</span></label>
-            </div>
+            <a-checkbox-group v-model="form.reminderOffsets" class="tw-countdown-checks">
+              <a-checkbox v-for="offset in reminderOptions" :key="offset.value" :value="offset.value">{{ offset.label }}</a-checkbox>
+            </a-checkbox-group>
             <div class="tw-countdown-reminder-time">
               <span>提醒时间</span>
-              <a-time-picker v-model="form.reminderTime" class="tw-date-control" format="HH:mm" />
+              <a-time-picker v-model="form.reminderTime" class="tw-date-control tw-countdown-control" size="small" format="HH:mm" />
             </div>
           </div>
           <div class="tw-countdown-form-section">
@@ -185,7 +230,10 @@
               <button v-for="color in colors" :key="color" class="tw-countdown-color" :class="{ active: form.color === color }" :style="{ backgroundColor: color }" @click="form.color = color" />
             </div>
           </div>
-          <label class="tw-countdown-field"><span>备注</span><textarea v-model="form.remark" maxlength="2000" rows="3" placeholder="记下这个日子的意义…" /></label>
+          <div class="tw-countdown-field">
+            <span>备注</span>
+            <a-textarea v-model="form.remark" class="tw-countdown-control" :max-length="2000" :auto-size="{ minRows: 3, maxRows: 5 }" placeholder="记下这个日子的意义…" />
+          </div>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="dialogOpen = false">取消</button>

@@ -7722,20 +7722,17 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-countdown-form { display: grid; gap: 13px; }
 .tw-countdown-form-top { display: flex; align-items: center; gap: 10px; }
 .tw-countdown-icon-editor { width: 42px; height: 42px; flex: none; display: grid; place-items: center; border: 0; border-radius: 11px; font-size: 21px; cursor: pointer; }
-.tw-countdown-form-top .tw-dialog-input { flex: 1; }
+.tw-countdown-name { flex: 1; }
 .tw-countdown-type-row { display: flex; gap: 5px; flex-wrap: wrap; }
 .tw-countdown-type { height: 28px; padding: 0 12px; border: 1px solid var(--tw-border); border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 10px; cursor: pointer; }
 .tw-countdown-type.active { border-color: var(--tw-accent); background: var(--tw-accent-soft); color: var(--tw-accent); }
 .tw-countdown-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .tw-countdown-field { display: grid; gap: 5px; color: var(--tw-text-3); font-size: 10px; }
-.tw-countdown-field .tw-field-select { width: 100%; }
-.tw-countdown-field textarea { width: 100%; padding: 9px 10px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-surface); color: var(--tw-text); font: inherit; font-size: 11px; line-height: 1.5; outline: none; resize: vertical; }
-.tw-countdown-field textarea:focus { border-color: var(--tw-accent); background: var(--tw-bg); }
+.tw-countdown-control { width: 100%; }
 .tw-countdown-form-section { display: grid; gap: 7px; }
 .tw-countdown-form-section > span { color: var(--tw-text-3); font-size: 10px; }
 .tw-countdown-checks { display: flex; flex-wrap: wrap; gap: 7px 14px; }
-.tw-countdown-check { display: inline-flex; align-items: center; gap: 5px; color: var(--tw-text-2); font-size: 10px; }
-.tw-countdown-check input { width: 14px; height: 14px; accent-color: var(--tw-accent); }
+.tw-countdown-check { color: var(--tw-text-2); font-size: 10px; }
 .tw-countdown-style-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .tw-countdown-style { height: 26px; padding: 0 10px; border: 1px solid var(--tw-border); border-radius: 7px; background: transparent; color: var(--tw-text-3); font-size: 9px; cursor: pointer; }
 .tw-countdown-style.active { border-color: var(--tw-accent); color: var(--tw-accent); }
@@ -9604,4 +9601,101 @@ body.tw-resizing {
     grid-template-columns: 1fr;
     justify-content: stretch;
   }
+}
+
+/* Countdown dialog Arco controls follow the task workspace theme. */
+.tw-countdown-dialog .arco-input-wrapper,
+.tw-countdown-dialog .arco-select-view,
+.tw-countdown-dialog .arco-textarea-wrapper,
+.tw-countdown-dialog .arco-input-number {
+  border-color: var(--tw-border);
+  border-radius: 8px;
+  background: var(--tw-surface) !important;
+  color: var(--tw-text);
+}
+
+.tw-countdown-dialog .arco-input-wrapper:hover,
+.tw-countdown-dialog .arco-select-view:hover,
+.tw-countdown-dialog .arco-textarea-wrapper:hover,
+.tw-countdown-dialog .arco-input-number:hover {
+  border-color: color-mix(in srgb, var(--tw-accent) 45%, var(--tw-border));
+  background: var(--tw-bg) !important;
+}
+
+.tw-countdown-dialog .arco-input-wrapper:focus-within,
+.tw-countdown-dialog .arco-select-view:focus-within,
+.tw-countdown-dialog .arco-textarea-wrapper:focus-within,
+.tw-countdown-dialog .arco-input-number:focus-within {
+  border-color: var(--tw-accent);
+  background: var(--tw-bg) !important;
+  box-shadow: 0 0 0 2px var(--tw-accent-soft);
+}
+
+.tw-countdown-dialog .arco-input,
+.tw-countdown-dialog .arco-textarea,
+.tw-countdown-dialog .arco-select-view-value,
+.tw-countdown-dialog .arco-select-view-input {
+  color: var(--tw-text);
+  font-size: 11px;
+}
+
+.tw-countdown-dialog .arco-input::placeholder,
+.tw-countdown-dialog .arco-textarea::placeholder {
+  color: var(--tw-text-3);
+}
+
+.tw-countdown-dialog .arco-select-suffix-icon,
+.tw-countdown-dialog .arco-input-suffix-icon,
+.tw-countdown-dialog .arco-input-number-step-button {
+  color: var(--tw-text-3);
+}
+
+.tw-countdown-dialog .arco-input-number-step-button {
+  border-color: var(--tw-border);
+  background: var(--tw-surface);
+}
+
+.tw-countdown-dialog .arco-checkbox-label {
+  color: var(--tw-text-2);
+  font-size: 10px;
+}
+
+.tw-countdown-dialog .arco-checkbox-icon {
+  border-color: var(--tw-border);
+  background: var(--tw-bg);
+}
+
+.tw-countdown-dialog .arco-checkbox:hover .arco-checkbox-icon {
+  border-color: var(--tw-accent);
+}
+
+.tw-countdown-dialog .arco-checkbox-checked .arco-checkbox-icon {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent);
+}
+
+.tw-countdown-dialog .arco-checkbox-checked .arco-checkbox-icon svg {
+  color: #fff;
+}
+
+html[data-theme='dark'] .arco-select-dropdown {
+  border-color: #2f2f32;
+  background: #1b1b1c;
+  box-shadow: 0 12px 30px -16px rgba(0, 0, 0, 0.7);
+}
+
+html[data-theme='dark'] .arco-select-dropdown .arco-select-option {
+  color: #ececee;
+  background: transparent;
+}
+
+html[data-theme='dark'] .arco-select-dropdown .arco-select-option-hover,
+html[data-theme='dark'] .arco-select-dropdown .arco-select-option-active {
+  color: #ececee;
+  background: #272729;
+}
+
+html[data-theme='dark'] .arco-select-dropdown .arco-select-option-selected {
+  color: #5b7cff;
+  background: rgba(91, 124, 255, 0.16);
 }

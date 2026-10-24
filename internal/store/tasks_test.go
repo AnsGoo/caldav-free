@@ -319,3 +319,56 @@ func TestTaskMultipleReminders(t *testing.T) {
 		t.Fatalf("reloaded reminders = %v", values)
 	}
 }
+
+func TestDeleteNoteListKeepsNotesInNoteList(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	noteList, err := s.CreateTaskListKind(ctx, userID, "临时笔记", "#4772fa", "NOTE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: noteList.ID, Kind: "NOTE", Title: "不要丢"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteTaskList(ctx, userID, noteList.ID); err != nil {
+		t.Fatal(err)
+	}
+	moved, err := s.GetTask(ctx, userID, note.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fallback, err := s.GetTaskList(ctx, userID, moved.ListID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fallback.Kind != "NOTE" || fallback.IsInbox {
+		t.Fatalf("note moved to non-note list: %+v", fallback)
+	}
+
+	trashedList, err := s.CreateTaskListKind(ctx, userID, "待恢复笔记", "#4772fa", "NOTE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	trashed, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: trashedList.ID, Kind: "NOTE", Title: "恢复我"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteTask(ctx, userID, trashed.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteTaskList(ctx, userID, trashedList.ID); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := s.RestoreTask(ctx, userID, trashed.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restoredList, err := s.GetTaskList(ctx, userID, restored.ListID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restoredList.Kind != "NOTE" || restoredList.IsInbox {
+		t.Fatalf("restored note moved to non-note list: %+v", restoredList)
+	}
+}

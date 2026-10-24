@@ -13,10 +13,12 @@
     />
     <header class="tw-detail-head">
       <div class="tw-detail-title">
-        <span class="tw-detail-list">
-          <i :style="{ background: task.listColor || '#4772fa' }" />
-          {{ listName }}
-        </span>
+        <label class="tw-detail-list" title="移动到笔记清单">
+          <i :style="{ background: currentList?.color || task.listColor || '#4772fa' }" />
+          <select v-model.number="listId" :disabled="readonly" @change="moveToList">
+            <option v-for="list in noteListOptions" :key="list.id" :value="list.id">{{ list.name }}</option>
+          </select>
+        </label>
         <span class="tw-note-status">{{ saving ? '保存中…' : '已保存' }}</span>
       </div>
       <div class="tw-detail-actions">
@@ -144,7 +146,14 @@ function startResize(event: PointerEvent) {
   window.addEventListener('pointerup', stop, { once: true })
 }
 
-const listName = computed(() => props.lists.find((list) => list.id === props.task.listId)?.name || props.task.listName || '笔记')
+const listId = ref(props.task.listId)
+const currentList = computed(() => props.lists.find((list) => list.id === listId.value))
+const noteListOptions = computed(() => {
+  const noteLists = props.lists.filter((list) => list.kind === 'NOTE')
+  const active = props.lists.find((list) => list.id === props.task.listId)
+  if (active && !noteLists.some((list) => list.id === active.id)) return [active, ...noteLists]
+  return noteLists
+})
 const wordCount = computed(() => (markdownToPlain(notes.value).match(/[\u4e00-\u9fa5]|[A-Za-z0-9]+/g) || []).length)
 const modifiedLabel = computed(() => {
   const date = new Date(props.task.modifiedAt)
@@ -180,6 +189,28 @@ async function flush() {
     emit('changed', task)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '保存笔记失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function moveToList() {
+  if (props.readonly || listId.value === props.task.listId) return
+  const target = props.lists.find((list) => list.id === listId.value)
+  if (!target) {
+    listId.value = props.task.listId
+    return
+  }
+  await flush()
+  saving.value = true
+  try {
+    const { task } = await updateTask(props.task.id, { listId: listId.value })
+    listId.value = task.listId
+    emit('changed', task)
+    Message.success(`已移动到「${target.name}」`)
+  } catch (error) {
+    listId.value = props.task.listId
+    Message.error(error instanceof Error ? error.message : '移动笔记失败')
   } finally {
     saving.value = false
   }

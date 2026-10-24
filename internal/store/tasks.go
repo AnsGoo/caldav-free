@@ -296,9 +296,17 @@ func (s *Store) DeleteTaskList(ctx context.Context, userID, id int64) error {
 		return err
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		targetListID := inbox.ID
+		if list.Kind == "NOTE" {
+			fallback, err := ensureNoteFallbackList(tx, userID, id)
+			if err != nil {
+				return err
+			}
+			targetListID = fallback.ID
+		}
 		if err := tx.Model(&Task{}).Where("user_id = ? AND list_id = ? AND deleted = ?", userID, id, false).
-			Updates(map[string]any{"list_id": inbox.ID, "section_id": 0, "sync_pending": true}).Error; err != nil {
-			return fmt.Errorf("move tasks to inbox: %w", err)
+			Updates(map[string]any{"list_id": targetListID, "section_id": 0, "sync_pending": true}).Error; err != nil {
+			return fmt.Errorf("move tasks to fallback list: %w", err)
 		}
 		if err := tx.Where("user_id = ? AND list_id = ?", userID, id).Delete(&TaskSection{}).Error; err != nil {
 			return fmt.Errorf("delete task sections: %w", err)
@@ -311,6 +319,44 @@ func (s *Store) DeleteTaskList(ctx context.Context, userID, id int64) error {
 		}
 		return nil
 	})
+}
+
+// ensureNoteFallbackList returns another note list for notes that would
+// otherwise be stranded in the task inbox when their note list is deleted.
+// When the user has no other note list, a "我的笔记" list is created.
+func ensureNoteFallbackList(tx *gorm.DB, userID, excludeID int64) (*TaskList, error) {
+	var existing TaskList
+	err := tx.Where("user_id = ? AND kind = ? AND is_inbox = ? AND id <> ?", userID, "NOTE", false, excludeID).
+		Order("pinned DESC, order_index ASC, id ASC").
+		First(&existing).Error
+	if err == nil {
+		return &existing, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("find note fallback list: %w", err)
+	}
+	for index := 1; index <= 50; index++ {
+		name := "我的笔记"
+		if index > 1 {
+			name = fmt.Sprintf("我的笔记 %d", index)
+		}
+		var count int64
+		if err := tx.Model(&TaskList{}).Where("user_id = ? AND name = ?", userID, name).Count(&count).Error; err != nil {
+			return nil, fmt.Errorf("check note fallback name: %w", err)
+		}
+		if count > 0 {
+			continue
+		}
+		var maxOrder int
+		_ = tx.Model(&TaskList{}).Where("user_id = ?", userID).
+			Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
+		list := TaskList{UserID: userID, Name: name, Color: "#4772fa", Kind: "NOTE", Order: maxOrder + 1}
+		if err := tx.Create(&list).Error; err != nil {
+			return nil, fmt.Errorf("create note fallback list: %w", err)
+		}
+		return &list, nil
+	}
+	return nil, errors.New("could not create note fallback list")
 }
 
 // CountTasksInList reports how many open tasks a list holds.
@@ -807,11 +853,19 @@ func (s *Store) RestoreTask(ctx context.Context, userID, id int64) (*Task, error
 	}
 	listID := task.ListID
 	if _, err := s.GetTaskList(ctx, userID, listID); err != nil {
-		inbox, inboxErr := s.EnsureInbox(ctx, userID)
-		if inboxErr != nil {
-			return nil, inboxErr
+		if task.Kind == "NOTE" {
+			fallback, fallbackErr := ensureNoteFallbackList(s.db.WithContext(ctx), userID, 0)
+			if fallbackErr != nil {
+				return nil, fallbackErr
+			}
+			listID = fallback.ID
+		} else {
+			inbox, inboxErr := s.EnsureInbox(ctx, userID)
+			if inboxErr != nil {
+				return nil, inboxErr
+			}
+			listID = inbox.ID
 		}
-		listID = inbox.ID
 	}
 	err = s.db.WithContext(ctx).Model(&Task{}).
 		Where("id = ? AND user_id = ?", id, userID).

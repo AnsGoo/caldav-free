@@ -868,7 +868,9 @@
               <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option>
             </select>
           </label>
-          <p class="tw-modal-note">删除清单会把其中的任务移动到收集箱。</p>
+          <p class="tw-modal-note">
+            {{ editingList?.kind === 'NOTE' ? '删除笔记清单会把其中的笔记移动到其他笔记清单。' : '删除清单会把其中的任务移动到收集箱。' }}
+          </p>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="editVisible = false">取消</button>
@@ -1291,6 +1293,7 @@ const editNameInput = ref<HTMLInputElement | null>(null)
 const editVisible = ref(false)
 const editBusy = ref(false)
 const editForm = reactive({ id: 0, name: '', color: LIST_COLORS[0], folderId: 0 })
+const editingList = computed(() => lists.value.find((list) => list.id === editForm.id))
 const folderVisible = ref(false)
 const folderBusy = ref(false)
 const folderForm = reactive({ id: 0, name: '' })
@@ -2310,10 +2313,18 @@ async function runConfirm() {
 }
 
 function confirmDeleteList(list: TaskList) {
-  askConfirm('删除清单', `确定删除「${list.name}」吗？其中的任务会移动到收集箱。`, async () => {
+  const message =
+    list.kind === 'NOTE'
+      ? `确定删除「${list.name}」吗？其中的笔记会移动到其他笔记清单。`
+      : `确定删除「${list.name}」吗？其中的任务会移动到收集箱。`
+  askConfirm('删除清单', message, async () => {
     await deleteTaskList(list.id)
-    if (activeListId.value === list.id) selectView('all')
     await loadWorkspace(true)
+    if (activeListId.value === list.id) {
+      const fallback = list.kind === 'NOTE' ? lists.value.find((item) => item.kind === 'NOTE') : undefined
+      if (fallback) selectList(fallback.id)
+      else selectView('all')
+    }
   })
 }
 

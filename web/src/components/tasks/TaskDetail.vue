@@ -66,8 +66,8 @@
       </div>
 
       <div v-if="dateOpen" class="tw-date-panel">
-        <input v-model="draft.dueDate" type="date" class="tw-date-input" @change="save" />
-        <input v-model="draft.dueTime" type="time" class="tw-date-input" :disabled="draft.allDay" @change="save" />
+        <a-date-picker v-model="draft.dueDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" @change="save" />
+        <a-time-picker v-model="draft.dueTime" class="tw-date-control" format="HH:mm" size="small" :disabled="draft.allDay" @change="save" />
         <label class="tw-check-label">
           <input v-model="draft.allDay" type="checkbox" @change="save" />
           全天

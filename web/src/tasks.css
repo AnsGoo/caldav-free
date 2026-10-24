@@ -1123,12 +1123,18 @@
 
 .tw-ghost-button {
   height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 0 10px;
   border-radius: 7px;
   border: 1px solid var(--tw-border);
   background: transparent;
   color: var(--tw-text-2);
   font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -7023,3 +7029,316 @@ button.tw-side-link {
 .tw-habit-share-open { display: inline-block; margin-top: 10px; color: var(--tw-accent); font-size: 11px; text-decoration: none; }
 .tw-habit-share-open:hover { text-decoration: underline; }
 .tw-habit-share-foot { justify-content: space-between; }
+
+/* --------------------------------------------------------------- focus */
+.tw-focus {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--tw-bg);
+  overflow: hidden;
+}
+
+.tw-focus-head {
+  height: 70px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--tw-border);
+}
+
+.tw-focus-title { min-width: 180px; display: grid; gap: 2px; }
+.tw-focus-kicker { color: var(--tw-text-3); font-size: 8px; font-weight: 700; letter-spacing: 0.22em; }
+.tw-focus-title h1 { font-size: 20px; font-weight: 680; letter-spacing: -0.03em; }
+
+.tw-focus-mode { display: inline-flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: var(--tw-surface); }
+.tw-focus-mode button {
+  height: 30px; padding: 0 17px; border: 0; border-radius: 999px; background: transparent;
+  color: var(--tw-text-3); font-size: 12px; cursor: pointer; transition: 140ms ease;
+}
+.tw-focus-mode button.active { background: var(--tw-bg); color: var(--tw-text); box-shadow: 0 1px 4px rgba(20, 25, 35, 0.08); }
+.tw-focus-mode button:disabled { cursor: default; opacity: 0.65; }
+.tw-focus-head-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+
+.tw-focus-loading { flex: 1; display: grid; place-items: center; }
+.tw-focus-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+
+.tw-focus-main {
+  flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center;
+  padding: 18px 34px 26px; overflow: auto;
+}
+.tw-focus-target {
+  max-width: min(420px, 100%); height: 30px; display: inline-flex; align-items: center; gap: 7px;
+  padding: 0 11px; border: 1px solid transparent; border-radius: 999px; background: transparent;
+  color: var(--tw-text-3); font-size: 12px; cursor: pointer; transition: 140ms ease;
+}
+.tw-focus-target:hover, .tw-focus-target.active { border-color: var(--tw-border); background: var(--tw-surface); color: var(--tw-text-2); }
+.tw-focus-target > span:nth-child(2) { max-width: 290px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-focus-target-icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--tw-accent-soft); color: var(--tw-accent); }
+
+.tw-focus-stage { flex: 1; min-height: 440px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.tw-focus-ring { width: min(360px, 42vh); aspect-ratio: 1; position: relative; display: grid; place-items: center; }
+.tw-focus-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+.tw-focus-ring circle { fill: none; stroke-width: 7; }
+.tw-focus-ring .track { stroke: var(--tw-surface-2); }
+.tw-focus-ring .value { stroke: var(--tw-accent); stroke-linecap: round; stroke-dasharray: 1193.8; transition: stroke-dashoffset 260ms linear; }
+.tw-focus-clock { position: relative; z-index: 1; display: grid; justify-items: center; gap: 10px; }
+.tw-focus-clock strong { font-size: clamp(44px, 6vw, 62px); line-height: 1; font-weight: 500; letter-spacing: -0.055em; color: var(--tw-text); font-variant-numeric: tabular-nums; }
+.tw-focus-clock span { color: var(--tw-text-3); font-size: 11px; letter-spacing: 0.04em; }
+.tw-focus-phase-label { margin-top: -32px; margin-bottom: 28px; color: var(--tw-text-3); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+
+.tw-focus-controls { display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 34px; }
+.tw-focus-primary {
+  width: 172px; height: 46px; border: 0; border-radius: 999px; background: var(--tw-accent);
+  color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 12px 26px -16px var(--tw-accent);
+  transition: filter 140ms ease, transform 140ms ease;
+}
+.tw-focus-primary:hover { filter: brightness(1.05); }
+.tw-focus-primary:active { transform: translateY(1px); }
+.tw-focus-primary.pause { background: var(--tw-accent); }
+.tw-focus-secondary {
+  height: 46px; padding: 0 18px; border: 1px solid var(--tw-border); border-radius: 999px;
+  background: transparent; color: var(--tw-text-2); font-size: 13px; cursor: pointer;
+}
+.tw-focus-secondary:hover { background: var(--tw-surface); color: var(--tw-text); }
+.tw-focus-hint { margin-top: 14px; color: var(--tw-text-3); font-size: 10px; text-align: center; }
+
+.tw-focus-note { width: min(560px, 100%); margin-top: 28px; }
+.tw-focus-note header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--tw-text-2); font-size: 11px; }
+.tw-focus-note header small { color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-note textarea {
+  width: 100%; min-height: 82px; resize: vertical; padding: 11px 13px; border: 1px solid var(--tw-border);
+  border-radius: 11px; background: var(--tw-surface); color: var(--tw-text); font-size: 12px; line-height: 1.6; outline: none;
+}
+.tw-focus-note textarea:focus { border-color: var(--tw-accent); background: var(--tw-bg); }
+
+.tw-focus-side {
+  width: clamp(330px, 34%, 440px); flex: none; min-height: 0; overflow: auto;
+  border-left: 1px solid var(--tw-border); padding: 22px 22px 30px; background: var(--tw-sidebar);
+}
+.tw-focus-side-head { display: flex; align-items: center; justify-content: space-between; }
+.tw-focus-side-head h2 { font-size: 17px; font-weight: 650; letter-spacing: -0.02em; }
+.tw-focus-live-dot { display: inline-flex; align-items: center; gap: 5px; color: var(--tw-accent); font-size: 9px; }
+.tw-focus-live-dot::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--tw-accent); box-shadow: 0 0 0 4px var(--tw-accent-soft); }
+
+.tw-focus-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+.tw-focus-stats article { padding: 11px 12px 10px; border: 1px solid var(--tw-border); border-radius: 11px; background: var(--tw-bg); }
+.tw-focus-stats span { display: block; margin-bottom: 5px; color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-stats strong { font-size: 24px; font-weight: 660; letter-spacing: -0.04em; color: var(--tw-text); }
+.tw-focus-stats small { margin-left: 2px; color: var(--tw-text-3); font-size: 9px; font-weight: 400; }
+
+.tw-focus-current { margin-top: 12px; padding: 13px 14px; border: 1px solid var(--tw-border); border-radius: 12px; background: var(--tw-bg); }
+.tw-focus-current-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 5px 0; font-size: 10px; }
+.tw-focus-current-row span { color: var(--tw-text-3); }
+.tw-focus-current-row strong { max-width: 65%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tw-text-2); font-weight: 600; }
+.tw-focus-current p { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--tw-border); color: var(--tw-text-3); font-size: 10px; line-height: 1.6; }
+
+.tw-focus-history { margin-top: 25px; }
+.tw-focus-history > header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.tw-focus-history > header h2 { font-size: 15px; font-weight: 650; }
+.tw-focus-history > header span { color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-empty { display: grid; justify-items: center; gap: 7px; padding: 36px 12px; border: 1px dashed var(--tw-border); border-radius: 12px; text-align: center; }
+.tw-focus-empty-icon { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 16px; background: var(--tw-surface); color: var(--tw-text-3); }
+.tw-focus-empty strong { font-size: 11px; font-weight: 600; }
+.tw-focus-empty span { color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-day { margin-top: 16px; }
+.tw-focus-day-label { margin-bottom: 6px; color: var(--tw-text-3); font-size: 9px; letter-spacing: 0.04em; }
+.tw-focus-record { display: flex; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--tw-border); }
+.tw-focus-record-main { min-width: 0; flex: 1; }
+.tw-focus-record-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tw-focus-record-line strong { color: var(--tw-text-2); font-size: 11px; font-weight: 600; }
+.tw-focus-record-line span { color: var(--tw-text); font-size: 11px; font-weight: 650; }
+.tw-focus-record-meta { display: flex; align-items: center; gap: 7px; margin-top: 4px; color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-record-mode { padding: 2px 6px; border-radius: 999px; background: var(--tw-accent-soft); color: var(--tw-accent); }
+.tw-focus-record-target { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-focus-record p { margin-top: 5px; color: var(--tw-text-2); font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+.tw-focus-record-delete { opacity: 0; align-self: flex-start; width: 24px; height: 24px; }
+.tw-focus-record:hover .tw-focus-record-delete { opacity: 1; }
+
+.tw-focus-picker { width: min(440px, calc(100vw - 28px)); }
+.tw-focus-picker-tabs { display: flex; gap: 4px; padding: 0 20px; }
+.tw-focus-picker-tabs button { height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; color: var(--tw-text-3); font-size: 11px; cursor: pointer; }
+.tw-focus-picker-tabs button.active { background: var(--tw-accent-soft); color: var(--tw-accent); }
+.tw-focus-picker-search { display: flex; align-items: center; gap: 8px; margin: 12px 20px 8px; padding: 0 10px; height: 34px; border: 1px solid var(--tw-border); border-radius: 9px; color: var(--tw-text-3); }
+.tw-focus-picker-search input { flex: 1; border: 0; background: transparent; color: var(--tw-text); outline: none; font-size: 12px; }
+.tw-focus-picker-list { max-height: 320px; overflow: auto; padding: 0 12px 14px; }
+.tw-focus-picker-clear, .tw-focus-picker-item { width: 100%; display: flex; align-items: center; gap: 9px; padding: 9px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--tw-text-2); text-align: left; font-size: 11px; cursor: pointer; }
+.tw-focus-picker-clear { color: var(--tw-accent); }
+.tw-focus-picker-item:hover, .tw-focus-picker-clear:hover { background: var(--tw-hover); }
+.tw-focus-picker-icon { width: 23px; height: 23px; flex: none; display: grid; place-items: center; border-radius: 7px; background: var(--tw-surface); color: var(--tw-text-3); }
+.tw-focus-picker-item > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.tw-focus-settings, .tw-focus-manual, .tw-focus-stats-dialog { width: min(560px, calc(100vw - 28px)); }
+.tw-focus-settings-body { display: grid; gap: 12px; }
+.tw-focus-setting-card { padding: 4px 0; border: 1px solid var(--tw-border); border-radius: 12px; overflow: hidden; }
+.tw-focus-setting-card h3 { margin: 0; padding: 10px 13px 8px; color: var(--tw-text-2); font-size: 10px; font-weight: 650; }
+.tw-focus-setting-row, .tw-focus-setting-toggle { display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 0 13px; color: var(--tw-text-2); font-size: 11px; }
+.tw-focus-setting-row span, .tw-focus-setting-toggle span { flex: 1; }
+.tw-focus-setting-row input { width: 64px; height: 26px; padding: 0 7px; border: 1px solid var(--tw-border); border-radius: 7px; background: var(--tw-surface); color: var(--tw-text); font-size: 11px; outline: none; text-align: right; }
+.tw-focus-setting-row em { width: 42px; color: var(--tw-text-3); font-size: 9px; font-style: normal; }
+.tw-focus-setting-toggle { border-top: 1px solid var(--tw-border); }
+.tw-focus-setting-toggle:first-of-type { border-top: 0; }
+.tw-focus-setting-toggle input { width: 16px; height: 16px; accent-color: var(--tw-accent); }
+.tw-focus-manual-body { display: grid; gap: 10px; }
+.tw-focus-manual-body .tw-focus-target { justify-self: start; border-color: var(--tw-border); background: var(--tw-surface); }
+.tw-focus-field { display: grid; gap: 6px; color: var(--tw-text-3); font-size: 10px; }
+.tw-focus-field input, .tw-focus-field select, .tw-focus-field textarea { width: 100%; height: 34px; padding: 0 9px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-surface); color: var(--tw-text); font-size: 11px; outline: none; }
+.tw-focus-field textarea { height: 80px; padding: 9px; resize: vertical; line-height: 1.5; }
+.tw-focus-field input:focus, .tw-focus-field select:focus, .tw-focus-field textarea:focus { border-color: var(--tw-accent); background: var(--tw-bg); }
+.tw-focus-field-row { display: grid; grid-template-columns: 1fr 100px; gap: 10px; }
+.tw-focus-field.small input { text-align: center; }
+
+.tw-focus-stats-body { display: grid; gap: 18px; }
+.tw-focus-stats-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--tw-border); border-radius: 11px; background: var(--tw-border); }
+.tw-focus-stats-overview article { padding: 11px 10px; background: var(--tw-bg); }
+.tw-focus-stats-overview span { display: block; margin-bottom: 5px; color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-stats-overview strong { font-size: 20px; font-weight: 660; letter-spacing: -0.03em; }
+.tw-focus-stats-overview small { margin-left: 2px; color: var(--tw-text-3); font-size: 9px; font-weight: 400; }
+.tw-focus-stats-section { display: grid; gap: 10px; }
+.tw-focus-stats-section > header { display: flex; align-items: baseline; justify-content: space-between; }
+.tw-focus-stats-section > header strong { color: var(--tw-text); font-size: 12px; }
+.tw-focus-stats-section > header span { color: var(--tw-text-3); font-size: 10px; }
+.tw-focus-week-bars { height: 105px; display: flex; align-items: flex-end; gap: 7px; padding: 0 2px; border-bottom: 1px solid var(--tw-border); }
+.tw-focus-week-bar { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px; }
+.tw-focus-week-bar i { width: 100%; max-width: 34px; min-height: 3px; border-radius: 5px 5px 2px 2px; background: var(--tw-accent); opacity: 0.8; }
+.tw-focus-week-bar span { color: var(--tw-text-3); font-size: 9px; }
+.tw-focus-hour-bars { height: 54px; display: flex; align-items: flex-end; gap: 2px; border-bottom: 1px solid var(--tw-border); }
+.tw-focus-hour { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+.tw-focus-hour i { width: 100%; min-height: 2px; border-radius: 2px 2px 0 0; background: #b58bff; opacity: 0.8; }
+.tw-focus-hour-labels { display: flex; justify-content: space-between; color: var(--tw-text-3); font-size: 8px; }
+.tw-focus-heatmap { display: flex; gap: 3px; overflow: hidden; }
+.tw-focus-heatmap-week { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.tw-focus-heatmap-day { width: 100%; height: auto; aspect-ratio: 1; border-radius: 2px; background: var(--tw-surface-2); }
+.tw-focus-heatmap-day.level-0 { background: var(--tw-surface-2); }
+.tw-focus-heatmap-day.level-1, .tw-focus-heatmap-legend i.level-1 { background: rgba(151, 227, 139, 0.4); }
+.tw-focus-heatmap-day.level-2, .tw-focus-heatmap-legend i.level-2 { background: rgba(151, 227, 139, 0.65); }
+.tw-focus-heatmap-day.level-3, .tw-focus-heatmap-legend i.level-3 { background: #97e38b; }
+.tw-focus-heatmap-day.level-4, .tw-focus-heatmap-legend i.level-4 { background: #5eaa51; }
+.tw-focus-heatmap-legend { display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--tw-text-3); font-size: 8px; }
+.tw-focus-heatmap-legend i { width: 9px; height: 9px; border-radius: 2px; }
+.tw-focus-heatmap-legend i.level-0 { background: var(--tw-surface-2); }
+
+@media (max-width: 1080px) {
+  .tw-focus-side { width: 340px; padding-left: 18px; padding-right: 18px; }
+  .tw-focus-main { padding-left: 22px; padding-right: 22px; }
+}
+
+@media (max-width: 860px) {
+  .tw-focus-head { height: auto; min-height: 62px; flex-wrap: wrap; gap: 10px; padding: 12px 18px; }
+  .tw-focus-title { min-width: auto; }
+  .tw-focus-title h1 { font-size: 18px; }
+  .tw-focus-mode { order: 3; width: 100%; justify-content: center; }
+  .tw-focus-head-actions { margin-left: auto; }
+  .tw-focus-body { flex-direction: column; overflow: auto; }
+  .tw-focus-main { flex: none; min-height: 0; padding: 14px 18px 24px; overflow: visible; }
+  .tw-focus-stage { min-height: 400px; }
+  .tw-focus-side { width: 100%; flex: none; overflow: visible; border-left: 0; border-top: 1px solid var(--tw-border); padding: 20px 18px 30px; }
+}
+
+@media (max-width: 520px) {
+  .tw-focus-ring { width: min(280px, 52vh); }
+  .tw-focus-stage { min-height: 350px; }
+  .tw-focus-controls { margin-top: 24px; }
+  .tw-focus-primary { width: 150px; }
+  .tw-focus-stats-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tw-focus-heatmap { gap: 2px; }
+}
+
+/* Arco date/time controls keep native pickers out of the workspace. */
+.tw-date-control { width: 100%; }
+.tw-date-control.arco-picker,
+.tw-date-control .arco-picker { width: 100%; }
+.tw-date-control .arco-picker-input input { font-size: 12px; }
+
+/* Arco pickers follow the workspace theme. Arco teleports picker popups to
+   body, so the workspace mirrors its theme onto <html data-theme>. */
+html[data-theme='dark'] .tw-date-control.arco-picker {
+  background-color: var(--tw-surface) !important;
+  border-color: var(--tw-border) !important;
+  color: var(--tw-text);
+}
+html[data-theme='dark'] .tw-date-control.arco-picker:hover,
+html[data-theme='dark'] .tw-date-control.arco-picker-focused {
+  border-color: var(--tw-accent) !important;
+  background-color: var(--tw-bg) !important;
+}
+html[data-theme='dark'] .tw-date-control .arco-picker-input input,
+html[data-theme='dark'] .tw-date-control .arco-picker-input input::placeholder,
+html[data-theme='dark'] .tw-date-control .arco-picker-suffix,
+html[data-theme='dark'] .tw-date-control .arco-picker-prefix {
+  color: var(--tw-text-2);
+}
+html[data-theme='dark'] .tw-date-control .arco-picker-input input::placeholder { color: var(--tw-text-3); }
+
+html[data-theme='dark'] .arco-picker-container,
+html[data-theme='dark'] .arco-timepicker-container {
+  background: #202021;
+  border: 1px solid #2f2f32;
+  color: #ececee;
+  box-shadow: 0 18px 44px -12px rgba(0, 0, 0, 0.8);
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-header,
+html[data-theme='dark'] .arco-picker-container .arco-picker-header-title,
+html[data-theme='dark'] .arco-picker-container .arco-picker-header-label,
+html[data-theme='dark'] .arco-picker-container .arco-picker-week-list-item,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-inner,
+html[data-theme='dark'] .arco-timepicker-container .arco-timepicker-cell-inner,
+html[data-theme='dark'] .arco-timepicker-container .arco-timepicker-cell {
+  color: #d8d8dc;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell:not(.arco-picker-cell-selected):not(.arco-picker-cell-disabled):hover .arco-picker-cell-inner,
+html[data-theme='dark'] .arco-timepicker-container .arco-timepicker-cell:not(.arco-timepicker-cell-selected):hover {
+  background: #303033;
+  color: #fff;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-arco-picker-cell-today .arco-picker-cell-inner,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-picker-cell-inner {
+  border-color: #5b7cff;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-selected .arco-picker-cell-inner,
+html[data-theme='dark'] .arco-timepicker-container .arco-timepicker-cell-selected .arco-timepicker-cell-inner {
+  background: #5b7cff;
+  color: #fff;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-disabled,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-disabled .arco-picker-cell-inner {
+  color: #5c5c62;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-footer,
+html[data-theme='dark'] .arco-picker-container .arco-picker-footer-btn-wrapper,
+html[data-theme='dark'] .arco-timepicker-container .arco-timepicker-footer {
+  border-top-color: #2f2f32;
+  background: #202021;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-footer-btn,
+html[data-theme='dark'] .arco-picker-container .arco-picker-footer-btn-wrapper .arco-btn-text {
+  color: #a7a7ad;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-footer-btn-wrapper .arco-btn-primary,
+html[data-theme='dark'] .arco-picker-container .arco-picker-footer-btn-primary {
+  color: #5b7cff;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-time-panel .arco-timepicker-container { border: 0; }
+html[data-theme='dark'] .arco-picker-container .arco-picker-date-value,
+html[data-theme='dark'] .arco-picker-container .arco-picker-month-value,
+html[data-theme='dark'] .arco-picker-container .arco-picker-year-value {
+  color: #d8d8dc;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-selected .arco-picker-date-value,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-selected .arco-picker-month-value,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-selected .arco-picker-year-value {
+  background: #5b7cff;
+  color: #fff;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-disabled .arco-picker-date-value,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-disabled .arco-picker-month-value,
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-disabled .arco-picker-year-value {
+  color: #5c5c62;
+}
+html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-picker-date-value {
+  border-color: #5b7cff;
+}

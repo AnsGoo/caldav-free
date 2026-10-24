@@ -60,6 +60,8 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `habit_records` | 习惯打卡日志 |
 | `habit_focus_sessions` | 习惯专注历史：分钟、开始/完成时间 |
 | `habit_shares` | 习惯只读分享：习惯、随机 token、创建时间 |
+| `focus_sessions` | 专注记录：任务/习惯快照、模式、起止时间、暂停、时长、笔记 |
+| `focus_preferences` | 专注设置：番茄/休息时长、间隔、每日目标、自动与提示音偏好 |
 | `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
@@ -266,6 +268,16 @@ name:   任务
 - 单习惯导出复用备份结构，只包含该习惯及其所属分组、打卡、日志和专注历史；CSV 只导出打卡明细。
 - Dida XLSX 导入使用标准库 `archive/zip` 与 `encoding/xml` 解析工作表：首个单元格是基本信息块，后续表格按日期、完成情况、完成量、心情和日志转换为本项目习惯、打卡和日志。
 - 只读分享使用 `habit_shares` 中的随机 token，`/api/public/habit-shares/{token}` 不经过 admin 会话，只返回名称、图标、统计和最近 30 天打卡；撤销后立即删除 token。公开 API 按客户端 IP 限流 60 次/分钟，超限返回 429。公开页 `/share/habit/{token}` 在 `/share/` 下复用同一 SPA 构建产物，并在前端按路径切换 router base，避免落在 Nginx 的 `/admin/` 保护范围内。
+
+## 8.2 专注
+
+- `/tasks/focus` 使用独立 `FocusPanel`，左侧为计时器，右侧为概览与专注记录；工作台侧栏和任务工具栏在该路由隐藏。
+- 番茄计时保存计划时长，正计时按实际累计秒数保存；结束时可保存部分专注，暂停时长单独记录。
+- 专注记录通过 `focus_sessions` 持久化，关联任务/习惯时保存标题快照，避免后续改名破坏历史。
+- 番茄完成后按 `focus_preferences.longBreakInterval` 进入短休息或长休息；可自动开始休息和下一个番茄。
+- 计时状态保存在浏览器 localStorage，刷新页面后恢复；提示音使用 Web Audio，标签页计时通过 `document.title`。
+- 专注统计由 `FocusDashboard` 聚合：今日/累计番茄与时长、最近 7 天、当前年份热力图和 24 小时分布。
+- 工作台的日期与时间输入统一使用 Arco `DatePicker` / `TimePicker`，避免原生 picker 在深色主题和移动端上的交互差异。
 
 ## 9. 提醒
 

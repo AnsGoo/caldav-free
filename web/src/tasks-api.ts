@@ -1,7 +1,7 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, FocusDashboard, FocusPreference, FocusSession, FocusSessionDraft, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus'
 
 export function browserTimezone() {
   try {
@@ -584,4 +584,21 @@ export function deleteHabitSection(id: number) {
 
 export function fetchHabitCalendar(from: string, to: string) {
   return api<{ entries: HabitCalendarEntry[] }>(`/habits/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`)
+}
+
+
+export function fetchFocusDashboard() {
+  return api<FocusDashboard>('/focus')
+}
+
+export function saveFocusPreferences(payload: FocusPreference) {
+  return api<{ preferences: FocusPreference }>('/focus/preferences', { method: 'PATCH', body: JSON.stringify(payload) })
+}
+
+export function createFocusSession(payload: FocusSessionDraft) {
+  return api<{ session: FocusSession }>('/focus/sessions', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function deleteFocusSession(id: number) {
+  return api<void>(`/focus/sessions/${id}`, { method: 'DELETE' })
 }

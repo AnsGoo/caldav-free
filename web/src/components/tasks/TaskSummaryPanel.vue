@@ -109,9 +109,9 @@
           </select>
         </label>
         <div v-if="preset === 'custom'" class="tw-summary-custom-dates">
-          <input v-model="customFrom" type="date" />
+          <a-date-picker v-model="customFrom" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" />
           <span>→</span>
-          <input v-model="customTo" type="date" />
+          <a-date-picker v-model="customTo" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" />
         </div>
         <label class="tw-summary-field">
           <span>清单</span>

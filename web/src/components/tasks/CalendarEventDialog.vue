@@ -71,21 +71,21 @@
         <div class="tw-event-grid">
           <label class="tw-event-field">
             <span>开始日期</span>
-            <input v-model="form.startDate" type="date" class="tw-dialog-input" />
+            <a-date-picker v-model="form.startDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
           </label>
           <label v-if="!form.allDay" class="tw-event-field">
             <span>开始时间</span>
-            <input v-model="form.startTime" type="time" class="tw-dialog-input" />
+            <a-time-picker v-model="form.startTime" class="tw-date-control" format="HH:mm" />
           </label>
         </div>
         <div class="tw-event-grid">
           <label class="tw-event-field">
             <span>{{ form.allDay ? '结束日期（含）' : '结束日期' }}</span>
-            <input v-model="form.endDate" type="date" class="tw-dialog-input" />
+            <a-date-picker v-model="form.endDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
           </label>
           <label v-if="!form.allDay" class="tw-event-field">
             <span>结束时间</span>
-            <input v-model="form.endTime" type="time" class="tw-dialog-input" />
+            <a-time-picker v-model="form.endTime" class="tw-date-control" format="HH:mm" />
           </label>
         </div>
 

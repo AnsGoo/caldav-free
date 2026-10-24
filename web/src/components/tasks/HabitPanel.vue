@@ -265,7 +265,7 @@
           </label>
 
           <label class="tw-modal-label">开始日期
-            <input v-model="form.startDate" type="date" class="tw-dialog-input" />
+            <a-date-picker v-model="form.startDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
           </label>
 
           <label class="tw-modal-label">坚持天数
@@ -296,7 +296,7 @@
           <label class="tw-modal-label">提醒
             <div class="tw-habit-reminders">
               <div v-for="(_, index) in form.reminders" :key="index" class="tw-habit-reminder">
-                <input v-model="form.reminders[index]" type="time" class="tw-dialog-input" />
+                <a-time-picker v-model="form.reminders[index]" class="tw-date-control" format="HH:mm" />
                 <button class="tw-icon-button" title="删除提醒" @click.prevent="form.reminders.splice(index, 1)"><TaskIcon name="close" :size="12" /></button>
               </div>
               <button class="tw-habit-reminder-add" type="button" @click="form.reminders.push('10:00')">+ 添加提醒</button>

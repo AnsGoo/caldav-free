@@ -1279,7 +1279,49 @@ delete_task
 create_list
 ```
 
-## 15. 状态码
+## 15. 专注
+
+### GET /api/admin/focus
+
+返回专注偏好、今日/累计统计、最近记录、最近 7 天、年度热力图和 24 小时分布。
+
+### PATCH /api/admin/focus/preferences
+
+```json
+{
+  "pomodoroMinutes": 25,
+  "shortBreakMinutes": 5,
+  "longBreakMinutes": 15,
+  "longBreakInterval": 4,
+  "dailyGoal": 4,
+  "autoStartPomodoro": false,
+  "autoStartBreak": false,
+  "soundEnabled": true,
+  "tabTitleEnabled": false
+}
+```
+
+### POST /api/admin/focus/sessions
+
+```json
+{
+  "mode": "pomodoro",
+  "startedAt": "2026-10-24T10:00:00+08:00",
+  "endedAt": "2026-10-24T10:25:00+08:00",
+  "durationSeconds": 1500,
+  "pomodoroCount": 1,
+  "note": "完成方案初稿",
+  "taskId": 12
+}
+```
+
+`mode` 为 `pomodoro` 或 `stopwatch`；`taskId` / `habitId` 二选一，也可都不传。
+
+### DELETE /api/admin/focus/sessions/{id}
+
+删除当前用户的一条专注记录。
+
+## 16. 状态码
 
 | 状态码 | 说明 |
 | --- | --- |

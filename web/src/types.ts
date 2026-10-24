@@ -622,3 +622,82 @@ export interface HabitCalendarEntry {
   goal: number
   done: boolean
 }
+
+export type FocusMode = 'pomodoro' | 'stopwatch'
+
+export interface FocusPreference {
+  pomodoroMinutes: number
+  shortBreakMinutes: number
+  longBreakMinutes: number
+  longBreakInterval: number
+  dailyGoal: number
+  autoStartPomodoro: boolean
+  autoStartBreak: boolean
+  soundEnabled: boolean
+  tabTitleEnabled: boolean
+}
+
+export interface FocusSession {
+  id: number
+  taskId: number
+  habitId: number
+  title: string
+  mode: FocusMode
+  status: number
+  startedAt: string
+  endedAt: string
+  pauseSeconds: number
+  durationSeconds: number
+  pomodoroCount: number
+  note: string
+  createdAt: string
+}
+
+export interface FocusStats {
+  todayPomodoroCount: number
+  todayFocusMinutes: number
+  totalPomodoroCount: number
+  totalFocusMinutes: number
+  todayFocusSeconds: number
+  totalFocusSeconds: number
+  dailyGoal: number
+}
+
+export interface FocusDailyStat {
+  date: string
+  minutes: number
+  seconds: number
+}
+
+export interface FocusHeatmapDay {
+  date: string
+  minutes: number
+  seconds: number
+}
+
+export interface FocusHourlyStat {
+  hour: number
+  minutes: number
+  seconds: number
+}
+
+export interface FocusDashboard {
+  preferences: FocusPreference
+  stats: FocusStats
+  sessions: FocusSession[]
+  daily: FocusDailyStat[]
+  heatmap: FocusHeatmapDay[]
+  hourly: FocusHourlyStat[]
+}
+
+export interface FocusSessionDraft {
+  taskId?: number
+  habitId?: number
+  mode: FocusMode
+  startedAt: string
+  endedAt: string
+  pauseSeconds?: number
+  durationSeconds?: number
+  pomodoroCount?: number
+  note?: string
+}

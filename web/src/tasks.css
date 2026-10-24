@@ -7932,3 +7932,6 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-habit-batch-bar .tw-ghost-button { height: 27px; font-size: 10.5px; }
 .tw-habit-batch-bar .tw-ghost-button.danger { border-color: color-mix(in srgb, var(--tw-danger) 40%, var(--tw-border)); color: var(--tw-danger); }
 .tw-habit-batch-bar button:disabled { opacity: .4; cursor: not-allowed; }
+
+.tw-focus-remote-note { align-self: center; display: inline-flex; align-items: center; gap: 7px; margin: -2px 0 8px; padding: 5px 7px 5px 10px; border: 1px solid color-mix(in srgb, var(--tw-accent) 32%, var(--tw-border)); border-radius: 999px; background: var(--tw-accent-soft); color: var(--tw-accent); font-size: 10.5px; }
+.tw-focus-remote-note .tw-icon-button { width: 20px; height: 20px; color: var(--tw-accent); }

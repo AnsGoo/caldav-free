@@ -25,6 +25,12 @@
           <TaskIcon name="chevron" :size="12" />
         </button>
 
+        <div v-if="remoteNotice" class="tw-focus-remote-note" role="status">
+          <TaskIcon name="clock" :size="13" />
+          <span>{{ remoteNotice }}</span>
+          <button class="tw-icon-button" title="关闭提示" @click="remoteNotice = ''"><TaskIcon name="close" :size="12" /></button>
+        </div>
+
         <div class="tw-focus-stage">
           <div class="tw-focus-ring" :style="{ '--focus-progress': progress }">
             <svg viewBox="0 0 400 400" aria-hidden="true">
@@ -295,6 +301,7 @@ const serverRevision = ref(0)
 const serverTimerKnown = ref(false)
 const syncReady = ref(false)
 const applyingRemote = ref(false)
+const remoteNotice = ref('')
 const preferences = ref<FocusPreference>(defaultPreferences())
 
 const settingsOpen = ref(false)
@@ -332,6 +339,7 @@ const pickerLists = computed(() => {
 let ticker: ReturnType<typeof setInterval> | undefined
 let syncTicker: ReturnType<typeof setInterval> | undefined
 let focusSource: EventSource | null = null
+let remoteNoticeTimer: ReturnType<typeof setTimeout> | undefined
 let syncDebounce: ReturnType<typeof setTimeout> | undefined
 let transitionTimer: ReturnType<typeof setTimeout> | undefined
 let audioContext: AudioContext | null = null
@@ -952,10 +960,22 @@ function applyServerTimer(timer: FocusTimerView) {
   setTimeout(() => { applyingRemote.value = false }, 0)
 }
 
-function applyTimerSnapshot(timer: FocusTimerView | null) {
+function showRemoteNotice(message: string) {
+  remoteNotice.value = message
+  if (remoteNoticeTimer) clearTimeout(remoteNoticeTimer)
+  remoteNoticeTimer = setTimeout(() => { remoteNotice.value = '' }, 6000)
+}
+
+function applyTimerSnapshot(timer: FocusTimerView | null, source: 'sync' | 'stream' = 'sync') {
   if (!syncReady.value || applyingRemote.value) return
   if (timer) {
-    if (timer.revision > serverRevision.value) applyServerTimer(timer)
+    if (timer.revision > serverRevision.value) {
+      applyServerTimer(timer)
+      if (source === 'stream') {
+        if (timer.status === 'paused') showRemoteNotice('专注已在其他设备暂停')
+        else if (timer.status === 'running') showRemoteNotice('专注状态已在其他设备更新')
+      }
+    }
     return
   }
   if (serverTimerKnown.value && timerState.value !== 'idle') {
@@ -963,6 +983,7 @@ function applyTimerSnapshot(timer: FocusTimerView | null) {
     resetForFocus()
     serverTimerKnown.value = false
     serverRevision.value = 0
+    if (source === 'stream') showRemoteNotice('专注计时已在其他设备结束')
     void loadDashboard()
   } else if (timerState.value !== 'idle') {
     void pushTimerState()
@@ -986,7 +1007,7 @@ function startTimerSync() {
     focusSource.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as { timer: FocusTimerView | null }
-        applyTimerSnapshot(payload.timer || null)
+        applyTimerSnapshot(payload.timer || null, 'stream')
       } catch {
         // Ignore malformed keepalive data; EventSource will reconnect.
       }
@@ -1103,6 +1124,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (remoteNoticeTimer) clearTimeout(remoteNoticeTimer)
   stopTicker()
   stopTimerSync()
   if (transitionTimer) clearTimeout(transitionTimer)

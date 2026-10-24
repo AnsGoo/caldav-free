@@ -160,8 +160,11 @@
       <TaskMatrixPanel
         v-if="view === 'matrix'"
         :tasks="filteredTasks"
+        :rule="matrixRule"
         @open="openTask"
         @toggle="toggleTask"
+        @move="moveTaskToQuadrant"
+        @change-rule="setMatrixRule"
       />
       <div v-else class="tw-scroll">
         <div class="tw-content">
@@ -801,6 +804,7 @@ const calendarReload = ref(0)
 const eventDialogOpen = ref(false)
 const editingEvent = ref<CalendarEvent | null>(null)
 const calendarFocus = ref<{ calendarId: number; href: string; occurrence: string } | null>(null)
+const matrixRule = ref<'simple' | 'complex'>('simple')
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
@@ -1447,6 +1451,25 @@ async function rescheduleEvent(payload: { event: CalendarEvent; start: string; e
     Message.success(event.recurring ? '重复日程已整体改期' : '日程已改期')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '日程改期失败')
+  }
+}
+
+function setMatrixRule(rule: 'simple' | 'complex') {
+  matrixRule.value = rule
+  try {
+    localStorage.setItem('caldav-matrix-rule', rule)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function moveTaskToQuadrant(payload: { task: TaskItem; priority: number }) {
+  try {
+    const { task } = await updateTask(payload.task.id, { priority: payload.priority })
+    replaceTask(task)
+    Message.success('已移动到对应象限')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '移动任务失败')
   }
 }
 

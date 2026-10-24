@@ -5784,3 +5784,51 @@ button.tw-side-link {
     max-width: 55%;
   }
 }
+
+.tw-matrix-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tw-matrix-rule {
+  display: flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--tw-surface);
+}
+
+.tw-matrix-rule button {
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.tw-matrix-rule button.active {
+  background: var(--tw-bg);
+  color: var(--tw-text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.tw-matrix-card.drag-over {
+  border-color: var(--matrix-color);
+  box-shadow: inset 0 0 0 1px var(--matrix-color);
+}
+
+@media (max-width: 560px) {
+  .tw-matrix-head-actions {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .tw-matrix-rule button {
+    padding: 0 6px;
+    font-size: 10px;
+  }
+}

@@ -3,9 +3,15 @@
     <header class="tw-matrix-head">
       <div>
         <h2>四象限</h2>
-        <p>按优先级分组 · 重要且紧急 / 重要不紧急 / 不重要但紧急 / 不重要不紧急</p>
+        <p>{{ rule === 'simple' ? '按优先级分组' : '按优先级 + 截止日期分组' }} · 拖动任务可修改优先级</p>
       </div>
-      <span class="tw-matrix-total">{{ tasks.length }} 项</span>
+      <div class="tw-matrix-head-actions">
+        <div class="tw-matrix-rule">
+          <button :class="{ active: rule === 'simple' }" @click="$emit('change-rule', 'simple')">按优先级</button>
+          <button :class="{ active: rule === 'complex' }" @click="$emit('change-rule', 'complex')">优先级 + 日期</button>
+        </div>
+        <span class="tw-matrix-total">{{ tasks.length }} 项</span>
+      </div>
     </header>
 
     <div class="tw-matrix-grid">
@@ -13,7 +19,11 @@
         v-for="quadrant in quadrants"
         :key="quadrant.id"
         class="tw-matrix-card"
+        :class="{ 'drag-over': dragOver === quadrant.id }"
         :style="{ '--matrix-color': quadrant.color }"
+        @dragover.prevent="dragTask && rule === 'simple' ? (dragOver = quadrant.id) : null"
+        @dragleave="dragOver = ''"
+        @drop.prevent="dropOnQuadrant(quadrant.id)"
       >
         <header class="tw-matrix-card-head">
           <span class="tw-matrix-icon">
@@ -39,6 +49,9 @@
                 :key="task.id"
                 class="tw-matrix-row"
                 :class="{ done: task.completed }"
+                :draggable="rule === 'simple'"
+                @dragstart="startDrag(task, $event)"
+                @dragend="dragTask = null; dragOver = ''"
                 @click="$emit('open', task)"
               >
                 <span
@@ -73,22 +86,38 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { TaskItem } from '../../types'
 import { dayKey, formatDue, isOverdue, recurrenceLabel, startOfToday } from '../../tasks-utils'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ tasks: TaskItem[] }>()
-defineEmits<{
+const props = defineProps<{ tasks: TaskItem[]; rule: 'simple' | 'complex' }>()
+
+const emit = defineEmits<{
   (event: 'open', task: TaskItem): void
   (event: 'toggle', task: TaskItem): void
+  (event: 'move', payload: { task: TaskItem; priority: number }): void
+  (event: 'change-rule', rule: 'simple' | 'complex'): void
 }>()
+
+const dragTask = ref<TaskItem | null>(null)
+const dragOver = ref('')
 
 const quadrants = computed(() => {
   const buckets: Record<string, TaskItem[]> = { q1: [], q2: [], q3: [], q4: [] }
+  const tomorrowEnd = new Date(startOfToday())
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 2)
   for (const task of props.tasks) {
     const priority = task.priority > 3 || task.priority < 0 ? 0 : task.priority
-    const key = priority === 3 ? 'q1' : priority === 2 ? 'q2' : priority === 1 ? 'q3' : 'q4'
+    let key: string
+    if (props.rule === 'simple') {
+      key = priority === 3 ? 'q1' : priority === 2 ? 'q2' : priority === 1 ? 'q3' : 'q4'
+    } else {
+      const important = priority >= 2
+      const due = task.due ? new Date(task.due) : null
+      const urgent = Boolean(due && due.getTime() < tomorrowEnd.getTime())
+      key = important ? (urgent ? 'q1' : 'q2') : (urgent ? 'q3' : 'q4')
+    }
     buckets[key].push(task)
   }
   return [
@@ -98,6 +127,24 @@ const quadrants = computed(() => {
     { id: 'q4', label: '不重要不紧急', color: '#0cce9c', tasks: buckets.q4, groups: group(buckets.q4) },
   ]
 })
+
+function startDrag(task: TaskItem, event: DragEvent) {
+  if (props.rule !== 'simple') return
+  dragTask.value = task
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(task.id))
+  }
+}
+
+function dropOnQuadrant(quadrant: string) {
+  const task = dragTask.value
+  dragTask.value = null
+  dragOver.value = ''
+  if (!task || props.rule !== 'simple') return
+  const priority = quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0
+  if (task.priority !== priority) emit('move', { task, priority })
+}
 
 function group(tasks: TaskItem[]) {
   const today = startOfToday()

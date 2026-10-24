@@ -7958,3 +7958,9 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-countdown-detail-body.has-preset .tw-countdown-detail-age { color: rgba(29, 33, 41, 0.64); }
 .tw-countdown-detail-body.has-preset .tw-countdown-detail-note { background: rgba(255, 255, 255, 0.5); color: rgba(29, 33, 41, 0.78); }
 .tw-countdown-detail-body.has-preset .tw-countdown-detail-reminders { border-top-color: rgba(29, 33, 41, 0.18); color: rgba(29, 33, 41, 0.64); }
+
+.tw-habit-card-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; color: var(--tw-text-3); font-size: 9.5px; }
+.tw-habit-card-meta span { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 999px; background: var(--tw-surface); }
+.tw-habit-content.card-mode .tw-habit-items { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.tw-habit-content.card-mode .tw-habit-info { min-width: 0; }
+.tw-habit-content.card-mode .tw-habit-item { gap: 10px; }

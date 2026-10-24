@@ -70,6 +70,11 @@
                   <span><TaskIcon name="habit" :size="12" /> 总 {{ habit.totalCheckIns }} 天</span>
                   <span class="streak"><TaskIcon name="flag" :size="12" /> 连续 {{ habit.currentStreak }} 天</span>
                 </div>
+                <div v-if="displayType === 'card'" class="tw-habit-card-meta">
+                  <span>{{ habitFrequencyLabel(habit) }}</span>
+                  <span v-if="habit.goal > 1">今日 {{ checkinValue(habit.id, todayStamp) }}/{{ habit.goal }} {{ habit.unit === 'Count' ? '次' : habit.unit }}</span>
+                  <span v-if="sectionName(habit.sectionId)">{{ sectionName(habit.sectionId) }}</span>
+                </div>
               </div>
               <div class="tw-habit-days">
                 <button
@@ -548,6 +553,21 @@ const exDateInput = ref('')
 const selectedHabit = computed(() => habits.value.find((habit) => habit.id === selectedHabitId.value) || null)
 const allArchivedSelected = computed(() => habits.value.length > 0 && habits.value.every((habit) => archivedSelected.value.has(habit.id)))
 const displayType = computed<'list' | 'card'>(() => preferences.value.displayType === 'card' ? 'card' : 'list')
+
+const todayStamp = stampOf(new Date())
+
+function habitFrequencyLabel(habit: HabitItem) {
+  const frequency = parseFrequency(habit.frequency)
+  if (frequency.type === 'weekly') return `每周 ${frequency.daysPerWeek} 天`
+  if (frequency.type === 'interval') return `每 ${frequency.interval} 天`
+  const weekdays = frequency.weekdays?.length || 7
+  if (weekdays >= 7) return '每天'
+  return `每周 ${weekdays} 天`
+}
+
+function sectionName(id: number) {
+  return sections.value.find((section) => section.id === id)?.name || ''
+}
 
 const weekDays = computed(() => {
   const today = new Date()

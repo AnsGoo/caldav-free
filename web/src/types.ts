@@ -320,6 +320,7 @@ export interface CalendarEvent {
   allDay: boolean
   recurring: boolean
   reminders: number[]
+  attendees?: string[]
   recurrenceId?: string
 }
 

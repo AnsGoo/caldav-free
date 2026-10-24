@@ -114,19 +114,20 @@ type apiCalendar struct {
 }
 
 type apiEvent struct {
-	Href          string `json:"href"`
-	UID           string `json:"uid"`
-	Summary       string `json:"summary"`
-	Location      string `json:"location"`
-	Description   string `json:"description"`
-	RRule         string `json:"rrule"`
-	Start         string `json:"start"`
-	End           string `json:"end"`
-	AllDay        bool   `json:"allDay"`
-	Recurring     bool   `json:"recurring"`
-	Reminders     []int  `json:"reminders"`
-	Size          int64  `json:"size"`
-	ComponentType string `json:"componentType"`
+	Href          string   `json:"href"`
+	UID           string   `json:"uid"`
+	Summary       string   `json:"summary"`
+	Location      string   `json:"location"`
+	Description   string   `json:"description"`
+	RRule         string   `json:"rrule"`
+	Start         string   `json:"start"`
+	End           string   `json:"end"`
+	AllDay        bool     `json:"allDay"`
+	Recurring     bool     `json:"recurring"`
+	Reminders     []int    `json:"reminders"`
+	Attendees     []string `json:"attendees,omitempty"`
+	Size          int64    `json:"size"`
+	ComponentType string   `json:"componentType"`
 }
 
 type apiStats struct {
@@ -194,6 +195,7 @@ func eventDTO(cal *store.Calendar, obj *store.Object) apiEvent {
 	dto.Description = ical.UnescapeText(comp.Value("DESCRIPTION"))
 	dto.RRule = strings.TrimSpace(comp.Value("RRULE"))
 	dto.Reminders = parseEventReminders(comp)
+	dto.Attendees = parseEventAttendees(comp)
 	start, end, allDay, err := parsed.ComponentTimes(comp)
 	if err == nil {
 		dto.AllDay = allDay
@@ -753,7 +755,7 @@ func (s *Server) apiCreateEvent(w http.ResponseWriter, r *http.Request, _ *store
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	data, uid, err := buildEventICS(cal, "", body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count, body.Reminders)
+	data, uid, err := buildEventICS(cal, "", body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count, body.Reminders, body.Attendees)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
@@ -853,7 +855,7 @@ func (s *Server) apiPatchEvent(w http.ResponseWriter, r *http.Request, _ *store.
 		writeAPIJSON(w, http.StatusOK, map[string]any{"event": eventDTO(cal, obj), "data": string(data)})
 		return
 	}
-	data, uid, err := buildEventICS(cal, obj.UID, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count, body.Reminders)
+	data, uid, err := buildEventICS(cal, obj.UID, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, body.RRule, body.Count, body.Reminders, body.Attendees)
 	if err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1089,7 +1091,7 @@ func parseAPITimes(startRaw, endRaw string, allDay bool, loc *time.Location) (ti
 	return start, end, nil
 }
 
-func buildEventICS(cal *store.Calendar, uid, summary, location, description string, start, end time.Time, allDay bool, tzid, rrule string, count int, reminders []int) ([]byte, string, error) {
+func buildEventICS(cal *store.Calendar, uid, summary, location, description string, start, end time.Time, allDay bool, tzid, rrule string, count int, reminders []int, attendees []string) ([]byte, string, error) {
 	if strings.TrimSpace(uid) == "" {
 		uid = auth.RandomToken(12) + "@caldav-free"
 	}
@@ -1121,6 +1123,18 @@ func buildEventICS(cal *store.Calendar, uid, summary, location, description stri
 	}
 	if strings.TrimSpace(location) != "" {
 		ev.AddProp("LOCATION", ical.EscapeText(strings.TrimSpace(location)), nil)
+	}
+	seenAttendees := make(map[string]bool)
+	for _, attendee := range attendees {
+		attendee = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(attendee, "mailto:"), "MAILTO:"))
+		if attendee == "" || seenAttendees[attendee] {
+			continue
+		}
+		seenAttendees[attendee] = true
+		ev.AddProp("ATTENDEE", "mailto:"+attendee, ical.Params{"ROLE": {"REQ-PARTICIPANT"}})
+		if len(seenAttendees) >= 50 {
+			break
+		}
 	}
 	ev.AddProp("STATUS", "CONFIRMED", nil)
 	rule := strings.TrimSpace(rrule)

@@ -11,17 +11,18 @@ import (
 )
 
 type eventPatchBody struct {
-	Summary      string `json:"summary"`
-	Location     string `json:"location"`
-	Description  string `json:"description"`
-	Start        string `json:"start"`
-	End          string `json:"end"`
-	AllDay       bool   `json:"allDay"`
-	RRule        string `json:"rrule"`
-	Count        int    `json:"count"`
-	RecurrenceID string `json:"recurrenceId"`
-	Scope        string `json:"scope"`
-	Reminders    []int  `json:"reminders"`
+	Summary      string   `json:"summary"`
+	Location     string   `json:"location"`
+	Description  string   `json:"description"`
+	Start        string   `json:"start"`
+	End          string   `json:"end"`
+	AllDay       bool     `json:"allDay"`
+	RRule        string   `json:"rrule"`
+	Count        int      `json:"count"`
+	RecurrenceID string   `json:"recurrenceId"`
+	Scope        string   `json:"scope"`
+	Reminders    []int    `json:"reminders"`
+	Attendees    []string `json:"attendees,omitempty"`
 }
 
 func parseOccurrenceID(raw string, loc *time.Location) (time.Time, bool, error) {
@@ -65,7 +66,7 @@ func buildOccurrenceUpdate(cal *store.Calendar, obj *store.Object, body eventPat
 	if err != nil {
 		return nil, err
 	}
-	data, _, err := buildEventICS(cal, uid, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, "", 0, body.Reminders)
+	data, _, err := buildEventICS(cal, uid, body.Summary, body.Location, body.Description, start, end, body.AllDay, tzid, "", 0, body.Reminders, body.Attendees)
 	if err != nil {
 		return nil, err
 	}

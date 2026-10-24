@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestTaskAPICalendarEvents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ics := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:meeting@test\r\nDTSTART;TZID=Asia/Shanghai:20261020T090000\r\nDTEND;TZID=Asia/Shanghai:20261020T100000\r\nRRULE:FREQ=DAILY;COUNT=3\r\nSUMMARY:每日同步\r\nLOCATION:会议室\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+	ics := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:meeting@test\r\nDTSTART;TZID=Asia/Shanghai:20261020T090000\r\nDTEND;TZID=Asia/Shanghai:20261020T100000\r\nRRULE:FREQ=DAILY;COUNT=3\r\nSUMMARY:每日同步\r\nLOCATION:会议室\r\nATTENDEE;ROLE=REQ-PARTICIPANT:mailto:a@example.com\r\nATTENDEE:mailto:b@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 	parsed, err := ical.Load([]byte(ics), cal.Timezone)
 	if err != nil {
 		t.Fatal(err)
@@ -44,11 +45,12 @@ func TestTaskAPICalendarEvents(t *testing.T) {
 			Name string `json:"name"`
 		} `json:"calendars"`
 		Events []struct {
-			Summary    string `json:"summary"`
-			Location   string `json:"location"`
-			CalendarID int64  `json:"calendarId"`
-			AllDay     bool   `json:"allDay"`
-			Start      string `json:"start"`
+			Summary    string   `json:"summary"`
+			Location   string   `json:"location"`
+			CalendarID int64    `json:"calendarId"`
+			AllDay     bool     `json:"allDay"`
+			Start      string   `json:"start"`
+			Attendees  []string `json:"attendees"`
 		} `json:"events"`
 	}](t, body)
 	if len(result.Calendars) != 1 || result.Calendars[0].Name != "工作" {
@@ -61,6 +63,9 @@ func TestTaskAPICalendarEvents(t *testing.T) {
 		if event.Summary != "每日同步" || event.Location != "会议室" || event.CalendarID != cal.ID || event.AllDay {
 			t.Fatalf("unexpected event: %+v", event)
 		}
+		if len(event.Attendees) != 2 || event.Attendees[0] != "a@example.com" || event.Attendees[1] != "b@example.com" {
+			t.Fatalf("attendees = %+v", event.Attendees)
+		}
 		when, err := time.Parse(time.RFC3339, event.Start)
 		if err != nil || when.Hour() != 9 {
 			t.Fatalf("unexpected start: %q (%v)", event.Start, err)
@@ -70,5 +75,46 @@ func TestTaskAPICalendarEvents(t *testing.T) {
 	status, _ = env.request(t, "GET", "/api/admin/tasks/calendar?from=bad&to=worse", nil, "")
 	if status != http.StatusBadRequest {
 		t.Fatalf("invalid range = %d", status)
+	}
+}
+
+func TestCreateCalendarEventWithAttendees(t *testing.T) {
+	env := newAPIEnv(t)
+	ctx := context.Background()
+	cal, err := env.store.CreateCalendar(ctx, env.userID, "team", "团队", "", "#4772fa", "Asia/Shanghai", 0, []string{"VEVENT"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, body := env.request(t, http.MethodPost, "/api/admin/calendars/"+strconv.FormatInt(cal.ID, 10)+"/events", map[string]any{
+		"summary": "评审", "start": "2026-10-28T10:00:00+08:00", "end": "2026-10-28T11:00:00+08:00", "allDay": false,
+		"attendees": []string{"a@example.com", "b@example.com", "a@example.com"},
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create event = %d: %s", status, body)
+	}
+	created := decode[struct {
+		Event struct {
+			Href      string   `json:"href"`
+			Attendees []string `json:"attendees"`
+		} `json:"event"`
+	}](t, body)
+	if len(created.Event.Attendees) != 2 {
+		t.Fatalf("attendees = %+v", created.Event.Attendees)
+	}
+	status, body = env.request(t, http.MethodPatch, "/api/admin/calendars/"+strconv.FormatInt(cal.ID, 10)+"/events/"+created.Event.Href, map[string]any{
+		"summary": "评审（改）", "start": "2026-10-28T10:00:00+08:00", "end": "2026-10-28T11:00:00+08:00", "allDay": false,
+		"attendees": []string{"a@example.com", "b@example.com", "a@example.com"},
+	}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("update event = %d: %s", status, body)
+	}
+	updated := decode[struct {
+		Event struct {
+			Summary   string   `json:"summary"`
+			Attendees []string `json:"attendees"`
+		} `json:"event"`
+	}](t, body)
+	if updated.Event.Summary != "评审（改）" || len(updated.Event.Attendees) != 2 {
+		t.Fatalf("unexpected updated event: %+v", updated.Event)
 	}
 }

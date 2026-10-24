@@ -19,22 +19,23 @@ type apiCalendarSource struct {
 }
 
 type apiCalendarEvent struct {
-	ID           string `json:"id"`
-	UID          string `json:"uid"`
-	Href         string `json:"href"`
-	CalendarID   int64  `json:"calendarId"`
-	CalendarName string `json:"calendarName"`
-	Color        string `json:"color"`
-	Summary      string `json:"summary"`
-	Location     string `json:"location"`
-	Description  string `json:"description"`
-	RRule        string `json:"rrule"`
-	Start        string `json:"start"`
-	End          string `json:"end"`
-	AllDay       bool   `json:"allDay"`
-	Recurring    bool   `json:"recurring"`
-	Reminders    []int  `json:"reminders"`
-	RecurrenceID string `json:"recurrenceId,omitempty"`
+	ID           string   `json:"id"`
+	UID          string   `json:"uid"`
+	Href         string   `json:"href"`
+	CalendarID   int64    `json:"calendarId"`
+	CalendarName string   `json:"calendarName"`
+	Color        string   `json:"color"`
+	Summary      string   `json:"summary"`
+	Location     string   `json:"location"`
+	Description  string   `json:"description"`
+	RRule        string   `json:"rrule"`
+	Start        string   `json:"start"`
+	End          string   `json:"end"`
+	AllDay       bool     `json:"allDay"`
+	Recurring    bool     `json:"recurring"`
+	Reminders    []int    `json:"reminders"`
+	Attendees    []string `json:"attendees,omitempty"`
+	RecurrenceID string   `json:"recurrenceId,omitempty"`
 }
 
 // apiTaskCalendarEvents expands VEVENTs from all of the current user's
@@ -111,6 +112,7 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 					AllDay:       instance.AllDay,
 					Recurring:    obj.Recurring,
 					Reminders:    parseEventReminders(comp),
+					Attendees:    parseEventAttendees(comp),
 					RecurrenceID: recurrenceID,
 				})
 				if len(events) >= 2000 {
@@ -159,4 +161,23 @@ func parseEventRange(r *http.Request) (time.Time, time.Time, bool) {
 		return time.Time{}, time.Time{}, false
 	}
 	return from, to, true
+}
+
+func parseEventAttendees(comp *ical.Component) []string {
+	seen := make(map[string]bool)
+	out := make([]string, 0, 4)
+	for _, prop := range comp.All("ATTENDEE") {
+		value := strings.TrimSpace(ical.UnescapeText(prop.Value))
+		value = strings.TrimPrefix(value, "mailto:")
+		value = strings.TrimPrefix(value, "MAILTO:")
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+		if len(out) >= 50 {
+			break
+		}
+	}
+	return out
 }

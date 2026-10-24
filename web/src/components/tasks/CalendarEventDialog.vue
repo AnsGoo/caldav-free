@@ -94,6 +94,11 @@
           <input v-model="form.location" class="tw-dialog-input" maxlength="500" placeholder="可选" />
         </label>
         <label class="tw-event-field">
+          <span>参与人</span>
+          <input v-model="form.attendees" class="tw-dialog-input" maxlength="2000" placeholder="邮箱，用逗号分隔" />
+        </label>
+        <p class="tw-reminder-warning">参与人只写入日程，不会自动发送邀请邮件。</p>
+        <label class="tw-event-field">
           <span>描述</span>
           <textarea v-model="form.description" class="tw-event-textarea" rows="3" placeholder="可选" />
         </label>
@@ -150,6 +155,7 @@ const form = reactive({
   summary: '',
   location: '',
   description: '',
+  attendees: '',
   allDay: false,
   startDate: '',
   startTime: '09:00',
@@ -185,6 +191,7 @@ function hydrate() {
     form.summary = event.summary
     form.location = event.location || ''
     form.description = event.description || ''
+    form.attendees = (event.attendees || []).join(', ')
     form.allDay = event.allDay
     form.startDate = dateInput(start)
     form.startTime = timeInput(start)
@@ -209,6 +216,7 @@ function hydrate() {
     form.summary = ''
     form.location = ''
     form.description = ''
+    form.attendees = ''
     form.allDay = false
     form.startDate = dateInput(start)
     form.startTime = '09:00'
@@ -271,6 +279,7 @@ async function save() {
       allDay: form.allDay,
       rrule: form.rrule.trim(),
       reminders: form.reminder >= 0 ? [form.reminder] : [],
+      attendees: [...new Set(form.attendees.split(/[,，;\n]/).map((item) => item.trim()).filter(Boolean))].slice(0, 50),
       ...(props.event && props.event.recurring && scope.value === 'single'
         ? { recurrenceId: props.event.recurrenceId || props.event.start, scope: 'single' as const }
         : { scope: 'series' as const }),

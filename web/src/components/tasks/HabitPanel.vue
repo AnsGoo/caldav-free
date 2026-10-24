@@ -46,8 +46,14 @@
               v-for="habit in group.habits"
               :key="habit.id"
               class="tw-habit-item"
-              :class="{ selected: selectedHabitId === habit.id }"
+              :class="{ selected: selectedHabitId === habit.id, dragging: draggingHabitId === habit.id, 'drag-over': dragOverHabitId === habit.id && draggingHabitId !== habit.id }"
+              :draggable="!archived && !preferences.groupByCompleted"
               @click="openDetail(habit)"
+              @dragstart="startHabitDrag(habit, $event)"
+              @dragover.prevent="dragOverHabitId = habit.id"
+              @dragleave="dragOverHabitId = 0"
+              @drop.prevent="dropHabit(habit)"
+              @dragend="draggingHabitId = 0; dragOverHabitId = 0"
             >
               <div class="tw-habit-icon" :style="{ backgroundColor: habit.color || '#97E38B' }">{{ habit.icon || '😊' }}</div>
               <div class="tw-habit-info">
@@ -66,7 +72,8 @@
                   :title="`${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
                   @click.stop="startCheckin(habit, day.stamp)"
                 >
-                  <TaskIcon v-if="isDone(habit.id, day.stamp)" name="check" :size="11" />
+                  <TaskIcon v-if="isDone(habit.id, day.stamp) && habit.style !== 'icon'" name="check" :size="11" />
+                  <span v-else-if="isDone(habit.id, day.stamp)" class="tw-habit-day-emoji">{{ habit.icon || '✓' }}</span>
                   <span v-else-if="isPartial(habit.id, day.stamp)">{{ checkinValue(habit.id, day.stamp) }}</span>
                 </button>
               </div>
@@ -84,6 +91,9 @@
           <div class="tw-habit-detail-actions">
             <button v-if="archived" class="tw-icon-button" title="恢复习惯" @click="restoreHabit"><TaskIcon name="restore" :size="16" /></button>
             <button v-else class="tw-icon-button" title="编辑习惯" @click="openEdit(selectedHabit)"><TaskIcon name="edit" :size="16" /></button>
+            <button v-if="!archived" class="tw-icon-button" :title="selectedHabit.style === 'icon' ? '打卡样式：习惯图标' : '打卡样式：对勾'" @click="toggleHabitStyle">
+              <TaskIcon :name="selectedHabit.style === 'icon' ? 'habit' : 'check'" :size="16" />
+            </button>
             <button v-if="!archived" class="tw-icon-button" title="归档习惯" @click="archiveHabit"><TaskIcon name="folder" :size="16" /></button>
             <button class="tw-icon-button danger" title="删除习惯" @click="confirmDeleteHabit"><TaskIcon name="trash" :size="16" /></button>
             <button class="tw-icon-button" title="关闭详情" @click="closeDetail"><TaskIcon name="close" :size="16" /></button>
@@ -117,7 +127,8 @@
               :title="cell.dateLabel"
               @click="!cell.future && startCheckin(selectedHabit, cell.stamp)"
             >
-              {{ cell.day }}
+              <span v-if="cell.done && selectedHabit.style === 'icon'" class="tw-habit-day-emoji">{{ selectedHabit.icon }}</span>
+              <template v-else>{{ cell.day }}</template>
             </button>
           </div>
         </div>
@@ -143,11 +154,19 @@
           <div v-if="!detail.records.length" class="tw-habit-log-empty">这个月没有写打卡日志哦</div>
           <article v-for="record in detail.records" :key="record.id" class="tw-habit-log">
             <span class="tw-habit-log-emoji">{{ record.emoji || '📝' }}</span>
-            <div>
+            <div v-if="editingLogId === record.id" class="tw-habit-log-edit">
+              <textarea v-model="editingLogContent" rows="2" maxlength="1000" />
+              <div class="tw-habit-log-edit-actions">
+                <button class="tw-primary-button" :disabled="!editingLogContent.trim()" @click="saveLogEdit(record)">保存</button>
+                <button class="tw-ghost-button" @click="cancelLogEdit">取消</button>
+              </div>
+            </div>
+            <div v-else>
               <strong>{{ formatStamp(record.stamp) }}</strong>
               <p>{{ record.content }}</p>
             </div>
-            <button class="tw-icon-button" title="删除日志" @click="deleteLog(record)"><TaskIcon name="trash" :size="13" /></button>
+            <button v-if="editingLogId !== record.id" class="tw-icon-button" title="编辑日志" @click="startLogEdit(record)"><TaskIcon name="edit" :size="13" /></button>
+            <button v-if="editingLogId !== record.id" class="tw-icon-button" title="删除日志" @click="deleteLog(record)"><TaskIcon name="trash" :size="13" /></button>
           </article>
         </div>
       </aside>
@@ -229,6 +248,13 @@
             </select>
           </label>
 
+          <label class="tw-modal-label">打卡样式
+            <select v-model="form.style" class="tw-field-select">
+              <option value="check">对勾</option>
+              <option value="icon">习惯图标</option>
+            </select>
+          </label>
+
           <label class="tw-modal-label">提醒
             <div class="tw-habit-reminders">
               <div v-for="(_, index) in form.reminders" :key="index" class="tw-habit-reminder">
@@ -275,6 +301,17 @@
               <option value="card">卡片</option>
             </select>
           </div>
+          <div class="tw-habit-section-manage">
+            <strong>习惯分组</strong>
+            <div v-for="section in sections" :key="section.id" class="tw-habit-section-row">
+              <input class="tw-dialog-input" :value="section.name" maxlength="30" @change="renameSection(section, $event)" />
+              <button class="tw-icon-button" title="删除分组" @click="removeSection(section)"><TaskIcon name="trash" :size="13" /></button>
+            </div>
+            <div class="tw-habit-section-row">
+              <input v-model="newSectionName" class="tw-dialog-input" maxlength="30" placeholder="新分组名称" @keydown.enter="addSection" />
+              <button class="tw-ghost-button" :disabled="!newSectionName.trim()" @click="addSection">添加</button>
+            </div>
+          </div>
           <p class="tw-modal-note">开启“按完成状态分类显示”后，未打卡的习惯会聚合展示在列表上方。</p>
         </div>
         <footer class="tw-dialog-foot">
@@ -293,13 +330,18 @@ import type { HabitCheckin, HabitDetail, HabitFrequency, HabitItem, HabitListDat
 import {
   createHabit,
   createHabitRecord,
+  createHabitSection,
   deleteHabit,
   deleteHabitRecord,
+  deleteHabitSection,
   fetchHabitDetail,
   fetchHabits,
+  reorderHabits,
   saveHabitPreferences,
   toggleHabitCheckin,
   updateHabit,
+  updateHabitRecord,
+  updateHabitSection,
 } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
@@ -319,6 +361,11 @@ const busy = ref(false)
 const checkinDialog = ref<{ habit: HabitItem; stamp: number; value: number } | null>(null)
 const logComposerOpen = ref(false)
 const logContent = ref('')
+const editingLogId = ref(0)
+const editingLogContent = ref('')
+const newSectionName = ref('')
+const draggingHabitId = ref(0)
+const dragOverHabitId = ref(0)
 
 const emojis = ['😊', '📚', '🏃', '💧', '🧘', '🌱', '🎯', '✍️', '🌙', '🍎', '💪', '🎨']
 const colors = ['#97E38B', '#FFB84D', '#FF7B7B', '#7B9CFF', '#B58BFF', '#5ED4C5', '#F28BC5', '#A2A8B8']
@@ -327,7 +374,7 @@ const form = reactive({
   weekdays: [0, 1, 2, 3, 4, 5, 6] as number[], daysPerWeek: 2, interval: 2,
   goalMode: 'completion' as 'completion' | 'quantity', goal: 1,
   startDate: new Date().toISOString().slice(0, 10), durationMode: 'forever' as 'forever' | 'days', targetDays: 30,
-  sectionId: 0, reminders: [] as string[], recordEnable: false,
+  sectionId: 0, reminders: [] as string[], recordEnable: false, style: 'check' as 'check' | 'icon',
 })
 
 const selectedHabit = computed(() => habits.value.find((habit) => habit.id === selectedHabitId.value) || null)
@@ -473,7 +520,7 @@ function openCreate() {
     weekdays: [0, 1, 2, 3, 4, 5, 6], daysPerWeek: 2, interval: 2,
     goalMode: 'completion', goal: 1, startDate: new Date().toISOString().slice(0, 10),
     durationMode: 'forever', targetDays: 30, sectionId: preferences.value.defaultSectionId || 0,
-    reminders: [], recordEnable: false,
+    reminders: [], recordEnable: false, style: 'check',
   })
   dialogOpen.value = true
 }
@@ -489,7 +536,7 @@ function openEdit(habit: HabitItem) {
     goalMode: habit.goal > 1 ? 'quantity' : 'completion', goal: habit.goal || 1,
     startDate: formatStamp(habit.startDate || stampOf(new Date())), durationMode: habit.targetDays > 0 ? 'days' : 'forever',
     targetDays: habit.targetDays || 30, sectionId: habit.sectionId || 0, reminders,
-    recordEnable: habit.recordEnable,
+    recordEnable: habit.recordEnable, style: habit.style === 'icon' ? 'icon' : 'check',
   })
   dialogOpen.value = true
 }
@@ -539,7 +586,7 @@ async function saveHabit() {
     recordEnable: form.recordEnable,
     startDate: Number(start),
     targetDays: form.durationMode === 'days' ? Math.max(1, form.targetDays) : 0,
-    style: 'check',
+    style: form.style,
   }
   busy.value = true
   try {
@@ -614,6 +661,108 @@ async function shiftMonth(delta: number) {
 function chartHeight(value: number) {
   const max = Math.max(selectedHabit.value?.goal || 1, ...(detail.value?.stats.daily.map((item) => item.value) || [0]))
   return max > 0 ? Math.max(3, Math.round(value / max * 100)) : 3
+}
+
+function startHabitDrag(habit: HabitItem, event: DragEvent) {
+  if (archived.value || preferences.value.groupByCompleted) return
+  draggingHabitId.value = habit.id
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(habit.id))
+  }
+}
+
+async function dropHabit(target: HabitItem) {
+  const sourceId = draggingHabitId.value
+  draggingHabitId.value = 0
+  dragOverHabitId.value = 0
+  if (!sourceId || sourceId === target.id) return
+  const source = habits.value.find((habit) => habit.id === sourceId)
+  if (!source || source.sectionId !== target.sectionId) return
+  const list = habits.value.slice()
+  const from = list.findIndex((habit) => habit.id === sourceId)
+  const to = list.findIndex((habit) => habit.id === target.id)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  list.forEach((habit, index) => { habit.sortOrder = index + 1 })
+  habits.value = list
+  try {
+    await reorderHabits(list.map((habit) => habit.id))
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存排序失败')
+    await load()
+  }
+}
+
+async function toggleHabitStyle() {
+  if (!selectedHabit.value) return
+  const next = selectedHabit.value.style === 'icon' ? 'check' : 'icon'
+  try {
+    await updateHabit(selectedHabit.value.id, { ...selectedHabit.value, style: next })
+    await load()
+    if (selectedHabitId.value) await loadDetail(selectedHabitId.value)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '切换打卡样式失败')
+  }
+}
+
+async function addSection() {
+  const name = newSectionName.value.trim()
+  if (!name) return
+  try {
+    const { section } = await createHabitSection(name)
+    sections.value = [...sections.value, section]
+    newSectionName.value = ''
+    Message.success('分组已添加')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '添加分组失败')
+  }
+}
+
+async function renameSection(section: HabitSection, event: Event) {
+  const name = (event.target as HTMLInputElement).value.trim()
+  if (!name || name === section.name) return
+  try {
+    const result = await updateHabitSection(section.id, { name })
+    sections.value = sections.value.map((item) => item.id === result.section.id ? result.section : item)
+    await load()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '重命名分组失败')
+  }
+}
+
+async function removeSection(section: HabitSection) {
+  if (!window.confirm(`删除分组「${section.name}」？组内习惯会移到“其他”。`)) return
+  try {
+    await deleteHabitSection(section.id)
+    sections.value = sections.value.filter((item) => item.id !== section.id)
+    habits.value = habits.value.map((habit) => habit.sectionId === section.id ? { ...habit, sectionId: 0 } : habit)
+    await load()
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除分组失败')
+  }
+}
+
+function startLogEdit(record: HabitRecord) {
+  editingLogId.value = record.id
+  editingLogContent.value = record.content
+}
+
+function cancelLogEdit() {
+  editingLogId.value = 0
+  editingLogContent.value = ''
+}
+
+async function saveLogEdit(record: HabitRecord) {
+  if (!selectedHabit.value || !editingLogContent.value.trim()) return
+  try {
+    await updateHabitRecord(selectedHabit.value.id, record.id, { content: editingLogContent.value.trim() })
+    cancelLogEdit()
+    await loadDetail(selectedHabit.value.id)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '编辑日志失败')
+  }
 }
 
 async function archiveHabit() {

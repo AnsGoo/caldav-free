@@ -82,6 +82,20 @@ func (s *Server) apiHabits(w http.ResponseWriter, r *http.Request, current *stor
 	})
 }
 
+func (s *Server) apiHabitReorder(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		IDs []int64 `json:"ids"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	if err := s.store.SetHabitOrder(r.Context(), current.ID, body.IDs); err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) apiHabit(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	id, ok := habitID(r, "id")
 	if !ok {

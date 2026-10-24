@@ -486,6 +486,10 @@ export function deleteHabit(id: number) {
   return api<void>(`/habits/${id}`, { method: 'DELETE' })
 }
 
+export function reorderHabits(ids: number[]) {
+  return api<void>('/habits/reorder', { method: 'POST', body: JSON.stringify({ ids }) })
+}
+
 export function toggleHabitCheckin(id: number, stamp?: number, value?: number) {
   return api<{ checkin: import('./types').HabitCheckin | null; habit: HabitItem; detail: HabitDetail }>(`/habits/${id}/checkin`, {
     method: 'POST',

@@ -195,6 +195,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/habits", s.apiAdmin(s.apiHabits))
 	mux.HandleFunc("POST /api/admin/habits", s.apiAdmin(s.apiHabits))
 	mux.HandleFunc("GET /api/admin/habits/export", s.apiAdmin(s.apiHabitExport))
+	mux.HandleFunc("POST /api/admin/habits/reorder", s.apiAdmin(s.apiHabitReorder))
 	mux.HandleFunc("POST /api/admin/habits/checkins/query", s.apiAdmin(s.apiHabitCheckinsQuery))
 	mux.HandleFunc("PATCH /api/admin/habits/{id}", s.apiAdmin(s.apiHabit))
 	mux.HandleFunc("DELETE /api/admin/habits/{id}", s.apiAdmin(s.apiHabit))

@@ -204,7 +204,14 @@
         @quick-add="quickAddMatrixTask"
       />
       <div v-else class="tw-scroll" :class="{ 'tw-scroll-calendar': mode === 'calendar' }">
-        <div class="tw-content" :class="{ 'tw-content-calendar': mode === 'calendar' }">
+        <div
+          class="tw-content"
+          :class="{
+            'tw-content-calendar': mode === 'calendar',
+            'tw-content-board': mode === 'board' && !['trash', 'stats', 'summary', 'ai'].includes(view),
+            'tw-content-fill': view === 'summary' || view === 'ai',
+          }"
+        >
           <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
             <input

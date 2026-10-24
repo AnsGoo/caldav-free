@@ -578,9 +578,60 @@
 
 .tw-content {
   width: 100%;
-  max-width: 840px;
+  max-width: none;
   margin: 0 auto;
   padding: 8px 26px 96px;
+}
+
+/* Board and full-height panels should use the whole workspace canvas. */
+.tw-content-board {
+  height: 100%;
+  padding: 8px 26px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-content-board > .tw-quick-add,
+.tw-content-board > .tw-quick-hint {
+  flex: none;
+}
+
+.tw-content-board > .tw-board {
+  flex: 1;
+  min-height: 0;
+  padding: 12px 2px 0;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tw-content-board .tw-board-column {
+  flex: 1 1 276px;
+  min-width: 276px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-content-board .tw-board-body {
+  flex: 1;
+  min-height: 70px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.tw-content-fill {
+  height: 100%;
+  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-content-fill > .tw-summary,
+.tw-content-fill > .tw-ai {
+  flex: 1;
+  min-height: 0;
+  height: auto;
 }
 
 /* Calendar is a canvas: use the whole workspace instead of the reading column. */
@@ -7708,3 +7759,49 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-countdown-detail-body.has-image .tw-countdown-detail-age { color: #fff; }
 .tw-countdown-detail-body.has-image .tw-countdown-detail-note { background: rgba(0,0,0,0.26); color: rgba(255,255,255,0.86); }
 .tw-countdown-detail-body.has-image .tw-countdown-detail-reminders { border-top-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.78); }
+
+@media (max-width: 960px) {
+  .tw-content-board {
+    height: auto;
+    min-height: 100%;
+    padding: 8px 16px 24px;
+  }
+
+  .tw-content-board > .tw-board {
+    flex: none;
+    align-items: flex-start;
+    overflow-y: visible;
+  }
+
+  .tw-content-board .tw-board-column {
+    flex: 0 0 258px;
+    width: 258px;
+    max-height: none;
+  }
+
+  .tw-content-board .tw-board-body {
+    flex: none;
+    overflow-y: visible;
+  }
+
+  .tw-content-fill {
+    height: auto;
+    padding: 8px 16px 24px;
+  }
+
+  .tw-content-fill > .tw-summary,
+  .tw-content-fill > .tw-ai {
+    flex: none;
+    height: calc(100dvh - 170px);
+  }
+}
+
+@media (max-width: 640px) {
+  .tw-content-board {
+    padding: 6px 12px 24px;
+  }
+
+  .tw-content-fill {
+    padding: 6px 12px 24px;
+  }
+}

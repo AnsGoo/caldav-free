@@ -21,7 +21,8 @@
           :title="`${list.name}（已置顶）`"
           @click="$emit('select-list', list.id)"
         >
-          <span class="tw-pinned-dot" :style="{ background: list.color || '#4772fa' }" />
+          <span v-if="list.kind === 'NOTE'" class="tw-note-list-mark"><TaskIcon name="note" :size="14" /></span>
+          <span v-else class="tw-pinned-dot" :style="{ background: list.color || '#4772fa' }" />
           <span class="tw-pinned-name">{{ list.name }}</span>
         </button>
         <button
@@ -124,6 +125,8 @@
             </div>
           </li>
         </ul>
+
+        <p v-else-if="hasPinnedNoteLists" class="tw-side-hint">笔记清单已置顶到顶部图标条。</p>
 
         <template v-else-if="!hasNoteLists">
           <p class="tw-side-hint">新建笔记清单后，就可以开始记录想法和灵感。</p>
@@ -410,19 +413,17 @@ const draggingListId = ref(0)
 const draggingFilterId = ref(0)
 
 const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
-const pinnedLists = computed(() => props.lists.filter((list) => list.pinned && list.kind !== 'NOTE'))
+const pinnedLists = computed(() => props.lists.filter((list) => list.pinned))
 const pinnedFilters = computed(() => props.filters.filter((filter) => filter.pinned))
 const unpinnedFilters = computed(() => props.filters.filter((filter) => !filter.pinned))
 const customTaskLists = computed(() =>
   props.lists.filter((list) => !list.isInbox && !list.pinned && list.kind !== 'NOTE'),
 )
 const customNoteLists = computed(() =>
-  props.lists
-    .filter((list) => !list.isInbox && list.kind === 'NOTE')
-    .slice()
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+  props.lists.filter((list) => !list.isInbox && !list.pinned && list.kind === 'NOTE'),
 )
 const hasNoteLists = computed(() => props.lists.some((list) => !list.isInbox && list.kind === 'NOTE'))
+const hasPinnedNoteLists = computed(() => props.lists.some((list) => !list.isInbox && list.pinned && list.kind === 'NOTE'))
 
 type ListRow =
   | { kind: 'folder'; key: string; folder: TaskFolder; count: number }

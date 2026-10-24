@@ -1337,7 +1337,12 @@ const smartLabels: Record<string, string> = {
 const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
 const activeList = computed(() => lists.value.find((item) => item.id === activeListId.value))
 const noteView = computed(() => view.value === 'list' && activeList.value?.kind === 'NOTE')
-const noteTasks = computed(() => tasks.value.filter((task) => task.kind === 'NOTE'))
+const noteTasks = computed(() =>
+  tasks.value
+    .filter((task) => task.kind === 'NOTE')
+    .slice()
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
+)
 const timelineTasks = computed(() => tasks.value.filter((task) => task.kind !== 'NOTE'))
 
 const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))

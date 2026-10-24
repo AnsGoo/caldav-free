@@ -483,6 +483,8 @@ export interface HabitItem {
   totalCheckIns: number
   currentStreak: number
   maxStreak: number
+  dueToday: boolean
+  doneToday: boolean
 }
 
 export interface HabitSection {

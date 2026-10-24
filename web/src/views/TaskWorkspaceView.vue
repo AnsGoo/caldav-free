@@ -219,6 +219,10 @@
             <span class="tw-hint-tip">回车添加</span>
           </div>
 
+          <HabitTodayStrip v-if="(view === 'today' || view === 'next7') && mode !== 'calendar'" />
+
+          <HabitTodayStrip v-if="mode === 'calendar'" source="calendar" />
+
           <div v-if="loading" class="tw-loading">
             <a-spin />
           </div>
@@ -838,6 +842,7 @@ import TaskDetail from '../components/tasks/TaskDetail.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import HabitPanel from '../components/tasks/HabitPanel.vue'
+import HabitTodayStrip from '../components/tasks/HabitTodayStrip.vue'
 import MatrixViewManagerDialog from '../components/tasks/MatrixViewManagerDialog.vue'
 import MatrixRulesDialog from '../components/tasks/MatrixRulesDialog.vue'
 import TaskStatsPanel from '../components/tasks/TaskStatsPanel.vue'

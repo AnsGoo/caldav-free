@@ -256,6 +256,7 @@ name:   任务
 - 打卡按 `habit_id + checkin_stamp` 唯一；`value >= goal` 视为完成。
 - 月完成率、当前连续、月完成量和每日完成量由后端实时计算。
 - 习惯排序通过批量 `sort_order` 更新；打卡样式、分组和日志编辑均走习惯 API。
+- `HabitTodayStrip` 根据偏好接入今天/最近 7 天与日历顶部；打卡满足 `recordEnable` 时弹出日志编辑器。
 
 ## 9. 提醒
 

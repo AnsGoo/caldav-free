@@ -274,6 +274,8 @@
       </div>
     </div>
 
+    <HabitLogDialog v-if="logTarget" :habit="logTarget.habit" :stamp="logTarget.stamp" @saved="onLogSaved" @close="logTarget = null" />
+
     <div v-if="checkinDialog" class="tw-dialog-scrim" @click.self="checkinDialog = null">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true">
         <header class="tw-dialog-head"><h2>记录打卡</h2></header>
@@ -344,6 +346,7 @@ import {
   updateHabitSection,
 } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
+import HabitLogDialog from './HabitLogDialog.vue'
 
 const loading = ref(true)
 const habits = ref<HabitItem[]>([])
@@ -361,6 +364,7 @@ const busy = ref(false)
 const checkinDialog = ref<{ habit: HabitItem; stamp: number; value: number } | null>(null)
 const logComposerOpen = ref(false)
 const logContent = ref('')
+const logTarget = ref<{ habit: HabitItem; stamp: number } | null>(null)
 const editingLogId = ref(0)
 const editingLogContent = ref('')
 const newSectionName = ref('')
@@ -621,6 +625,9 @@ async function toggleCheckin(habit: HabitItem, stamp: number, value?: number) {
     await toggleHabitCheckin(habit.id, stamp, value)
     await load()
     if (selectedHabitId.value === habit.id) await loadDetail(habit.id)
+    if (habit.recordEnable && isDone(habit.id, stamp)) {
+      logTarget.value = { habit, stamp }
+    }
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '打卡失败')
   }
@@ -800,6 +807,11 @@ async function confirmDeleteHabit() {
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '删除失败')
   }
+}
+
+function onLogSaved() {
+  logTarget.value = null
+  if (selectedHabitId.value) void loadDetail(selectedHabitId.value)
 }
 
 async function saveLog() {

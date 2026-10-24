@@ -39,9 +39,11 @@ type Habit struct {
 	CreatedAt       time.Time  `gorm:"not null;autoCreateTime" json:"createdAt"`
 	ModifiedAt      time.Time  `gorm:"not null;autoUpdateTime" json:"modifiedAt"`
 
-	TotalCheckIns int `gorm:"-" json:"totalCheckIns"`
-	CurrentStreak int `gorm:"-" json:"currentStreak"`
-	MaxStreak     int `gorm:"-" json:"maxStreak"`
+	TotalCheckIns int  `gorm:"-" json:"totalCheckIns"`
+	CurrentStreak int  `gorm:"-" json:"currentStreak"`
+	MaxStreak     int  `gorm:"-" json:"maxStreak"`
+	DueToday      bool `gorm:"-" json:"dueToday"`
+	DoneToday     bool `gorm:"-" json:"doneToday"`
 }
 
 type HabitSection struct {
@@ -139,8 +141,19 @@ func (s *Store) ListHabits(ctx context.Context, userID int64, includeArchived bo
 	for _, checkin := range checkins {
 		byHabit[checkin.HabitID] = append(byHabit[checkin.HabitID], checkin)
 	}
+	today := time.Now()
+	todayStamp := stampOf(today)
 	for _, habit := range habits {
 		habit.TotalCheckIns, habit.CurrentStreak, habit.MaxStreak = habitSummary(habit, byHabit[habit.ID])
+		var todayCheckin *HabitCheckin
+		for _, checkin := range byHabit[habit.ID] {
+			if checkin.Stamp == todayStamp {
+				todayCheckin = checkin
+				break
+			}
+		}
+		habit.DoneToday = habitDone(todayCheckin)
+		habit.DueToday = habit.Status == 0 && habitDueToday(habit, byHabit[habit.ID], today)
 	}
 	return habits, nil
 }
@@ -615,6 +628,33 @@ func habitSummary(habit *Habit, checkins []*HabitCheckin) (total, current, max i
 	}
 	current = habitCurrentStreak(habit, byStamp)
 	return total, current, current
+}
+
+func habitDueToday(habit *Habit, checkins []*HabitCheckin, today time.Time) bool {
+	freq := parseHabitFrequency(habit.Frequency)
+	start := habitStartDate(habit)
+	day := time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())
+	if day.Before(time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, today.Location())) {
+		return false
+	}
+	if parseHabitExDates(habit.ExDates)[stampOf(day)] {
+		return false
+	}
+	if freq.Type != "weekly" {
+		return habitScheduledOn(habit, day)
+	}
+	weekStart := startOfHabitWeek(day)
+	done := 0
+	for offset := 0; offset < 7; offset++ {
+		stamp := stampOf(weekStart.AddDate(0, 0, offset))
+		for _, checkin := range checkins {
+			if checkin.Stamp == stamp && habitDone(checkin) {
+				done++
+				break
+			}
+		}
+	}
+	return done < freq.DaysPerWeek
 }
 
 func habitCurrentStreak(habit *Habit, byStamp map[int]*HabitCheckin) int {

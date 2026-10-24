@@ -25,6 +25,7 @@ type CountdownEvent struct {
 	Background        string    `gorm:"size:20;not null;default:''" json:"background"`
 	Remark            string    `gorm:"type:text;not null;default:''" json:"remark"`
 	Reminders         string    `gorm:"type:text;not null;default:'[]'" json:"reminders"`
+	ReminderTime      string    `gorm:"size:5;not null;default:'09:00'" json:"reminderTime"`
 	Repeat            string    `gorm:"size:20;not null;default:'none'" json:"repeat"`
 	IgnoreYear        bool      `gorm:"not null" json:"ignoreYear"`
 	ShowAge           bool      `gorm:"not null" json:"showAge"`
@@ -54,6 +55,7 @@ type CountdownPatch struct {
 	Background        *string `json:"background"`
 	Remark            *string `json:"remark"`
 	Reminders         *string `json:"reminders"`
+	ReminderTime      *string `json:"reminderTime"`
 	Repeat            *string `json:"repeat"`
 	IgnoreYear        *bool   `json:"ignoreYear"`
 	ShowAge           *bool   `json:"showAge"`
@@ -134,6 +136,9 @@ func (s *Store) UpdateCountdown(ctx context.Context, userID, id int64, patch *Co
 		if patch.Reminders != nil {
 			event.Reminders = *patch.Reminders
 		}
+		if patch.ReminderTime != nil {
+			event.ReminderTime = *patch.ReminderTime
+		}
 		if patch.Repeat != nil {
 			event.Repeat = *patch.Repeat
 		}
@@ -207,9 +212,15 @@ func normalizeCountdown(event *CountdownEvent) error {
 		event.Style = "normal"
 	}
 	switch event.Repeat {
-	case "none", "yearly", "monthly", "weekly":
+	case "none", "yearly", "monthly", "weekly", "weekend":
 	default:
 		event.Repeat = "none"
+	}
+	if strings.TrimSpace(event.ReminderTime) == "" {
+		event.ReminderTime = "09:00"
+	}
+	if _, err := time.Parse("15:04", event.ReminderTime); err != nil {
+		return fmt.Errorf("提醒时间无效")
 	}
 	if event.DateDisplayFormat != "full" {
 		event.DateDisplayFormat = "day"
@@ -310,6 +321,13 @@ func nextCountdownDate(original time.Time, repeat string, today time.Time) time.
 			candidate = candidate.AddDate(0, 0, 7)
 		}
 		return candidate
+	case "weekend":
+		weekday := int(today.Weekday())
+		if weekday == 0 || weekday == 6 {
+			return today
+		}
+		days := 6 - weekday
+		return today.AddDate(0, 0, days)
 	}
 	return original
 }

@@ -1365,7 +1365,8 @@ create_list
 ```
 
 `type`：`anniversary`、`countdown`、`birthday`、`festival`
-`repeat`：`none`、`yearly`、`monthly`、`weekly`
+`repeat`：`none`、`yearly`、`monthly`、`weekly`、`weekend`
+`reminderTime`：`HH:mm`，默认 `09:00`
 
 ### PATCH /api/admin/countdowns/{id}
 

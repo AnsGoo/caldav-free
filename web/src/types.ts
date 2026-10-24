@@ -773,7 +773,7 @@ export interface FocusRangeStats {
 }
 
 export type CountdownType = 'anniversary' | 'countdown' | 'birthday' | 'festival'
-export type CountdownRepeat = 'none' | 'yearly' | 'monthly' | 'weekly'
+export type CountdownRepeat = 'none' | 'yearly' | 'monthly' | 'weekly' | 'weekend'
 
 export interface CountdownItem {
   id: number
@@ -786,6 +786,7 @@ export interface CountdownItem {
   background: string
   remark: string
   reminders: string
+  reminderTime: string
   repeat: CountdownRepeat
   ignoreYear: boolean
   showAge: boolean
@@ -811,6 +812,7 @@ export interface CountdownDraft {
   background: string
   remark: string
   reminders: string
+  reminderTime: string
   repeat: CountdownRepeat
   ignoreYear: boolean
   showAge: boolean

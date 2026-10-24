@@ -7543,3 +7543,10 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 @media (hover: none) {
   .tw-countdown-card-actions { opacity: 1; }
 }
+.tw-countdown-presets { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 8px 10px; border-radius: 9px; background: var(--tw-surface); }
+.tw-countdown-presets > span { margin-right: 2px; color: var(--tw-text-3); font-size: 9px; }
+.tw-countdown-preset { height: 24px; padding: 0 8px; border: 1px solid var(--tw-border); border-radius: 999px; background: var(--tw-bg); color: var(--tw-text-2); font-size: 9px; cursor: pointer; }
+.tw-countdown-preset:hover { border-color: var(--tw-accent); color: var(--tw-accent); }
+.tw-countdown-preset.weekend { margin-left: auto; }
+.tw-countdown-reminder-time { display: flex; align-items: center; gap: 10px; margin-top: 2px; color: var(--tw-text-3); font-size: 10px; }
+.tw-countdown-reminder-time .tw-date-control { width: 110px; }

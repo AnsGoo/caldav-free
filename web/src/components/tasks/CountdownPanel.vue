@@ -79,9 +79,14 @@
           <div class="tw-countdown-type-row">
             <button v-for="item in typeOptions" :key="item.value" class="tw-countdown-type" :class="{ active: form.type === item.value }" @click="form.type = item.value">{{ item.label }}</button>
           </div>
+          <div class="tw-countdown-presets">
+            <span>快速添加</span>
+            <button v-for="preset in festivalPresets" :key="preset.name" class="tw-countdown-preset" @click="applyPreset(preset)">{{ preset.icon }} {{ preset.name }}</button>
+            <button class="tw-countdown-preset weekend" @click="applyWeekend">🏖️ 周末</button>
+          </div>
           <div class="tw-countdown-form-grid">
             <label class="tw-countdown-field"><span>日期</span><a-date-picker v-model="form.date" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" /></label>
-            <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="none">不重复</option><option value="yearly">每年</option><option value="monthly">每月</option><option value="weekly">每周</option></select></label>
+            <label class="tw-countdown-field"><span>重复</span><select v-model="form.repeat" class="tw-field-select"><option value="none">不重复</option><option value="yearly">每年</option><option value="monthly">每月</option><option value="weekly">每周</option><option value="weekend">每个周末</option></select></label>
           </div>
           <div class="tw-countdown-form-grid">
             <label class="tw-countdown-field"><span>显示格式</span><select v-model="form.dateDisplayFormat" class="tw-field-select"><option value="day">标准</option><option value="full">完整日期</option></select></label>
@@ -92,6 +97,10 @@
             <span>提醒</span>
             <div class="tw-countdown-checks">
               <label v-for="offset in reminderOptions" :key="offset.value" class="tw-countdown-check"><input v-model="form.reminderOffsets" type="checkbox" :value="offset.value" /><span>{{ offset.label }}</span></label>
+            </div>
+            <div class="tw-countdown-reminder-time">
+              <span>提醒时间</span>
+              <a-time-picker v-model="form.reminderTime" class="tw-date-control" format="HH:mm" />
             </div>
           </div>
           <div class="tw-countdown-form-section">
@@ -142,6 +151,14 @@ const reminderOptions = [
   { value: 7, label: '提前 7 天' },
 ]
 const colors = ['#92D0FF', '#FDB368', '#FF8F9C', '#B58BFF', '#97E38B', '#5ED4C5', '#F4C95D', '#A2A8B8']
+const festivalPresets = [
+  { name: '元旦', month: 1, day: 1, icon: '🎊', color: '#92D0FF' },
+  { name: '情人节', month: 2, day: 14, icon: '❤️', color: '#FF8F9C' },
+  { name: '劳动节', month: 5, day: 1, icon: '🌱', color: '#97E38B' },
+  { name: '儿童节', month: 6, day: 1, icon: '🎈', color: '#F4C95D' },
+  { name: '国庆节', month: 10, day: 1, icon: '🇨🇳', color: '#FF8F9C' },
+  { name: '圣诞节', month: 12, day: 25, icon: '🎄', color: '#97E38B' },
+]
 const emojis = ['⏳', '🎂', '🎉', '💍', '🏖️', '🎓', '🏆', '❤️', '🌸', '📅']
 
 const items = ref<CountdownItem[]>([])
@@ -166,6 +183,7 @@ const form = reactive({
   showAge: false,
   dateDisplayFormat: 'day' as 'day' | 'full',
   reminderOffsets: [0, 3] as number[],
+  reminderTime: '09:00',
 })
 const filteredItems = computed(() => filter.value === 'all' ? items.value : items.value.filter((item) => item.type === filter.value))
 
@@ -234,6 +252,7 @@ function resetForm() {
   form.showAge = false
   form.dateDisplayFormat = 'day'
   form.reminderOffsets = [0, 3]
+  form.reminderTime = '09:00'
 }
 
 function openCreate() {
@@ -257,11 +276,42 @@ function openEdit(item: CountdownItem) {
   form.showAge = item.showAge
   form.dateDisplayFormat = item.dateDisplayFormat
   form.reminderOffsets = parseReminders(item.reminders)
+  form.reminderTime = item.reminderTime || '09:00'
   dialogOpen.value = true
 }
 
 function openNote(item: CountdownItem) {
   openEdit(item)
+}
+
+function nextFestivalDate(month: number, day: number) {
+  const now = new Date()
+  let date = new Date(now.getFullYear(), month - 1, day)
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (date < today) date = new Date(now.getFullYear() + 1, month - 1, day)
+  return dateInput(date)
+}
+
+function applyPreset(preset: { name: string; month: number; day: number; icon: string; color: string }) {
+  form.name = preset.name
+  form.type = 'festival'
+  form.date = nextFestivalDate(preset.month, preset.day)
+  form.repeat = 'yearly'
+  form.icon = preset.icon
+  form.color = preset.color
+}
+
+function applyWeekend() {
+  const now = new Date()
+  const day = now.getDay()
+  const offset = day === 0 || day === 6 ? 0 : 6 - day
+  const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + offset)
+  form.name = '周末'
+  form.type = 'festival'
+  form.date = dateInput(date)
+  form.repeat = 'weekend'
+  form.icon = '🏖️'
+  form.color = '#92D0FF'
 }
 
 function cycleIcon() {
@@ -280,6 +330,7 @@ function payload(): CountdownDraft {
     background: form.background,
     remark: form.remark,
     reminders: JSON.stringify([...form.reminderOffsets].sort((a, b) => a - b)),
+    reminderTime: form.reminderTime || '09:00',
     repeat: form.repeat,
     ignoreYear: form.ignoreYear,
     showAge: form.showAge,

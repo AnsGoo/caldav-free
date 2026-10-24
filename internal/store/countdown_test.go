@@ -13,7 +13,7 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 
 	item, err := s.CreateCountdown(ctx, &CountdownEvent{
 		UserID: userID, Name: "发布日", Type: "countdown", Date: stampOf(now.AddDate(0, 0, 10)),
-		Repeat: "none", Reminders: "[3,0,3]",
+		Repeat: "none", Reminders: "[3,0,3]", ReminderTime: "08:30",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -21,8 +21,8 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 	if item.State != "future" || item.Days != 10 {
 		t.Fatalf("unexpected future countdown: %+v", item)
 	}
-	if item.Reminders != "[0,3]" {
-		t.Fatalf("reminders = %s", item.Reminders)
+	if item.Reminders != "[0,3]" || item.ReminderTime != "08:30" {
+		t.Fatalf("reminders = %s at %s", item.Reminders, item.ReminderTime)
 	}
 
 	pinned := true
@@ -69,6 +69,15 @@ func TestCountdownLifecycleAndOccurrences(t *testing.T) {
 	}
 	if weekly.State != "future" || weekly.Days < 1 || weekly.Days > 7 {
 		t.Fatalf("unexpected weekly occurrence: %+v", weekly)
+	}
+	weekend, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "周末", Type: "festival", Date: stampOf(now), Repeat: "weekend",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if weekend.State == "past" || weekend.Days > 6 {
+		t.Fatalf("unexpected weekend occurrence: %+v", weekend)
 	}
 	birthday, err := s.CreateCountdown(ctx, &CountdownEvent{
 		UserID: userID, Name: "生日", Type: "birthday", Date: 19900101, Repeat: "yearly", ShowAge: true,

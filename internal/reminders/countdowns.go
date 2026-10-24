@@ -40,10 +40,14 @@ func (s *Scheduler) tickCountdowns(ctx context.Context, now time.Time, cfg maile
 			continue
 		}
 		occurrence := time.Date(occurrenceTime.Year(), occurrenceTime.Month(), occurrenceTime.Day(), 0, 0, 0, 0, loc)
+		clock, err := time.ParseInLocation("15:04", item.ReminderTime, loc)
+		if err != nil {
+			clock, _ = time.ParseInLocation("15:04", "09:00", loc)
+		}
 		user, _ := s.store.GetUser(ctx, item.UserID)
 		for _, offset := range offsets {
 			reminderDay := occurrence.AddDate(0, 0, -offset)
-			when := time.Date(reminderDay.Year(), reminderDay.Month(), reminderDay.Day(), 9, 0, 0, 0, loc)
+			when := time.Date(reminderDay.Year(), reminderDay.Month(), reminderDay.Day(), clock.Hour(), clock.Minute(), 0, 0, loc)
 			if localNow.Before(when) || localNow.Sub(when) > s.grace {
 				continue
 			}

@@ -15,7 +15,7 @@ func TestCountdownAPI(t *testing.T) {
 		date = date*10 + int(ch-'0')
 	}
 	status, body := env.request(t, "POST", "/api/admin/countdowns", map[string]any{
-		"name": "发布日", "type": "countdown", "date": date, "repeat": "none", "reminders": "[0,3]",
+		"name": "发布日", "type": "countdown", "date": date, "repeat": "none", "reminders": "[0,3]", "reminderTime": "08:30",
 	}, env.csrf)
 	if status != http.StatusCreated {
 		t.Fatalf("create countdown = %d: %s", status, body)

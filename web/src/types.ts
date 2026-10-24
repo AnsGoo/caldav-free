@@ -156,6 +156,7 @@ export interface SavedFilter {
 export interface TaskTagCount {
   name: string
   count: number
+  color: string
 }
 
 export interface TaskCounts {
@@ -290,6 +291,7 @@ export interface TaskListStat {
 
 export interface TaskTagStat {
   name: string
+  color: string
   open: number
   completed: number
   overdue: number

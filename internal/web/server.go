@@ -188,6 +188,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/admin/task-folders/{id}", s.apiAdmin(s.apiDeleteTaskFolder))
 	mux.HandleFunc("GET /api/admin/task-tags", s.apiAdmin(s.apiTaskTags))
 	mux.HandleFunc("POST /api/admin/task-tags/rename", s.apiAdmin(s.apiRenameTaskTag))
+	mux.HandleFunc("PUT /api/admin/task-tags/color", s.apiAdmin(s.apiTaskTagColor))
 	mux.HandleFunc("POST /api/admin/task-tags/delete", s.apiAdmin(s.apiDeleteTaskTag))
 	mux.HandleFunc("GET /api/admin/task-filters", s.apiAdmin(s.apiSavedFilters))
 	mux.HandleFunc("POST /api/admin/task-filters", s.apiAdmin(s.apiCreateSavedFilter))

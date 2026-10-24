@@ -341,8 +341,8 @@
 .tw-tag-chip {
   border: 0;
   border-radius: 999px;
-  background: var(--tw-surface);
-  color: var(--tw-text-2);
+  background: var(--tag-tint, var(--tw-surface));
+  color: var(--tag-color, var(--tw-text-2));
   padding: 3px 9px;
   font-size: 12px;
   cursor: pointer;
@@ -354,8 +354,9 @@
 }
 
 .tw-tag-chip.active {
-  background: var(--tw-accent-soft);
-  color: var(--tw-accent);
+  background: var(--tag-tint, var(--tw-accent-soft));
+  color: var(--tag-color, var(--tw-accent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tag-color, var(--tw-accent)) 45%, transparent);
 }
 
 .tw-link-button {
@@ -2912,9 +2913,9 @@ button.tw-side-link {
 }
 
 .tw-filter-chip.active {
-  border-color: var(--tw-accent);
-  background: var(--tw-accent-soft);
-  color: var(--tw-accent);
+  border-color: var(--tag-color, var(--tw-accent));
+  background: var(--tag-tint, var(--tw-accent-soft));
+  color: var(--tag-color, var(--tw-accent));
 }
 
 .tw-filter-chip i {
@@ -5497,4 +5498,36 @@ button.tw-side-link {
   margin: 0;
   color: var(--tw-danger);
   font-size: 11.5px;
+}
+
+
+.tw-tag-color {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--tw-text-3) 35%, transparent);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.tw-tag-color input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tw-stat-tag {
+  color: var(--tag-color, var(--tw-accent)) !important;
+  background: var(--tag-tint, transparent);
+}
+
+.tw-stat-tag span,
+.tw-stat-tag strong,
+.tw-stat-tag small {
+  color: inherit;
 }

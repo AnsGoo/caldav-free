@@ -1472,3 +1472,41 @@ func (s *Server) apiTaskStats(w http.ResponseWriter, r *http.Request, current *s
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{"stats": stats})
 }
+
+func (s *Server) apiTaskTagColor(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Tag   string `json:"tag"`
+		Color string `json:"color"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	tag := strings.TrimSpace(body.Tag)
+	if tag == "" {
+		writeAPIError(w, http.StatusBadRequest, "标签不能为空")
+		return
+	}
+	color := strings.ToLower(strings.TrimSpace(body.Color))
+	if color != "" {
+		if len(color) != 7 || color[0] != '#' {
+			writeAPIError(w, http.StatusBadRequest, "颜色必须是 #RRGGBB 格式")
+			return
+		}
+		for _, char := range color[1:] {
+			if (char < '0' || char > '9') && (char < 'a' || char > 'f') {
+				writeAPIError(w, http.StatusBadRequest, "颜色必须是 #RRGGBB 格式")
+				return
+			}
+		}
+	}
+	if err := s.store.SetTaskTagColor(r.Context(), current.ID, tag, color); err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	counts, err := s.store.TaskTagCounts(r.Context(), current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"tags": counts})
+}

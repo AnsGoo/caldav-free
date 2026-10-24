@@ -908,6 +908,16 @@ data: {"unread":2}
 }
 ```
 
+### PUT /api/admin/task-tags/color
+
+设置或清除标签颜色：
+
+```json
+{ "tag": "工作", "color": "#e5484d" }
+```
+
+`color` 为空字符串时清除颜色。必须是 `#RRGGBB` 格式。返回更新后的标签统计。
+
 ### POST /api/admin/task-tags/rename
 
 ```json

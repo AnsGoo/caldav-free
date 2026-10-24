@@ -32,7 +32,12 @@
     <div class="tw-row-body">
       <div class="tw-row-title">
         <span class="tw-title-text">{{ task.title }}</span>
-        <span v-for="tag in task.tags.slice(0, 3)" :key="tag" class="tw-mini-tag">#{{ tag }}</span>
+        <span
+          v-for="tag in task.tags.slice(0, 3)"
+          :key="tag"
+          class="tw-mini-tag"
+          :style="{ color: tagColor(tag, tagColors?.[tag]), background: tagTint(tagColor(tag, tagColors?.[tag])) }"
+        >#{{ tag }}</span>
         <span v-if="task.recurrence && !trashMode" class="tw-row-flag" :title="recurrenceLabel(task.recurrence)">
           <TaskIcon name="repeat" :size="12" />
         </span>
@@ -81,10 +86,12 @@
 import { computed } from 'vue'
 import type { TaskItem } from '../../types'
 import { PRIORITIES, formatDeleted, formatDue, isOverdue, recurrenceLabel, reminderLabel, taskReminderOffsets } from '../../tasks-utils'
+import { tagColor, tagTint } from '../../tag-colors'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
   task: TaskItem
+  tagColors?: Record<string, string>
   selected: boolean
   showList?: boolean
   selectable?: boolean

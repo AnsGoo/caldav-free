@@ -48,6 +48,7 @@ type SavedFilter struct {
 type TaskTagCount struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
+	Color string `json:"color"`
 }
 
 // ---------------------------------------------------------------- folders
@@ -166,9 +167,10 @@ func (s *Store) TaskTagCounts(ctx context.Context, userID int64) ([]TaskTagCount
 			}
 		}
 	}
+	colors, _ := s.ListTaskTagColors(ctx, userID)
 	out := make([]TaskTagCount, 0, len(counts))
 	for name, count := range counts {
-		out = append(out, TaskTagCount{Name: name, Count: count})
+		out = append(out, TaskTagCount{Name: name, Count: count, Color: colors[name]})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Count != out[j].Count {
@@ -212,6 +214,16 @@ func (s *Store) RenameTaskTag(ctx context.Context, userID int64, from, to string
 				return fmt.Errorf("rename tag: %w", err)
 			}
 		}
+		var source TaskTagColor
+		if err := tx.Where("user_id = ? AND name = ?", userID, from).First(&source).Error; err == nil {
+			var targetCount int64
+			_ = tx.Model(&TaskTagColor{}).Where("user_id = ? AND name = ?", userID, to).Count(&targetCount).Error
+			if targetCount > 0 {
+				_ = tx.Where("id = ?", source.ID).Delete(&TaskTagColor{}).Error
+			} else {
+				_ = tx.Model(&TaskTagColor{}).Where("id = ?", source.ID).Update("name", to).Error
+			}
+		}
 		return nil
 	})
 }
@@ -241,6 +253,9 @@ func (s *Store) DeleteTaskTag(ctx context.Context, userID int64, tag string) err
 				Updates(map[string]any{"tags": tags, "sync_pending": true}).Error; err != nil {
 				return fmt.Errorf("delete tag: %w", err)
 			}
+		}
+		if err := tx.Where("user_id = ? AND name = ?", userID, tag).Delete(&TaskTagColor{}).Error; err != nil {
+			return fmt.Errorf("delete tag color: %w", err)
 		}
 		return nil
 	})

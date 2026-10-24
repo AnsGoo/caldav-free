@@ -168,6 +168,7 @@
             :key="tag.name"
             class="tw-tag-chip"
             :class="{ active: activeTag === tag.name }"
+            :style="{ '--tag-color': tagColor(tag.name, tag.color), '--tag-tint': tagTint(tagColor(tag.name, tag.color)) }"
             @click="$emit('select-tag', activeTag === tag.name ? '' : tag.name)"
           >
             # {{ tag.name }}
@@ -212,6 +213,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import type { SavedFilter, SharedTaskList, TaskCounts, TaskFolder, TaskList, TaskTagCount } from '../../types'
+import { tagColor, tagTint } from '../../tag-colors'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{

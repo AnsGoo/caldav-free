@@ -150,7 +150,13 @@
             <div><h3>标签</h3><small>点击标签筛选任务</small></div>
           </header>
           <div v-if="stats.tags.length" class="tw-stat-tags">
-            <button v-for="tag in stats.tags.slice(0, 12)" :key="tag.name" class="tw-stat-tag" @click="$emit('select-tag', tag.name)">
+            <button
+              v-for="tag in stats.tags.slice(0, 12)"
+              :key="tag.name"
+              class="tw-stat-tag"
+              :style="{ '--tag-color': tagColor(tag.name, tag.color), '--tag-tint': tagTint(tagColor(tag.name, tag.color)) }"
+              @click="$emit('select-tag', tag.name)"
+            >
               <span>#{{ tag.name }}</span>
               <strong>{{ tag.open + tag.completed }}</strong>
               <small v-if="tag.overdue">{{ tag.overdue }} 逾期</small>
@@ -183,6 +189,7 @@ import { Message } from '@arco-design/web-vue'
 import type { TaskStats } from '../../types'
 import { fetchTaskStats } from '../../tasks-api'
 import { PRIORITIES } from '../../tasks-utils'
+import { tagColor, tagTint } from '../../tag-colors'
 import TaskIcon from './TaskIcon.vue'
 
 defineEmits<{

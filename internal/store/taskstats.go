@@ -28,6 +28,7 @@ type TaskListStat struct {
 // TaskTagStat aggregates tasks per tag.
 type TaskTagStat struct {
 	Name      string `json:"name"`
+	Color     string `json:"color"`
 	Open      int    `json:"open"`
 	Completed int    `json:"completed"`
 	Overdue   int    `json:"overdue"`
@@ -97,6 +98,7 @@ func (s *Store) ComputeTaskStats(ctx context.Context, userID int64, days int) (*
 		listStats[list.ID] = &TaskListStat{ID: list.ID, Name: list.Name, Color: list.Color}
 	}
 	tagStats := make(map[string]*TaskTagStat)
+	tagColors, _ := s.ListTaskTagColors(ctx, userID)
 	priorityStats := make(map[int]*TaskPriorityStat)
 	var completionHours float64
 	var completionSamples int
@@ -163,7 +165,7 @@ func (s *Store) ComputeTaskStats(ctx context.Context, userID int64, days int) (*
 			}
 			entry := tagStats[tag]
 			if entry == nil {
-				entry = &TaskTagStat{Name: tag}
+				entry = &TaskTagStat{Name: tag, Color: tagColors[tag]}
 				tagStats[tag] = entry
 			}
 			if task.Completed {

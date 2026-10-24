@@ -250,6 +250,7 @@
                   v-for="task in group.tasks"
                   :key="task.id"
                   :task="task"
+                  :tag-colors="tagColorMap"
                   :selected="selectionMode ? selectedIds.has(task.id) : selectedId === task.id"
                   :selectable="selectionMode"
                   :show-list="!activeListId"
@@ -335,7 +336,11 @@
                       <span class="tw-board-card-title">{{ task.title }}</span>
                     </div>
                     <div v-if="task.tags.length || task.due" class="tw-board-card-meta">
-                      <span v-for="tag in task.tags.slice(0, 2)" :key="tag">#{{ tag }}</span>
+                      <span
+                        v-for="tag in task.tags.slice(0, 2)"
+                        :key="tag"
+                        :style="{ color: tagColor(tag, tagColorMap[tag]), background: tagTint(tagColor(tag, tagColorMap[tag])) }"
+                      >#{{ tag }}</span>
                       <span v-if="task.due">{{ formatDue(task) }}</span>
                     </div>
                     <button class="tw-board-check" :class="{ checked: task.completed }" @click.stop="toggleTask(task)">
@@ -356,6 +361,7 @@
       :task="selectedTask"
       :lists="detailLists"
       :members="taskMembers"
+      :tag-colors="tagColorMap"
       :readonly="sharedReadonly"
       :list-locked="view === 'shared'"
       @close="selectedId = 0"
@@ -514,6 +520,7 @@
                 :key="tag.name"
                 class="tw-filter-chip"
                 :class="{ active: filterForm.conditions.tags.includes(tag.name) }"
+                :style="{ '--tag-color': tagColor(tag.name, tag.color), '--tag-tint': tagTint(tagColor(tag.name, tag.color)) }"
                 @click="toggleFilterTag(tag.name)"
               >
                 #{{ tag.name }}
@@ -555,6 +562,13 @@
               </button>
             </template>
             <template v-else>
+              <label class="tw-tag-color" :style="{ background: tagColor(tag.name, tag.color) }" title="设置标签颜色">
+                <input
+                  type="color"
+                  :value="tagColor(tag.name, tag.color)"
+                  @input="changeTagColor(tag, ($event.target as HTMLInputElement).value)"
+                />
+              </label>
               <span class="tw-tag-row-name">#{{ tag.name }}</span>
               <small>{{ tag.count }}</small>
               <button class="tw-icon-button" title="重命名" @click="startRenameTag(tag)">
@@ -702,6 +716,7 @@ import {
   renameTaskTag,
   reorderTasks,
   restoreTask,
+  setTaskTagColor,
   updateCalendarEvent,
   updateSavedFilter,
   updateTask,
@@ -721,6 +736,7 @@ import {
   startOfToday,
   taskReminderOffsets,
 } from '../tasks-utils'
+import { tagColor, tagTint } from '../tag-colors'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
 import TaskDetail from '../components/tasks/TaskDetail.vue'
@@ -746,6 +762,9 @@ const filters = ref<SavedFilter[]>([])
 const tasks = ref<TaskItem[]>([])
 const tags = ref<string[]>([])
 const tagCounts = ref<TaskTagCount[]>([])
+const tagColorMap = computed<Record<string, string>>(() =>
+  Object.fromEntries(tagCounts.value.map((tag) => [tag.name, tag.color])),
+)
 const counts = reactive<TaskCounts>({ all: 0, today: 0, next7: 0, inbox: 0, completed: 0, trash: 0 })
 const inboxId = ref(0)
 
@@ -1641,6 +1660,18 @@ async function saveTagRename(tag: TaskTagCount) {
     Message.error(error instanceof Error ? error.message : '重命名标签失败')
   } finally {
     tagBusy.value = false
+  }
+}
+
+async function changeTagColor(tag: TaskTagCount, color: string) {
+  const previous = tag.color
+  tag.color = color
+  try {
+    const result = await setTaskTagColor(tag.name, color)
+    tagCounts.value = result.tags
+  } catch (error) {
+    tag.color = previous
+    Message.error(error instanceof Error ? error.message : '设置标签颜色失败')
   }
 }
 

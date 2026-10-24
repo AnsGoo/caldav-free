@@ -49,6 +49,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_snoozes` | 任务稍后提醒：任务、原通知、提醒时间、发送状态 |
 | `task_activities` | 任务动态：创建、指派、完成/重新打开 |
 | `task_comments` | 任务评论：任务、作者、正文、创建时间 |
+| `task_tag_colors` | 用户标签颜色；按用户名+标签名唯一 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |

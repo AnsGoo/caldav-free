@@ -182,7 +182,13 @@
       <section class="tw-detail-section">
         <header class="tw-detail-section-head"><span>标签</span></header>
         <div class="tw-detail-tags">
-          <span v-for="tag in draft.tags" :key="tag" class="tw-detail-tag" @click="removeTag(tag)">
+          <span
+            v-for="tag in draft.tags"
+            :key="tag"
+            class="tw-detail-tag"
+            :style="{ color: tagColor(tag, tagColors?.[tag]), background: tagTint(tagColor(tag, tagColors?.[tag])) }"
+            @click="removeTag(tag)"
+          >
             #{{ tag }}
             <TaskIcon name="close" :size="11" />
           </span>
@@ -362,11 +368,12 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { ChecklistItem, CommentAttachment, TaskActivity, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
+import { tagColor, tagTint } from '../../tag-colors'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
 import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; readonly?: boolean; listLocked?: boolean }>()
+const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; tagColors?: Record<string, string>; readonly?: boolean; listLocked?: boolean }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', task: TaskItem): void

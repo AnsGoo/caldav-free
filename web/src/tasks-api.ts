@@ -117,6 +117,13 @@ export function renameTaskTag(from: string, to: string) {
   })
 }
 
+export function setTaskTagColor(tag: string, color: string) {
+  return api<{ tags: TaskTagCount[] }>('/task-tags/color', {
+    method: 'PUT',
+    body: JSON.stringify({ tag, color }),
+  })
+}
+
 export function deleteTaskTag(tag: string) {
   return api<{ tags: TaskTagCount[] }>('/task-tags/delete', {
     method: 'POST',

@@ -347,6 +347,7 @@ END:VALARM
 存储于 `settings`：
 
 ```text
+ai.provider
 ai.base_url
 ai.model
 ai.api_key
@@ -355,10 +356,13 @@ ai.api_key
 未配置时回退环境变量：
 
 ```text
+CALDAV_AI_PROVIDER
 CALDAV_AI_BASE_URL
 CALDAV_AI_MODEL
 CALDAV_AI_API_KEY
 ```
+
+模型列表接口使用当前或表单中的 Base URL/Key 请求 `GET {baseURL}/models`，支持 `data[].id` 和 `models[].id/name` 两种响应格式，最多返回 200 个模型。
 
 ### 10.2 对话循环
 

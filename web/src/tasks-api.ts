@@ -359,7 +359,14 @@ export function fetchAISettings() {
   return api<AISettings>('/tasks/ai/settings')
 }
 
-export function saveAISettings(payload: { baseUrl: string; model: string; apiKey?: string; clearKey?: boolean }) {
+export function fetchAIModels(payload: { provider?: string; baseUrl?: string; apiKey?: string }) {
+  return api<{ models: string[] }>('/tasks/ai/models', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function saveAISettings(payload: { provider?: string; baseUrl: string; model: string; apiKey?: string; clearKey?: boolean }) {
   return api<AISettings>('/tasks/ai/settings', {
     method: 'PUT',
     body: JSON.stringify(payload),

@@ -36,7 +36,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 摘要页：按日期/清单/状态/优先级/标签生成可编辑富文本摘要；支持分组、显示字段、下一周期、AI 内容优化、服务端模板/历史、复制与导出
 - AI 助手：接入 OpenAI 兼容接口，通过工具调用查询/创建/修改/完成/删除任务、创建清单、读取统计
 - AI 语音输入：支持浏览器 Web Speech API 的浏览器可直接口述任务
-- AI 设置：Base URL、模型、API Key 可在页面配置，也支持环境变量初始化
+- AI 设置：选择服务商自动填充接口地址，填写 API Key 后可拉取并选择模型；也支持环境变量初始化
 - 重复任务：每天、工作日、每周、每月、每年，或自定义 RRULE；完成后自动滚到下一次
 - 多提醒：一个任务可设置最多 10 个提醒（准时、提前 5 分钟 / 15 分钟 / 1 小时 / 1 天或客户端自定义），每个提醒写入独立 CalDAV `VALARM`；同时支持页面内浏览器提醒、服务端 Web Push 与 SMTP 邮件提醒
 - 清单文件夹：把多个清单收进文件夹并折叠展示，删除文件夹后清单回到根目录
@@ -242,6 +242,7 @@ docker run -d --name caldav \
 | `/api/admin/tasks/summary/optimize` | AI 润色摘要 |
 | `/api/admin/task-summary-documents` | 摘要模板/历史文档 CRUD |
 | `/api/admin/tasks/ai/settings` | AI 模型配置（读取/保存，Key 不回传） |
+| `/api/admin/tasks/ai/models` | 使用当前接口和 Key 拉取可用模型 |
 | `/api/admin/tasks/ai/chat` | AI 对话与工具调用 |
 | `/api/admin/tasks/batch` | 批量完成 / 移动 / 删除 |
 | `/api/admin/tasks/reorder` | 手动排序 |
@@ -504,7 +505,7 @@ go vet ./...
 - 重复 VEVENT 范围展开、跨日历事件查询与非法范围校验
 - 统计接口的总数、逾期、完成率、每日趋势、清单/标签/优先级分布
 - 摘要范围筛选、完成/未完成分组、下一周期、清单/标签/优先级筛选
-- AI 设置保存与 Key 脱敏、无配置时的 503、工具调用创建任务、Mock OpenAI 上游往返
+- AI 设置保存与 Key 脱敏、服务商预设、模型列表拉取、无配置时的 503、工具调用创建任务、Mock OpenAI 上游往返
 - VTODO 推送、客户端修改导入、客户端删除识别、任务日历重建
 - Vue SPA 路由回退与静态资源嵌入
 

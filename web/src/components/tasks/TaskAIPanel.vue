@@ -85,12 +85,10 @@
         </header>
         <div class="tw-dialog-body tw-ai-settings">
           <label class="tw-modal-label">
-            Base URL
-            <input v-model="settingsForm.baseUrl" class="tw-dialog-input" placeholder="https://api.openai.com/v1" />
-          </label>
-          <label class="tw-modal-label">
-            模型
-            <input v-model="settingsForm.model" class="tw-dialog-input" placeholder="gpt-4o-mini / deepseek-chat / llama3.1" />
+            服务商
+            <select v-model="settingsForm.provider" class="tw-field-select" @change="onProviderChange">
+              <option v-for="option in providerOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
+            </select>
           </label>
           <label class="tw-modal-label">
             API Key
@@ -100,17 +98,39 @@
               type="password"
               autocomplete="new-password"
               :placeholder="settings.hasKey ? '已保存，留空表示不修改' : '本地模型可留空'"
+              @blur="onKeyBlur"
             />
+          </label>
+          <label class="tw-modal-label">
+            接口地址（Base URL）
+            <input v-model="settingsForm.baseUrl" class="tw-dialog-input" placeholder="选择服务商后自动填充，也可手动修改" @change="models = []" />
+          </label>
+          <label class="tw-modal-label">
+            模型
+            <div class="tw-ai-model-row">
+              <input
+                v-model="settingsForm.model"
+                class="tw-dialog-input"
+                list="ai-model-options"
+                placeholder="获取模型后选择，或手动填写"
+                @keydown.enter.prevent
+              />
+              <button class="tw-ai-model-fetch" type="button" :disabled="modelsLoading || !settingsForm.baseUrl.trim()" @click="loadModels">
+                {{ modelsLoading ? '获取中…' : '获取模型' }}
+              </button>
+            </div>
+            <datalist id="ai-model-options">
+              <option v-for="model in models" :key="model" :value="model" />
+            </datalist>
+            <span v-if="models.length" class="tw-ai-model-count">已获取 {{ models.length }} 个模型，可从下拉选择或手动填写</span>
           </label>
           <label v-if="settings.hasKey" class="tw-check-label">
             <input v-model="settingsForm.clearKey" type="checkbox" />
             清除已保存的 API Key
           </label>
           <div class="tw-ai-provider-hint">
-            <strong>常用配置</strong>
-            <span>OpenAI：https://api.openai.com/v1 · gpt-4o-mini</span>
-            <span>DeepSeek：https://api.deepseek.com/v1 · deepseek-chat</span>
-            <span>Ollama：http://127.0.0.1:11434/v1 · 本地模型名</span>
+            <strong>提示</strong>
+            <span>选择服务商会自动填充接口地址；填写 API Key 后可获取并选择模型。</span>
             <span>接口需兼容 OpenAI Chat Completions 并支持 tools/function calling。</span>
           </div>
           <p class="tw-modal-note">
@@ -132,7 +152,7 @@
 import { nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { AIChatMessage, AISettings } from '../../types'
-import { fetchAISettings, saveAISettings, sendAIChat } from '../../tasks-api'
+import { fetchAIModels, fetchAISettings, saveAISettings, sendAIChat } from '../../tasks-api'
 import { browserTimezone } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
@@ -144,10 +164,26 @@ const quickPrompts = ['今天有哪些任务？', '创建一个明天下午 3 �
 const messages = ref<AIChatMessage[]>([])
 const input = ref('')
 const sending = ref(false)
-const settings = ref<AISettings>({ baseUrl: '', model: '', hasKey: false, configured: false })
+const settings = ref<AISettings>({ provider: 'custom', baseUrl: '', model: '', hasKey: false, configured: false })
 const settingsOpen = ref(false)
 const settingsBusy = ref(false)
-const settingsForm = reactive({ baseUrl: '', model: '', apiKey: '', clearKey: false })
+const settingsForm = reactive({ provider: 'custom', baseUrl: '', model: '', apiKey: '', clearKey: false })
+const models = ref<string[]>([])
+const modelsLoading = ref(false)
+const modelsFetched = ref(false)
+
+const providerOptions = [
+  { value: 'openai', label: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+  { value: 'deepseek', label: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+  { value: 'moonshot', label: 'Moonshot', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+  { value: 'zhipu', label: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
+  { value: 'qwen', label: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+  { value: 'siliconflow', label: 'SiliconFlow', baseUrl: 'https://api.siliconflow.cn/v1', model: 'Qwen/Qwen2.5-7B-Instruct' },
+  { value: 'groq', label: 'Groq', baseUrl: 'https://api.groq.com/openai/v1', model: 'llama-3.1-8b-instant' },
+  { value: 'openrouter', label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', model: '' },
+  { value: 'ollama', label: 'Ollama', baseUrl: 'http://127.0.0.1:11434/v1', model: 'llama3.1' },
+  { value: 'custom', label: '自定义 / 兼容接口', baseUrl: '', model: '' },
+]
 const scrollRef = ref<HTMLElement | null>(null)
 const inputRef = ref<HTMLTextAreaElement | null>(null)
 const speechSupported = ref(false)
@@ -180,6 +216,7 @@ function saveLocal() {
 async function loadSettings() {
   try {
     settings.value = await fetchAISettings()
+    settingsForm.provider = normalizeProvider(settings.value.provider, settings.value.baseUrl)
     settingsForm.baseUrl = settings.value.baseUrl
     settingsForm.model = settings.value.model
   } catch {
@@ -251,12 +288,58 @@ function clearChat() {
   }
 }
 
+function detectProvider(baseUrl: string) {
+  return providerOptions.find((option) => option.value !== 'custom' && option.baseUrl && baseUrl.startsWith(option.baseUrl))?.value || 'custom'
+}
+
+function normalizeProvider(provider: string, baseUrl: string) {
+  return providerOptions.some((option) => option.value === provider) ? provider : detectProvider(baseUrl)
+}
+
 function openSettings() {
+  settingsForm.provider = normalizeProvider(settings.value.provider, settings.value.baseUrl)
   settingsForm.baseUrl = settings.value.baseUrl
   settingsForm.model = settings.value.model
   settingsForm.apiKey = ''
   settingsForm.clearKey = false
+  models.value = []
+  modelsFetched.value = false
   settingsOpen.value = true
+}
+
+function onProviderChange() {
+  const preset = providerOptions.find((option) => option.value === settingsForm.provider)
+  if (!preset) return
+  if (preset.baseUrl) settingsForm.baseUrl = preset.baseUrl
+  if (preset.model) settingsForm.model = preset.model
+  models.value = []
+  modelsFetched.value = false
+}
+
+async function loadModels() {
+  if (modelsLoading.value || !settingsForm.baseUrl.trim()) return
+  modelsLoading.value = true
+  try {
+    const data = await fetchAIModels({
+      provider: settingsForm.provider,
+      baseUrl: settingsForm.baseUrl.trim(),
+      apiKey: settingsForm.apiKey.trim() || undefined,
+    })
+    models.value = data.models
+    modelsFetched.value = true
+    if (!settingsForm.model.trim() && data.models.length) settingsForm.model = data.models[0]
+    if (!data.models.length) Message.warning('服务商没有返回可用模型，可手动填写模型名称')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '获取模型失败')
+  } finally {
+    modelsLoading.value = false
+  }
+}
+
+function onKeyBlur() {
+  if (!modelsFetched.value && settingsForm.apiKey.trim() && settingsForm.baseUrl.trim()) {
+    void loadModels()
+  }
 }
 
 async function saveSettings() {
@@ -267,6 +350,7 @@ async function saveSettings() {
   settingsBusy.value = true
   try {
     settings.value = await saveAISettings({
+      provider: settingsForm.provider,
       baseUrl: settingsForm.baseUrl.trim(),
       model: settingsForm.model.trim(),
       apiKey: settingsForm.apiKey.trim() || undefined,

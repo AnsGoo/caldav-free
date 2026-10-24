@@ -1144,6 +1144,7 @@ data: {"unread":2}
 
 ```json
 {
+  "provider": "openai",
   "baseUrl": "https://api.openai.com/v1",
   "model": "gpt-4o-mini",
   "hasKey": true,
@@ -1157,6 +1158,7 @@ API Key 永不返回。
 
 ```json
 {
+  "provider": "openai",
   "baseUrl": "https://api.openai.com/v1",
   "model": "gpt-4o-mini",
   "apiKey": "sk-...",
@@ -1165,6 +1167,28 @@ API Key 永不返回。
 ```
 
 `apiKey` 为空表示保留原值；`clearKey: true` 清除已保存 Key。
+
+### POST /api/admin/tasks/ai/models
+
+使用指定或已保存的 Base URL 和 API Key 拉取 OpenAI 兼容的 `/models` 列表：
+
+```json
+{
+  "provider": "openai",
+  "baseUrl": "https://api.openai.com/v1",
+  "apiKey": "sk-..."
+}
+```
+
+`baseUrl`、`apiKey` 可省略，省略时使用已保存配置。响应：
+
+```json
+{
+  "models": ["gpt-4o-mini", "gpt-4o", "o3-mini"]
+}
+```
+
+仅管理员可调用；服务商返回错误时返回 `502`。
 
 ### POST /api/admin/tasks/ai/chat
 

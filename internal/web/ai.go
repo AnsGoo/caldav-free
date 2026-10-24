@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -18,15 +19,17 @@ import (
 )
 
 const (
-	settingAIBaseURL = "ai.base_url"
-	settingAIModel   = "ai.model"
-	settingAIAPIKey  = "ai.api_key"
+	settingAIBaseURL  = "ai.base_url"
+	settingAIModel    = "ai.model"
+	settingAIAPIKey   = "ai.api_key"
+	settingAIProvider = "ai.provider"
 )
 
 type aiConfig struct {
-	BaseURL string
-	Model   string
-	APIKey  string
+	Provider string
+	BaseURL  string
+	Model    string
+	APIKey   string
 }
 
 func (s *Server) loadAIConfig(ctx context.Context) aiConfig {
@@ -35,9 +38,13 @@ func (s *Server) loadAIConfig(ctx context.Context) aiConfig {
 		return strings.TrimSpace(value)
 	}
 	config := aiConfig{
-		BaseURL: get(settingAIBaseURL),
-		Model:   get(settingAIModel),
-		APIKey:  get(settingAIAPIKey),
+		Provider: get(settingAIProvider),
+		BaseURL:  get(settingAIBaseURL),
+		Model:    get(settingAIModel),
+		APIKey:   get(settingAIAPIKey),
+	}
+	if config.Provider == "" {
+		config.Provider = strings.TrimSpace(os.Getenv("CALDAV_AI_PROVIDER"))
 	}
 	if config.BaseURL == "" {
 		config.BaseURL = strings.TrimSpace(os.Getenv("CALDAV_AI_BASE_URL"))
@@ -53,7 +60,12 @@ func (s *Server) loadAIConfig(ctx context.Context) aiConfig {
 
 func (s *Server) aiSettingsPayload(ctx context.Context) map[string]any {
 	config := s.loadAIConfig(ctx)
+	provider := config.Provider
+	if provider == "" {
+		provider = "custom"
+	}
 	return map[string]any{
+		"provider":   provider,
 		"baseUrl":    config.BaseURL,
 		"model":      config.Model,
 		"hasKey":     config.APIKey != "",
@@ -68,6 +80,7 @@ func (s *Server) apiAISettings(w http.ResponseWriter, r *http.Request, current *
 		return
 	}
 	var body struct {
+		Provider string `json:"provider"`
 		BaseURL  string `json:"baseUrl"`
 		Model    string `json:"model"`
 		APIKey   string `json:"apiKey"`
@@ -85,6 +98,14 @@ func (s *Server) apiAISettings(w http.ResponseWriter, r *http.Request, current *
 	model := strings.TrimSpace(body.Model)
 	if model == "" {
 		writeAPIError(w, http.StatusBadRequest, "请填写模型名称")
+		return
+	}
+	provider := strings.TrimSpace(body.Provider)
+	if provider == "" {
+		provider = "custom"
+	}
+	if err := s.store.SetSetting(ctx, settingAIProvider, provider); err != nil {
+		s.apiServerError(w, err)
 		return
 	}
 	if err := s.store.SetSetting(ctx, settingAIBaseURL, baseURL); err != nil {
@@ -107,6 +128,101 @@ func (s *Server) apiAISettings(w http.ResponseWriter, r *http.Request, current *
 		}
 	}
 	writeAPIJSON(w, http.StatusOK, s.aiSettingsPayload(ctx))
+}
+
+func (s *Server) apiAIModels(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	var body struct {
+		Provider string `json:"provider"`
+		BaseURL  string `json:"baseUrl"`
+		APIKey   string `json:"apiKey"`
+	}
+	if !readAPIJSON(w, r, &body) {
+		return
+	}
+	config := s.loadAIConfig(r.Context())
+	baseURL := strings.TrimRight(strings.TrimSpace(body.BaseURL), "/")
+	if baseURL == "" {
+		baseURL = strings.TrimRight(config.BaseURL, "/")
+	}
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		writeAPIError(w, http.StatusBadRequest, "请先填写有效的接口地址")
+		return
+	}
+	apiKey := strings.TrimSpace(body.APIKey)
+	if apiKey == "" {
+		apiKey = config.APIKey
+	}
+	endpoint := baseURL
+	if !strings.HasSuffix(endpoint, "/models") {
+		endpoint += "/models"
+	}
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, endpoint, nil)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "接口地址无效")
+		return
+	}
+	request.Header.Set("Accept", "application/json")
+	if apiKey != "" {
+		request.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+	client := &http.Client{Timeout: 20 * time.Second}
+	response, err := client.Do(request)
+	if err != nil {
+		writeAPIError(w, http.StatusBadGateway, "获取模型失败："+err.Error())
+		return
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, 2<<20))
+	if err != nil {
+		writeAPIError(w, http.StatusBadGateway, "读取模型列表失败")
+		return
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		message := strings.TrimSpace(string(data))
+		if len(message) > 300 {
+			message = message[:300]
+		}
+		writeAPIError(w, http.StatusBadGateway, fmt.Sprintf("获取模型失败：HTTP %d %s", response.StatusCode, message))
+		return
+	}
+	var payload struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		Models []struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		writeAPIError(w, http.StatusBadGateway, "接口返回的模型列表格式不正确")
+		return
+	}
+	seen := make(map[string]bool)
+	models := make([]string, 0, len(payload.Data)+len(payload.Models))
+	for _, item := range payload.Data {
+		id := strings.TrimSpace(item.ID)
+		if id != "" && !seen[id] {
+			seen[id] = true
+			models = append(models, id)
+		}
+	}
+	for _, item := range payload.Models {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			id = strings.TrimSpace(item.Name)
+		}
+		if id != "" && !seen[id] {
+			seen[id] = true
+			models = append(models, id)
+		}
+	}
+	sort.Strings(models)
+	if len(models) > 200 {
+		models = models[:200]
+	}
+	writeAPIJSON(w, http.StatusOK, map[string]any{"models": models})
 }
 
 // ---------------------------------------------------------------- chat

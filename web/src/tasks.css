@@ -6561,3 +6561,42 @@ button.tw-side-link {
   border-color: var(--tw-danger);
   color: var(--tw-danger);
 }
+
+.tw-ai-model-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tw-ai-model-row .tw-dialog-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-ai-model-fetch {
+  flex: none;
+  height: 36px;
+  border: 1px solid var(--tw-border);
+  border-radius: 8px;
+  padding: 0 11px;
+  color: var(--tw-text-2);
+  background: var(--tw-bg);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.tw-ai-model-fetch:hover:not(:disabled) {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+  background: color-mix(in srgb, var(--tw-accent) 8%, transparent);
+}
+
+.tw-ai-model-fetch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tw-ai-model-count {
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+}

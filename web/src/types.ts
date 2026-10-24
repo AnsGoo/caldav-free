@@ -365,6 +365,7 @@ export interface TaskStats {
 }
 
 export interface AISettings {
+  provider: string
   baseUrl: string
   model: string
   hasKey: boolean

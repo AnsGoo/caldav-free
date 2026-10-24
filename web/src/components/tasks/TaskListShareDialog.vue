@@ -23,8 +23,17 @@
             <span class="tw-avatar tw-avatar-sm">{{ (share.displayName || share.username).slice(0, 1).toUpperCase() }}</span>
             <span class="tw-share-person">
               <strong>{{ share.displayName || share.username }}</strong>
-              <small>@{{ share.username }} · {{ share.role === 'editor' ? '可编辑' : '只读' }}</small>
+              <small>@{{ share.username }}</small>
             </span>
+            <select
+              class="tw-share-role-select"
+              :value="share.role"
+              :disabled="busy"
+              @change="updateShareRole(share, $event)"
+            >
+              <option value="viewer">只读</option>
+              <option value="editor">可编辑</option>
+            </select>
             <button class="tw-icon-button" title="移除共享" :disabled="busy" @click="removeShare(share)">
               <TaskIcon name="close" :size="14" />
             </button>
@@ -88,6 +97,24 @@ async function addShare() {
     Message.success(`已共享给 ${share.displayName || share.username}`)
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '共享失败'
+  } finally {
+    busy.value = false
+  }
+}
+
+async function updateShareRole(share: TaskListShare, event: Event) {
+  const nextRole = (event.target as HTMLSelectElement).value as 'viewer' | 'editor'
+  if (nextRole === share.role) return
+  busy.value = true
+  error.value = ''
+  try {
+    const result = await createTaskListShare(props.list.id, share.username, nextRole)
+    const index = shares.value.findIndex((item) => item.userId === share.userId)
+    if (index >= 0) shares.value[index] = { ...shares.value[index], ...result.share }
+    emit('changed')
+    Message.success(nextRole === 'editor' ? '已改为可编辑' : '已改为只读')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '修改角色失败'
   } finally {
     busy.value = false
   }

@@ -5426,3 +5426,14 @@ button.tw-side-link {
   font-size: 9.5px;
   flex: none;
 }
+
+.tw-share-role-select {
+  flex: none;
+  height: 26px;
+  border: 1px solid var(--tw-border);
+  border-radius: 6px;
+  background: var(--tw-bg);
+  color: var(--tw-text-2);
+  font-size: 10.5px;
+  padding: 0 4px;
+}

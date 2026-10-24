@@ -974,6 +974,11 @@ async function loadWorkspace(silent = false) {
     if (view.value === 'shared' && activeSharedListId.value) {
       const shared = await fetchSharedTasks(activeSharedListId.value)
       tasks.value = shared.tasks
+      sharedLists.value = sharedLists.value.map((item) =>
+        item.listId === shared.list.listId
+          ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color }
+          : item,
+      )
     } else if (view.value === 'shared') {
       tasks.value = []
     }
@@ -990,6 +995,26 @@ async function loadWorkspace(silent = false) {
   } finally {
     loading.value = false
   }
+}
+
+async function refreshSharedView() {
+  if (view.value !== 'shared' || !activeSharedListId.value) return
+  try {
+    const shared = await fetchSharedTasks(activeSharedListId.value)
+    tasks.value = shared.tasks
+    sharedLists.value = sharedLists.value.map((item) =>
+      item.listId === shared.list.listId
+        ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color }
+        : item,
+    )
+    if (selectedId.value && !shared.tasks.some((task) => task.id === selectedId.value)) selectedId.value = 0
+  } catch {
+    /* shared role refresh is best-effort */
+  }
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === 'visible' && view.value === 'shared') void refreshSharedView()
 }
 
 function scheduleRefresh() {
@@ -1060,6 +1085,7 @@ function selectSharedList(listId: number) {
   sidebarOpen.value = false
   clearSelection()
   syncURL()
+  void loadWorkspace(true)
 }
 
 function openShareList(list: TaskList) {
@@ -1976,7 +2002,11 @@ onMounted(async () => {
   await loadWorkspace()
   void refreshNotifications()
   startNotificationStream()
-  notificationTimer = setInterval(() => { void refreshNotifications() }, 60000)
+  notificationTimer = setInterval(() => {
+    void refreshNotifications()
+    if (view.value === 'shared') void refreshSharedView()
+  }, 60000)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   initialized = true
   window.addEventListener('keydown', onKeydown)
 })
@@ -1988,6 +2018,7 @@ onBeforeUnmount(() => {
   if (notificationTimer) clearInterval(notificationTimer)
   notificationSource?.close()
   notificationSource = null
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   stopReminderTimer()
 })
 

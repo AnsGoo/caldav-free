@@ -232,6 +232,18 @@ export function planMatrixDrop(
   return null
 }
 
+export function planComplexDrop(task: TaskItem, target: MatrixQuadrantKey, today = new Date()): MatrixDropPatch {
+  const due = new Date(today)
+  due.setHours(18, 0, 0, 0)
+  if (target === 'q1') return { priority: Math.max(2, task.priority), due: due.toISOString() }
+  if (target === 'q2') {
+    due.setDate(due.getDate() + 3)
+    return { priority: Math.max(2, task.priority), due: due.toISOString() }
+  }
+  if (target === 'q3') return { priority: 0, due: due.toISOString() }
+  return { priority: 0, due: '' }
+}
+
 export function matrixQuadrant(task: TaskItem, rules: MatrixViewRules, today = startOfToday()): MatrixQuadrantKey {
   const priority = taskPriority(task)
   for (const quadrant of MATRIX_QUADRANTS) {

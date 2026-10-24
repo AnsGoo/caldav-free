@@ -70,13 +70,36 @@ func (s *Server) apiMatrixRuleTemplate(w http.ResponseWriter, r *http.Request, c
 		writeAPIError(w, http.StatusNotFound, "模板不存在")
 		return
 	}
-	if r.Method != http.MethodDelete {
+	switch r.Method {
+	case http.MethodDelete:
+		if err := s.store.DeleteMatrixRuleTemplate(r.Context(), current.ID, id); err != nil {
+			writeAPIError(w, http.StatusNotFound, "模板不存在")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	case http.MethodPatch:
+		var body struct {
+			Name  string          `json:"name"`
+			Rules json.RawMessage `json:"rules"`
+		}
+		if !readAPIJSON(w, r, &body) {
+			return
+		}
+		if strings.TrimSpace(body.Name) == "" && len(body.Rules) == 0 {
+			writeAPIError(w, http.StatusBadRequest, "没有需要更新的内容")
+			return
+		}
+		if !validMatrixRules(body.Rules) {
+			writeAPIError(w, http.StatusBadRequest, "模板规则格式不正确")
+			return
+		}
+		template, err := s.store.UpdateMatrixRuleTemplate(r.Context(), current.ID, id, body.Name, string(body.Rules))
+		if err != nil {
+			writeAPIError(w, http.StatusNotFound, "模板不存在")
+			return
+		}
+		writeAPIJSON(w, http.StatusOK, map[string]any{"template": matrixRuleTemplateDTO(template)})
+	default:
 		writeAPIError(w, http.StatusMethodNotAllowed, "method not allowed")
-		return
 	}
-	if err := s.store.DeleteMatrixRuleTemplate(r.Context(), current.ID, id); err != nil {
-		writeAPIError(w, http.StatusNotFound, "模板不存在")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }

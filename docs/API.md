@@ -554,6 +554,17 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 `name` 必填，`rules` 必须是 JSON 对象，最大 16KB。返回 `201` 和完整模板。
 
+### PATCH /api/admin/task-matrix-templates/{id}
+
+```json
+{
+  "name": "重命名后的模板",
+  "rules": { "q1": { "match": "all", "groups": [{ "priorities": [3] }] }, "q2": {}, "q3": {}, "q4": {} }
+}
+```
+
+`name` 和 `rules` 均可选，只传需要修改的字段。返回更新后的完整模板。
+
 ### DELETE /api/admin/task-matrix-templates/{id}
 
 返回 `204`。

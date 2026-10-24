@@ -29,10 +29,6 @@
               <TaskIcon name="copy" :size="11" />
               保存为模板
             </button>
-            <button v-if="selectedTemplateId" class="tw-matrix-template-delete" :title="deleteArmed === selectedTemplateId ? '再次点击确认删除' : '删除当前模板'" @click="deleteTemplate">
-              <TaskIcon name="trash" :size="11" />
-              {{ deleteArmed === selectedTemplateId ? '确认删除' : '删除模板' }}
-            </button>
             <button class="tw-matrix-rules-reset" @click="form = defaultMatrixRules()">
               <TaskIcon name="restore" :size="11" />
               恢复内置规则与配色
@@ -44,6 +40,17 @@
           <input v-model="templateName" class="tw-dialog-input" placeholder="模板名称" maxlength="60" @keydown.enter="saveTemplate" />
           <button class="tw-dialog-ok" :disabled="templateSaving || !templateName.trim()" @click="saveTemplate">{{ templateSaving ? '保存中…' : '保存模板' }}</button>
           <button class="tw-dialog-cancel" @click="templateFormOpen = false">取消</button>
+        </div>
+
+        <div v-if="selectedTemplateId" class="tw-matrix-template-save tw-matrix-template-current">
+          <span class="tw-matrix-template-label">当前模板</span>
+          <input v-model="templateRename" class="tw-dialog-input" maxlength="60" aria-label="模板名称" @keydown.enter="renameTemplate" />
+          <button class="tw-matrix-rule-action" :disabled="!templateRename.trim()" @click="renameTemplate">重命名</button>
+          <button class="tw-matrix-rule-action" @click="updateTemplate">更新规则</button>
+          <button class="tw-matrix-template-delete" :title="deleteArmed === selectedTemplateId ? '再次点击确认删除' : '删除当前模板'" @click="deleteTemplate">
+            <TaskIcon name="trash" :size="11" />
+            {{ deleteArmed === selectedTemplateId ? '确认删除' : '删除' }}
+          </button>
         </div>
 
         <section v-for="quadrant in MATRIX_QUADRANTS" :key="quadrant.id" class="tw-matrix-rule-card" :style="{ '--matrix-color': form[quadrant.id].color }">
@@ -171,7 +178,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { MatrixCondition, MatrixQuadrantKey, MatrixRuleTemplate, MatrixView, MatrixViewRules, TaskItem, TaskList } from '../../types'
 import { clearMatrixConditions, defaultMatrixRules, emptyMatrixCondition, MATRIX_QUADRANTS, matchesMatrixCondition, matrixQuadrant, normalizeMatrixRules } from '../../matrix-utils'
-import { createMatrixRuleTemplate, deleteMatrixRuleTemplate, fetchMatrixRuleTemplates, updateMatrixView } from '../../tasks-api'
+import { createMatrixRuleTemplate, deleteMatrixRuleTemplate, fetchMatrixRuleTemplates, updateMatrixRuleTemplate, updateMatrixView } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
@@ -196,12 +203,16 @@ const template = ref('')
 const templates = ref<MatrixRuleTemplate[]>([])
 const templateFormOpen = ref(false)
 const templateName = ref('')
+const templateRename = ref('')
 const templateSaving = ref(false)
 const deleteArmed = ref(0)
 const copiedConditions = ref<{ match: 'all' | 'any'; groups: MatrixCondition[] } | null>(null)
 const selectedTemplateId = computed(() => template.value.startsWith('custom:') ? Number(template.value.slice(7)) || 0 : 0)
 
-watch(template, () => { deleteArmed.value = 0 })
+watch(template, () => {
+  deleteArmed.value = 0
+  templateRename.value = templates.value.find((item) => `custom:${item.id}` === template.value)?.name || ''
+})
 
 onMounted(async () => {
   try {
@@ -288,6 +299,31 @@ async function saveTemplate() {
     error.value = cause instanceof Error ? cause.message : '保存规则模板失败'
   } finally {
     templateSaving.value = false
+  }
+}
+
+async function renameTemplate() {
+  const id = selectedTemplateId.value
+  const name = templateRename.value.trim()
+  if (!id || !name) return
+  try {
+    const { template: updated } = await updateMatrixRuleTemplate(id, { name })
+    templates.value = templates.value.map((item) => item.id === updated.id ? updated : item)
+    Message.success('模板名称已更新')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '重命名模板失败'
+  }
+}
+
+async function updateTemplate() {
+  const id = selectedTemplateId.value
+  if (!id) return
+  try {
+    const { template: updated } = await updateMatrixRuleTemplate(id, { rules: normalizeMatrixRules(form.value) })
+    templates.value = templates.value.map((item) => item.id === updated.id ? updated : item)
+    Message.success('模板规则已更新')
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '更新模板失败'
   }
 }
 

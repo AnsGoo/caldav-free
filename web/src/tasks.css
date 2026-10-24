@@ -6415,3 +6415,14 @@ button.tw-side-link {
   justify-content: flex-end;
   row-gap: 6px;
 }
+
+.tw-matrix-template-label {
+  flex: none;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+}
+
+.tw-matrix-template-current {
+  border-style: dashed;
+  background: transparent;
+}

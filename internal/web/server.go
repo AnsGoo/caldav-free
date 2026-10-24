@@ -192,6 +192,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/admin/task-tags/delete", s.apiAdmin(s.apiDeleteTaskTag))
 	mux.HandleFunc("GET /api/admin/task-matrix-templates", s.apiAdmin(s.apiMatrixRuleTemplates))
 	mux.HandleFunc("POST /api/admin/task-matrix-templates", s.apiAdmin(s.apiMatrixRuleTemplates))
+	mux.HandleFunc("PATCH /api/admin/task-matrix-templates/{id}", s.apiAdmin(s.apiMatrixRuleTemplate))
 	mux.HandleFunc("DELETE /api/admin/task-matrix-templates/{id}", s.apiAdmin(s.apiMatrixRuleTemplate))
 	mux.HandleFunc("GET /api/admin/task-matrix-views", s.apiAdmin(s.apiMatrixViews))
 	mux.HandleFunc("POST /api/admin/task-matrix-views", s.apiAdmin(s.apiMatrixViews))

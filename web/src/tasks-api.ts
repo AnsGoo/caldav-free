@@ -229,6 +229,13 @@ export function createMatrixRuleTemplate(name: string, rules: MatrixViewRules) {
   })
 }
 
+export function updateMatrixRuleTemplate(id: number, payload: { name?: string; rules?: MatrixViewRules }) {
+  return api<{ template: MatrixRuleTemplate }>(`/task-matrix-templates/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function deleteMatrixRuleTemplate(id: number) {
   return api<void>(`/task-matrix-templates/${id}`, { method: 'DELETE' })
 }

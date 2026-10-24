@@ -173,6 +173,7 @@
         @toggle="toggleTask"
         @move="moveTaskToQuadrant"
         @move-custom="moveTaskToCustomQuadrant"
+        @move-sorted="moveTaskCrossQuadrant"
         @change-rule="setMatrixRule"
         @select-view="selectMatrixView"
         @create-view="openMatrixViewDialog"
@@ -818,7 +819,7 @@ import {
   startOfToday,
   taskReminderOffsets,
 } from '../tasks-utils'
-import { normalizeMatrixRules, planMatrixDrop } from '../matrix-utils'
+import { normalizeMatrixRules, planComplexDrop, planMatrixDrop } from '../matrix-utils'
 import { tagColor, tagTint } from '../tag-colors'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
@@ -1585,7 +1586,7 @@ function toggleMatrixManualSort() {
   }
 }
 
-async function onMatrixReorder(ids: number[]) {
+async function applyMatrixOrder(ids: number[]) {
   ids.forEach((id, index) => {
     const task = tasks.value.find((item) => item.id === id)
     if (task) task.order = index + 1
@@ -1596,6 +1597,10 @@ async function onMatrixReorder(ids: number[]) {
     Message.error(error instanceof Error ? error.message : '排序保存失败')
     void loadWorkspace(true)
   }
+}
+
+async function onMatrixReorder(ids: number[]) {
+  await applyMatrixOrder(ids)
 }
 
 function openMatrixRules() {
@@ -1698,6 +1703,29 @@ async function moveTaskToCustomQuadrant(payload: { task: TaskItem; quadrant: Mat
     Message.success('已按目标象限规则调整任务')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '自动调整任务条件失败')
+  }
+}
+
+async function moveTaskCrossQuadrant(payload: { task: TaskItem; quadrant: MatrixQuadrantKey; orderedIds: number[] }) {
+  let patch: { priority?: number; due?: string; listId?: number; tags?: string[]; assignee?: string } | null = null
+  if (matrixRule.value === 'custom') {
+    patch = planMatrixDrop(payload.task, normalizeMatrixRules(matrixCustomRules.value), payload.quadrant)
+    if (patch === null) {
+      Message.warning('目标象限条件无法通过拖拽自动满足')
+      return
+    }
+  } else if (matrixRule.value === 'complex') {
+    patch = planComplexDrop(payload.task, payload.quadrant)
+  } else {
+    patch = { priority: payload.quadrant === 'q1' ? 3 : payload.quadrant === 'q2' ? 2 : payload.quadrant === 'q3' ? 1 : 0 }
+  }
+  try {
+    const { task } = await updateTask(payload.task.id, patch)
+    replaceTask(task)
+    await applyMatrixOrder(payload.orderedIds)
+    Message.success('已移动到对应象限')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '移动任务失败')
   }
 }
 

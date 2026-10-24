@@ -157,6 +157,7 @@ const emit = defineEmits<{
   (event: 'toggle', task: TaskItem): void
   (event: 'move', payload: { task: TaskItem; priority: number }): void
   (event: 'move-custom', payload: { task: TaskItem; quadrant: MatrixQuadrantKey }): void
+  (event: 'move-sorted', payload: { task: TaskItem; quadrant: MatrixQuadrantKey; orderedIds: number[] }): void
   (event: 'change-rule', rule: MatrixRuleMode): void
   (event: 'select-view', id: number): void
   (event: 'create-view'): void
@@ -265,6 +266,11 @@ function onRowDrop(quadrant: string, target: TaskItem, event: DragEvent) {
   sortTask.value = null
   sortOver.value = 0
   if (!source || target.completed || source.id === target.id) return
+  if (quadrantOf(source.id) !== quadrant) {
+    const orderedIds = orderedIdsWith(source, quadrant, target.id)
+    if (orderedIds) emit('move-sorted', { task: source, quadrant: quadrant as MatrixQuadrantKey, orderedIds })
+    return
+  }
   const quadrantTasks = quadrants.value.find((item) => item.id === quadrant)?.groups[0]?.tasks
   if (!quadrantTasks) return
   const list = quadrantTasks.slice()
@@ -281,16 +287,50 @@ function onRowDrop(quadrant: string, target: TaskItem, event: DragEvent) {
   emit('reorder', ordered)
 }
 
+function priorityForQuadrant(quadrant: string) {
+  return quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0
+}
+
+function quadrantOf(taskId: number) {
+  return quadrants.value.find((item) => item.tasks.some((task) => task.id === taskId))?.id
+}
+
+function orderedIdsWith(task: TaskItem, quadrant: string, beforeId = 0) {
+  const lists = quadrants.value.map((item) => ({
+    id: item.id,
+    tasks: (item.groups[0]?.tasks ?? item.tasks).slice(),
+  }))
+  const sourceList = lists.find((item) => item.tasks.some((entry) => entry.id === task.id))
+  const targetList = lists.find((item) => item.id === quadrant)
+  if (!sourceList || !targetList) return null
+  sourceList.tasks = sourceList.tasks.filter((entry) => entry.id !== task.id)
+  const index = beforeId ? targetList.tasks.findIndex((entry) => entry.id === beforeId) : -1
+  if (index >= 0) targetList.tasks.splice(index, 0, task)
+  else targetList.tasks.push(task)
+  return lists.flatMap((item) => item.tasks.map((entry) => entry.id))
+}
+
 function dropOnQuadrant(quadrant: string) {
-  const task = dragTask.value
+  const source = sortTask.value
+  const task = source || dragTask.value
+  sortTask.value = null
+  sortOver.value = 0
   dragTask.value = null
   dragOver.value = ''
-  if (!task || props.rule === 'complex') return
+  if (!task) return
+  if (source) {
+    if (quadrantOf(task.id) !== quadrant) {
+      const orderedIds = orderedIdsWith(task, quadrant)
+      if (orderedIds) emit('move-sorted', { task, quadrant: quadrant as MatrixQuadrantKey, orderedIds })
+    }
+    return
+  }
+  if (props.rule === 'complex') return
   if (props.rule === 'custom') {
     emit('move-custom', { task, quadrant: quadrant as MatrixQuadrantKey })
     return
   }
-  const priority = quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0
+  const priority = priorityForQuadrant(quadrant)
   if (task.priority !== priority) emit('move', { task, priority })
 }
 

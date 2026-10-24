@@ -44,6 +44,26 @@ func (s *Store) CreateMatrixRuleTemplate(ctx context.Context, userID int64, name
 	return template, nil
 }
 
+func (s *Store) UpdateMatrixRuleTemplate(ctx context.Context, userID, id int64, name, rules string) (*MatrixRuleTemplate, error) {
+	updates := map[string]any{}
+	if trimmed := strings.TrimSpace(name); trimmed != "" {
+		updates["name"] = trimmed
+	}
+	if trimmed := strings.TrimSpace(rules); trimmed != "" {
+		updates["rules"] = trimmed
+	}
+	if len(updates) > 0 {
+		res := s.db.WithContext(ctx).Model(&MatrixRuleTemplate{}).Where("id = ? AND user_id = ?", id, userID).Updates(updates)
+		if res.Error != nil {
+			return nil, fmt.Errorf("update matrix rule template: %w", res.Error)
+		}
+		if res.RowsAffected == 0 {
+			return nil, ErrNotFound
+		}
+	}
+	return s.GetMatrixRuleTemplate(ctx, userID, id)
+}
+
 func (s *Store) DeleteMatrixRuleTemplate(ctx context.Context, userID, id int64) error {
 	res := s.db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID).Delete(&MatrixRuleTemplate{})
 	if res.Error != nil {

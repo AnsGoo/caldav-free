@@ -9833,3 +9833,15 @@ html[data-theme='dark'] .arco-select-dropdown .arco-select-option-selected {
   padding-right: 20px;
   font-size: 12.5px;
 }
+
+/* Compact select popups inside the task workspace. */
+html[data-theme] .arco-select-dropdown .arco-select-option {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 28px;
+}
+
+html[data-theme] .arco-select-dropdown-list-wrapper {
+  max-height: 186px;
+}

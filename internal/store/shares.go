@@ -38,6 +38,7 @@ type SharedTaskList struct {
 	ListID        int64
 	Name          string
 	Color         string
+	Kind          string
 	OwnerID       int64
 	OwnerUsername string
 	OwnerDisplay  string
@@ -143,7 +144,7 @@ func (s *Store) ListSharedTaskLists(ctx context.Context, userID int64) ([]Shared
 		}
 		count, _ := s.CountTasksInList(ctx, share.OwnerID, list.ID)
 		out = append(out, SharedTaskList{
-			ListID: list.ID, Name: list.Name, Color: list.Color,
+			ListID: list.ID, Name: list.Name, Color: list.Color, Kind: list.Kind,
 			OwnerID: owner.ID, OwnerUsername: owner.Username,
 			OwnerDisplay: owner.DisplayName, Role: share.Role, Count: count,
 		})

@@ -632,16 +632,16 @@
           </button>
         </header>
         <div class="tw-dialog-body">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             名称
-            <input
+            <a-input
               v-model="folderForm.name"
               class="tw-dialog-input"
-              maxlength="40"
+              :max-length="40"
               placeholder="例如：工作项目"
               @keydown.enter="saveFolder"
             />
-          </label>
+          </div>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="folderVisible = false">取消</button>
@@ -659,41 +659,41 @@
           </button>
         </header>
         <div class="tw-dialog-body tw-filter-form">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             名称
-            <input v-model="filterForm.name" class="tw-dialog-input" maxlength="60" placeholder="例如：本周高优工作" />
-          </label>
+            <a-input v-model="filterForm.name" class="tw-dialog-input" :max-length="60" placeholder="例如：本周高优工作" />
+          </div>
           <div class="tw-filter-grid">
-            <label class="tw-modal-label">
+            <div class="tw-modal-label">
               关键词
-              <input v-model="filterForm.conditions.keyword" class="tw-dialog-input" maxlength="100" placeholder="标题或备注" />
-            </label>
-            <label class="tw-modal-label">
+              <a-input v-model="filterForm.conditions.keyword" class="tw-dialog-input" :max-length="100" placeholder="标题或备注" />
+            </div>
+            <div class="tw-modal-label">
               状态
-              <select v-model="filterForm.conditions.status" class="tw-field-select">
-                <option value="open">未完成</option>
-                <option value="completed">已完成</option>
-                <option value="all">全部</option>
-              </select>
-            </label>
-            <label class="tw-modal-label">
+              <a-select v-model="filterForm.conditions.status" class="tw-field-select">
+                <a-option value="open">未完成</a-option>
+                <a-option value="completed">已完成</a-option>
+                <a-option value="all">全部</a-option>
+              </a-select>
+            </div>
+            <div class="tw-modal-label">
               日期
-              <select v-model="filterForm.conditions.date" class="tw-field-select">
-                <option value="any">不限</option>
-                <option value="today">今天</option>
-                <option value="tomorrow">明天</option>
-                <option value="next7">最近 7 天</option>
-                <option value="overdue">已逾期</option>
-                <option value="none">无日期</option>
-                <option value="yesterday">昨天</option>
-                <option value="thisWeek">本周</option>
-                <option value="lastWeek">上周</option>
-                <option value="thisMonth">本月</option>
-                <option value="lastMonth">上月</option>
-                <option value="range">时间段</option>
-              </select>
-            </label>
-            <label v-if="filterForm.conditions.date === 'range'" class="tw-modal-label tw-modal-span">
+              <a-select v-model="filterForm.conditions.date" class="tw-field-select">
+                <a-option value="any">不限</a-option>
+                <a-option value="today">今天</a-option>
+                <a-option value="tomorrow">明天</a-option>
+                <a-option value="next7">最近 7 天</a-option>
+                <a-option value="overdue">已逾期</a-option>
+                <a-option value="none">无日期</a-option>
+                <a-option value="yesterday">昨天</a-option>
+                <a-option value="thisWeek">本周</a-option>
+                <a-option value="lastWeek">上周</a-option>
+                <a-option value="thisMonth">本月</a-option>
+                <a-option value="lastMonth">上月</a-option>
+                <a-option value="range">时间段</a-option>
+              </a-select>
+            </div>
+            <div v-if="filterForm.conditions.date === 'range'" class="tw-modal-label tw-modal-span">
               时间段
               <span class="tw-range-row">
                 <a-date-picker
@@ -712,14 +712,14 @@
                   allow-clear
                 />
               </span>
-            </label>
-            <label class="tw-modal-label">
+            </div>
+            <div class="tw-modal-label">
               标签匹配
-              <select v-model="filterForm.conditions.tagMode" class="tw-field-select">
-                <option value="any">任一标签</option>
-                <option value="all">全部标签</option>
-              </select>
-            </label>
+              <a-select v-model="filterForm.conditions.tagMode" class="tw-field-select">
+                <a-option value="any">任一标签</a-option>
+                <a-option value="all">全部标签</a-option>
+              </a-select>
+            </div>
           </div>
 
           <div class="tw-filter-block">
@@ -789,10 +789,10 @@
         <div class="tw-dialog-body tw-tag-manager">
           <div v-for="tag in tagCounts" :key="tag.name" class="tw-tag-row">
             <template v-if="editingTag === tag.name">
-              <input
+              <a-input
                 v-model="editingTagName"
                 class="tw-dialog-input"
-                maxlength="30"
+                :max-length="30"
                 @keydown.enter="saveTagRename(tag)"
                 @keydown.esc="cancelRenameTag"
               />
@@ -838,17 +838,17 @@
           </button>
         </header>
         <div class="tw-dialog-body">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             名称
-            <input
+            <a-input
               ref="editNameInput"
               v-model="editForm.name"
               class="tw-dialog-input"
-              maxlength="40"
+              :max-length="40"
               placeholder="清单名称"
               @keydown.enter="saveList"
             />
-          </label>
+          </div>
           <div class="tw-modal-label">
             颜色
             <div class="tw-color-row">
@@ -862,13 +862,13 @@
               />
             </div>
           </div>
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             文件夹
-            <select v-model.number="editForm.folderId" class="tw-field-select">
-              <option :value="0">根目录</option>
-              <option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</option>
-            </select>
-          </label>
+            <a-select v-model.number="editForm.folderId" class="tw-field-select">
+              <a-option :value="0">根目录</a-option>
+              <a-option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</a-option>
+            </a-select>
+          </div>
           <p class="tw-modal-note">
             {{ editingList?.kind === 'NOTE' ? '删除笔记清单会把其中的笔记移动到其他笔记清单。' : '删除清单会把其中的任务移动到收集箱。' }}
           </p>
@@ -929,18 +929,18 @@
           </button>
         </header>
         <div class="tw-dialog-body">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             视图名称
-            <input v-model="matrixViewName" class="tw-dialog-input" maxlength="60" @keydown.enter="saveMatrixView" />
-          </label>
-          <label class="tw-field">
+            <a-input v-model="matrixViewName" class="tw-dialog-input" :max-length="60" @keydown.enter="saveMatrixView" />
+          </div>
+          <div class="tw-field">
             <span>规则</span>
-            <select v-model="matrixViewMode" class="tw-field-select">
-              <option value="simple">按优先级</option>
-              <option value="complex">优先级 + 日期</option>
-              <option value="custom">自定义规则</option>
-            </select>
-          </label>
+            <a-select v-model="matrixViewMode" class="tw-field-select">
+              <a-option value="simple">按优先级</a-option>
+              <a-option value="complex">优先级 + 日期</a-option>
+              <a-option value="custom">自定义规则</a-option>
+            </a-select>
+          </div>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="matrixViewDialogOpen = false">取消</button>
@@ -991,24 +991,20 @@
         </header>
         <div class="tw-dialog-body tw-section-delete">
           <p class="tw-dialog-hint">「{{ sectionDeleteTarget.name }}」中的任务如何处理？</p>
-          <label class="tw-radio-row">
-            <input v-model="sectionDeleteStrategy" type="radio" value="move" />
-            <span>移动任务到</span>
-          </label>
-          <select v-if="sectionDeleteStrategy === 'move'" v-model.number="sectionDeleteMoveTo" class="tw-field-select">
-            <option :value="0">未分组</option>
-            <option
+          <a-radio-group v-model="sectionDeleteStrategy" direction="vertical" class="tw-choice-group">
+            <a-radio value="move">移动任务到</a-radio>
+            <a-radio value="delete">删除分组和其中的任务</a-radio>
+          </a-radio-group>
+          <a-select v-if="sectionDeleteStrategy === 'move'" v-model.number="sectionDeleteMoveTo" class="tw-field-select">
+            <a-option :value="0">未分组</a-option>
+            <a-option
               v-for="section in activeSections.filter((item) => item.id !== sectionDeleteTarget?.sectionId)"
               :key="section.id"
               :value="section.id"
             >
               {{ section.name }}
-            </option>
-          </select>
-          <label class="tw-radio-row">
-            <input v-model="sectionDeleteStrategy" type="radio" value="delete" />
-            <span>删除分组和其中的任务</span>
-          </label>
+            </a-option>
+          </a-select>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="sectionDeleteTarget = null">取消</button>
@@ -1026,23 +1022,16 @@
           </button>
         </header>
         <div class="tw-dialog-body tw-copy-list">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             名称
-            <input v-model="copyListName" class="tw-dialog-input" maxlength="40" />
-          </label>
+            <a-input v-model="copyListName" class="tw-dialog-input" :max-length="40" />
+          </div>
           <p class="tw-dialog-hint">请选择复制范围</p>
-          <label class="tw-radio-row">
-            <input v-model="copyListMode" type="radio" value="open" />
-            <span>只复制未完成任务</span>
-          </label>
-          <label class="tw-radio-row">
-            <input v-model="copyListMode" type="radio" value="keep" />
-            <span>复制全部任务，保留已完成状态</span>
-          </label>
-          <label class="tw-radio-row">
-            <input v-model="copyListMode" type="radio" value="all" />
-            <span>复制全部任务，不保留已完成状态</span>
-          </label>
+          <a-radio-group v-model="copyListMode" direction="vertical" class="tw-choice-group">
+            <a-radio value="open">只复制未完成任务</a-radio>
+            <a-radio value="keep">复制全部任务，保留已完成状态</a-radio>
+            <a-radio value="all">复制全部任务，不保留已完成状态</a-radio>
+          </a-radio-group>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="copyListTarget = null">取消</button>
@@ -1289,7 +1278,7 @@ let notificationSource: EventSource | null = null
 const quickInputEl = ref<HTMLInputElement | null>(null)
 const sectionRenameInput = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
 const searchInputEl = ref<HTMLInputElement | null>(null)
-const editNameInput = ref<HTMLInputElement | null>(null)
+const editNameInput = ref<{ focus?: () => void } | null>(null)
 
 const editVisible = ref(false)
 const editBusy = ref(false)
@@ -1340,7 +1329,10 @@ const smartLabels: Record<string, string> = {
 
 const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
 const activeList = computed(() => lists.value.find((item) => item.id === activeListId.value))
-const noteView = computed(() => view.value === 'list' && activeList.value?.kind === 'NOTE')
+const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))
+const sharedNoteView = computed(() => view.value === 'shared' && activeSharedList.value?.kind === 'NOTE')
+const noteView = computed(() => (view.value === 'list' && activeList.value?.kind === 'NOTE') || sharedNoteView.value)
+const noteTargetListId = computed(() => (sharedNoteView.value ? activeSharedList.value?.listId || 0 : activeListId.value))
 const noteTasks = computed(() =>
   tasks.value
     .filter((task) => task.kind === 'NOTE')
@@ -1349,7 +1341,6 @@ const noteTasks = computed(() =>
 )
 const timelineTasks = computed(() => tasks.value.filter((task) => task.kind !== 'NOTE'))
 
-const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))
 const sharedEditable = computed(() => view.value === 'shared' && activeSharedList.value?.role === 'editor')
 const sharedReadonly = computed(() => view.value === 'shared' && !sharedEditable.value)
 const heading = computed(() => {
@@ -1367,7 +1358,8 @@ const heading = computed(() => {
 })
 
 const headingIcon = computed(() => {
-  if (view.value === 'list') return 'inbox'
+  if (sharedNoteView.value) return 'note'
+  if (view.value === 'list') return activeList.value?.kind === 'NOTE' ? 'note' : 'inbox'
   if (view.value === 'today') return 'today'
   if (view.value === 'next7') return 'next7'
   if (view.value === 'inbox') return 'inbox'
@@ -1434,7 +1426,7 @@ const detailLists = computed<TaskList[]>(() => {
       folderId: 0,
       name: shared.name,
       color: shared.color,
-      kind: 'TASK',
+      kind: shared.kind || 'TASK',
       order: 0,
       pinned: false,
       isInbox: false,
@@ -1567,7 +1559,7 @@ async function loadWorkspace(silent = false) {
       tasks.value = shared.tasks
       sharedLists.value = sharedLists.value.map((item) =>
         item.listId === shared.list.listId
-          ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color }
+          ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color, kind: shared.list.kind || item.kind }
           : item,
       )
     } else if (view.value === 'shared') {
@@ -1595,7 +1587,7 @@ async function refreshSharedView() {
     tasks.value = shared.tasks
     sharedLists.value = sharedLists.value.map((item) =>
       item.listId === shared.list.listId
-        ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color }
+        ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color, kind: shared.list.kind || item.kind }
         : item,
     )
     if (selectedId.value && !shared.tasks.some((task) => task.id === selectedId.value)) selectedId.value = 0
@@ -1959,7 +1951,7 @@ async function submitQuick() {
   quickBusy.value = true
   try {
     if (noteView.value) {
-      const { task } = await createTask({ title: text, listId: activeListId.value, kind: 'NOTE' })
+      const { task } = await createTask({ title: text, listId: noteTargetListId.value, kind: 'NOTE' })
       quickText.value = ''
       quickListId.value = 0
       quickSectionId.value = 0
@@ -2267,7 +2259,7 @@ function openEditList(list: TaskList) {
   editForm.color = list.color || LIST_COLORS[0]
   editForm.folderId = list.folderId || 0
   editVisible.value = true
-  requestAnimationFrame(() => editNameInput.value?.focus())
+  requestAnimationFrame(() => editNameInput.value?.focus?.())
 }
 
 async function saveList() {

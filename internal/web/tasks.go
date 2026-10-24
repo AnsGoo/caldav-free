@@ -599,6 +599,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 			}
 			task.UserID = shared.UserID
 			task.ListID = shared.ID
+			listKind = shared.Kind
 		} else {
 			writeAPIError(w, http.StatusBadRequest, "清单不存在")
 			return
@@ -770,7 +771,11 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", created.ID, "error", err)
 	}
 	s.notifyAssignment(ctx, r, current, "", created)
-	_ = s.store.CreateTaskActivity(ctx, created.ID, current.ID, "create", "")
+	createDetail := "创建了任务"
+	if created.Kind == "NOTE" {
+		createDetail = "创建了笔记"
+	}
+	_ = s.store.CreateTaskActivity(ctx, created.ID, current.ID, "create", createDetail)
 	list, _ := s.store.GetTaskList(ctx, created.UserID, created.ListID)
 	writeAPIJSON(w, http.StatusCreated, map[string]any{"task": apiTaskDTO(created, list)})
 }
@@ -1070,7 +1075,11 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		changed = append(changed, "标题")
 	}
 	if previousNotes != task.Notes {
-		changed = append(changed, "备注")
+		if task.Kind == "NOTE" {
+			changed = append(changed, "内容")
+		} else {
+			changed = append(changed, "备注")
+		}
 	}
 	if previousPriority != task.Priority {
 		changed = append(changed, "优先级")

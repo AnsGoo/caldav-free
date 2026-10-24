@@ -9,99 +9,90 @@
       </header>
 
       <div class="tw-dialog-body tw-event-body">
-        <label class="tw-event-field">
+        <div class="tw-event-field">
           <span>标题</span>
-          <input ref="titleInput" v-model="form.summary" class="tw-dialog-input" maxlength="300" placeholder="日程标题" @keydown.enter.prevent="save" />
-        </label>
+          <a-input ref="titleInput" v-model="form.summary" class="tw-dialog-input" :max-length="300" placeholder="日程标题" @keydown.enter.prevent="save" />
+        </div>
 
         <div class="tw-event-grid">
-          <label class="tw-event-field">
+          <div class="tw-event-field">
             <span>日历</span>
-            <select v-model.number="form.calendarId" class="tw-dialog-input" :disabled="editing">
-              <option v-for="calendar in calendars" :key="calendar.id" :value="calendar.id">{{ calendar.name }}</option>
-            </select>
-          </label>
-          <label class="tw-event-field">
+            <a-select v-model.number="form.calendarId" class="tw-dialog-input" :disabled="editing">
+              <a-option v-for="calendar in calendars" :key="calendar.id" :value="calendar.id">{{ calendar.name }}</a-option>
+            </a-select>
+          </div>
+          <div class="tw-event-field">
             <span>重复</span>
-            <select v-model="repeatChoice" class="tw-dialog-input" :disabled="editing && event?.recurring && scope === 'single'" @change="syncRepeat">
-              <option value="NONE">不重复</option>
-              <option value="FREQ=DAILY">每天</option>
-              <option value="FREQ=WEEKLY">每周</option>
-              <option value="FREQ=MONTHLY">每月</option>
-              <option value="FREQ=YEARLY">每年</option>
-              <option value="custom">自定义…</option>
-            </select>
-          </label>
+            <a-select v-model="repeatChoice" class="tw-dialog-input" :disabled="editing && event?.recurring && scope === 'single'" @change="syncRepeat">
+              <a-option value="NONE">不重复</a-option>
+              <a-option value="FREQ=DAILY">每天</a-option>
+              <a-option value="FREQ=WEEKLY">每周</a-option>
+              <a-option value="FREQ=MONTHLY">每月</a-option>
+              <a-option value="FREQ=YEARLY">每年</a-option>
+              <a-option value="custom">自定义…</a-option>
+            </a-select>
+          </div>
         </div>
-        <input
+        <a-input
           v-if="repeatChoice === 'custom'"
           v-model="form.rrule"
           class="tw-dialog-input"
           placeholder="FREQ=WEEKLY;BYDAY=MO,WE"
         />
 
-        <label class="tw-event-check">
-          <input v-model="form.allDay" type="checkbox" />
-          <span>全天日程</span>
-        </label>
+        <a-checkbox v-model="form.allDay" class="tw-event-check">全天日程</a-checkbox>
 
-        <label class="tw-event-field">
+        <div class="tw-event-field">
           <span>提醒</span>
-          <select v-model.number="form.reminder" class="tw-dialog-input">
-            <option :value="-1">不提醒</option>
-            <option :value="0">准时提醒</option>
-            <option :value="5">提前 5 分钟</option>
-            <option :value="15">提前 15 分钟</option>
-            <option :value="60">提前 1 小时</option>
-            <option :value="1440">提前 1 天</option>
-          </select>
-        </label>
-
-        <div v-if="editing && event?.recurring" class="tw-event-scope">
-          <label class="tw-event-check">
-            <input v-model="scope" type="radio" value="single" />
-            <span>仅修改此次</span>
-          </label>
-          <label class="tw-event-check">
-            <input v-model="scope" type="radio" value="series" />
-            <span>修改整个系列</span>
-          </label>
+          <a-select v-model.number="form.reminder" class="tw-dialog-input">
+            <a-option :value="-1">不提醒</a-option>
+            <a-option :value="0">准时提醒</a-option>
+            <a-option :value="5">提前 5 分钟</a-option>
+            <a-option :value="15">提前 15 分钟</a-option>
+            <a-option :value="60">提前 1 小时</a-option>
+            <a-option :value="1440">提前 1 天</a-option>
+          </a-select>
         </div>
 
+        <a-radio-group v-if="editing && event?.recurring" v-model="scope" class="tw-event-scope">
+          <a-radio value="single">仅修改此次</a-radio>
+          <a-radio value="series">修改整个系列</a-radio>
+        </a-radio-group>
+
         <div class="tw-event-grid">
-          <label class="tw-event-field">
+          <div class="tw-event-field">
             <span>开始日期</span>
             <a-date-picker v-model="form.startDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
-          </label>
-          <label v-if="!form.allDay" class="tw-event-field">
+          </div>
+          <div v-if="!form.allDay" class="tw-event-field">
             <span>开始时间</span>
             <a-time-picker v-model="form.startTime" class="tw-date-control" format="HH:mm" />
-          </label>
+          </div>
         </div>
         <div class="tw-event-grid">
-          <label class="tw-event-field">
+          <div class="tw-event-field">
             <span>{{ form.allDay ? '结束日期（含）' : '结束日期' }}</span>
             <a-date-picker v-model="form.endDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
-          </label>
-          <label v-if="!form.allDay" class="tw-event-field">
+          </div>
+          <div v-if="!form.allDay" class="tw-event-field">
             <span>结束时间</span>
             <a-time-picker v-model="form.endTime" class="tw-date-control" format="HH:mm" />
-          </label>
+          </div>
         </div>
 
-        <label class="tw-event-field">
+        <div class="tw-event-field">
           <span>地点</span>
-          <input v-model="form.location" class="tw-dialog-input" maxlength="500" placeholder="可选" />
-        </label>
-        <label class="tw-event-field">
+          <a-input v-model="form.location" class="tw-dialog-input" :max-length="500" placeholder="可选" />
+        </div>
+        <div class="tw-event-field">
           <span>参与人</span>
-          <input v-model="form.attendees" class="tw-dialog-input" maxlength="2000" placeholder="邮箱，用逗号分隔" />
-        </label>
+          <a-input v-model="form.attendees" class="tw-dialog-input" :max-length="2000" placeholder="邮箱，用逗号分隔" />
+        </div>
         <p class="tw-reminder-warning">参与人只写入日程，不会自动发送邀请邮件。</p>
-        <label class="tw-event-field">
+        <div class="tw-event-field">
           <span>描述</span>
-          <textarea v-model="form.description" class="tw-event-textarea" rows="3" placeholder="可选" />
-        </label>
+          <a-textarea v-model="form.description" class="tw-event-textarea" :auto-size="{ minRows: 3, maxRows: 6 }" placeholder="可选" />
+        </div>
 
         <p v-if="editing && event?.recurring && scope === 'single'" class="tw-reminder-warning">
           将只修改这一次日程，并写入独立的 RECURRENCE-ID 例外。
@@ -147,7 +138,7 @@ const editing = computed(() => Boolean(props.event))
 const busy = ref(false)
 const error = ref('')
 const deleteArmed = ref(false)
-const titleInput = ref<HTMLInputElement | null>(null)
+const titleInput = ref<{ focus?: () => void } | null>(null)
 const repeatChoice = ref('NONE')
 const scope = ref<'single' | 'series'>('single')
 const form = reactive({
@@ -325,6 +316,6 @@ async function remove() {
 
 onMounted(() => {
   hydrate()
-  void nextTick(() => titleInput.value?.focus())
+  void nextTick(() => titleInput.value?.focus?.())
 })
 </script>

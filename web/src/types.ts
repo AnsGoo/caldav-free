@@ -270,6 +270,7 @@ export interface SharedTaskList {
   listId: number
   name: string
   color: string
+  kind: 'TASK' | 'NOTE'
   ownerId: number
   ownerUsername: string
   ownerDisplay: string

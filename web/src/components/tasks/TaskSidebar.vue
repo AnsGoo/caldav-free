@@ -116,6 +116,9 @@
               >
                 <TaskIcon name="pin" :size="14" />
               </button>
+              <button class="tw-icon-button" title="共享笔记清单" @click.stop="$emit('share-list', list)">
+                <TaskIcon name="share" :size="14" />
+              </button>
               <button class="tw-icon-button" title="编辑笔记清单" @click.stop="$emit('edit-list', list)">
                 <TaskIcon name="edit" :size="14" />
               </button>
@@ -283,7 +286,8 @@
               :title="`来自 ${shared.ownerDisplay || shared.ownerUsername}`"
               @click="$emit('select-shared', shared.listId)"
             >
-              <span class="tw-list-dot" :style="{ background: shared.color || '#4772fa' }" />
+              <span v-if="shared.kind === 'NOTE'" class="tw-note-list-mark"><TaskIcon name="note" :size="14" /></span>
+              <span v-else class="tw-list-dot" :style="{ background: shared.color || '#4772fa' }" />
               <span class="tw-nav-label">{{ shared.name }}</span>
               <span v-if="shared.count" class="tw-nav-count">{{ shared.count }}</span>
             </button>

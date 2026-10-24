@@ -59,6 +59,10 @@
       />
     </div>
 
+    <div class="tw-note-discussion">
+      <NoteDiscussion :task-id="task.id" :list-id="task.listId" :readonly="readonly" />
+    </div>
+
     <footer class="tw-note-foot">
       <span>{{ wordCount }} 字 · Markdown</span>
       <span>{{ modifiedLabel }}</span>
@@ -73,6 +77,7 @@ import type { TaskItem, TaskList } from '../../types'
 import { updateTask } from '../../tasks-api'
 import { htmlToMarkdown, markdownToPlain } from '../../markdown'
 import MarkdownEditor from './MarkdownEditor.vue'
+import NoteDiscussion from './NoteDiscussion.vue'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{

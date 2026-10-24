@@ -435,7 +435,7 @@
 }
 
 .tw-list-note-item {
-  padding-right: 76px;
+  padding-right: 102px;
 }
 
 .tw-side-note-create {
@@ -9698,4 +9698,138 @@ html[data-theme='dark'] .arco-select-dropdown .arco-select-option-active {
 html[data-theme='dark'] .arco-select-dropdown .arco-select-option-selected {
   color: #5b7cff;
   background: rgba(91, 124, 255, 0.16);
+}
+
+/* Shared Arco form theme for the task workspace. */
+.tw-root .arco-input-wrapper,
+.tw-root .arco-select-view,
+.tw-root .arco-textarea-wrapper,
+.tw-root .arco-input-number {
+  border-color: var(--tw-border);
+  background: var(--tw-surface) !important;
+  color: var(--tw-text);
+}
+
+.tw-root .arco-input-wrapper:hover,
+.tw-root .arco-select-view:hover,
+.tw-root .arco-textarea-wrapper:hover,
+.tw-root .arco-input-number:hover {
+  border-color: color-mix(in srgb, var(--tw-accent) 45%, var(--tw-border));
+  background: var(--tw-bg) !important;
+}
+
+.tw-root .arco-input-wrapper:focus-within,
+.tw-root .arco-select-view:focus-within,
+.tw-root .arco-textarea-wrapper:focus-within,
+.tw-root .arco-input-number:focus-within {
+  border-color: var(--tw-accent);
+  background: var(--tw-bg) !important;
+  box-shadow: 0 0 0 2px var(--tw-accent-soft);
+}
+
+.tw-root .arco-input,
+.tw-root .arco-textarea,
+.tw-root .arco-select-view-value,
+.tw-root .arco-select-view-input {
+  color: var(--tw-text);
+}
+
+.tw-root .arco-input::placeholder,
+.tw-root .arco-textarea::placeholder {
+  color: var(--tw-text-3);
+}
+
+.tw-root .arco-checkbox-label {
+  color: var(--tw-text-2);
+}
+
+.tw-root .arco-checkbox-icon {
+  border-color: var(--tw-border);
+  background: var(--tw-bg);
+}
+
+.tw-root .arco-checkbox:hover .arco-checkbox-icon {
+  border-color: var(--tw-accent);
+}
+
+.tw-root .arco-checkbox-checked .arco-checkbox-icon {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent);
+}
+
+.tw-root .arco-checkbox-checked .arco-checkbox-icon svg {
+  color: #fff;
+}
+
+.tw-root .arco-select.tw-field-select,
+.tw-root .arco-select.tw-dialog-input {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tw-root .arco-select.tw-field-select .arco-select-view,
+.tw-root .arco-select.tw-dialog-input .arco-select-view {
+  height: 30px;
+  border-radius: 7px;
+  font-size: 12.5px;
+}
+
+.tw-note-discussion {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 45%;
+  overflow-y: auto;
+  padding: 0 14px 10px;
+  border-top: 1px solid var(--tw-border);
+  scrollbar-width: thin;
+}
+
+.tw-note-discussion .tw-activity-section,
+.tw-note-discussion .tw-comments-section {
+  margin-top: 12px;
+}
+
+.tw-note-discussion .tw-comments-section {
+  padding-bottom: 4px;
+}
+
+.tw-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tw-root .arco-radio-label {
+  color: var(--tw-text-2);
+  font-size: 12px;
+}
+
+.tw-root .arco-radio-icon {
+  border-color: var(--tw-border);
+  background: var(--tw-bg);
+}
+
+.tw-root .arco-radio-checked .arco-radio-icon {
+  border-color: var(--tw-accent);
+  background: var(--tw-accent);
+}
+
+.tw-root .arco-radio-checked .arco-radio-icon::after {
+  background: #fff;
+}
+
+.tw-detail-list-select {
+  min-width: 110px;
+  max-width: 190px;
+}
+
+.tw-detail-list-select .arco-select-view {
+  height: 28px;
+  border: 0;
+  background: transparent !important;
+  padding-left: 0;
+  padding-right: 20px;
+  font-size: 12.5px;
 }

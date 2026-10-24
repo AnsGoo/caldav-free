@@ -8,7 +8,7 @@
         </button>
       </header>
       <div class="tw-dialog-body tw-share-body">
-        <p class="tw-share-hint">输入管理后台用户名，对方会在“共享给我”中看到这个清单。当前版本仅支持只读共享。</p>
+        <p class="tw-share-hint">输入管理后台用户名，对方会在“共享给我”中看到这个清单。可选择只读或可编辑权限。</p>
         <form class="tw-share-form" @submit.prevent="addShare">
           <input v-model="username" class="tw-dialog-input" placeholder="用户名" autocomplete="off" />
           <select v-model="role" class="tw-dialog-input tw-share-role">

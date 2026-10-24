@@ -59,3 +59,32 @@ func TestTaskListSharing(t *testing.T) {
 		t.Fatal("inbox cannot be deleted")
 	}
 }
+
+func TestSharedNoteListKeepsKind(t *testing.T) {
+	s, aliceID := newTaskUser(t)
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("password123")
+	bob, err := s.CreateUser(ctx, "bob", "Bob", "", hash, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noteList, err := s.CreateTaskListKind(ctx, aliceID, "共享笔记", "#4772fa", "NOTE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := s.CreateTask(ctx, &Task{UserID: aliceID, ListID: noteList.ID, Kind: "NOTE", Title: "共享笔记"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ShareTaskList(ctx, aliceID, noteList.ID, "bob", "editor"); err != nil {
+		t.Fatal(err)
+	}
+	shared, err := s.ListSharedTaskLists(ctx, bob.ID)
+	if err != nil || len(shared) != 1 || shared[0].Kind != "NOTE" {
+		t.Fatalf("shared note list = %+v (%v)", shared, err)
+	}
+	tasks, err := s.ListSharedTasks(ctx, bob.ID, noteList.ID)
+	if err != nil || len(tasks) != 1 || tasks[0].ID != note.ID || tasks[0].Kind != "NOTE" {
+		t.Fatalf("shared notes = %+v (%v)", tasks, err)
+	}
+}

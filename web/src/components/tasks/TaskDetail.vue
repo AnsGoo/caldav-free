@@ -1,12 +1,12 @@
 <template>
   <section class="tw-detail" :class="{ 'is-readonly': readonly }">
     <header class="tw-detail-head">
-      <label class="tw-detail-list">
+      <div class="tw-detail-list">
         <i :style="{ background: currentList?.color || '#4772fa' }" />
-        <select v-model.number="draft.listId" :disabled="readonly || listLocked" @change="save">
-          <option v-for="list in taskListOptions" :key="list.id" :value="list.id">{{ list.name }}</option>
-        </select>
-      </label>
+        <a-select v-model.number="draft.listId" class="tw-detail-list-select" size="small" :disabled="readonly || listLocked" @change="save">
+          <a-option v-for="list in taskListOptions" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+        </a-select>
+      </div>
       <div class="tw-detail-head-actions">
         <span class="tw-save-state">{{ readonly ? '只读共享' : saving ? '保存中…' : saved ? '已保存' : '' }}</span>
         <button v-if="!readonly" class="tw-icon-button" title="保存为任务模板" @click="saveAsTemplate"><TaskIcon name="copy" :size="17" /></button>
@@ -78,10 +78,7 @@
         <span class="tw-date-panel-label">截止</span>
         <a-date-picker v-model="draft.dueDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" @change="save" />
         <a-time-picker v-model="draft.dueTime" class="tw-date-control" format="HH:mm" size="small" :disabled="draft.allDay" @change="save" />
-        <label class="tw-check-label">
-          <input v-model="draft.allDay" type="checkbox" @change="save" />
-          全天
-        </label>
+        <a-checkbox v-model="draft.allDay" class="tw-check-label" @change="save">全天</a-checkbox>
         <div class="tw-date-quick">
           <button type="button" @click="setDueDate(0)">今天</button>
           <button type="button" @click="setDueDate(1)">明天</button>
@@ -90,10 +87,10 @@
         </div>
       </div>
 
-      <textarea
+      <a-textarea
         v-model="draft.notes"
         class="tw-notes"
-        rows="3"
+        :auto-size="{ minRows: 3, maxRows: 6 }"
         placeholder="输入内容或使用 / 快速插入"
       />
 
@@ -177,26 +174,26 @@
       <section class="tw-detail-section">
         <header class="tw-detail-section-head"><span>重复与提醒</span></header>
         <div class="tw-field-grid">
-          <label class="tw-field">
+          <div class="tw-field">
             <span>重复</span>
-            <select v-model="recurrenceChoice" class="tw-field-select" @change="onRecurrenceChoice">
-              <option v-for="option in RECURRENCE_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
+            <a-select v-model="recurrenceChoice" class="tw-field-select" @change="onRecurrenceChoice">
+              <a-option v-for="option in RECURRENCE_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</a-option>
+            </a-select>
+          </div>
           <div class="tw-field">
             <span>提醒</span>
             <div class="tw-reminder-editor">
               <div v-for="(offset, index) in draft.reminderOffsets" :key="`${offset}-${index}`" class="tw-reminder-edit-row">
-                <select
+                <a-select
                   class="tw-field-select"
-                  :value="offset"
-                  @change="changeReminder(index, Number(($event.target as HTMLSelectElement).value))"
+                  :model-value="offset"
+                  @change="(value) => changeReminder(index, Number(value))"
                 >
-                  <option v-for="option in reminderChoices" :key="option.value" :value="option.value" :disabled="draft.reminderOffsets.includes(option.value) && option.value !== offset">
+                  <a-option v-for="option in reminderChoices" :key="option.value" :value="option.value" :disabled="draft.reminderOffsets.includes(option.value) && option.value !== offset">
                     {{ option.label }}
-                  </option>
-                  <option v-if="!reminderChoices.some((option) => option.value === offset)" :value="offset">{{ reminderLabel(offset) }}</option>
-                </select>
+                  </a-option>
+                  <a-option v-if="!reminderChoices.some((option) => option.value === offset)" :value="offset">{{ reminderLabel(offset) }}</a-option>
+                </a-select>
                 <button type="button" class="tw-icon-button" title="删除提醒" @click="removeReminder(index)">
                   <TaskIcon name="close" :size="14" />
                 </button>
@@ -209,16 +206,16 @@
             </div>
           </div>
         </div>
-        <label v-if="(members?.length || 0) > 1 || draft.assignee" class="tw-field tw-field-wide">
+        <div v-if="(members?.length || 0) > 1 || draft.assignee" class="tw-field tw-field-wide">
           <span>指派人</span>
-          <select v-model="draft.assignee" class="tw-field-select" :disabled="readonly" @change="save">
-            <option value="">未指派</option>
-            <option v-for="member in members" :key="member.username" :value="member.username">
+          <a-select v-model="draft.assignee" class="tw-field-select" :disabled="readonly" @change="save">
+            <a-option value="">未指派</a-option>
+            <a-option v-for="member in members" :key="member.username" :value="member.username">
               {{ member.displayName || member.username }} (@{{ member.username }})
-            </option>
-          </select>
-        </label>
-        <input
+            </a-option>
+          </a-select>
+        </div>
+        <a-input
           v-if="recurrenceChoice === 'custom'"
           v-model="customRule"
           class="tw-field-input"
@@ -320,11 +317,11 @@
                 </button>
               </div>
               <template v-if="editingCommentId === comment.id">
-                <textarea
+                <a-textarea
                   v-model="editingCommentText"
                   class="tw-comment-input"
-                  rows="2"
-                  maxlength="4000"
+                  :auto-size="{ minRows: 2, maxRows: 5 }"
+                  :max-length="4000"
                 />
                 <div class="tw-comment-edit-actions">
                   <button class="tw-dialog-cancel" @click="cancelEditComment">取消</button>
@@ -366,11 +363,11 @@
         <p v-else class="tw-comments-empty">还没有评论。</p>
 
         <div v-if="!readonly" class="tw-comment-compose">
-          <textarea
+          <a-textarea
             v-model="commentText"
             class="tw-comment-input"
-            rows="2"
-            maxlength="4000"
+            :auto-size="{ minRows: 2, maxRows: 5 }"
+            :max-length="4000"
             placeholder="写评论，使用 @用户名 提及成员"
           />
           <div v-if="commentFiles.length" class="tw-comment-files">

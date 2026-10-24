@@ -21,6 +21,7 @@ type apiSharedTaskList struct {
 	ListID        int64  `json:"listId"`
 	Name          string `json:"name"`
 	Color         string `json:"color"`
+	Kind          string `json:"kind"`
 	OwnerID       int64  `json:"ownerId"`
 	OwnerUsername string `json:"ownerUsername"`
 	OwnerDisplay  string `json:"ownerDisplay"`
@@ -132,7 +133,7 @@ func (s *Server) apiSharedTasks(w http.ResponseWriter, r *http.Request, current 
 	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{
 		"list": apiSharedTaskList{
-			ListID: list.ID, Name: list.Name, Color: list.Color,
+			ListID: list.ID, Name: list.Name, Color: list.Color, Kind: list.Kind,
 			OwnerID: list.UserID, OwnerUsername: ownerName, OwnerDisplay: ownerDisplay,
 			Role: role, Count: int64(len(rows)),
 		},
@@ -142,7 +143,7 @@ func (s *Server) apiSharedTasks(w http.ResponseWriter, r *http.Request, current 
 
 func sharedTaskListDTO(item store.SharedTaskList) apiSharedTaskList {
 	return apiSharedTaskList{
-		ListID: item.ListID, Name: item.Name, Color: item.Color,
+		ListID: item.ListID, Name: item.Name, Color: item.Color, Kind: item.Kind,
 		OwnerID: item.OwnerID, OwnerUsername: item.OwnerUsername,
 		OwnerDisplay: item.OwnerDisplay, Role: item.Role, Count: item.Count,
 	}

@@ -1101,3 +1101,57 @@ func TestRejectCrossKindListMoves(t *testing.T) {
 		t.Fatalf("note should be placed in the note list: %+v", created.Task)
 	}
 }
+
+func TestNoteCommentsAndActivities(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{
+		"name": "分享笔记", "kind": "NOTE",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID int64 `json:"id"`
+		} `json:"list"`
+	}](t, body)
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "共享笔记", "listId": list.List.ID, "kind": "NOTE",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note = %d: %s", status, body)
+	}
+	note := decode[taskResponse](t, body)
+
+	status, body = env.request(t, "GET", "/api/admin/tasks/"+itoa(note.Task.ID)+"/activities", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("note activities = %d: %s", status, body)
+	}
+	activities := decode[struct {
+		Activities []struct {
+			Detail string `json:"detail"`
+		} `json:"activities"`
+	}](t, body)
+	if len(activities.Activities) == 0 || activities.Activities[0].Detail != "创建了笔记" {
+		t.Fatalf("unexpected note activities: %+v", activities.Activities)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks/"+itoa(note.Task.ID)+"/comments", map[string]any{
+		"body": "笔记评论",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note comment = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks/"+itoa(note.Task.ID)+"/comments", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("note comments = %d: %s", status, body)
+	}
+	comments := decode[struct {
+		Comments []struct {
+			Body string `json:"body"`
+		} `json:"comments"`
+	}](t, body)
+	if len(comments.Comments) != 1 || comments.Comments[0].Body != "笔记评论" {
+		t.Fatalf("unexpected note comments: %+v", comments.Comments)
+	}
+}

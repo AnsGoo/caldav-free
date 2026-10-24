@@ -71,7 +71,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `habit_preferences` | 习惯显示、分类与提醒时区偏好 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
-| `summary_documents` | 摘要模板与历史文档（HTML 原文） |
+| `summary_documents` | 摘要模板与历史文档（Markdown / HTML，`format` 区分） |
 | `push_subscriptions` | 浏览器推送订阅：endpoint、p256dh、auth |
 | `reminder_deliveries` | 服务端提醒成功记录；任务 + 到期时间 + 偏移 + 通道唯一 |
 | `reminder_attempts` | 失败投递的尝试次数、下次重试时间与错误 |

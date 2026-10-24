@@ -362,7 +362,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `habits` / `habit_sections` / `habit_checkins` / `habit_records` / `habit_preferences`：习惯、分组、打卡、日志和偏好
 - `task_comments`：任务评论与作者
 - `comment_attachments`：评论附件元数据与文件内容（SQLite BLOB）
-- `summary_documents`：摘要模板与历史文档
+- `summary_documents`：摘要模板与历史文档（Markdown / HTML）
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
 - `reminder_attempts`：失败投递的退避重试状态

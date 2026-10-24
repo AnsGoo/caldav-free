@@ -76,6 +76,10 @@
             @keydown.esc="cancelAdd"
             @blur="maybeCancel"
           />
+          <div class="tw-new-list-kinds">
+            <button type="button" :class="{ active: newListKind === 'TASK' }" @mousedown.prevent="newListKind = 'TASK'">任务清单</button>
+            <button type="button" :class="{ active: newListKind === 'NOTE' }" @mousedown.prevent="newListKind = 'NOTE'">笔记清单</button>
+          </div>
         </form>
 
         <ul class="tw-list-nav">
@@ -289,7 +293,7 @@ const emit = defineEmits<{
   (event: 'select-filter', id: number): void
   (event: 'select-tag', tag: string): void
   (event: 'select-shared', listId: number): void
-  (event: 'create-list', name: string): void
+  (event: 'create-list', payload: { name: string; kind: 'TASK' | 'NOTE' }): void
   (event: 'edit-list', list: TaskList): void
   (event: 'delete-list', list: TaskList): void
   (event: 'pin-list', list: TaskList): void
@@ -313,6 +317,7 @@ const emit = defineEmits<{
 
 const adding = ref(false)
 const newListName = ref('')
+const newListKind = ref<'TASK' | 'NOTE'>('TASK')
 const nameInput = ref<HTMLInputElement | null>(null)
 const collapsedFolders = ref(new Set<number>())
 const draggingFolderId = ref(0)
@@ -376,6 +381,7 @@ function toggleFolder(id: number) {
 async function toggleAdd() {
   adding.value = true
   newListName.value = ''
+  newListKind.value = 'TASK'
   await nextTick()
   nameInput.value?.focus()
 }
@@ -392,7 +398,7 @@ function maybeCancel() {
 function submitList() {
   const name = newListName.value.trim()
   if (!name) return cancelAdd()
-  emit('create-list', name)
+  emit('create-list', { name, kind: newListKind.value })
   cancelAdd()
 }
 

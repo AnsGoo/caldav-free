@@ -20,6 +20,7 @@ type taskResponse struct {
 		ID              int64    `json:"id"`
 		ListID          int64    `json:"listId"`
 		Title           string   `json:"title"`
+		Kind            string   `json:"kind"`
 		ParentID        int64    `json:"parentId"`
 		Priority        int      `json:"priority"`
 		Start           string   `json:"start"`
@@ -756,5 +757,63 @@ func TestTaskPinAndFilterRangeAPI(t *testing.T) {
 	filtered = decode[workspaceResponse](t, body)
 	if len(filtered.Tasks) != 2 {
 		t.Fatalf("pinning a filter must preserve its conditions, got %d tasks", len(filtered.Tasks))
+	}
+}
+
+func TestNoteListAndNoteKind(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/task-lists", map[string]any{
+		"name": "笔记", "kind": "NOTE",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note list = %d: %s", status, body)
+	}
+	list := decode[struct {
+		List struct {
+			ID   int64  `json:"id"`
+			Kind string `json:"kind"`
+		} `json:"list"`
+	}](t, body)
+	if list.List.Kind != "NOTE" {
+		t.Fatalf("note list kind = %q", list.List.Kind)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "灵感", "listId": list.List.ID,
+		"due": "2026-10-30T09:00:00Z", "reminderOffset": 10,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create note = %d: %s", status, body)
+	}
+	note := decode[taskResponse](t, body)
+	if note.Task.Kind != "NOTE" || note.Task.Due != "" || note.Task.ReminderOffset != -1 || len(note.Task.ReminderOffsets) != 0 {
+		t.Fatalf("note should not keep schedule: %+v", note.Task)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks?view=list&listId="+itoa(list.List.ID), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("note workspace = %d: %s", status, body)
+	}
+	ws := decode[workspaceResponse](t, body)
+	if len(ws.Tasks) != 1 || ws.Tasks[0].ID != note.Task.ID {
+		t.Fatalf("note workspace tasks = %+v", ws.Tasks)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "普通任务", "due": "2026-10-30T09:00:00Z",
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create task = %d: %s", status, body)
+	}
+	task := decode[taskResponse](t, body)
+	if task.Task.Kind != "TASK" {
+		t.Fatalf("task kind = %q", task.Task.Kind)
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(task.Task.ID), map[string]any{"kind": "NOTE"}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("convert to note = %d: %s", status, body)
+	}
+	converted := decode[taskResponse](t, body)
+	if converted.Task.Kind != "NOTE" || converted.Task.Due != "" {
+		t.Fatalf("converted note = %+v", converted.Task)
 	}
 }

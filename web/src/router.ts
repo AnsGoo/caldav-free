@@ -95,6 +95,7 @@ function taskWorkspaceRoutes() {
     { path: '/tasks/ai', name: 'tasks-ai', component, meta: { view: 'ai' } },
     { path: '/tasks/calendar', name: 'tasks-calendar', component, meta: { view: 'all', mode: 'calendar' } },
     { path: '/tasks/board', name: 'tasks-board', component, meta: { view: 'all', mode: 'board' } },
+    { path: '/tasks/timeline', name: 'tasks-timeline', component, meta: { view: 'all', mode: 'timeline' } },
     { path: '/tasks/list/:listId', name: 'tasks-list', component, meta: { view: 'list' } },
     { path: '/tasks/filter/:filterId', name: 'tasks-filter', component, meta: { view: 'filter' } },
     { path: '/tasks/shared/:sharedId', name: 'tasks-shared', component, meta: { view: 'shared' } },

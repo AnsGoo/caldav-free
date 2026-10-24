@@ -112,6 +112,10 @@ func (s *Syncer) Sync(ctx context.Context, userID int64) error {
 	claimed := make(map[string]bool, len(objects))
 	var firstErr error
 	for _, task := range tasks {
+		// Notes are workspace-only and never exposed as VTODO objects.
+		if task.Kind == "NOTE" {
+			continue
+		}
 		var obj *store.Object
 		if task.VTODOHref != "" {
 			obj = liveByHref[task.VTODOHref]
@@ -171,6 +175,9 @@ func (s *Syncer) Sync(ctx context.Context, userID int64) error {
 
 // PushTask writes a single task to its VTODO object immediately.
 func (s *Syncer) PushTask(ctx context.Context, userID int64, task *store.Task) error {
+	if task.Kind == "NOTE" {
+		return nil
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cal, err := s.EnsureTaskCalendar(ctx, userID)
@@ -563,6 +570,7 @@ func (s *Syncer) importNew(ctx context.Context, cal *store.Calendar, obj *store.
 		ListID:      list.ID,
 		Title:       parsed.Title,
 		Notes:       parsed.Notes,
+		Kind:        "TASK",
 		Priority:    parsed.Priority,
 		StartAt:     parsed.Start,
 		DueAt:       parsed.Due,

@@ -346,3 +346,36 @@ func TestPushVTODOWithStartAndDue(t *testing.T) {
 		}
 	}
 }
+
+func TestNotesSkipVTODOSync(t *testing.T) {
+	st, syncer, userID, inbox := newSyncEnv(t)
+	ctx := context.Background()
+	note, err := st.CreateTask(ctx, &store.Task{
+		UserID: userID, ListID: inbox.ID, Title: "会议纪要", Kind: "NOTE",
+		Notes: "只保存在工作台",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.PushTask(ctx, userID, note); err != nil {
+		t.Fatal(err)
+	}
+	cal, err := syncer.EnsureTaskCalendar(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objects, err := st.ListObjects(ctx, cal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(objects) != 0 {
+		t.Fatalf("note should not create VTODO objects: %+v", objects)
+	}
+	if err := syncer.Sync(ctx, userID); err != nil {
+		t.Fatal(err)
+	}
+	objects, _ = st.ListObjects(ctx, cal.ID)
+	if len(objects) != 0 {
+		t.Fatalf("note sync created objects: %+v", objects)
+	}
+}

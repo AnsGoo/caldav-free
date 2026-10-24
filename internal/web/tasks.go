@@ -27,6 +27,7 @@ type apiTaskList struct {
 	FolderID int64  `json:"folderId"`
 	Name     string `json:"name"`
 	Color    string `json:"color"`
+	Kind     string `json:"kind"`
 	Order    int    `json:"order"`
 	Pinned   bool   `json:"pinned"`
 	IsInbox  bool   `json:"isInbox"`
@@ -56,6 +57,7 @@ type apiTask struct {
 	ListColor       string             `json:"listColor"`
 	Title           string             `json:"title"`
 	Notes           string             `json:"notes"`
+	Kind            string             `json:"kind"`
 	Priority        int                `json:"priority"`
 	Start           string             `json:"start,omitempty"`
 	Due             string             `json:"due,omitempty"`
@@ -81,6 +83,7 @@ type taskPatch struct {
 	ParentID        *int64              `json:"parentId"`
 	ListID          *int64              `json:"listId"`
 	Notes           *string             `json:"notes"`
+	Kind            *string             `json:"kind"`
 	Priority        *int                `json:"priority"`
 	Start           *string             `json:"start"`
 	Due             *string             `json:"due"`
@@ -148,6 +151,7 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 		ListID:          task.ListID,
 		Title:           task.Title,
 		Notes:           task.Notes,
+		Kind:            task.Kind,
 		Priority:        task.Priority,
 		AllDay:          task.AllDay,
 		Completed:       task.Completed,
@@ -161,6 +165,9 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 		Order:           task.Order,
 		CreatedAt:       task.CreatedAt.Format(time.RFC3339),
 		ModifiedAt:      task.ModifiedAt.Format(time.RFC3339),
+	}
+	if dto.Kind == "" {
+		dto.Kind = "TASK"
 	}
 	if dto.Tags == nil {
 		dto.Tags = []string{}
@@ -188,7 +195,12 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 }
 
 func apiTaskListDTO(list *store.TaskList, count int64) apiTaskList {
+	kind := list.Kind
+	if kind == "" {
+		kind = "TASK"
+	}
 	return apiTaskList{
+		Kind:     kind,
 		ID:       list.ID,
 		FolderID: list.FolderID,
 		Name:     list.Name,
@@ -431,6 +443,29 @@ func (s *Server) applyTaskAssignee(ctx context.Context, task *store.Task, body t
 	return errors.New("指派人必须是清单成员")
 }
 
+func normalizeTaskKind(raw string) (string, error) {
+	switch strings.ToUpper(strings.TrimSpace(raw)) {
+	case "", "TASK":
+		return "TASK", nil
+	case "NOTE":
+		return "NOTE", nil
+	default:
+		return "", errors.New("无效的任务类型")
+	}
+}
+
+func clearNoteSchedule(task *store.Task) {
+	task.StartAt = nil
+	task.DueAt = nil
+	task.AllDay = false
+	task.Recurrence = ""
+	task.ReminderOffset = -1
+	task.ReminderOffsets = nil
+	task.Completed = false
+	task.CompletedAt = nil
+	task.Priority = 0
+}
+
 func applyTaskReminders(task *store.Task, body taskPatch) error {
 	if body.ReminderOffsets != nil {
 		offsets, err := store.NormalizeReminderOffsets(*body.ReminderOffsets)
@@ -488,7 +523,8 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		s.apiServerError(w, err)
 		return
 	}
-	task := &store.Task{UserID: current.ID, ListID: inbox.ID, ReminderOffset: -1}
+	task := &store.Task{UserID: current.ID, ListID: inbox.ID, Kind: "TASK", ReminderOffset: -1}
+	listKind := "TASK"
 	title := ""
 	if body.Title != nil {
 		title = strings.TrimSpace(*body.Title)
@@ -500,6 +536,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.ListID != nil && *body.ListID > 0 {
 		if own, err := s.store.GetTaskList(ctx, current.ID, *body.ListID); err == nil {
 			task.ListID = own.ID
+			listKind = own.Kind
 		} else if shared, role, shareErr := s.store.GetSharedTaskList(ctx, current.ID, *body.ListID); shareErr == nil {
 			if role != "editor" {
 				writeAPIError(w, http.StatusForbidden, "该共享清单为只读")
@@ -577,6 +614,19 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		task.DueAt = due
 		task.AllDay = allDay
+	}
+	kind := listKind
+	if body.Kind != nil {
+		parsedKind, err := normalizeTaskKind(*body.Kind)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		kind = parsedKind
+	}
+	task.Kind = kind
+	if kind == "NOTE" {
+		clearNoteSchedule(task)
 	}
 	if task.StartAt != nil && task.DueAt != nil && task.StartAt.After(*task.DueAt) {
 		writeAPIError(w, http.StatusBadRequest, "开始时间不能晚于结束时间")
@@ -699,6 +749,7 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	previousAllDay := task.AllDay
 	previousListID := task.ListID
 	previousPinned := task.PinnedAt != nil
+	previousKind := task.Kind
 	var previousDue time.Time
 	hasPreviousDue := task.DueAt != nil
 	if hasPreviousDue {
@@ -817,6 +868,29 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 			task.Tags = normalizeTaskTags(parsed.Tags)
 		}
 	}
+	if body.Kind != nil {
+		parsedKind, err := normalizeTaskKind(*body.Kind)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		task.Kind = parsedKind
+	}
+	if task.Kind == "" {
+		task.Kind = "TASK"
+	}
+	if task.Kind == "NOTE" {
+		clearNoteSchedule(task)
+	}
+	if previousKind != "NOTE" && task.Kind == "NOTE" {
+		if err := s.taskSync.DeleteTask(ctx, task.UserID, task); err != nil {
+			s.logger.Warn("delete note VTODO", "user", current.Username, "task", task.ID, "error", err)
+		}
+		task.VTODOHref = ""
+		task.VTODOUID = ""
+		task.VTODOETag = ""
+		task.SyncPending = false
+	}
 	if err := s.store.UpdateTask(ctx, task); err != nil {
 		if err == store.ErrNotFound {
 			writeAPIError(w, http.StatusNotFound, "任务不存在")
@@ -853,6 +927,9 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if previousListID != task.ListID {
 		changed = append(changed, "清单")
+	}
+	if strings.TrimSpace(previousKind) != "" && previousKind != task.Kind {
+		changed = append(changed, "类型")
 	}
 	if previousPinned != (task.PinnedAt != nil) {
 		if task.PinnedAt != nil {
@@ -926,6 +1003,7 @@ func (s *Server) apiCreateTaskList(w http.ResponseWriter, r *http.Request, curre
 	var body struct {
 		Name     string `json:"name"`
 		Color    string `json:"color"`
+		Kind     string `json:"kind"`
 		FolderID int64  `json:"folderId"`
 	}
 	if !readAPIJSON(w, r, &body) {
@@ -934,13 +1012,17 @@ func (s *Server) apiCreateTaskList(w http.ResponseWriter, r *http.Request, curre
 	if strings.TrimSpace(body.Color) == "" {
 		body.Color = "#4772fa"
 	}
+	if body.Kind != "" && body.Kind != "TASK" && body.Kind != "NOTE" {
+		writeAPIError(w, http.StatusBadRequest, "无效的清单类型")
+		return
+	}
 	if body.FolderID > 0 {
 		if _, err := s.store.GetTaskFolder(r.Context(), current.ID, body.FolderID); err != nil {
 			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
 			return
 		}
 	}
-	list, err := s.store.CreateTaskList(r.Context(), current.ID, body.Name, body.Color)
+	list, err := s.store.CreateTaskListKind(r.Context(), current.ID, body.Name, body.Color, body.Kind)
 	if err == nil && body.FolderID > 0 {
 		if folderErr := s.store.SetTaskListFolder(r.Context(), current.ID, list.ID, body.FolderID); folderErr != nil {
 			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")

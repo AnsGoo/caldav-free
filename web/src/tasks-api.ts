@@ -26,6 +26,7 @@ export interface TaskDraft {
   parentId?: number
   listId?: number
   notes?: string
+  kind?: 'TASK' | 'NOTE'
   priority?: number
   start?: string
   due?: string
@@ -59,10 +60,10 @@ export function deleteTask(id: number) {
   return api<void>(`/tasks/${id}`, { method: 'DELETE' })
 }
 
-export function createTaskList(name: string, color: string, folderId?: number) {
+export function createTaskList(name: string, color: string, folderId?: number, kind: 'TASK' | 'NOTE' = 'TASK') {
   return api<{ list: TaskList }>('/task-lists', {
     method: 'POST',
-    body: JSON.stringify({ name, color, folderId: folderId || 0 }),
+    body: JSON.stringify({ name, color, folderId: folderId || 0, kind }),
   })
 }
 

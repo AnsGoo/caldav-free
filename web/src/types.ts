@@ -102,6 +102,7 @@ export interface TaskItem {
   listColor: string
   title: string
   notes: string
+  kind: 'TASK' | 'NOTE'
   priority: number
   start?: string
   due?: string
@@ -126,6 +127,7 @@ export interface TaskList {
   folderId: number
   name: string
   color: string
+  kind: 'TASK' | 'NOTE'
   order: number
   pinned: boolean
   isInbox: boolean

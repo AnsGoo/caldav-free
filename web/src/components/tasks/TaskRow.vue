@@ -1,7 +1,7 @@
 <template>
   <article
     class="tw-row"
-    :class="{ selected, done: task.completed, overdue, 'is-trash': trashMode, 'is-subtask': !!task.parentId, 'drag-target': dragTarget }"
+    :class="{ selected, done: task.completed, overdue, 'is-trash': trashMode, 'is-note': task.kind === 'NOTE', 'is-subtask': !!task.parentId, 'drag-target': dragTarget }"
     :draggable="draggable"
     @click="handleClick"
   >
@@ -14,6 +14,7 @@
     >
       <TaskIcon v-if="selected" name="check" :size="11" />
     </button>
+    <span v-else-if="task.kind === 'NOTE'" class="tw-note-mark"><TaskIcon name="note" :size="15" /></span>
     <button
       v-else-if="!trashMode"
       class="tw-check"
@@ -27,7 +28,7 @@
     </button>
     <span v-else class="tw-trash-mark"><TaskIcon name="trash" :size="15" /></span>
 
-    <span v-if="task.priority && !trashMode" class="tw-priority-dot" :style="{ background: priorityColor }" />
+    <span v-if="task.priority && !trashMode && task.kind !== 'NOTE'" class="tw-priority-dot" :style="{ background: priorityColor }" />
 
     <div class="tw-row-body">
       <div class="tw-row-title">
@@ -64,11 +65,12 @@
         <i :style="{ background: task.listColor || '#4772fa' }" />
         {{ task.listName }}
       </span>
-      <span v-if="task.assignee" class="tw-row-assignee" :title="`指派给 @${task.assignee}`">@{{ task.assignee }}</span>
-      <span v-if="taskReminderOffsets(task).length && !trashMode" class="tw-row-bell" :title="taskReminderOffsets(task).map(reminderLabel).join('、')">
+      <span v-if="task.assignee && task.kind !== 'NOTE'" class="tw-row-assignee" :title="`指派给 @${task.assignee}`">@{{ task.assignee }}</span>
+      <span v-if="taskReminderOffsets(task).length && !trashMode && task.kind !== 'NOTE'" class="tw-row-bell" :title="taskReminderOffsets(task).map(reminderLabel).join('、')">
         <TaskIcon name="bell" :size="12" />
       </span>
-      <span v-if="dueLabel && !trashMode" class="tw-row-due">{{ dueLabel }}</span>
+      <span v-if="task.kind === 'NOTE'" class="tw-row-due">{{ noteDate }}</span>
+      <span v-else-if="dueLabel && !trashMode" class="tw-row-due">{{ dueLabel }}</span>
     </div>
 
     <div v-if="trashMode" class="tw-trash-actions">
@@ -131,6 +133,11 @@ const notesPreview = computed(() => {
   return text.length > 32 ? `${text.slice(0, 32)}…` : text
 })
 const hasDetails = computed(() => props.task.checklist.length > 0 || props.task.notes.trim().length > 0)
+const noteDate = computed(() => {
+  const date = new Date(props.task.modifiedAt)
+  if (Number.isNaN(date.getTime())) return ''
+  return `${date.getMonth() + 1}月${date.getDate()}日`
+})
 
 function handleClick() {
   if (props.trashMode) return

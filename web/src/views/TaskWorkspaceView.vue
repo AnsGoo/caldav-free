@@ -17,6 +17,9 @@
         <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="openModePage('calendar')">
           <TaskIcon name="calendar" :size="21" />
         </button>
+        <button class="tw-rail-button" :class="{ active: mode === 'timeline' }" title="时间线" @click="openModePage('timeline')">
+          <TaskIcon name="timeline" :size="21" />
+        </button>
         <button class="tw-rail-button" :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
           <TaskIcon name="matrix" :size="20" />
         </button>
@@ -125,7 +128,7 @@
             <TaskIcon name="plus" :size="15" />
             新建日程
           </button>
-          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-mode-switch" role="group" aria-label="视图模式">
+          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView" class="tw-mode-switch" role="group" aria-label="视图模式">
             <button :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
@@ -135,7 +138,19 @@
             <button :class="{ active: mode === 'calendar' }" title="日历" @click="switchMode('calendar')">
               <TaskIcon name="calendar" :size="16" />
             </button>
+            <button :class="{ active: mode === 'timeline' }" title="时间线" @click="switchMode('timeline')">
+              <TaskIcon name="timeline" :size="16" />
+            </button>
           </div>
+          <button
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView && mode !== 'calendar'"
+            class="tw-icon-button"
+            :class="{ active: splitView }"
+            :title="splitView ? '关闭日历并列显示' : '任务与日历并列显示'"
+            @click="toggleSplitView"
+          >
+            <TaskIcon name="calendar" :size="18" />
+          </button>
           <button
             v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'completed' && mode === 'list'"
             class="tw-icon-button"
@@ -211,32 +226,34 @@
         @batch-move="batchMoveMatrix"
         @quick-add="quickAddMatrixTask"
       />
-      <div v-else class="tw-scroll" :class="{ 'tw-scroll-calendar': mode === 'calendar' }">
+      <div v-else class="tw-main-body" :class="{ 'is-split': splitView && mode !== 'calendar' }">
+      <div class="tw-scroll" :class="{ 'tw-scroll-calendar': mode === 'calendar', 'tw-scroll-timeline': mode === 'timeline' }">
         <div
           class="tw-content"
           :class="{
             'tw-content-calendar': mode === 'calendar',
             'tw-content-board': mode === 'board' && !['trash', 'stats', 'summary', 'ai'].includes(view),
+            'tw-content-timeline': mode === 'timeline',
             'tw-content-fill': view === 'summary' || view === 'ai',
           }"
         >
-          <div v-if="mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-add">
+          <div v-if="mode !== 'calendar' && mode !== 'timeline' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-add">
             <TaskIcon name="plus" :size="18" />
             <input
               ref="quickInputEl"
               v-model="quickText"
               class="tw-quick-input"
-              :placeholder="`添加任务至“${quickTargetName}”`"
+              :placeholder="`${noteView ? '添加笔记至' : '添加任务至'}“${quickTargetName}”`"
               maxlength="500"
               @keydown.enter="onQuickEnter"
             />
-            <button class="tw-icon-button tw-quick-template" title="从模板创建任务" @click="openTaskTemplates"><TaskIcon name="copy" :size="16" /></button>
+            <button v-if="!noteView" class="tw-icon-button tw-quick-template" title="从模板创建任务" @click="openTaskTemplates"><TaskIcon name="copy" :size="16" /></button>
             <button v-if="quickText.trim()" class="tw-quick-submit" :disabled="quickBusy" @click="submitQuick">
               <TaskIcon name="check" :size="16" />
             </button>
           </div>
 
-          <div v-if="hint && mode !== 'calendar' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-hint">
+          <div v-if="hint && !noteView && mode !== 'calendar' && mode !== 'timeline' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && (view !== 'shared' || sharedEditable)" class="tw-quick-hint">
             <span v-if="hint.date" class="tw-hint-chip">{{ hint.date }}</span>
             <span v-if="hint.time" class="tw-hint-chip">{{ hint.time }}</span>
             <span v-for="tag in hint.tags" :key="tag" class="tw-hint-chip">#{{ tag }}</span>
@@ -299,6 +316,30 @@
           </template>
 
           <template v-else-if="mode === 'list'">
+            <div v-if="noteView" class="tw-note-grid">
+              <NoteCard
+                v-for="task in noteTasks"
+                :key="task.id"
+                :task="task"
+                :selected="selectedId === task.id"
+                :readonly="sharedReadonly"
+                @open="openTask"
+                @pin="toggleTaskPin"
+                @remove="confirmRemoveTask"
+              />
+              <div v-if="!noteTasks.length" class="tw-empty tw-note-empty">
+                <div class="tw-empty-art">
+                  <svg viewBox="0 0 96 96" width="96" height="96" aria-hidden="true">
+                    <rect x="20" y="14" width="56" height="68" rx="12" fill="none" stroke="currentColor" stroke-width="2" />
+                    <path d="M32 34h32M32 46h26M32 58h20" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                  </svg>
+                </div>
+                <h2>没有笔记</h2>
+                <p>在这里记录灵感与时光。</p>
+                <button class="tw-primary-button" @click="focusQuick">写第一条笔记</button>
+              </div>
+            </div>
+            <template v-else>
             <section v-for="group in groups" :key="group.key" class="tw-group">
               <header v-if="group.key !== 'manual'" class="tw-group-head" @click="toggleGroup(group.key)">
                 <span class="tw-group-caret" :class="{ collapsed: collapsed.has(group.key) }">
@@ -352,7 +393,22 @@
               <p>{{ emptyHint }}</p>
               <button class="tw-primary-button" @click="focusQuick">添加第一个任务</button>
             </div>
+            </template>
           </template>
+
+          <TaskTimeline
+            v-else-if="mode === 'timeline'"
+            :tasks="timelineTasks"
+            :lists="lists.filter((list) => list.kind !== 'NOTE')"
+            :zoom="timelineZoom"
+            :color-by="timelineColor"
+            :tag-colors="tagColorMap"
+            @open="openTask"
+            @create="createFromTimeline"
+            @reschedule="rescheduleTask"
+            @change-zoom="setTimelineZoom"
+            @change-color="setTimelineColor"
+          />
 
           <TaskCalendar
             v-else-if="mode === 'calendar'"
@@ -426,10 +482,47 @@
           </template>
         </div>
       </div>
+      <aside
+        v-if="splitView && mode !== 'calendar' && !noteView && !selectedTask && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai'"
+        class="tw-split-calendar"
+        :style="{ width: `${splitWidth}px` }"
+      >
+        <div class="tw-split-resizer" title="拖动调整宽度" @pointerdown="startSplitResize"></div>
+        <TaskCalendar
+          :tasks="filteredTasks"
+          :cursor="splitCursor"
+          :view-mode="splitViewMode"
+          :reload-key="calendarReload"
+          @open="openTask"
+          @open-event="openCalendarEvent"
+          @open-habit="openHabitFromCalendar"
+          @calendars="calendarSources = $event"
+          @reschedule-task="rescheduleTask"
+          @reschedule-event="rescheduleEvent"
+          @create="createFromCalendar"
+          @change-view="splitViewMode = $event"
+          @prev="stepSplitCalendar(-1)"
+          @next="stepSplitCalendar(1)"
+          @today="splitCursor = new Date()"
+        />
+      </aside>
+      </div>
     </main>
 
+    <NoteDetail
+      v-if="selectedTask && selectedTask.kind === 'NOTE'"
+      :key="selectedTask.id"
+      :task="selectedTask"
+      :lists="detailLists"
+      :readonly="sharedReadonly"
+      @close="selectedId = 0"
+      @changed="onTaskChanged"
+      @pin="toggleTaskPin"
+      @remove="confirmRemoveTask"
+    />
+
     <TaskDetail
-      v-if="selectedTask"
+      v-else-if="selectedTask"
       :task="selectedTask"
       :lists="detailLists"
       :members="taskMembers"
@@ -936,6 +1029,9 @@ import TaskRow from '../components/tasks/TaskRow.vue'
 import TaskDetail from '../components/tasks/TaskDetail.vue'
 import TaskTemplateDialog from '../components/tasks/TaskTemplateDialog.vue'
 import TaskCalendar from '../components/tasks/TaskCalendar.vue'
+import TaskTimeline from '../components/tasks/TaskTimeline.vue'
+import NoteCard from '../components/tasks/NoteCard.vue'
+import NoteDetail from '../components/tasks/NoteDetail.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import HabitPanel from '../components/tasks/HabitPanel.vue'
 import FocusPanel from '../components/tasks/FocusPanel.vue'
@@ -967,7 +1063,7 @@ import {
 import { TASK_THEMES, isDarkTheme, themeById } from '../themes'
 import TaskIcon from '../components/tasks/TaskIcon.vue'
 
-type Mode = 'list' | 'board' | 'calendar'
+type Mode = 'list' | 'board' | 'calendar' | 'timeline'
 
 const route = useRoute()
 const router = useRouter()
@@ -1006,6 +1102,12 @@ const taskTemplateBusy = ref(false)
 const quickListId = ref(0)
 const cursor = ref(new Date())
 const calendarView = ref<'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'>('month')
+const timelineZoom = ref<'day' | 'week' | 'month'>('week')
+const timelineColor = ref<'list' | 'tag' | 'priority' | 'none'>('list')
+const splitView = ref(false)
+const splitWidth = ref(440)
+const splitViewMode = ref<'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'>('3day')
+const splitCursor = ref(new Date())
 const calendarSources = ref<CalendarSource[]>([])
 const calendarReload = ref(0)
 const eventDialogOpen = ref(false)
@@ -1109,6 +1211,10 @@ const smartLabels: Record<string, string> = {
 }
 
 const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
+const activeList = computed(() => lists.value.find((item) => item.id === activeListId.value))
+const noteView = computed(() => view.value === 'list' && activeList.value?.kind === 'NOTE')
+const noteTasks = computed(() => tasks.value.filter((task) => task.kind === 'NOTE'))
+const timelineTasks = computed(() => tasks.value.filter((task) => task.kind !== 'NOTE'))
 
 const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))
 const sharedEditable = computed(() => view.value === 'shared' && activeSharedList.value?.role === 'editor')
@@ -1195,6 +1301,7 @@ const detailLists = computed<TaskList[]>(() => {
       folderId: 0,
       name: shared.name,
       color: shared.color,
+      kind: 'TASK',
       order: 0,
       pinned: false,
       isInbox: false,
@@ -1221,11 +1328,16 @@ const emptyHint = computed(() => {
 })
 
 const boardColumns = computed(() => {
-  const base = view.value === 'completed' ? filteredTasks.value.filter((task) => task.completed) : filteredTasks.value.filter((task) => !task.completed)
-  return lists.value.map((list) => ({
-    list,
-    tasks: base.filter((task) => task.listId === list.id),
-  }))
+  const base = (view.value === 'completed'
+    ? filteredTasks.value.filter((task) => task.completed)
+    : filteredTasks.value.filter((task) => !task.completed)
+  ).filter((task) => task.kind !== 'NOTE')
+  return lists.value
+    .filter((list) => list.kind !== 'NOTE')
+    .map((list) => ({
+      list,
+      tasks: base.filter((task) => task.listId === list.id),
+    }))
 })
 
 function priorityColor(priority: number) {
@@ -1242,6 +1354,9 @@ async function loadWorkspace(silent = false) {
       q: query.value || undefined,
     })
     lists.value = data.lists
+    if (view.value === 'list' && lists.value.find((list) => list.id === activeListId.value)?.kind === 'NOTE') {
+      mode.value = 'list'
+    }
     sharedLists.value = data.sharedLists || []
     matrixViews.value = data.matrixViews || []
     if (matrixViews.value.length) {
@@ -1321,6 +1436,7 @@ function taskRoutePath() {
   if (view.value === 'shared') return activeSharedListId.value ? `/tasks/shared/${activeSharedListId.value}` : '/tasks'
   if (view.value === 'all' && mode.value === 'calendar') return '/tasks/calendar'
   if (view.value === 'all' && mode.value === 'board') return '/tasks/board'
+  if (view.value === 'all' && mode.value === 'timeline') return '/tasks/timeline'
   if (view.value === 'habit' && route.params.habitId) return `/tasks/habit/${route.params.habitId}`
   if (view.value === 'focus' && route.name === 'tasks-focus-stats') return '/tasks/focus/stats'
   return view.value === 'all' ? '/tasks' : `/tasks/${view.value}`
@@ -1329,7 +1445,7 @@ function taskRoutePath() {
 function syncURL() {
   const path = taskRoutePath()
   const next: Record<string, string> = {}
-  const dedicatedMode = view.value === 'all' && (mode.value === 'calendar' || mode.value === 'board')
+  const dedicatedMode = view.value === 'all' && (mode.value === 'calendar' || mode.value === 'board' || mode.value === 'timeline')
   if (!dedicatedMode && mode.value !== 'list') next.mode = mode.value
   if (selectedId.value) next.task = String(selectedId.value)
   if (query.value) next.q = query.value
@@ -1370,6 +1486,7 @@ function selectView(nextView: string) {
 function selectList(id: number) {
   view.value = 'list'
   activeListId.value = id
+  if (lists.value.find((list) => list.id === id)?.kind === 'NOTE') mode.value = 'list'
   activeFilterId.value = 0
   activeTag.value = ''
   selectedId.value = 0
@@ -1435,6 +1552,7 @@ function resetWorkspaceToAll() {
 
 function switchMode(next: Mode) {
   if (view.value === 'trash' || view.value === 'shared') return
+  if (noteView.value) next = 'list'
   if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix' || view.value === 'habit' || view.value === 'focus' || view.value === 'countdown') resetWorkspaceToAll()
   clearSelection()
   mode.value = next
@@ -1645,6 +1763,13 @@ async function submitQuick() {
   if (!text || quickBusy.value) return
   quickBusy.value = true
   try {
+    if (noteView.value) {
+      const { task } = await createTask({ title: text, listId: activeListId.value, kind: 'NOTE' })
+      quickText.value = ''
+      await loadWorkspace(true)
+      selectedId.value = task.id
+      return
+    }
     const { task } = await createTask({
       text,
       listId: view.value === 'shared' ? activeSharedList.value?.listId : quickTargetList.value?.id,
@@ -1688,10 +1813,10 @@ function focusQuick() {
   requestAnimationFrame(() => quickInputEl.value?.focus())
 }
 
-async function createList(name: string) {
+async function createList(payload: { name: string; kind: 'TASK' | 'NOTE' }) {
   try {
     const color = LIST_COLORS[lists.value.length % LIST_COLORS.length]
-    await createTaskList(name, color)
+    await createTaskList(payload.name, color, 0, payload.kind)
     await loadWorkspace(true)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建清单失败')
@@ -1876,15 +2001,92 @@ function onEventSaved() {
   calendarReload.value += 1
 }
 
-async function rescheduleTask(payload: { task: TaskItem; due: string; allDay: boolean }) {
+async function rescheduleTask(payload: { task: TaskItem; due: string; start?: string; allDay: boolean }) {
   try {
-    const { task } = await updateTask(payload.task.id, { due: payload.due, allDay: payload.allDay })
+    const { task } = await updateTask(payload.task.id, {
+      due: payload.due,
+      allDay: payload.allDay,
+      ...(payload.start ? { start: payload.start } : {}),
+    })
     replaceTask(task)
     Message.success('任务已改期')
     scheduleRefresh()
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '改期失败')
   }
+}
+
+function setTimelineZoom(value: 'day' | 'week' | 'month') {
+  timelineZoom.value = value
+  try {
+    localStorage.setItem('caldav-timeline-zoom', value)
+  } catch {
+    /* ignore */
+  }
+}
+
+function setTimelineColor(value: 'list' | 'tag' | 'priority' | 'none') {
+  timelineColor.value = value
+  try {
+    localStorage.setItem('caldav-timeline-color', value)
+  } catch {
+    /* ignore */
+  }
+}
+
+function createFromTimeline(payload: { title: string; date: string; listId: number }) {
+  void (async () => {
+    try {
+      const { task } = await createTask({
+        title: payload.title,
+        listId: payload.listId,
+        due: `${payload.date}T00:00:00`,
+        allDay: true,
+      })
+      await loadWorkspace(true)
+      selectedId.value = task.id
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : '创建任务失败')
+    }
+  })()
+}
+
+function toggleSplitView() {
+  splitView.value = !splitView.value
+  try {
+    localStorage.setItem('caldav-split-view', splitView.value ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
+function stepSplitCalendar(direction: number) {
+  const next = new Date(splitCursor.value)
+  if (splitViewMode.value === 'month') next.setMonth(next.getMonth() + direction)
+  else if (splitViewMode.value === 'year') next.setFullYear(next.getFullYear() + direction)
+  else if (splitViewMode.value === 'week' || splitViewMode.value === '2week') next.setDate(next.getDate() + direction * 7)
+  else if (splitViewMode.value === 'agenda') next.setDate(next.getDate() + direction * 30)
+  else next.setDate(next.getDate() + direction)
+  splitCursor.value = next
+}
+
+function startSplitResize(event: PointerEvent) {
+  const startX = event.clientX
+  const startWidth = splitWidth.value
+  const move = (moveEvent: PointerEvent) => {
+    splitWidth.value = Math.min(720, Math.max(320, startWidth - (moveEvent.clientX - startX)))
+  }
+  const stop = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+    try {
+      localStorage.setItem('caldav-split-width', String(splitWidth.value))
+    } catch {
+      /* ignore */
+    }
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop, { once: true })
 }
 
 async function rescheduleEvent(payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }) {
@@ -2246,6 +2448,7 @@ const paletteCommands = computed<PaletteCommand[]>(() => {
     { id: 'mode-list', label: '列表视图', group: '视图', keys: [keyOf('listMode')].filter(Boolean) },
     { id: 'mode-board', label: '看板视图', group: '视图', keys: [keyOf('boardMode')].filter(Boolean) },
     { id: 'mode-calendar', label: '日历视图', group: '视图', keys: [keyOf('calendarMode')].filter(Boolean) },
+    { id: 'mode-timeline', label: '时间线视图', group: '视图', keys: [keyOf('timelineMode')].filter(Boolean) },
   ]
   if (selectedTask.value && !selectedTask.value.completed) {
     rows.splice(2, 0, { id: 'complete-selected', label: `完成任务「${selectedTask.value.title}」`, group: '操作', keys: [keyOf('completeTask')].filter(Boolean) })
@@ -2292,6 +2495,8 @@ function runPalette(id: string) {
       return switchMode('board')
     case 'mode-calendar':
       return switchMode('calendar')
+    case 'mode-timeline':
+      return switchMode('timeline')
   }
   if (id.startsWith('nav-')) runShortcut(id.replace('nav-', 'nav').replace(/(^nav)(\w)/, (_, a, b) => a + b.toUpperCase()))
 }
@@ -2355,6 +2560,8 @@ function runShortcut(id: string) {
       return switchMode('board')
     case 'calendarMode':
       return switchMode('calendar')
+    case 'timelineMode':
+      return switchMode('timeline')
     case 'navAll':
       return selectView('all')
     case 'navToday':
@@ -2960,7 +3167,7 @@ function hydrateFromRoute() {
   const metaMode = typeof route.meta.mode === 'string' ? route.meta.mode : ''
   const queryMode = typeof q.mode === 'string' ? q.mode : ''
   const nextMode = metaMode || queryMode || 'list'
-  mode.value = view.value === 'shared' ? 'list' : (['list', 'board', 'calendar'].includes(nextMode) ? nextMode : 'list') as Mode
+  mode.value = view.value === 'shared' ? 'list' : (['list', 'board', 'calendar', 'timeline'].includes(nextMode) ? nextMode : 'list') as Mode
   if (view.value === 'trash') mode.value = 'list'
   const focusCalendar = typeof q.calendar === 'string' ? Number(q.calendar) : 0
   const focusEvent = typeof q.event === 'string' ? q.event : ''
@@ -2986,6 +3193,13 @@ onMounted(async () => {
     const collapsedRaw = localStorage.getItem('caldav-task-collapsed')
     if (collapsedRaw) collapsed.value = new Set(JSON.parse(collapsedRaw) as string[])
     manualSort.value = localStorage.getItem('caldav-task-sort') === 'manual'
+    const zoom = localStorage.getItem('caldav-timeline-zoom')
+    if (zoom === 'day' || zoom === 'week' || zoom === 'month') timelineZoom.value = zoom
+    const color = localStorage.getItem('caldav-timeline-color')
+    if (color === 'list' || color === 'tag' || color === 'priority' || color === 'none') timelineColor.value = color
+    splitView.value = localStorage.getItem('caldav-split-view') === '1'
+    const width = Number(localStorage.getItem('caldav-split-width'))
+    if (width >= 320 && width <= 720) splitWidth.value = width
     if (localStorage.getItem('caldav-task-reminders') === 'on' && notificationSupported() && Notification.permission === 'granted') {
       remindersEnabled.value = true
     }

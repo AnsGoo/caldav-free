@@ -281,6 +281,8 @@ docker run -d --name caldav \
 - 置顶任务在列表中单独成组；置顶清单和过滤器进入侧栏顶部图标条。
 - 过滤器日期条件支持 `any`、`today`、`tomorrow`、`next7`、`overdue`、`none`、`yesterday`、`thisWeek`、`lastWeek`、`thisMonth`、`lastMonth`、`range`。
 - `range` 使用 `dateFrom` / `dateTo`（`YYYY-MM-DD`，含首尾），可只传一端。
+- 创建清单可传 `kind: "NOTE"`；在笔记清单中创建任务默认 `kind: "NOTE"`，服务端会忽略日期、提醒、重复和完成态。
+- PATCH 任务传 `{"kind":"NOTE"}` 可把任务转换为笔记，并删除对应 VTODO；笔记不参与 VTODO 同步。
 
 支持的方法：`OPTIONS`、`PROPFIND`、`PROPPATCH`、`MKCALENDAR`、`MKCOL`、`REPORT`、`GET`、`HEAD`、`PUT`、`DELETE`。
 
@@ -340,7 +342,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `sync_changes`：每次变更的序号日志，用于 sync-collection
 - `settings`：服务端设置
 - `task_folders`：清单文件夹
-- `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹，`pinned` 置顶）
+- `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹，`pinned` 置顶，`kind` 为 `TASK` / `NOTE`）
 - `task_filters`：保存的过滤器条件（JSON）、`pinned` 与排序
 - `task_list_shares`：清单共享成员与角色（viewer/editor）
 - `tasks.assignee`：指派人用户名
@@ -357,7 +359,7 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录
 - `reminder_attempts`：失败投递的退避重试状态
-- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
+- `tasks`：任务、备注、日期、优先级、标签、子任务、重复规则、提醒偏移、`pinned_at` 置顶时间、`kind`（`TASK` / `NOTE`）、软删除标记，以及 `vtodo_uid` / `vtodo_href` / `vtodo_etag` / `sync_pending` 同步字段
 
 ### 同步模型
 

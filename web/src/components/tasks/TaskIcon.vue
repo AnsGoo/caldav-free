@@ -26,6 +26,12 @@
       <rect x="10" y="4.5" width="5" height="10" rx="1.5" />
       <rect x="16.5" y="4.5" width="4" height="13" rx="1.5" />
     </template>
+    <template v-else-if="name === 'timeline'">
+      <path d="M4 6h16M4 12h16M4 18h16" />
+      <rect x="7" y="4.5" width="6" height="3" rx="1.5" fill="currentColor" stroke="none" />
+      <rect x="12" y="10.5" width="6" height="3" rx="1.5" fill="currentColor" stroke="none" />
+      <rect x="5" y="16.5" width="7" height="3" rx="1.5" fill="currentColor" stroke="none" />
+    </template>
     <template v-else-if="name === 'calendar'">
       <rect x="3.5" y="5.5" width="17" height="15" rx="2.5" />
       <path d="M3.5 9.5h17M8 3.5v4M16 3.5v4" />

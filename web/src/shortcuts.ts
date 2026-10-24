@@ -29,6 +29,7 @@ export const DEFAULT_SHORTCUTS: ShortcutAction[] = [
   { id: 'listMode', label: '列表视图', group: '视图', keys: ['v l'] },
   { id: 'boardMode', label: '看板视图', group: '视图', keys: ['v k'] },
   { id: 'calendarMode', label: '日历视图', group: '视图', keys: ['v c'] },
+  { id: 'timelineMode', label: '时间线视图', group: '视图', keys: ['v t'] },
   { id: 'navAll', label: '前往“所有”', group: '导航', keys: ['g a'] },
   { id: 'navToday', label: '前往“今天”', group: '导航', keys: ['g t'] },
   { id: 'navNext7', label: '前往“最近 7 天”', group: '导航', keys: ['g r'] },

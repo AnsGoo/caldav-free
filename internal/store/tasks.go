@@ -20,6 +20,7 @@ type TaskList struct {
 	FolderID   int64     `gorm:"not null;default:0;index:idx_tasklist_folder"`
 	Name       string    `gorm:"size:190;not null;uniqueIndex:idx_tasklist_owner_name,priority:2"`
 	Color      string    `gorm:"size:32;not null;default:''"`
+	Kind       string    `gorm:"size:16;not null;default:'TASK'"`
 	Order      int       `gorm:"column:order_index;not null;default:0"`
 	Pinned     bool      `gorm:"not null;default:false;index:idx_tasklist_pinned"`
 	IsInbox    bool      `gorm:"not null;default:false"`
@@ -37,6 +38,7 @@ type Task struct {
 	ParentID   int64      `gorm:"not null;default:0;index:idx_task_parent"`
 	Title      string     `gorm:"size:500;not null"`
 	Notes      string     `gorm:"type:text;not null;default:''"`
+	Kind       string     `gorm:"size:16;not null;default:'TASK'"`
 	Priority   int        `gorm:"not null;default:0"`
 	StartAt    *time.Time `gorm:"index:idx_task_start"`
 	DueAt      *time.Time `gorm:"index:idx_task_user_due,priority:2"`
@@ -164,7 +166,7 @@ func (s *Store) EnsureInbox(ctx context.Context, userID int64) (*TaskList, error
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("load inbox: %w", err)
 	}
-	list = TaskList{UserID: userID, Name: "收集箱", Color: "#4772fa", IsInbox: true, Order: 0}
+	list = TaskList{UserID: userID, Name: "收集箱", Color: "#4772fa", Kind: "TASK", IsInbox: true, Order: 0}
 	if err := s.db.WithContext(ctx).Create(&list).Error; err != nil {
 		// Another request may have created the inbox concurrently.
 		var existing TaskList
@@ -204,16 +206,24 @@ func (s *Store) GetTaskList(ctx context.Context, userID, id int64) (*TaskList, e
 	return &list, nil
 }
 
-// CreateTaskList adds a list for the user.
+// CreateTaskList adds a task list for the user.
 func (s *Store) CreateTaskList(ctx context.Context, userID int64, name, color string) (*TaskList, error) {
+	return s.CreateTaskListKind(ctx, userID, name, color, "TASK")
+}
+
+// CreateTaskListKind adds a task or note list for the user.
+func (s *Store) CreateTaskListKind(ctx context.Context, userID int64, name, color, kind string) (*TaskList, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("list name is required")
 	}
+	if kind != "NOTE" {
+		kind = "TASK"
+	}
 	var maxOrder int
 	_ = s.db.WithContext(ctx).Model(&TaskList{}).Where("user_id = ?", userID).
 		Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
-	list := TaskList{UserID: userID, Name: name, Color: color, Order: maxOrder + 1}
+	list := TaskList{UserID: userID, Name: name, Color: color, Kind: kind, Order: maxOrder + 1}
 	if err := s.db.WithContext(ctx).Create(&list).Error; err != nil {
 		if errors.Is(translate(err), ErrConflict) {
 			return nil, ErrConflict
@@ -507,6 +517,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 		"list_id":          task.ListID,
 		"title":            task.Title,
 		"notes":            task.Notes,
+		"kind":             task.Kind,
 		"priority":         task.Priority,
 		"due_at":           task.DueAt,
 		"recurrence":       task.Recurrence,

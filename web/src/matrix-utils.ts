@@ -143,6 +143,7 @@ export function blankTaskForMatrix(title: string): TaskItem {
     listColor: '',
     title,
     notes: '',
+    kind: 'TASK',
     priority: 0,
     allDay: false,
     recurrence: '',

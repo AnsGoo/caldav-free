@@ -153,6 +153,13 @@ export interface SavedFilter {
   order: number
 }
 
+export interface MatrixView {
+  id: number
+  name: string
+  mode: 'simple' | 'complex'
+  order: number
+}
+
 export interface TaskTagCount {
   name: string
   count: number
@@ -245,6 +252,7 @@ export interface TaskWorkspaceData {
   counts: TaskCounts
   tags: string[]
   tagCounts: TaskTagCount[]
+  matrixViews: MatrixView[]
   inbox: number
 }
 

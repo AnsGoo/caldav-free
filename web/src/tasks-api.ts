@@ -1,5 +1,5 @@
 import { api, apiForm } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, MatrixView, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix'
 
@@ -198,6 +198,24 @@ export function uploadCommentAttachment(taskId: number, commentId: number, file:
 
 export function deleteCommentAttachment(taskId: number, commentId: number, attachmentId: number) {
   return api<void>(`/tasks/${taskId}/comments/${commentId}/attachments/${attachmentId}`, { method: 'DELETE' })
+}
+
+export function createMatrixView(name: string, mode: 'simple' | 'complex') {
+  return api<{ view: MatrixView }>('/task-matrix-views', {
+    method: 'POST',
+    body: JSON.stringify({ name, mode }),
+  })
+}
+
+export function updateMatrixView(id: number, payload: { name?: string; mode?: 'simple' | 'complex'; order?: number }) {
+  return api<{ view: MatrixView }>(`/task-matrix-views/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteMatrixView(id: number) {
+  return api<void>(`/task-matrix-views/${id}`, { method: 'DELETE' })
 }
 
 export function fetchTaskListMembers(listId: number) {

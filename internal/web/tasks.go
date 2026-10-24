@@ -354,6 +354,15 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	for _, item := range shared {
 		sharedRows = append(sharedRows, sharedTaskListDTO(item))
 	}
+	matrixViews, err := s.store.ListMatrixViews(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	matrixRows := make([]apiMatrixView, 0, len(matrixViews))
+	for _, view := range matrixViews {
+		matrixRows = append(matrixRows, matrixViewDTO(view))
+	}
 	writeAPIJSON(w, http.StatusOK, map[string]any{
 		"lists":       listRows,
 		"sharedLists": sharedRows,
@@ -363,6 +372,7 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 		"counts":      counts,
 		"tags":        s.taskTags(ctx, current.ID),
 		"tagCounts":   tagCounts,
+		"matrixViews": matrixRows,
 		"inbox":       inbox.ID,
 	})
 }

@@ -50,6 +50,7 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | `task_activities` | 任务动态：创建、指派、完成/重新打开 |
 | `task_comments` | 任务评论：任务、作者、正文、创建时间 |
 | `task_tag_colors` | 用户标签颜色；按用户名+标签名唯一 |
+| `matrix_views` | 四象限视图名称、simple/complex 规则、排序 |
 | `comment_attachments` | 评论附件：元数据 + SQLite BLOB（单文件 ≤10MB） |
 | `event_reminder_deliveries` | 服务端日程提醒成功记录；日历 + UID/实例 + 偏移 + 通道唯一 |
 | `summary_documents` | 摘要模板与历史文档（HTML 原文） |
@@ -226,7 +227,7 @@ name:   任务
 - 复杂规则：重要=高/中优先级，紧急=已过期/今天/明天到期，组合为四个象限。
 - 简化模式支持拖拽任务到象限，映射为优先级并复用任务 PATCH。
 - 每个象限按无日期、已过期、今天、明天、未来、已完成分组。
-- 矩阵视图复用任务工作区数据，不新增后端存储；完成/打开任务走现有任务 API。
+- 矩阵视图复用任务工作区数据；视图名称和规则保存在 `matrix_views`，任务操作走现有任务 API。
 
 ## 9. 提醒
 

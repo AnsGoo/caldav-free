@@ -517,6 +517,36 @@ DELETE /api/admin/calendars/1/events/meeting.ics?recurrenceId=2026-11-02T10%3A00
 
 移除共享成员，返回 `204`。
 
+### GET /api/admin/task-matrix-views
+
+返回当前用户保存的四象限视图：
+
+```json
+{
+  "views": [
+    { "id": 1, "name": "工作矩阵", "mode": "complex", "order": 1 }
+  ]
+}
+```
+
+### POST /api/admin/task-matrix-views
+
+```json
+{ "name": "工作矩阵", "mode": "complex" }
+```
+
+`mode` 为 `simple` 或 `complex`。
+
+### PATCH /api/admin/task-matrix-views/{id}
+
+```json
+{ "name": "工作矩阵", "mode": "simple", "order": 1 }
+```
+
+### DELETE /api/admin/task-matrix-views/{id}
+
+返回 `204`。
+
 ### GET /api/admin/tasks/{id}/activities
 
 返回任务动态时间线（最近 50 条，倒序）：

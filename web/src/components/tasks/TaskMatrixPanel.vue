@@ -6,6 +6,18 @@
         <p>{{ rule === 'simple' ? '按优先级分组' : '按优先级 + 截止日期分组' }} · 拖动任务可修改优先级</p>
       </div>
       <div class="tw-matrix-head-actions">
+        <div class="tw-matrix-view-picker">
+          <select :value="activeViewId" @change="$emit('select-view', Number(($event.target as HTMLSelectElement).value))">
+            <option :value="0">默认四象限</option>
+            <option v-for="view in views" :key="view.id" :value="view.id">{{ view.name }}</option>
+          </select>
+          <button title="新建四象限视图" @click="$emit('create-view')">
+            <TaskIcon name="plus" :size="13" />
+          </button>
+          <button v-if="activeViewId" title="删除当前视图" @click="$emit('delete-view', activeViewId)">
+            <TaskIcon name="trash" :size="13" />
+          </button>
+        </div>
         <div class="tw-matrix-rule">
           <button :class="{ active: rule === 'simple' }" @click="$emit('change-rule', 'simple')">按优先级</button>
           <button :class="{ active: rule === 'complex' }" @click="$emit('change-rule', 'complex')">优先级 + 日期</button>
@@ -87,17 +99,20 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { TaskItem } from '../../types'
+import type { MatrixView, TaskItem } from '../../types'
 import { dayKey, formatDue, isOverdue, recurrenceLabel, startOfToday } from '../../tasks-utils'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ tasks: TaskItem[]; rule: 'simple' | 'complex' }>()
+const props = defineProps<{ tasks: TaskItem[]; rule: 'simple' | 'complex'; views: MatrixView[]; activeViewId: number }>()
 
 const emit = defineEmits<{
   (event: 'open', task: TaskItem): void
   (event: 'toggle', task: TaskItem): void
   (event: 'move', payload: { task: TaskItem; priority: number }): void
   (event: 'change-rule', rule: 'simple' | 'complex'): void
+  (event: 'select-view', id: number): void
+  (event: 'create-view'): void
+  (event: 'delete-view', id: number): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)

@@ -5832,3 +5832,39 @@ button.tw-side-link {
     font-size: 10px;
   }
 }
+
+.tw-matrix-view-picker {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tw-matrix-view-picker select {
+  height: 27px;
+  max-width: 160px;
+  padding: 0 6px;
+  border: 1px solid var(--tw-border);
+  border-radius: 6px;
+  background: var(--tw-bg);
+  color: var(--tw-text-2);
+  font-size: 10.5px;
+  outline: none;
+}
+
+.tw-matrix-view-picker button {
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--tw-text-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tw-matrix-view-picker button:hover {
+  background: var(--tw-hover);
+  color: var(--tw-text);
+}

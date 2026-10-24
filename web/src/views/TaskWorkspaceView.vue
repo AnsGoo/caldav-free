@@ -161,10 +161,15 @@
         v-if="view === 'matrix'"
         :tasks="filteredTasks"
         :rule="matrixRule"
+        :views="matrixViews"
+        :active-view-id="activeMatrixViewId"
         @open="openTask"
         @toggle="toggleTask"
         @move="moveTaskToQuadrant"
         @change-rule="setMatrixRule"
+        @select-view="selectMatrixView"
+        @create-view="openMatrixViewDialog"
+        @delete-view="confirmDeleteMatrixView"
       />
       <div v-else class="tw-scroll">
         <div class="tw-content">
@@ -669,6 +674,36 @@
       </div>
     </div>
 
+    <div v-if="matrixViewDialogOpen" class="tw-dialog-scrim" @click.self="matrixViewDialogOpen = false">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="新建四象限视图" @keydown.esc="matrixViewDialogOpen = false">
+        <header class="tw-dialog-head">
+          <h2>新建四象限视图</h2>
+          <button class="tw-icon-button" title="关闭" @click="matrixViewDialogOpen = false">
+            <TaskIcon name="close" :size="16" />
+          </button>
+        </header>
+        <div class="tw-dialog-body">
+          <label class="tw-modal-label">
+            视图名称
+            <input v-model="matrixViewName" class="tw-dialog-input" maxlength="60" @keydown.enter="saveMatrixView" />
+          </label>
+          <label class="tw-field">
+            <span>规则</span>
+            <select v-model="matrixViewMode" class="tw-field-select">
+              <option value="simple">按优先级</option>
+              <option value="complex">优先级 + 日期</option>
+            </select>
+          </label>
+        </div>
+        <footer class="tw-dialog-foot">
+          <button class="tw-dialog-cancel" @click="matrixViewDialogOpen = false">取消</button>
+          <button class="tw-dialog-ok" :disabled="matrixViewBusy || !matrixViewName.trim()" @click="saveMatrixView">
+            {{ matrixViewBusy ? '创建中…' : '创建' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
     <NotificationDialog
       v-if="notificationDialogOpen"
       @changed="unreadNotifications = $event"
@@ -706,13 +741,15 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskTagCount, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   createSavedFilter,
   createTask,
   createTaskFolder,
+  createMatrixView,
   createTaskList,
+  deleteMatrixView,
   deleteSavedFilter,
   deleteTask,
   deleteTaskFolder,
@@ -731,6 +768,7 @@ import {
   restoreTask,
   setTaskTagColor,
   updateCalendarEvent,
+  updateMatrixView,
   updateSavedFilter,
   updateTask,
   updateTaskFolder,
@@ -805,6 +843,12 @@ const eventDialogOpen = ref(false)
 const editingEvent = ref<CalendarEvent | null>(null)
 const calendarFocus = ref<{ calendarId: number; href: string; occurrence: string } | null>(null)
 const matrixRule = ref<'simple' | 'complex'>('simple')
+const matrixViews = ref<MatrixView[]>([])
+const activeMatrixViewId = ref(0)
+const matrixViewDialogOpen = ref(false)
+const matrixViewName = ref('')
+const matrixViewMode = ref<'simple' | 'complex'>('simple')
+const matrixViewBusy = ref(false)
 const theme = ref<'dark' | 'light'>('dark')
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
@@ -1003,6 +1047,22 @@ async function loadWorkspace(silent = false) {
     })
     lists.value = data.lists
     sharedLists.value = data.sharedLists || []
+    matrixViews.value = data.matrixViews || []
+    if (matrixViews.value.length) {
+      if (!activeMatrixViewId.value || !matrixViews.value.some((view) => view.id === activeMatrixViewId.value)) {
+        const saved = Number(localStorage.getItem('caldav-matrix-view') || 0)
+        const found = matrixViews.value.find((view) => view.id === saved)
+        if (found) {
+          activeMatrixViewId.value = found.id
+          matrixRule.value = found.mode
+        } else {
+          activeMatrixViewId.value = 0
+        }
+      } else {
+        const active = matrixViews.value.find((view) => view.id === activeMatrixViewId.value)
+        if (active) matrixRule.value = active.mode
+      }
+    }
     folders.value = data.folders
     filters.value = data.filters
     tasks.value = data.tasks
@@ -1454,13 +1514,65 @@ async function rescheduleEvent(payload: { event: CalendarEvent; start: string; e
   }
 }
 
-function setMatrixRule(rule: 'simple' | 'complex') {
+async function setMatrixRule(rule: 'simple' | 'complex') {
   matrixRule.value = rule
   try {
     localStorage.setItem('caldav-matrix-rule', rule)
   } catch {
     /* ignore */
   }
+  if (!activeMatrixViewId.value) return
+  try {
+    const { view } = await updateMatrixView(activeMatrixViewId.value, { mode: rule })
+    matrixViews.value = matrixViews.value.map((item) => item.id === view.id ? view : item)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存四象限规则失败')
+  }
+}
+
+function selectMatrixView(id: number) {
+  activeMatrixViewId.value = id
+  const view = matrixViews.value.find((item) => item.id === id)
+  matrixRule.value = view?.mode || matrixRule.value
+  try {
+    localStorage.setItem('caldav-matrix-view', String(id))
+  } catch {
+    /* ignore */
+  }
+}
+
+function openMatrixViewDialog() {
+  matrixViewName.value = `四象限视图 ${matrixViews.value.length + 1}`
+  matrixViewMode.value = matrixRule.value
+  matrixViewBusy.value = false
+  matrixViewDialogOpen.value = true
+}
+
+async function saveMatrixView() {
+  const name = matrixViewName.value.trim()
+  if (!name || matrixViewBusy.value) return
+  matrixViewBusy.value = true
+  try {
+    const { view } = await createMatrixView(name, matrixViewMode.value)
+    matrixViews.value = [...matrixViews.value, view]
+    selectMatrixView(view.id)
+    matrixViewDialogOpen.value = false
+    Message.success('四象限视图已创建')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '创建四象限视图失败')
+  } finally {
+    matrixViewBusy.value = false
+  }
+}
+
+function confirmDeleteMatrixView(id: number) {
+  const view = matrixViews.value.find((item) => item.id === id)
+  if (!view) return
+  askConfirm('删除四象限视图', `确定删除「${view.name}」吗？`, async () => {
+    await deleteMatrixView(id)
+    matrixViews.value = matrixViews.value.filter((item) => item.id !== id)
+    if (activeMatrixViewId.value === id) selectMatrixView(0)
+  })
 }
 
 async function moveTaskToQuadrant(payload: { task: TaskItem; priority: number }) {

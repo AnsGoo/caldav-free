@@ -520,18 +520,34 @@ const itemsByDay = computed(() => {
         cursor.setDate(cursor.getDate() + 1)
       }
     } else {
-      push(dayKey(start), {
-        key: `event-${event.id}`,
-        kind: 'event',
-        title: event.summary,
-        color: event.color || '#4772fa',
-        allDay: false,
-        start,
-        end,
-        timeLabel: timeText(start),
-        location: event.location,
-        event,
-      })
+      const lastDay = new Date(end)
+      if (lastDay.getHours() === 0 && lastDay.getMinutes() === 0 && lastDay.getSeconds() === 0) {
+        lastDay.setDate(lastDay.getDate() - 1)
+      }
+      lastDay.setHours(0, 0, 0, 0)
+      const cursor = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+      while (cursor <= lastDay) {
+        const dayStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate())
+        const dayEnd = new Date(dayStart)
+        dayEnd.setDate(dayEnd.getDate() + 1)
+        const segmentStart = start > dayStart ? start : dayStart
+        const segmentEnd = end < dayEnd ? end : dayEnd
+        if (segmentStart < segmentEnd) {
+          push(dayKey(cursor), {
+            key: `event-${event.id}-${dayKey(cursor)}`,
+            kind: 'event',
+            title: event.summary,
+            color: event.color || '#4772fa',
+            allDay: false,
+            start: segmentStart,
+            end: segmentEnd,
+            timeLabel: timeText(segmentStart),
+            location: event.location,
+            event,
+          })
+        }
+        cursor.setDate(cursor.getDate() + 1)
+      }
     }
   }
   for (const key of Object.keys(map)) {

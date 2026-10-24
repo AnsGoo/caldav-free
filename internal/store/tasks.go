@@ -37,6 +37,7 @@ type Task struct {
 	Title      string     `gorm:"size:500;not null"`
 	Notes      string     `gorm:"type:text;not null;default:''"`
 	Priority   int        `gorm:"not null;default:0"`
+	StartAt    *time.Time `gorm:"index:idx_task_start"`
 	DueAt      *time.Time `gorm:"index:idx_task_user_due,priority:2"`
 	AllDay     bool       `gorm:"not null;default:false"`
 	Recurrence string     `gorm:"size:255;not null;default:''"`

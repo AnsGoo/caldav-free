@@ -8020,3 +8020,54 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 
 .tw-quick-template { flex: none; color: var(--tw-text-3); }
 .tw-quick-template:hover { color: var(--tw-accent); }
+
+.tw-subtasks { margin-top: 18px; }
+.tw-subtask-list { display: grid; gap: 2px; }
+.tw-subtask-row { display: flex; align-items: center; gap: 7px; padding: 3px 0; }
+.tw-subtask-title { flex: 1; min-width: 0; overflow: hidden; border: 0; background: transparent; color: var(--tw-text-2); font-size: 12.5px; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.tw-subtask-title:hover { color: var(--tw-accent); }
+.tw-subtask-title.done { color: var(--tw-text-3); text-decoration: line-through; }
+.tw-subtask-add { display: flex; align-items: center; gap: 5px; margin-top: 5px; color: var(--tw-text-3); font-size: 11px; }
+.tw-subtask-add input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--tw-text); font-size: 12px; }
+.tw-row.is-subtask { margin-left: 22px; }
+@media (max-width: 640px) { .tw-row.is-subtask { margin-left: 12px; } }
+
+.tw-date-panel-label { flex: none; color: var(--tw-text-3); font-size: 10px; }
+.tw-date-clear { border: 0; background: transparent; color: var(--tw-text-3); font-size: 10px; cursor: pointer; }
+.tw-date-clear:hover { color: var(--tw-danger); }
+
+.tw-task-attachment-actions { display: flex; align-items: center; gap: 6px; }
+.tw-task-attachment-actions small { color: var(--tw-text-3); font-size: 10px; }
+.tw-task-attachment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 7px; }
+.tw-task-attachment { position: relative; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-surface); overflow: hidden; }
+.tw-task-attachment > a { display: grid; gap: 3px; padding: 5px; color: var(--tw-text-3); text-decoration: none; }
+.tw-task-attachment img { width: 100%; height: 64px; object-fit: cover; border-radius: 5px; }
+.tw-task-attachment-file { height: 64px; display: grid; place-items: center; border-radius: 5px; background: var(--tw-bg); color: var(--tw-text-3); }
+.tw-task-attachment small { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.tw-task-attachment > .tw-icon-button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; background: color-mix(in srgb, var(--tw-bg) 85%, transparent); opacity: 0; }
+.tw-task-attachment:hover > .tw-icon-button { opacity: 1; }
+.tw-task-attachment-empty { margin: 0; color: var(--tw-text-3); font-size: 10px; }
+
+.tw-calendar-subscription-dialog { width: min(520px, calc(100vw - 28px)); }
+.tw-calendar-sub-form { display: grid; gap: 8px; }
+.tw-calendar-sub-actions { display: flex; align-items: center; gap: 8px; }
+.tw-calendar-sub-actions .tw-primary-button { margin-top: 0; flex: 1; }
+.tw-calendar-sub-color { width: 34px; height: 32px; padding: 2px; border: 1px solid var(--tw-border); border-radius: 7px; background: var(--tw-bg); }
+.tw-calendar-sub-list { display: grid; gap: 7px; margin-top: 12px; }
+.tw-calendar-sub-list article { display: flex; align-items: center; gap: 8px; padding: 8px 9px; border: 1px solid var(--tw-border); border-radius: 8px; background: var(--tw-bg); }
+.tw-calendar-sub-list article > i { width: 9px; height: 9px; flex: none; border-radius: 50%; }
+.tw-calendar-sub-list article > div { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.tw-calendar-sub-list strong { overflow: hidden; color: var(--tw-text); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.tw-calendar-sub-list small { overflow: hidden; color: var(--tw-text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.tw-calendar-sub-list em { color: var(--tw-danger); font-size: 9px; font-style: normal; }
+.tw-calendar-sub-empty { margin: 14px 0 0; color: var(--tw-text-3); font-size: 10px; text-align: center; }
+
+@media (max-width: 640px) {
+  .tw-calendar-cell { min-height: 58px; padding: 3px 2px; }
+  .tw-cell-add { display: none; }
+  .tw-cell-tasks { flex-direction: row; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .tw-calendar-task { width: 6px; height: 6px; min-width: 6px; flex: none; padding: 0; border: 0 !important; border-radius: 50%; background: transparent !important; pointer-events: none; }
+  .tw-calendar-task i { width: 6px; height: 6px; }
+  .tw-calendar-task span, .tw-calendar-task small { display: none; }
+  .tw-cell-more { padding: 0; font-size: 8px; line-height: 8px; }
+}

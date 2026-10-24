@@ -321,3 +321,28 @@ func TestMultipleReminderAlarms(t *testing.T) {
 		t.Fatalf("parsed reminders = %v", parsed.ReminderOffsets)
 	}
 }
+
+func TestPushVTODOWithStartAndDue(t *testing.T) {
+	st, syncer, userID, inbox := newSyncEnv(t)
+	ctx := context.Background()
+	start := time.Date(2026, 10, 28, 1, 0, 0, 0, time.UTC)
+	due := time.Date(2026, 10, 28, 3, 30, 0, 0, time.UTC)
+	task, err := st.CreateTask(ctx, &store.Task{UserID: userID, ListID: inbox.ID, Title: "时间块", StartAt: &start, DueAt: &due})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.PushTask(ctx, userID, task); err != nil {
+		t.Fatal(err)
+	}
+	cal, _ := syncer.EnsureTaskCalendar(ctx, userID)
+	obj, err := st.GetObject(ctx, cal.ID, task.VTODOHref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(obj.Data)
+	for _, want := range []string{"DTSTART:20261028T010000Z", "DUE:20261028T033000Z"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("VTODO missing %q:\n%s", want, body)
+		}
+	}
+}

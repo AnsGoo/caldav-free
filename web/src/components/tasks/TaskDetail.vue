@@ -44,6 +44,10 @@
           <TaskIcon name="calendar" :size="14" />
           {{ dueLabel || '设置日期' }}
         </button>
+        <span v-if="startLabel" class="tw-pill">
+          <TaskIcon name="clock" :size="14" />
+          开始 {{ startLabel }}<template v-if="durationLabel"> · {{ durationLabel }}</template>
+        </span>
         <span v-if="draft.priority" class="tw-pill" :style="{ color: priorityMeta?.color }">
           <TaskIcon name="flag" :size="14" />
           {{ priorityMeta?.short }}优先级
@@ -67,6 +71,11 @@
       </div>
 
       <div v-if="dateOpen" class="tw-date-panel">
+        <span class="tw-date-panel-label">开始</span>
+        <a-date-picker v-model="draft.startDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" @change="save" />
+        <a-time-picker v-model="draft.startTime" class="tw-date-control" format="HH:mm" size="small" :disabled="draft.allDay" @change="save" />
+        <button type="button" class="tw-date-clear" @click="draft.startDate = ''; save()">清除</button>
+        <span class="tw-date-panel-label">截止</span>
         <a-date-picker v-model="draft.dueDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" @change="save" />
         <a-time-picker v-model="draft.dueTime" class="tw-date-control" format="HH:mm" size="small" :disabled="draft.allDay" @change="save" />
         <label class="tw-check-label">
@@ -88,9 +97,51 @@
         placeholder="输入内容或使用 / 快速插入"
       />
 
-      <section class="tw-checklists">
+      <section class="tw-detail-section tw-task-attachments">
+        <header class="tw-detail-section-head">
+          <span>附件</span>
+          <div class="tw-task-attachment-actions">
+            <small v-if="attachments.length">{{ attachments.length }} 个</small>
+            <button class="tw-add-subtask" type="button" @click="attachmentInput?.click()"><TaskIcon name="plus" :size="13" /> 上传</button>
+            <input ref="attachmentInput" type="file" hidden @change="onAttachmentFile" />
+          </div>
+        </header>
+        <div v-if="attachments.length" class="tw-task-attachment-grid">
+          <div v-for="attachment in attachments" :key="attachment.id" class="tw-task-attachment">
+            <a :href="taskAttachmentURL(attachment)" target="_blank" rel="noopener">
+              <img v-if="isTaskImageAttachment(attachment)" :src="taskAttachmentURL(attachment)" :alt="attachment.filename" />
+              <span v-else class="tw-task-attachment-file"><TaskIcon name="download" :size="20" /></span>
+              <small>{{ attachment.filename }}</small>
+            </a>
+            <button v-if="attachment.canDelete" class="tw-icon-button danger" title="删除附件" @click="removeTaskAttachment(attachment)"><TaskIcon name="trash" :size="12" /></button>
+          </div>
+        </div>
+        <p v-else class="tw-task-attachment-empty">图片、文档等任务附件</p>
+      </section>
+
+      <section class="tw-detail-section tw-subtasks">
         <header class="tw-detail-section-head">
           <span>子任务</span>
+          <small v-if="subtasks.length">{{ subtasks.filter((item) => item.completed).length }}/{{ subtasks.length }}</small>
+        </header>
+        <div class="tw-subtask-list">
+          <div v-for="item in subtasks" :key="item.id" class="tw-subtask-row">
+            <button class="tw-check tw-check-sm" :class="{ checked: item.completed }" :aria-label="item.completed ? '标记为未完成' : '标记为完成'" @click="$emit('toggle-subtask', item)">
+              <svg v-if="item.completed" viewBox="0 0 20 20" width="10" height="10" aria-hidden="true"><path d="m4.5 10.2 3.6 3.7 7.4-8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </button>
+            <button class="tw-subtask-title" :class="{ done: item.completed }" @click="$emit('open-subtask', item)">{{ item.title }}</button>
+            <button class="tw-icon-button" title="删除子任务" @click="$emit('remove-subtask', item)"><TaskIcon name="close" :size="13" /></button>
+          </div>
+        </div>
+        <form class="tw-subtask-add" @submit.prevent="submitSubtask">
+          <TaskIcon name="plus" :size="13" />
+          <input v-model="subtaskTitle" maxlength="300" placeholder="添加子任务，回车创建" />
+        </form>
+      </section>
+
+      <section class="tw-checklists">
+        <header class="tw-detail-section-head">
+          <span>检查项</span>
           <small v-if="draft.checklist.length">{{ doneCount }}/{{ draft.checklist.length }}</small>
         </header>
         <div class="tw-checklist">
@@ -368,19 +419,23 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, CommentAttachment, TaskActivity, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
+import type { ChecklistItem, CommentAttachment, TaskActivity, TaskAttachment, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
 import { tagColor, tagTint } from '../../tag-colors'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteCommentAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskAttachments, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ task: TaskItem; lists: TaskList[]; members?: TaskListMember[]; tagColors?: Record<string, string>; readonly?: boolean; listLocked?: boolean }>()
+const props = withDefaults(defineProps<{ task: TaskItem; lists: TaskList[]; subtasks?: TaskItem[]; members?: TaskListMember[]; tagColors?: Record<string, string>; readonly?: boolean; listLocked?: boolean }>(), { subtasks: () => [] })
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', task: TaskItem): void
   (event: 'deleted', id: number): void
   (event: 'remove', task: TaskItem): void
   (event: 'save-template', payload: Record<string, unknown>): void
+  (event: 'create-subtask', title: string): void
+  (event: 'toggle-subtask', task: TaskItem): void
+  (event: 'open-subtask', task: TaskItem): void
+  (event: 'remove-subtask', task: TaskItem): void
 }>()
 
 interface Draft {
@@ -388,6 +443,8 @@ interface Draft {
   notes: string
   listId: number
   priority: number
+  startDate: string
+  startTime: string
   dueDate: string
   dueTime: string
   allDay: boolean
@@ -404,6 +461,8 @@ const draft = reactive<Draft>({
   notes: '',
   listId: 0,
   priority: 0,
+  startDate: '',
+  startTime: '09:00',
   dueDate: '',
   dueTime: '',
   allDay: false,
@@ -422,6 +481,9 @@ const recurrenceChoice = ref('')
 const customRule = ref('')
 const saving = ref(false)
 const saved = ref(false)
+const subtaskTitle = ref('')
+const attachments = ref<TaskAttachment[]>([])
+const attachmentInput = ref<HTMLInputElement | null>(null)
 const comments = ref<TaskComment[]>([])
 const activities = ref<TaskActivity[]>([])
 const commentsLoading = ref(false)
@@ -466,6 +528,14 @@ function hydrate() {
   customRule.value = preset ? '' : props.task.recurrence || ''
   draft.tags = [...props.task.tags]
   draft.checklist = props.task.checklist.map((item) => ({ ...item }))
+  if (props.task.start) {
+    const start = new Date(props.task.start)
+    draft.startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`
+    draft.startTime = props.task.allDay ? '09:00' : `${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}`
+  } else {
+    draft.startDate = ''
+    draft.startTime = '09:00'
+  }
   const input = toDateInput(props.task)
   if (input) {
     const [datePart, timePart] = input.split('T')
@@ -652,6 +722,7 @@ function snapshotDraft() {
     notes: draft.notes,
     listId: draft.listId,
     priority: draft.priority,
+    start: startPayload(),
     due: duePayload(),
     allDay: draft.allDay,
     completed: draft.completed,
@@ -663,7 +734,51 @@ function snapshotDraft() {
   })
 }
 
-watch(() => props.task.id, hydrate, { immediate: true })
+watch(() => props.task.id, (id) => {
+  hydrate()
+  void loadTaskAttachments(id)
+}, { immediate: true })
+
+async function loadTaskAttachments(taskId: number) {
+  try {
+    const data = await fetchTaskAttachments(taskId)
+    attachments.value = data.attachments || []
+  } catch {
+    attachments.value = []
+  }
+}
+
+function taskAttachmentURL(attachment: TaskAttachment) {
+  return `/api/admin/tasks/${props.task.id}/attachments/${attachment.id}`
+}
+
+function isTaskImageAttachment(attachment: TaskAttachment) {
+  return attachment.contentType.startsWith('image/')
+}
+
+async function onAttachmentFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  try {
+    const { attachment } = await uploadTaskAttachment(props.task.id, file)
+    attachments.value = [...attachments.value, attachment]
+    Message.success('附件已上传')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '上传附件失败')
+  }
+}
+
+async function removeTaskAttachment(attachment: TaskAttachment) {
+  try {
+    await deleteTaskAttachment(props.task.id, attachment.id)
+    attachments.value = attachments.value.filter((item) => item.id !== attachment.id)
+    Message.success('附件已删除')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '删除附件失败')
+  }
+}
 
 watch(
   draft,
@@ -679,6 +794,12 @@ function scheduleSave() {
   saveTimer = setTimeout(() => {
     void save()
   }, 500)
+}
+
+function startPayload() {
+  if (!draft.startDate) return ''
+  if (draft.allDay) return `${draft.startDate}T00:00:00`
+  return `${draft.startDate}T${draft.startTime || '09:00'}:00`
 }
 
 function duePayload() {
@@ -697,6 +818,28 @@ const dueLabel = computed(() => {
   return formatDue(view)
 })
 
+const startLabel = computed(() => {
+  if (!draft.startDate) return ''
+  const start = new Date(startPayload())
+  if (Number.isNaN(start.getTime())) return ''
+  const options: Intl.DateTimeFormatOptions = draft.allDay
+    ? { month: 'numeric', day: 'numeric' }
+    : { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+  return start.toLocaleString('zh-CN', options)
+})
+
+const durationLabel = computed(() => {
+  if (!draft.startDate || !draft.dueDate) return ''
+  const start = new Date(startPayload()).getTime()
+  const due = new Date(duePayload()).getTime()
+  if (Number.isNaN(start) || Number.isNaN(due) || due <= start) return ''
+  const minutes = Math.round((due - start) / 60000)
+  if (minutes < 60) return `${minutes} 分钟`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} 小时 ${rest} 分钟` : `${hours} 小时`
+})
+
 const dueOverdue = computed(() => {
   if (!draft.dueDate || draft.completed) return false
   const due = draft.allDay
@@ -710,6 +853,13 @@ function growTitle() {
   if (!el) return
   el.style.height = 'auto'
   el.style.height = `${el.scrollHeight}px`
+}
+
+function submitSubtask() {
+  const title = subtaskTitle.value.trim()
+  if (!title) return
+  subtaskTitle.value = ''
+  emit('create-subtask', title)
 }
 
 function saveAsTemplate() {
@@ -740,6 +890,7 @@ async function save() {
     notes: draft.notes,
     listId: draft.listId,
     priority: draft.priority,
+    start: startPayload(),
     due: duePayload(),
     allDay: draft.allDay,
     completed: draft.completed,

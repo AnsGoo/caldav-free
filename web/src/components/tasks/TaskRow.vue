@@ -1,7 +1,7 @@
 <template>
   <article
     class="tw-row"
-    :class="{ selected, done: task.completed, overdue, 'is-trash': trashMode, 'drag-target': dragTarget }"
+    :class="{ selected, done: task.completed, overdue, 'is-trash': trashMode, 'is-subtask': !!task.parentId, 'drag-target': dragTarget }"
     :draggable="draggable"
     @click="handleClick"
   >

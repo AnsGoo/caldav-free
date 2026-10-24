@@ -1,5 +1,5 @@
 import { api, apiForm, getCSRFToken, notifyUnauthorized } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, CalendarSubscription, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskAttachment, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
 
@@ -23,9 +23,11 @@ export function fetchTaskWorkspace(params: { view: TaskView; listId?: number; fi
 export interface TaskDraft {
   title?: string
   text?: string
+  parentId?: number
   listId?: number
   notes?: string
   priority?: number
+  start?: string
   due?: string
   allDay?: boolean
   completed?: boolean
@@ -720,4 +722,30 @@ export async function streamAIChat(
       boundary = buffer.indexOf('\n\n')
     }
   }
+}
+
+export function fetchTaskAttachments(taskId: number) {
+  return api<{ attachments: TaskAttachment[] }>(`/tasks/${taskId}/attachments`)
+}
+
+export function uploadTaskAttachment(taskId: number, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return apiForm<{ attachment: TaskAttachment }>(`/tasks/${taskId}/attachments`, form)
+}
+
+export function deleteTaskAttachment(taskId: number, attachmentId: number) {
+  return api<void>(`/tasks/${taskId}/attachments/${attachmentId}`, { method: 'DELETE' })
+}
+
+export function fetchCalendarSubscriptions() {
+  return api<{ subscriptions: CalendarSubscription[] }>('/calendar-subscriptions')
+}
+
+export function createCalendarSubscription(payload: { name: string; url: string; color: string }) {
+  return api<{ subscription: CalendarSubscription }>('/calendar-subscriptions', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function deleteCalendarSubscription(id: number) {
+  return api<void>(`/calendar-subscriptions/${id}`, { method: 'DELETE' })
 }

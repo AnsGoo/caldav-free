@@ -55,6 +55,7 @@ type apiTask struct {
 	Title           string             `json:"title"`
 	Notes           string             `json:"notes"`
 	Priority        int                `json:"priority"`
+	Start           string             `json:"start,omitempty"`
 	Due             string             `json:"due,omitempty"`
 	AllDay          bool               `json:"allDay"`
 	Completed       bool               `json:"completed"`
@@ -74,9 +75,11 @@ type apiTask struct {
 type taskPatch struct {
 	Text            *string             `json:"text"`
 	Title           *string             `json:"title"`
+	ParentID        *int64              `json:"parentId"`
 	ListID          *int64              `json:"listId"`
 	Notes           *string             `json:"notes"`
 	Priority        *int                `json:"priority"`
+	Start           *string             `json:"start"`
 	Due             *string             `json:"due"`
 	AllDay          *bool               `json:"allDay"`
 	Completed       *bool               `json:"completed"`
@@ -159,6 +162,9 @@ func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 	}
 	if dto.ReminderOffsets == nil {
 		dto.ReminderOffsets = []int{}
+	}
+	if task.StartAt != nil {
+		dto.Start = task.StartAt.Format(time.RFC3339)
 	}
 	if task.DueAt != nil {
 		dto.Due = task.DueAt.Format(time.RFC3339)
@@ -441,6 +447,30 @@ func applyTaskReminders(task *store.Task, body taskPatch) error {
 	return nil
 }
 
+func (s *Server) resolveTaskParent(ctx context.Context, current *store.User, taskID, parentID int64) (*store.Task, error) {
+	if parentID <= 0 {
+		return nil, nil
+	}
+	if parentID == taskID {
+		return nil, errors.New("任务不能成为自己的子任务")
+	}
+	parent, err := s.store.GetTask(ctx, current.ID, parentID)
+	if err != nil {
+		return nil, errors.New("父任务不存在")
+	}
+	for currentParent := parent; currentParent != nil && currentParent.ParentID > 0; {
+		if currentParent.ParentID == taskID {
+			return nil, errors.New("不能把任务移动到自己的子任务下")
+		}
+		next, err := s.store.GetTask(ctx, current.ID, currentParent.ParentID)
+		if err != nil {
+			break
+		}
+		currentParent = next
+	}
+	return parent, nil
+}
+
 func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body taskPatch
 	if !readAPIJSON(w, r, &body) {
@@ -476,6 +506,16 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 			return
 		}
 	}
+	if body.ParentID != nil && *body.ParentID > 0 {
+		parent, err := s.resolveTaskParent(ctx, current, 0, *body.ParentID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		task.ParentID = parent.ID
+		task.ListID = parent.ListID
+		task.UserID = parent.UserID
+	}
 	if body.Notes != nil {
 		task.Notes = *body.Notes
 	}
@@ -510,6 +550,15 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.Completed != nil {
 		task.Completed = *body.Completed
 	}
+	if body.Start != nil && strings.TrimSpace(*body.Start) != "" {
+		start, allDay, ok := parseTaskDue(*body.Start, body.Timezone, task.AllDay)
+		if !ok {
+			writeAPIError(w, http.StatusBadRequest, "无效的开始日期")
+			return
+		}
+		task.StartAt = start
+		task.AllDay = allDay
+	}
 	if body.Due != nil && strings.TrimSpace(*body.Due) != "" {
 		due, allDay, ok := parseTaskDue(*body.Due, body.Timezone, task.AllDay)
 		if !ok {
@@ -518,6 +567,10 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		task.DueAt = due
 		task.AllDay = allDay
+	}
+	if task.StartAt != nil && task.DueAt != nil && task.StartAt.After(*task.DueAt) {
+		writeAPIError(w, http.StatusBadRequest, "开始时间不能晚于结束时间")
+		return
 	}
 	if text != "" && title == "" {
 		parsed := taskparse.Parse(text, time.Now(), taskLocation(body.Timezone))
@@ -668,6 +721,18 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if body.ParentID != nil {
+		parent, err := s.resolveTaskParent(ctx, current, task.ID, *body.ParentID)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		if parent != nil {
+			task.ParentID = parent.ID
+		} else {
+			task.ParentID = 0
+		}
+	}
 	if body.Tags != nil {
 		task.Tags = normalizeTaskTags(*body.Tags)
 	}
@@ -677,10 +742,31 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	if body.AllDay != nil {
 		task.AllDay = *body.AllDay
 	}
+	if body.Start != nil {
+		start, allDay, ok := parseTaskDue(*body.Start, body.Timezone, task.AllDay)
+		if !ok {
+			writeAPIError(w, http.StatusBadRequest, "无效的开始日期")
+			return
+		}
+		if strings.TrimSpace(*body.Start) != "" {
+			if task.DueAt != nil && start.After(*task.DueAt) {
+				writeAPIError(w, http.StatusBadRequest, "开始时间不能晚于结束时间")
+				return
+			}
+			task.StartAt = start
+			task.AllDay = allDay
+		} else {
+			task.StartAt = nil
+		}
+	}
 	if body.Due != nil {
 		due, allDay, ok := parseTaskDue(*body.Due, body.Timezone, task.AllDay)
 		if !ok {
 			writeAPIError(w, http.StatusBadRequest, "无效的日期")
+			return
+		}
+		if task.StartAt != nil && due.Before(*task.StartAt) {
+			writeAPIError(w, http.StatusBadRequest, "结束时间不能早于开始时间")
 			return
 		}
 		task.DueAt = due

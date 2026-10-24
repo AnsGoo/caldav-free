@@ -278,21 +278,22 @@ func buildVTODO(cal *store.Calendar, task *store.Task, listName string) []byte {
 	if strings.TrimSpace(task.Notes) != "" {
 		todo.AddProp("DESCRIPTION", ical.EscapeText(task.Notes), nil)
 	}
-	if task.DueAt != nil {
-		loc := calendarLocation(cal)
+	loc := calendarLocation(cal)
+	writeTaskTime := func(name string, value time.Time) {
 		if task.AllDay {
-			due := task.DueAt.In(loc).Format("20060102")
-			if task.Recurrence != "" {
-				todo.AddProp("DTSTART", due, ical.Params{"VALUE": {"DATE"}})
-			}
-			todo.AddProp("DUE", due, ical.Params{"VALUE": {"DATE"}})
+			todo.AddProp(name, value.In(loc).Format("20060102"), ical.Params{"VALUE": {"DATE"}})
 		} else {
-			due := task.DueAt.UTC().Format("20060102T150405Z")
-			if task.Recurrence != "" {
-				todo.AddProp("DTSTART", due, nil)
-			}
-			todo.AddProp("DUE", due, nil)
+			todo.AddProp(name, value.UTC().Format("20060102T150405Z"), nil)
 		}
+	}
+	if task.StartAt != nil {
+		writeTaskTime("DTSTART", *task.StartAt)
+	} else if task.DueAt != nil && task.Recurrence != "" {
+		// Recurring VTODOs still need a DTSTART when no explicit start exists.
+		writeTaskTime("DTSTART", *task.DueAt)
+	}
+	if task.DueAt != nil {
+		writeTaskTime("DUE", *task.DueAt)
 	}
 	if rule := strings.TrimSpace(strings.TrimPrefix(task.Recurrence, "RRULE:")); rule != "" {
 		todo.AddProp("RRULE", rule, nil)
@@ -426,6 +427,7 @@ type parsedVTODO struct {
 	Title           string
 	Notes           string
 	Priority        int
+	Start           *time.Time
 	Due             *time.Time
 	AllDay          bool
 	Recurrence      string
@@ -465,12 +467,23 @@ func parseVTODO(cal *store.Calendar, obj *store.Object) (*parsedVTODO, error) {
 			out.Priority = priorityFromICS(value)
 		}
 	}
+	var startValue *time.Time
+	if p := comp.Get("DTSTART"); p != nil {
+		if tv, err := parsed.ParseTimeProp(p); err == nil {
+			start := tv.Time.UTC()
+			startValue = &start
+			out.AllDay = tv.Date
+		}
+	}
 	if p := comp.Get("DUE"); p != nil {
 		if tv, err := parsed.ParseTimeProp(p); err == nil {
 			due := tv.Time.UTC()
 			out.Due = &due
 			out.AllDay = tv.Date
 		}
+	}
+	if startValue != nil && (out.Due == nil || !startValue.Equal(*out.Due)) {
+		out.Start = startValue
 	}
 	if strings.EqualFold(strings.TrimSpace(comp.Value("STATUS")), "COMPLETED") || comp.Value("COMPLETED") != "" {
 		out.Completed = true
@@ -551,6 +564,7 @@ func (s *Syncer) importNew(ctx context.Context, cal *store.Calendar, obj *store.
 		Title:       parsed.Title,
 		Notes:       parsed.Notes,
 		Priority:    parsed.Priority,
+		StartAt:     parsed.Start,
 		DueAt:       parsed.Due,
 		AllDay:      parsed.AllDay,
 		Completed:   parsed.Completed,
@@ -581,6 +595,7 @@ func (s *Syncer) importInto(ctx context.Context, cal *store.Calendar, task *stor
 	task.Title = parsed.Title
 	task.Notes = parsed.Notes
 	task.Priority = parsed.Priority
+	task.StartAt = parsed.Start
 	task.DueAt = parsed.Due
 	task.AllDay = parsed.AllDay
 	task.Completed = parsed.Completed

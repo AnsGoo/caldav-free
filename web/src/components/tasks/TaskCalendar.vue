@@ -6,6 +6,7 @@
         <span class="tw-calendar-sub">{{ summaryText }}</span>
       </div>
       <div class="tw-calendar-actions">
+        <button class="tw-ghost-button" @click="subscriptionOpen = true">订阅</button>
         <div class="tw-cal-view-switch">
           <button
             v-for="option in viewOptions"
@@ -103,9 +104,9 @@
                 class="tw-calendar-task tw-calendar-event"
                 :style="{ borderLeftColor: item.color, background: `color-mix(in srgb, ${item.color} 16%, var(--tw-surface))` }"
                 :title="item.title"
-                draggable="true"
-                @dragstart="startDrag(item, $event)"
-                @click="$emit('open-event', item.event!)"
+                :draggable="!item.event!.readonly"
+                @dragstart="!item.event!.readonly && startDrag(item, $event)"
+                @click="!item.event!.readonly && $emit('open-event', item.event!)"
               >
                 <i :style="{ background: item.color }" />
                 <span>{{ item.title }}</span>
@@ -169,9 +170,9 @@
               class="tw-tg-allday-chip event"
               :style="{ borderLeftColor: item.color }"
               :title="item.title"
-              draggable="true"
-              @dragstart="startDrag(item, $event)"
-              @click="$emit('open-event', item.event!)"
+              :draggable="!item.event!.readonly"
+              @dragstart="!item.event!.readonly && startDrag(item, $event)"
+              @click="!item.event!.readonly && $emit('open-event', item.event!)"
             >
               {{ item.title }}
             </button>
@@ -196,8 +197,8 @@
               :class="item.kind"
               :style="[item.style, resizeStyle(item)]"
               :title="`${item.title}${item.timeLabel ? ' · ' + item.timeLabel : ''}`"
-              draggable="true"
-              @dragstart="startDrag(item, $event)"
+              :draggable="!item.event?.readonly"
+              @dragstart="!item.event?.readonly && startDrag(item, $event)"
               @click="onBlockClick(item)"
             >
               <strong>{{ item.title }}</strong>
@@ -270,6 +271,8 @@
       </div>
     </div>
 
+    <CalendarSubscriptionDialog v-if="subscriptionOpen" @close="subscriptionOpen = false" @changed="loadEvents" />
+
     <div v-if="dayOpen" class="tw-day-scrim" @click.self="dayOpen = ''">
       <div class="tw-day-sheet" role="dialog" aria-modal="true">
         <header class="tw-day-head">
@@ -314,6 +317,7 @@ import type { CalendarEvent, CalendarSource, HabitCalendarEntry, TaskItem } from
 import { dayKey, startOfToday, taskDayKey } from '../../tasks-utils'
 import { fetchCalendarEvents, fetchHabitCalendar } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
+import CalendarSubscriptionDialog from './CalendarSubscriptionDialog.vue'
 
 const props = defineProps<{
   tasks: TaskItem[]
@@ -357,6 +361,7 @@ const sources = ref<CalendarSource[]>([])
 const hiddenCalendarIds = ref<Set<number>>(new Set())
 const hiddenTasks = ref(false)
 const hiddenHabits = ref(false)
+const subscriptionOpen = ref(false)
 const eventsLoading = ref(false)
 const editingDay = ref('')
 const newTitle = ref('')
@@ -1059,7 +1064,7 @@ function openDay(key: string) {
 function openCalendarItem(item: CalItem) {
   if (item.kind === 'task' && item.task) emit('open', item.task)
   else if (item.kind === 'habit' && item.habitId) emit('open-habit', item.habitId)
-  else if (item.event) emit('open-event', item.event)
+  else if (item.event && !item.event.readonly) emit('open-event', item.event)
 }
 
 function openDayItem(item: CalItem) {

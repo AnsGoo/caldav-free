@@ -152,6 +152,13 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/admin/calendars/{id}/events/{name}", s.apiAdmin(s.apiDeleteEvent))
 
 	// Task workspace.
+	mux.HandleFunc("GET /api/admin/calendar-subscriptions", s.apiAdmin(s.apiCalendarSubscriptions))
+	mux.HandleFunc("POST /api/admin/calendar-subscriptions", s.apiAdmin(s.apiCalendarSubscriptions))
+	mux.HandleFunc("DELETE /api/admin/calendar-subscriptions/{id}", s.apiAdmin(s.apiCalendarSubscription))
+	mux.HandleFunc("GET /api/admin/tasks/{id}/attachments", s.apiAdmin(s.apiTaskAttachments))
+	mux.HandleFunc("POST /api/admin/tasks/{id}/attachments", s.apiAdmin(s.apiTaskAttachments))
+	mux.HandleFunc("GET /api/admin/tasks/{id}/attachments/{attachmentId}", s.apiAdmin(s.apiTaskAttachment))
+	mux.HandleFunc("DELETE /api/admin/tasks/{id}/attachments/{attachmentId}", s.apiAdmin(s.apiTaskAttachment))
 	mux.HandleFunc("GET /api/admin/task-templates", s.apiAdmin(s.apiTaskTemplates))
 	mux.HandleFunc("POST /api/admin/task-templates", s.apiAdmin(s.apiTaskTemplates))
 	mux.HandleFunc("DELETE /api/admin/task-templates/{id}", s.apiAdmin(s.apiTaskTemplate))

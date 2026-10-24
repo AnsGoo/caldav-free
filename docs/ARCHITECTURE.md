@@ -43,8 +43,10 @@ web/public/sw.js       Service Worker（接收 push 并显示通知）
 | --- | --- |
 | `task_folders` | 清单文件夹 |
 | `task_lists` | 清单；每用户一个收集箱；`folder_id` 归属文件夹 |
-| `tasks` | 任务、日期、重复、提醒、指派人、软删除、VTODO 同步字段 |
+| `tasks` | 任务、开始/截止日期、父任务、重复、提醒、指派人、软删除、VTODO 同步字段 |
 | `task_templates` | 任务模板：名称 + 任务字段 JSON 快照 |
+| `task_attachments` | 任务级附件：MIME、大小、SQLite BLOB |
+| `calendar_subscriptions` | 外部 ICS 订阅、缓存、最近同步时间和错误 |
 | `task_filters` | 保存过滤器；条件以 JSON 存储 |
 | `task_list_shares` | 清单共享成员与角色；list_id + user_id 唯一 |
 | `notifications` | 站内协作通知：类型、标题、正文、URL、任务、已读状态；SSE 实时推送未读数 |

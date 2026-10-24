@@ -1,7 +1,10 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,7 +20,9 @@ type taskResponse struct {
 		ID              int64    `json:"id"`
 		ListID          int64    `json:"listId"`
 		Title           string   `json:"title"`
+		ParentID        int64    `json:"parentId"`
 		Priority        int      `json:"priority"`
+		Start           string   `json:"start"`
 		Due             string   `json:"due"`
 		AllDay          bool     `json:"allDay"`
 		Tags            []string `json:"tags"`
@@ -578,5 +583,84 @@ func TestTaskAPIFoldersTagsAndFilters(t *testing.T) {
 		if item.FolderID != 0 {
 			t.Fatalf("list still in folder: %+v", item)
 		}
+	}
+}
+
+func TestTaskStartAndSubtaskHierarchy(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, http.MethodPost, "/api/admin/tasks", map[string]any{
+		"title": "父任务", "start": "2026-10-28T09:00:00+08:00", "due": "2026-10-28T11:30:00+08:00", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create parent = %d: %s", status, body)
+	}
+	parent := decode[taskResponse](t, body)
+	if parent.Task.Start == "" || parent.Task.Due == "" {
+		t.Fatalf("missing start/due: %+v", parent.Task)
+	}
+	status, body = env.request(t, http.MethodPost, "/api/admin/tasks", map[string]any{
+		"title": "子任务", "parentId": parent.Task.ID,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create child = %d: %s", status, body)
+	}
+	child := decode[taskResponse](t, body)
+	if child.Task.ParentID != parent.Task.ID || child.Task.ListID != parent.Task.ListID {
+		t.Fatalf("child = %+v", child.Task)
+	}
+	status, _ = env.request(t, http.MethodPatch, "/api/admin/tasks/"+itoa(parent.Task.ID), map[string]any{
+		"parentId": child.Task.ID,
+	}, env.csrf)
+	if status != http.StatusBadRequest {
+		t.Fatalf("cycle parent update = %d, want 400", status)
+	}
+	status, _ = env.request(t, http.MethodPatch, "/api/admin/tasks/"+itoa(parent.Task.ID), map[string]any{
+		"start": "2026-10-28T12:00:00+08:00",
+	}, env.csrf)
+	if status != http.StatusBadRequest {
+		t.Fatalf("start after due = %d, want 400", status)
+	}
+}
+
+func TestTaskAttachmentsAPI(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, http.MethodPost, "/api/admin/tasks", map[string]any{"title": "带附件任务"}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create task = %d: %s", status, body)
+	}
+	task := decode[taskResponse](t, body)
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+	part, _ := writer.CreateFormFile("file", "note.txt")
+	_, _ = part.Write([]byte("hello attachment"))
+	_ = writer.Close()
+	req, _ := http.NewRequest(http.MethodPost, env.server.URL+"/api/admin/tasks/"+itoa(task.Task.ID)+"/attachments", &payload)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-CSRF-Token", env.csrf)
+	resp, err := env.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdBody, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("upload attachment = %d: %s", resp.StatusCode, createdBody)
+	}
+	created := decode[struct {
+		Attachment struct {
+			ID int64 `json:"id"`
+		} `json:"attachment"`
+	}](t, createdBody)
+	status, body = env.request(t, http.MethodGet, "/api/admin/tasks/"+itoa(task.Task.ID)+"/attachments", nil, "")
+	if status != http.StatusOK || !strings.Contains(string(body), "note.txt") {
+		t.Fatalf("list attachments = %d: %s", status, body)
+	}
+	status, body = env.request(t, http.MethodGet, "/api/admin/tasks/"+itoa(task.Task.ID)+"/attachments/"+itoa(created.Attachment.ID), nil, "")
+	if status != http.StatusOK || string(body) != "hello attachment" {
+		t.Fatalf("download attachment = %d: %s", status, body)
+	}
+	status, _ = env.request(t, http.MethodDelete, "/api/admin/tasks/"+itoa(task.Task.ID)+"/attachments/"+itoa(created.Attachment.ID), nil, env.csrf)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete attachment = %d", status)
 	}
 }

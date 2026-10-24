@@ -103,6 +103,7 @@ export interface TaskItem {
   title: string
   notes: string
   priority: number
+  start?: string
   due?: string
   allDay: boolean
   recurrence: string
@@ -192,6 +193,25 @@ export interface MatrixRuleTemplate {
   id: number
   name: string
   rules: MatrixViewRules
+}
+
+export interface CalendarSubscription {
+  id: number
+  name: string
+  url: string
+  color: string
+  lastSynced?: string
+  lastError?: string
+  createdAt: string
+}
+
+export interface TaskAttachment {
+  id: number
+  taskId: number
+  filename: string
+  contentType: string
+  size: number
+  canDelete: boolean
 }
 
 export interface TaskTemplate {
@@ -321,6 +341,7 @@ export interface CalendarEvent {
   recurring: boolean
   reminders: number[]
   attendees?: string[]
+  readonly?: boolean
   recurrenceId?: string
 }
 

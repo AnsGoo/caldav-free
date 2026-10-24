@@ -192,7 +192,7 @@ func Open(path string) (*Store, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}, &TaskComment{}, &CommentAttachment{}, &EventReminderDelivery{}, &EventSnooze{}, &TaskSnooze{}, &TaskActivity{}, &TaskTagColor{}, &MatrixView{}, &MatrixRuleTemplate{}, &Habit{}, &HabitSection{}, &HabitCheckin{}, &HabitRecord{}, &HabitPreference{}, &HabitFocusSession{}, &HabitShare{}, &FocusSession{}, &FocusPreference{}, &FocusTimerState{}, &CountdownEvent{}, &CountdownBackground{}, &TaskTemplate{}); err != nil {
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}, &TaskComment{}, &CommentAttachment{}, &EventReminderDelivery{}, &EventSnooze{}, &TaskSnooze{}, &TaskActivity{}, &TaskTagColor{}, &MatrixView{}, &MatrixRuleTemplate{}, &Habit{}, &HabitSection{}, &HabitCheckin{}, &HabitRecord{}, &HabitPreference{}, &HabitFocusSession{}, &HabitShare{}, &FocusSession{}, &FocusPreference{}, &FocusTimerState{}, &CountdownEvent{}, &CountdownBackground{}, &TaskTemplate{}, &TaskAttachment{}, &CalendarSubscription{}); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}

@@ -35,6 +35,7 @@ type apiCalendarEvent struct {
 	Recurring    bool     `json:"recurring"`
 	Reminders    []int    `json:"reminders"`
 	Attendees    []string `json:"attendees,omitempty"`
+	ReadOnly     bool     `json:"readonly,omitempty"`
 	RecurrenceID string   `json:"recurrenceId,omitempty"`
 }
 
@@ -127,6 +128,11 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 			break
 		}
 	}
+	sources = append(sources, apiCalendarSource{ID: 0, Name: "节假日", Color: "#f0a020"})
+	events = appendHolidayEvents(events, from, to)
+	subscriptions := s.loadCalendarSubscriptions(ctx, current.ID)
+	sources = append(sources, subscriptionSources(subscriptions)...)
+	events = appendSubscriptionEvents(events, subscriptions, from, to)
 	sort.SliceStable(events, func(i, j int) bool {
 		return events[i].Start < events[j].Start
 	})

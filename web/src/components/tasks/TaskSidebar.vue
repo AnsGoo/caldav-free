@@ -55,7 +55,7 @@
 
         <ul class="tw-list-nav">
           <template v-for="row in listRows" :key="row.key">
-            <li v-if="row.kind === 'folder'" class="tw-folder-row">
+            <li v-if="row.kind === 'folder'" class="tw-folder-row" draggable="true" @dragstart="startFolderDrag(row.folder!.id, $event)" @dragover.prevent @drop.prevent="dropFolder(row.folder!.id)" @dragend="endSidebarDrag">
               <button class="tw-folder-head" @click="toggleFolder(row.folder!.id)">
                 <span class="tw-folder-caret" :class="{ collapsed: isFolderCollapsed(row.folder!.id) }">
                   <TaskIcon name="chevron" :size="11" />
@@ -73,7 +73,7 @@
                 </button>
               </div>
             </li>
-            <li v-else :class="{ 'tw-list-nested': row.nested }">
+            <li v-else :class="{ 'tw-list-nested': row.nested }" draggable="true" @dragstart="startListDrag(row.list!.id, $event)" @dragover.prevent @drop.prevent="dropList(row.list!.id)" @dragend="endSidebarDrag">
               <button
                 class="tw-nav-item tw-list-item"
                 :class="{ active: activeListId === row.list!.id }"
@@ -249,6 +249,8 @@ const emit = defineEmits<{
   (event: 'create-filter'): void
   (event: 'edit-filter', filter: SavedFilter): void
   (event: 'delete-filter', filter: SavedFilter): void
+  (event: 'reorder-lists', ids: number[]): void
+  (event: 'reorder-folders', ids: number[]): void
   (event: 'share-list', list: TaskList): void
   (event: 'manage-tags'): void
   (event: 'open-reminders'): void
@@ -261,6 +263,8 @@ const adding = ref(false)
 const newListName = ref('')
 const nameInput = ref<HTMLInputElement | null>(null)
 const collapsedFolders = ref(new Set<number>())
+const draggingFolderId = ref(0)
+const draggingListId = ref(0)
 
 const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
 const customLists = computed(() => props.lists.filter((list) => !list.isInbox))
@@ -334,6 +338,50 @@ function submitList() {
   if (!name) return cancelAdd()
   emit('create-list', name)
   cancelAdd()
+}
+
+function startFolderDrag(id: number, event: DragEvent) {
+  draggingFolderId.value = id
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function dropFolder(targetId: number) {
+  const sourceId = draggingFolderId.value
+  endSidebarDrag()
+  if (!sourceId || sourceId === targetId) return
+  const list = props.folders.slice()
+  const from = list.findIndex((folder) => folder.id === sourceId)
+  const to = list.findIndex((folder) => folder.id === targetId)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  emit('reorder-folders', list.map((folder) => folder.id))
+}
+
+function startListDrag(id: number, event: DragEvent) {
+  draggingListId.value = id
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+function dropList(targetId: number) {
+  const sourceId = draggingListId.value
+  endSidebarDrag()
+  if (!sourceId || sourceId === targetId) return
+  const source = props.lists.find((list) => list.id === sourceId)
+  const target = props.lists.find((list) => list.id === targetId)
+  if (!source || !target || source.folderId !== target.folderId) return
+  const list = props.lists.slice()
+  const from = list.findIndex((item) => item.id === sourceId)
+  const to = list.findIndex((item) => item.id === targetId)
+  if (from < 0 || to < 0) return
+  const [moved] = list.splice(from, 1)
+  list.splice(to, 0, moved)
+  emit('reorder-lists', list.filter((item) => item.folderId === source.folderId).map((item) => item.id))
+}
+
+function endSidebarDrag() {
+  draggingFolderId.value = 0
+  draggingListId.value = 0
 }
 
 // Restore folder collapse state on first render.

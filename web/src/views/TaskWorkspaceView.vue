@@ -88,6 +88,8 @@
       @create-filter="openCreateFilter"
       @edit-filter="openEditFilter"
       @delete-filter="confirmDeleteFilter"
+      @reorder-lists="reorderSidebarLists"
+      @reorder-folders="reorderSidebarFolders"
       @select-tag="selectTag"
       @manage-tags="openTagManager"
       @open-reminders="reminderSettingsOpen = true"
@@ -425,6 +427,7 @@
       :lists="detailLists"
       :members="taskMembers"
       :tag-colors="tagColorMap"
+      :subtasks="selectedSubtasks"
       :readonly="sharedReadonly"
       :list-locked="view === 'shared'"
       @close="selectedId = 0"
@@ -432,6 +435,10 @@
       @deleted="onTaskDeleted"
       @remove="confirmRemoveTask"
       @save-template="saveTaskAsTemplate"
+      @create-subtask="createSubtask"
+      @toggle-subtask="toggleSubtask"
+      @open-subtask="openSubtask"
+      @remove-subtask="confirmRemoveTask"
     />
 
     <TaskTemplateDialog
@@ -1085,6 +1092,7 @@ const groups = computed(() => {
   return groupTasks(filteredTasks.value, view.value === 'shared' ? 'all' : view.value)
 })
 const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedId.value))
+const selectedSubtasks = computed(() => selectedTask.value ? tasks.value.filter((task) => task.parentId === selectedTask.value?.id) : [])
 const taskMembers = ref<TaskListMember[]>([])
 watch(
   () => [selectedTask.value?.id, selectedTask.value?.listId],
@@ -1463,6 +1471,48 @@ async function removeTaskTemplate(template: TaskTemplate) {
     Message.success('模板已删除')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '删除模板失败')
+  }
+}
+
+async function createSubtask(title: string) {
+  if (!selectedTask.value) return
+  try {
+    await createTask({ title, parentId: selectedTask.value.id, listId: selectedTask.value.listId })
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '创建子任务失败')
+  }
+}
+
+async function toggleSubtask(task: TaskItem) {
+  try {
+    await updateTask(task.id, { completed: !task.completed })
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '更新子任务失败')
+  }
+}
+
+function openSubtask(task: TaskItem) {
+  selectedId.value = task.id
+  syncURL()
+}
+
+async function reorderSidebarLists(ids: number[]) {
+  try {
+    await Promise.all(ids.map((id, index) => updateTaskList(id, { order: index + 1 })))
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存清单排序失败')
+  }
+}
+
+async function reorderSidebarFolders(ids: number[]) {
+  try {
+    await Promise.all(ids.map((id, index) => updateTaskFolder(id, { order: index + 1 })))
+    await loadWorkspace(true)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '保存文件夹排序失败')
   }
 }
 

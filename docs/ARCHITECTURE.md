@@ -373,7 +373,7 @@ END:VALARM
 
 ## 12. 摘要
 
-摘要页不持久化服务端文档，而是按条件生成内容：
+摘要页按条件即时生成内容，只有手动保存的模板/历史文档才写入服务端：
 
 ```text
 筛选条件
@@ -381,8 +381,8 @@ END:VALARM
       -> 已完成：CompletedAt ∈ [from, to)
       -> 未完成：DueAt ∈ [from, to)，无日期时用 CreatedAt
       -> 下一周期：DueAt ∈ 下一段等长范围
-  -> 前端按分组/显示字段生成 HTML
-  -> contenteditable 编辑器允许继续修改
+  -> 前端按分组/显示字段生成 Markdown
+  -> Tiptap 单栏所见即所得编辑器允许继续修改
 ```
 
 前端 `TaskSummaryPanel`：
@@ -390,9 +390,9 @@ END:VALARM
 - 日期预设与自定义范围
 - 分组：状态/清单/完成时间/任务时间/标签/优先级
 - 显示字段：完成时间、任务时间、标签、清单、优先级、详细内容
-- 富文本工具栏基于 `document.execCommand`
-- 模板/历史文档存服务端 `summary_documents`
-- 内容优化：调用 AI 文本接口，将摘要重写为 Markdown 后转换成 HTML
+- Markdown 工具栏基于 Tiptap（标题、列表、复选框、表格、链接等）
+- 模板/历史文档存服务端 `summary_documents`，`format` 为 `markdown` / `html`；旧 HTML 文档打开时转换为 Markdown
+- 内容优化：调用 AI 文本接口，返回 Markdown 后直接替换编辑器内容
 - 导出：剪贴板、HTML、PNG（SVG foreignObject + canvas）、打印/PDF、mailto
 
 服务端只返回任务快照，不保存编辑后的文档。

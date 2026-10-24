@@ -269,6 +269,26 @@ func TestCountdownHourDisplayOption(t *testing.T) {
 	if item.Hours <= 0 || item.Hours > 48 {
 		t.Fatalf("hours = %d", item.Hours)
 	}
+	minuteItem, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "分钟倒数", Type: "countdown",
+		Date: stampOf(now.AddDate(0, 0, 1)), Repeat: "none", DaysOption: "minute",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if minuteItem.Minutes <= 0 || minuteItem.Minutes < minuteItem.Hours*60 {
+		t.Fatalf("minutes = %d", minuteItem.Minutes)
+	}
+	secondItem, err := s.CreateCountdown(ctx, &CountdownEvent{
+		UserID: userID, Name: "秒倒数", Type: "countdown",
+		Date: stampOf(now.AddDate(0, 0, 1)), Repeat: "none", DaysOption: "second",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondItem.Seconds <= 0 || secondItem.Seconds < secondItem.Minutes*60 {
+		t.Fatalf("seconds = %d", secondItem.Seconds)
+	}
 	defaultItem, err := s.CreateCountdown(ctx, &CountdownEvent{
 		UserID: userID, Name: "默认按天", Type: "countdown", Date: stampOf(now.AddDate(0, 0, 2)),
 	})

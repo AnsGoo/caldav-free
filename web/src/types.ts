@@ -798,7 +798,7 @@ export interface CountdownItem {
   ignoreYear: boolean
   showAge: boolean
   dateDisplayFormat: 'day' | 'full'
-  daysOption: 'day' | 'hour'
+  daysOption: 'day' | 'hour' | 'minute' | 'second'
   status: number
   pinned: boolean
   sortOrder: number
@@ -831,7 +831,7 @@ export interface CountdownDraft {
   ignoreYear: boolean
   showAge: boolean
   dateDisplayFormat: 'day' | 'full'
-  daysOption: 'day' | 'hour'
+  daysOption: 'day' | 'hour' | 'minute' | 'second'
   status: number
   pinned: boolean
 }

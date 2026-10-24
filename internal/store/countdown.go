@@ -50,6 +50,8 @@ type CountdownItem struct {
 	CountdownEvent
 	Days           int    `json:"days"`
 	Hours          int    `json:"hours"`
+	Minutes        int    `json:"minutes"`
+	Seconds        int    `json:"seconds"`
 	State          string `json:"state"`
 	OccurrenceDate int    `json:"occurrenceDate"`
 	Age            int    `json:"age,omitempty"`
@@ -293,7 +295,9 @@ func normalizeCountdown(event *CountdownEvent) error {
 	if event.DateDisplayFormat != "full" {
 		event.DateDisplayFormat = "day"
 	}
-	if event.DaysOption != "hour" {
+	switch event.DaysOption {
+	case "hour", "minute", "second":
+	default:
 		event.DaysOption = "day"
 	}
 	if strings.TrimSpace(event.Reminders) == "" {
@@ -342,12 +346,19 @@ func countdownItem(event *CountdownEvent, now time.Time) *CountdownItem {
 		OccurrenceDate: stampOf(occurrence),
 		Days:           countdownDays(today, occurrence),
 	}
-	if event.DaysOption == "hour" {
+	if event.DaysOption != "day" {
 		duration := occurrence.Sub(now)
 		if duration < 0 {
 			duration = -duration
 		}
-		item.Hours = int(math.Ceil(duration.Hours()))
+		switch event.DaysOption {
+		case "hour":
+			item.Hours = int(math.Ceil(duration.Hours()))
+		case "minute":
+			item.Minutes = int(math.Ceil(duration.Minutes()))
+		case "second":
+			item.Seconds = int(math.Ceil(duration.Seconds()))
+		}
 	}
 	if event.HasBackground {
 		item.BackgroundURL = fmt.Sprintf("/api/admin/countdowns/%d/background?v=%d", event.ID, event.ModifiedAt.Unix())

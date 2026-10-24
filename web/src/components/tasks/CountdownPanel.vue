@@ -53,7 +53,7 @@
         </header>
         <div class="tw-countdown-number" :class="item.state">
           <template v-if="item.state === 'today'">今天</template>
-          <template v-else>{{ countdownNumber(item) }}<small v-if="item.daysOption === 'hour'">小时</small></template>
+          <template v-else>{{ countdownNumber(item) }}<small>{{ countdownUnit(item) }}</small></template>
         </div>
         <p class="tw-countdown-subtitle">
           <template v-if="item.state === 'today'">{{ formatDate(item.occurrenceDate, item.dateDisplayFormat) }}</template>
@@ -86,7 +86,7 @@
           <div class="tw-countdown-detail-icon" :style="{ backgroundColor: detailItem.color }">{{ detailItem.icon || '⏳' }}</div>
           <div class="tw-countdown-detail-number" :class="detailItem.state">
             <template v-if="detailItem.state === 'today'">今天</template>
-            <template v-else>{{ countdownNumber(detailItem) }}<small v-if="detailItem.daysOption === 'hour'">小时</small></template>
+            <template v-else>{{ countdownNumber(detailItem) }}<small>{{ countdownUnit(detailItem) }}</small></template>
           </div>
           <p class="tw-countdown-detail-date">
             <template v-if="detailItem.state === 'today'">{{ formatDate(detailItem.occurrenceDate, detailItem.dateDisplayFormat) }}</template>
@@ -149,7 +149,7 @@
           </div>
           <div class="tw-countdown-form-grid">
             <label class="tw-countdown-field"><span>显示格式</span><select v-model="form.dateDisplayFormat" class="tw-field-select"><option value="day">标准</option><option value="full">完整日期</option></select></label>
-            <label class="tw-countdown-field"><span>显示单位</span><select v-model="form.daysOption" class="tw-field-select"><option value="day">按天</option><option value="hour">按小时</option></select></label>
+            <label class="tw-countdown-field"><span>显示单位</span><select v-model="form.daysOption" class="tw-field-select"><option value="day">按天</option><option value="hour">按小时</option><option value="minute">按分钟</option><option value="second">按秒</option></select></label>
             <label v-if="form.type === 'birthday'" class="tw-countdown-check"><input v-model="form.showAge" type="checkbox" /><span>显示年龄</span></label>
             <label v-else class="tw-countdown-check"><input v-model="form.ignoreYear" type="checkbox" /><span>忽略年份</span></label>
           </div>
@@ -288,7 +288,7 @@ const form = reactive({
   reminderOffsets: [0, 3] as number[],
   reminderTime: '09:00',
   lunarYear: new Date().getFullYear() - 30,
-  daysOption: 'day' as 'day' | 'hour',
+  daysOption: 'day' as 'day' | 'hour' | 'minute' | 'second',
 })
 const filteredItems = computed(() => filter.value === 'all' ? items.value : items.value.filter((item) => item.type === filter.value))
 
@@ -353,7 +353,20 @@ function parseReminders(raw: string) {
 }
 
 function countdownNumber(item: CountdownItem) {
-  return item.daysOption === 'hour' ? item.hours : item.days
+  if (item.daysOption === 'day') return item.days
+  const [year, month, day] = [Number(String(item.occurrenceDate).slice(0, 4)), Number(String(item.occurrenceDate).slice(4, 6)) - 1, Number(String(item.occurrenceDate).slice(6, 8))]
+  const target = new Date(year, month, day)
+  const seconds = Math.max(1, Math.ceil(Math.abs(target.getTime() - nowTick.value) / 1000))
+  if (item.daysOption === 'second') return seconds
+  if (item.daysOption === 'minute') return Math.ceil(seconds / 60)
+  return Math.ceil(seconds / 3600)
+}
+
+function countdownUnit(item: CountdownItem) {
+  if (item.daysOption === 'hour') return '小时'
+  if (item.daysOption === 'minute') return '分钟'
+  if (item.daysOption === 'second') return '秒'
+  return ''
 }
 
 function cardStyle(item: CountdownItem) {
@@ -497,7 +510,7 @@ function openEdit(item: CountdownItem) {
   form.reminderOffsets = parseReminders(item.reminders)
   form.reminderTime = item.reminderTime || '09:00'
   form.lunarYear = item.lunarYear || new Date().getFullYear() - 30
-  form.daysOption = item.daysOption === 'hour' ? 'hour' : 'day'
+  form.daysOption = ['hour', 'minute', 'second'].includes(item.daysOption) ? item.daysOption : 'day'
   backgroundFile.value = null
   backgroundPreview.value = item.backgroundUrl || ''
   backgroundHad.value = !!item.backgroundUrl
@@ -736,12 +749,16 @@ function deleteItem(item: CountdownItem) {
 }
 
 let refreshTimer: ReturnType<typeof setInterval> | undefined
+let tickTimer: ReturnType<typeof setInterval> | undefined
+const nowTick = ref(Date.now())
 onMounted(() => {
   void load()
   refreshTimer = setInterval(() => { void load() }, 60000)
+  tickTimer = setInterval(() => { nowTick.value = Date.now() }, 1000)
 })
 onBeforeUnmount(() => {
   if (refreshTimer) clearInterval(refreshTimer)
+  if (tickTimer) clearInterval(tickTimer)
   revokePreview()
 })
 </script>

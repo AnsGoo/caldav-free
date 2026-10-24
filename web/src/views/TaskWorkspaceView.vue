@@ -2342,14 +2342,27 @@ function dropOnList(listId: number) {
 
 function stepCalendar(delta: number) {
   const date = cursor.value
-  if (calendarView.value === 'month') {
-    cursor.value = new Date(date.getFullYear(), date.getMonth() + delta, 1)
-  } else if (calendarView.value === 'week') {
-    cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 7)
-  } else if (calendarView.value === 'day') {
-    cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta)
-  } else {
-    cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 30)
+  switch (calendarView.value) {
+    case 'year':
+      cursor.value = new Date(date.getFullYear() + delta, date.getMonth(), 1)
+      return
+    case 'month':
+      cursor.value = new Date(date.getFullYear(), date.getMonth() + delta, 1)
+      return
+    case 'week':
+      cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 7)
+      return
+    case '2week':
+      cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 14)
+      return
+    case '3day':
+      cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 3)
+      return
+    case 'agenda':
+      cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta * 30)
+      return
+    default:
+      cursor.value = new Date(date.getFullYear(), date.getMonth(), date.getDate() + delta)
   }
 }
 
@@ -2452,7 +2465,9 @@ function stepSplitCalendar(direction: number) {
   const next = new Date(splitCursor.value)
   if (splitViewMode.value === 'month') next.setMonth(next.getMonth() + direction)
   else if (splitViewMode.value === 'year') next.setFullYear(next.getFullYear() + direction)
-  else if (splitViewMode.value === 'week' || splitViewMode.value === '2week') next.setDate(next.getDate() + direction * 7)
+  else if (splitViewMode.value === 'week') next.setDate(next.getDate() + direction * 7)
+  else if (splitViewMode.value === '2week') next.setDate(next.getDate() + direction * 14)
+  else if (splitViewMode.value === '3day') next.setDate(next.getDate() + direction * 3)
   else if (splitViewMode.value === 'agenda') next.setDate(next.getDate() + direction * 30)
   else next.setDate(next.getDate() + direction)
   splitCursor.value = next

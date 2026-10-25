@@ -1353,6 +1353,7 @@ func (s *Server) aiUpdateTask(ctx context.Context, current *store.User, args map
 	if err != nil {
 		return nil, nil, fmt.Errorf("任务不存在")
 	}
+	previousRecurrence := task.Recurrence
 	if value := aiStringPointer(args, "title"); value != nil {
 		task.Title = strings.TrimSpace(*value)
 	}
@@ -1412,11 +1413,16 @@ func (s *Server) aiUpdateTask(ctx context.Context, current *store.User, args map
 	if err := s.store.UpdateTask(ctx, task); err != nil {
 		return nil, nil, err
 	}
-	if completedOccurrence != nil {
-		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
-	}
 	if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
 		s.logger.Warn("push AI task", "task", task.ID, "error", err)
+	}
+	if previousRecurrence != "" && previousRecurrence != task.Recurrence {
+		if err := s.taskSync.DeleteRecurrenceExceptions(ctx, current.ID, task); err != nil {
+			s.logger.Warn("clear AI recurrence exceptions", "task", task.ID, "error", err)
+		}
+	}
+	if completedOccurrence != nil {
+		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
 	}
 	label := "已更新任务「" + task.Title + "」"
 	if completed {

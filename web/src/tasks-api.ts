@@ -368,7 +368,7 @@ export function reorderTasks(ids: number[]) {
 
 export function fetchCalendarEvents(from: Date, to: Date) {
   const query = new URLSearchParams({ from: from.toISOString(), to: to.toISOString() })
-  return api<{ calendars: CalendarSource[]; events: CalendarEvent[] }>(`/tasks/calendar?${query.toString()}`)
+  return api<{ calendars: CalendarSource[]; events: CalendarEvent[]; tasks: TaskItem[] }>(`/tasks/calendar?${query.toString()}`)
 }
 
 export interface CalendarEventInput {

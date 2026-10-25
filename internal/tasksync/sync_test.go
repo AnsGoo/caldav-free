@@ -379,3 +379,83 @@ func TestNotesSkipVTODOSync(t *testing.T) {
 		t.Fatalf("note sync created objects: %+v", objects)
 	}
 }
+
+func TestRecurrenceExceptionIsWrittenAndNotImported(t *testing.T) {
+	st, syncer, userID, inbox := newSyncEnv(t)
+	ctx := context.Background()
+	due := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	task, err := st.CreateTask(ctx, &store.Task{
+		UserID: userID, ListID: inbox.ID, Title: "每日站会",
+		DueAt: &due, Recurrence: "FREQ=DAILY",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.PushTask(ctx, userID, task); err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.UpsertRecurrenceException(ctx, userID, task, due, "completed"); err != nil {
+		t.Fatal(err)
+	}
+	cal, err := syncer.EnsureTaskCalendar(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objects, err := st.ListObjects(ctx, cal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exception *store.Object
+	for _, obj := range objects {
+		if strings.Contains(obj.Href, "-rid-") {
+			exception = obj
+		}
+	}
+	if exception == nil {
+		t.Fatal("recurrence exception object was not created")
+	}
+	body := string(exception.Data)
+	for _, want := range []string{"UID:" + task.VTODOUID, "RECURRENCE-ID:20261101T090000Z", "STATUS:COMPLETED", "SUMMARY:每日站会"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("exception missing %q:\n%s", want, body)
+		}
+	}
+	if strings.Contains(body, "RRULE:") {
+		t.Errorf("exception should not repeat the master RRULE:\n%s", body)
+	}
+
+	if err := syncer.Sync(ctx, userID); err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := st.ListAllTasks(ctx, userID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("exception was imported as a task: %d tasks", len(tasks))
+	}
+
+	if err := syncer.UpsertRecurrenceException(ctx, userID, task, due, "skipped"); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := st.GetObject(ctx, cal.ID, exception.Href)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body := string(updated.Data); !strings.Contains(body, "STATUS:CANCELLED") || strings.Contains(body, "STATUS:COMPLETED") {
+		t.Fatalf("skip exception not updated:\n%s", body)
+	}
+
+	if err := syncer.DeleteTask(ctx, userID, task); err != nil {
+		t.Fatal(err)
+	}
+	objects, err = st.ListObjects(ctx, cal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, obj := range objects {
+		if strings.Contains(obj.Href, "-rid-") {
+			t.Fatalf("recurrence exception was not cleaned up: %s", obj.Href)
+		}
+	}
+}

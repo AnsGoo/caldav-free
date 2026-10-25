@@ -35,6 +35,9 @@ func (s *Server) recordCompletedOccurrence(ctx context.Context, task *store.Task
 	}); err != nil {
 		s.logger.Warn("record completed recurrence", "task", task.ID, "error", err)
 	}
+	if err := s.taskSync.UpsertRecurrenceException(ctx, task.UserID, task, *occurrence, "completed"); err != nil {
+		s.logger.Warn("write completed recurrence exception", "task", task.ID, "error", err)
+	}
 }
 
 func (s *Server) apiTaskRecurrence(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
@@ -103,6 +106,9 @@ func (s *Server) apiSkipTaskOccurrence(w http.ResponseWriter, r *http.Request, c
 	}
 	if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
 		s.logger.Warn("push skipped recurrence", "task", task.ID, "error", err)
+	}
+	if err := s.taskSync.UpsertRecurrenceException(ctx, task.UserID, task, occurrence, "skipped"); err != nil {
+		s.logger.Warn("write skipped recurrence exception", "task", task.ID, "error", err)
 	}
 	_ = s.store.CreateTaskActivity(ctx, task.ID, current.ID, "recurrence-skip", "跳过了本次重复任务")
 	list, _ := s.store.GetTaskList(ctx, task.UserID, task.ListID)

@@ -41,3 +41,22 @@ func TestValidRule(t *testing.T) {
 		t.Fatal("invalid rule accepted")
 	}
 }
+
+func TestOccurrencesBetween(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	start := time.Date(2026, 11, 1, 9, 0, 0, 0, loc)
+	from := time.Date(2026, 11, 1, 0, 0, 0, 0, loc)
+	to := time.Date(2026, 12, 1, 0, 0, 0, 0, loc)
+	daily := OccurrencesBetween("FREQ=DAILY;COUNT=3", start, from, to, 100)
+	if len(daily) != 3 || !daily[0].Equal(start) || !daily[2].Equal(start.AddDate(0, 0, 2)) {
+		t.Fatalf("daily count occurrences = %v", daily)
+	}
+	until := OccurrencesBetween("FREQ=DAILY;UNTIL=20261103T010000Z", start, from, to, 100)
+	if len(until) != 3 {
+		t.Fatalf("until occurrences = %v", until)
+	}
+	weekly := OccurrencesBetween("FREQ=WEEKLY;BYDAY=MO,WE", start, from, time.Date(2026, 11, 16, 0, 0, 0, 0, loc), 100)
+	if len(weekly) != 4 {
+		t.Fatalf("weekly occurrences = %v", weekly)
+	}
+}

@@ -121,6 +121,8 @@ export interface TaskItem {
   tags: string[]
   checklist: ChecklistItem[]
   order: number
+  occurrence?: string
+  virtual?: boolean
   createdAt: string
   modifiedAt: string
 }

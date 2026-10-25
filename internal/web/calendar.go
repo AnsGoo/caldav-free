@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strconv"
@@ -9,6 +10,7 @@ import (
 
 	"caldav-free/internal/ical"
 	"caldav-free/internal/store"
+	taskparse "caldav-free/internal/tasks"
 	"caldav-free/internal/tasksync"
 )
 
@@ -128,6 +130,10 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 			break
 		}
 	}
+	tasks, err := s.taskOccurrencesInRange(ctx, current.ID, from, to)
+	if err != nil {
+		s.logger.Warn("expand recurring tasks", "user", current.Username, "error", err)
+	}
 	sources = append(sources, apiCalendarSource{ID: 0, Name: "节假日", Color: "#f0a020"})
 	events = appendHolidayEvents(events, from, to)
 	subscriptions := s.loadCalendarSubscriptions(ctx, current.ID)
@@ -139,9 +145,52 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 	writeAPIJSON(w, http.StatusOK, map[string]any{
 		"calendars": sources,
 		"events":    events,
+		"tasks":     tasks,
 		"from":      from.Format(time.RFC3339),
 		"to":        to.Format(time.RFC3339),
 	})
+}
+
+// taskOccurrencesInRange expands recurring tasks into virtual task rows so
+// calendar views can show every instance in the visible range. The task ID is
+// preserved; only due/occurrence fields change.
+func (s *Server) taskOccurrencesInRange(ctx context.Context, userID int64, from, to time.Time) ([]apiTask, error) {
+	tasks, err := s.store.ListAllTasks(ctx, userID, 2000)
+	if err != nil {
+		return nil, err
+	}
+	lists, err := s.store.ListTaskLists(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[int64]*store.TaskList, len(lists))
+	for _, list := range lists {
+		byID[list.ID] = list
+	}
+	out := make([]apiTask, 0, 64)
+	for _, task := range tasks {
+		if task.Kind == "NOTE" || task.Recurrence == "" || task.DueAt == nil || task.Completed {
+			continue
+		}
+		start := *task.DueAt
+		if start.After(to) {
+			continue
+		}
+		occurrences := taskparse.OccurrencesBetween(task.Recurrence, start, from, to, 500)
+		for _, occurrence := range occurrences {
+			dto := apiTaskDTO(task, byID[task.ListID])
+			dto.Due = occurrence.Format(time.RFC3339)
+			dto.Occurrence = dto.Due
+			dto.Virtual = true
+			dto.Completed = false
+			dto.CompletedAt = ""
+			out = append(out, dto)
+			if len(out) >= 2000 {
+				return out, nil
+			}
+		}
+	}
+	return out, nil
 }
 
 func parseEventRange(r *http.Request) (time.Time, time.Time, bool) {

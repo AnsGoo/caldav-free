@@ -1208,4 +1208,41 @@ func TestRecurringTaskInstanceHistoryAndSkip(t *testing.T) {
 	if !foundSkip {
 		t.Fatalf("skip not recorded: %+v", skipped.Instances)
 	}
+	cal, err := tasksync.New(env.store).EnsureTaskCalendar(context.Background(), env.userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	objects, err := env.store.ListObjects(context.Background(), cal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completedExceptions, skippedExceptions := 0, 0
+	for _, obj := range objects {
+		body := string(obj.Data)
+		if !strings.Contains(obj.Href, "-rid-") {
+			continue
+		}
+		if strings.Contains(body, "STATUS:COMPLETED") {
+			completedExceptions++
+		}
+		if strings.Contains(body, "STATUS:CANCELLED") {
+			skippedExceptions++
+		}
+	}
+	if completedExceptions != 1 || skippedExceptions != 1 {
+		t.Fatalf("recurrence exceptions = completed %d, skipped %d; objects %d", completedExceptions, skippedExceptions, len(objects))
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(task.Task.ID), map[string]any{"recurrence": ""}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("clear recurrence = %d: %s", status, body)
+	}
+	objects, err = env.store.ListObjects(context.Background(), cal.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, obj := range objects {
+		if strings.Contains(obj.Href, "-rid-") {
+			t.Fatalf("recurrence exceptions were not removed after clearing recurrence: %s", obj.Href)
+		}
+	}
 }

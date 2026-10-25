@@ -243,7 +243,7 @@ docker run -d --name caldav \
 | `/api/admin/tasks/push/subscribe` | 新增或删除浏览器推送订阅 |
 | `/api/admin/tasks/notifications/email` | 读取/保存 SMTP 邮件提醒设置 |
 | `/api/admin/tasks/notifications/email/test` | 向当前账号邮箱发送测试邮件 |
-| `/api/admin/tasks/calendar` | 指定日期范围内的 CalDAV 事件（展开重复） |
+| `/api/admin/tasks/calendar` | 指定日期范围内的 CalDAV 事件与重复任务虚拟实例（均展开重复） |
 | `/api/admin/tasks/stats` | 任务统计（天数可配置） |
 | `/api/admin/tasks/summary` | 按筛选条件生成摘要数据 |
 | `/api/admin/tasks/summary/optimize` | AI 润色摘要 |

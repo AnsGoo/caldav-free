@@ -81,8 +81,8 @@
                 class="tw-calendar-task"
                 :class="{ done: item.task!.completed, overdue: cell.key < todayKey && !item.task!.completed }"
                 :title="item.title"
-                draggable="true"
-                @dragstart="startDrag(item, $event)"
+                :draggable="!item.task?.virtual"
+                @dragstart="!item.task?.virtual && startDrag(item, $event)"
                 @click="$emit('open', item.task!)"
               >
                 <i :style="{ background: item.task!.listColor || '#4772fa' }" />
@@ -149,8 +149,8 @@
               class="tw-tg-allday-chip task"
               :style="{ borderLeftColor: item.color }"
               :title="item.title"
-              draggable="true"
-              @dragstart="startDrag(item, $event)"
+              :draggable="!item.task?.virtual"
+              @dragstart="!item.task?.virtual && startDrag(item, $event)"
               @click="$emit('open', item.task!)"
             >
               {{ item.title }}
@@ -197,8 +197,8 @@
               :class="item.kind"
               :style="[item.style, resizeStyle(item)]"
               :title="`${item.title}${item.timeLabel ? ' · ' + item.timeLabel : ''}`"
-              :draggable="!item.event?.readonly"
-              @dragstart="!item.event?.readonly && startDrag(item, $event)"
+              :draggable="!item.task?.virtual && !item.event?.readonly"
+              @dragstart="!item.task?.virtual && !item.event?.readonly && startDrag(item, $event)"
               @click="onBlockClick(item)"
             >
               <strong>{{ item.title }}</strong>
@@ -356,6 +356,7 @@ const HOUR_HEIGHT = 56
 
 const todayKey = dayKey(startOfToday())
 const events = ref<CalendarEvent[]>([])
+const taskOccurrences = ref<TaskItem[]>([])
 const habitEntries = ref<HabitCalendarEntry[]>([])
 const sources = ref<CalendarSource[]>([])
 const hiddenCalendarIds = ref<Set<number>>(new Set())
@@ -500,7 +501,15 @@ const rangeTitle = computed(() => {
   return `${props.cursor.getMonth() + 1} 月 ${props.cursor.getDate()} 日 - ${end.getMonth() + 1} 月 ${end.getDate()} 日`
 })
 
-const visibleTasks = computed(() => hiddenTasks.value ? [] : props.tasks)
+const visibleTasks = computed(() => {
+  if (hiddenTasks.value) return []
+  if (!taskOccurrences.value.length) return props.tasks
+  const expandedIds = new Set(taskOccurrences.value.map((task) => task.id))
+  return [
+    ...props.tasks.filter((task) => !task.recurrence || !expandedIds.has(task.id)),
+    ...taskOccurrences.value,
+  ]
+})
 const visibleHabitEntries = computed(() => hiddenHabits.value ? [] : habitEntries.value)
 const visibleEvents = computed(() => events.value.filter((event) => !hiddenCalendarIds.value.has(event.calendarId)))
 
@@ -578,9 +587,9 @@ const itemsByDay = computed(() => {
     const start = new Date(task.due)
     const key = dayKey(start)
     push(key, {
-      key: `task-${task.id}-${key}`,
+      key: `task-${task.id}-${task.occurrence || task.due || key}`,
       kind: 'task',
-      title: task.title,
+      title: task.virtual ? `${task.title}（重复）` : task.title,
       color: task.listColor || '#4772fa',
       allDay: task.allDay,
       start: task.allDay ? undefined : start,
@@ -774,6 +783,7 @@ const suppressClick = ref(false)
 const resizeState = ref<{ item: CalItem; startY: number; start: number; end: number; nextEnd: number } | null>(null)
 
 function startDrag(item: CalItem, event: DragEvent) {
+  if (item.task?.virtual) return
   dragItem.value = item
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
@@ -982,16 +992,19 @@ async function loadEvents() {
       const mergedEvents = new Map<string, CalendarEvent>()
       const mergedHabits = new Map<string, HabitCalendarEntry>()
       const mergedSources = new Map<number, CalendarSource>()
+      const mergedTasks = new Map<string, TaskItem>()
       for (const result of eventResults) {
         if (result.status !== 'fulfilled') continue
         for (const source of result.value.calendars) mergedSources.set(source.id, source)
         for (const event of result.value.events) mergedEvents.set(event.id, event)
+        for (const task of result.value.tasks || []) mergedTasks.set(`${task.id}:${task.occurrence || task.due}`, task)
       }
       for (const result of habitResults) {
         if (result.status !== 'fulfilled') continue
         for (const entry of result.value.entries || []) mergedHabits.set(`${entry.habitId}-${entry.date}`, entry)
       }
       events.value = [...mergedEvents.values()]
+      taskOccurrences.value = [...mergedTasks.values()]
       habitEntries.value = [...mergedHabits.values()]
       sources.value = [...mergedSources.values()]
       emit('calendars', sources.value)
@@ -1003,6 +1016,7 @@ async function loadEvents() {
       ])
       if (current !== requestId) return
       events.value = data.events
+      taskOccurrences.value = data.tasks || []
       habitEntries.value = habitData.entries || []
       sources.value = data.calendars
       emit('calendars', data.calendars)
@@ -1011,6 +1025,7 @@ async function loadEvents() {
   } catch {
     if (current === requestId) {
       events.value = []
+      taskOccurrences.value = []
       habitEntries.value = []
       sources.value = []
     }

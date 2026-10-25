@@ -84,6 +84,8 @@ type apiTask struct {
 	Tags            []string           `json:"tags"`
 	Checklist       []apiChecklistItem `json:"checklist"`
 	Order           int                `json:"order"`
+	Occurrence      string             `json:"occurrence,omitempty"`
+	Virtual         bool               `json:"virtual,omitempty"`
 	CreatedAt       string             `json:"createdAt"`
 	ModifiedAt      string             `json:"modifiedAt"`
 }
@@ -1084,11 +1086,16 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if completedOccurrence != nil {
-		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
-	}
 	if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
+	}
+	if previousRecurrence != "" && previousRecurrence != task.Recurrence {
+		if err := s.taskSync.DeleteRecurrenceExceptions(ctx, task.UserID, task); err != nil {
+			s.logger.Warn("clear recurrence exceptions", "task", task.ID, "error", err)
+		}
+	}
+	if completedOccurrence != nil {
+		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
 	}
 	s.notifyAssignment(ctx, r, current, previousAssignee, task)
 	changed := make([]string, 0, 6)
@@ -1438,11 +1445,11 @@ func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *
 		if err := s.store.UpdateTask(ctx, task); err != nil {
 			continue
 		}
-		if completedOccurrence != nil {
-			s.recordCompletedOccurrence(ctx, task, completedOccurrence)
-		}
 		if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
 			s.logger.Warn("push task to caldav", "task", id, "error", err)
+		}
+		if completedOccurrence != nil {
+			s.recordCompletedOccurrence(ctx, task, completedOccurrence)
 		}
 		updated++
 	}

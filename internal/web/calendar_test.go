@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -172,5 +174,38 @@ func TestCalendarSubscriptionsAndHolidays(t *testing.T) {
 	status, _ = env.request(t, http.MethodDelete, "/api/admin/calendar-subscriptions/"+strconv.FormatInt(created.Subscription.ID, 10), nil, env.csrf)
 	if status != http.StatusNoContent {
 		t.Fatalf("delete subscription = %d", status)
+	}
+}
+
+func TestCalendarExpandsRecurringTasks(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "每日站会", "recurrence": "FREQ=DAILY", "due": "2026-11-01T01:00:00Z", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create recurring task = %d: %s", status, body)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks/calendar?from="+url.QueryEscape("2026-11-01T00:00:00+08:00")+"&to="+url.QueryEscape("2026-11-05T00:00:00+08:00"), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("calendar = %d: %s", status, body)
+	}
+	var result struct {
+		Tasks []struct {
+			ID         int64  `json:"id"`
+			Due        string `json:"due"`
+			Virtual    bool   `json:"virtual"`
+			Occurrence string `json:"occurrence"`
+		} `json:"tasks"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Tasks) != 4 {
+		t.Fatalf("recurring occurrences = %d: %s", len(result.Tasks), body)
+	}
+	for _, task := range result.Tasks {
+		if !task.Virtual || task.Occurrence != task.Due {
+			t.Fatalf("unexpected virtual task: %+v", task)
+		}
 	}
 }

@@ -125,6 +125,18 @@ Android emulator → host machine: use `http://10.0.2.2:5232`.
 Physical device: use the LAN address, e.g. `http://192.168.1.10:5232`.
 Public deployments must use HTTPS.
 
+If no USB data cable is available, sideload the release APK over the LAN:
+
+```bash
+cd mobile/build/app/outputs/flutter-apk
+python3 -m http.server 8000
+# phone browser: http://<mac-lan-ip>:8000/app-release.apk
+```
+
+On Android 9/10, allow installing from the browser and disable Huawei
+"纯净模式" if it blocks the APK. The release APK is signed with the Android
+debug certificate for now, so it can be sideloaded but not published.
+
 ## Reminders and Android permissions
 
 Reminders are scheduled with `flutter_local_notifications`. The app declares:

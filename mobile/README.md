@@ -25,6 +25,8 @@ pushes it in the background.
   today check-in, create/edit/delete, streaks and a 30-day heatmap.
 - Focus/Pomodoro timer with 25/45/60-minute sessions, pause/reset, today and
   total stats, and recent session records.
+- Countdowns with solar dates, countdown/anniversary/birthday/festival types,
+  yearly repeat, pinning, colors and notes.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.

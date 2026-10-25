@@ -143,6 +143,8 @@
 | 137 | Android P4 第一批：Basic Auth 习惯接口、Habit API 解析与打卡/创建测试 | `b6ebc7f` / `3fb511b` |
 | 138 | Android P4 第二批：专注/番茄 Tab、25/45/60 分钟计时、今日/累计统计、最近记录 | `58d94ea` |
 | 139 | Android P4 第二批：Basic Auth 专注 dashboard/session 接口、Focus API 测试 | `e5901cf` / `58d94ea` |
+| 140 | Android P4 第三批：倒数日 Tab、列表卡片、新建/编辑/删除、置顶、类型、每年重复 | — |
+| 141 | Android P4 第三批：Basic Auth 倒数接口、Countdown API 测试 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -150,13 +152,13 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2/P3 与 P4 前两批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、SSE 实时提示、账号切换
 - P3 后续：事件离线同步/推送、订阅手动刷新、日历直达任务编辑
-- P4 后续：习惯分组/归档/排序、倒数日、完整统计页
+- P4 后续：习惯分组/归档/排序、完整统计页
 - 同步协议扩展到习惯、专注、倒数日、评论/附件、共享清单
 
 ### AI 与自动化

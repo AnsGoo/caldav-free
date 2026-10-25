@@ -122,6 +122,7 @@
 | 116 | Android Flutter P0：登录、原子 JSON 本地库、outbox、pull/merge/push/settle、冲突重试、任务页、诊断页、真实后端 E2E | `da006f7` |
 | 117 | Android P1 第一批：截止日期/全天、优先级、标签、子任务、本地搜索、清单/文件夹管理、任务移动、字段级 patch；debug APK 构建 | `c780542` |
 | 118 | Android P1：今天/最近 7 天智能视图、本地日期过滤 | — |
+| 119 | Android 模拟器端到端验证：登录态恢复、拉取、快速添加、编辑保存、完成勾选、服务端推送 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -130,7 +131,7 @@
 ### 跨端客户端
 
 - Flutter Android P0/P1 第一批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
-- Android 真机/模拟器安装回归（debug APK 已构建）
+- Android 模拟器安装与双向同步回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、本地通知、SSE 提示、账号切换

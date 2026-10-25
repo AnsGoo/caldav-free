@@ -69,6 +69,27 @@ Central directly, so:
 Both are China-first workarounds; remove them once the official endpoints are
 reachable. The app itself has no China-specific dependency.
 
+### Emulator
+
+An API 36 AOSP arm64 AVD named `p0` was used for the P0 smoke test:
+
+```bash
+$ANDROID_HOME/emulator/emulator -avd p0 -no-window -no-audio \
+  -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+adb install -r build/app/outputs/flutter-apk/app-debug.apk
+adb shell am start -n com.caldavfree.caldav_free/.MainActivity
+```
+
+`adb emu kill` stops it. The backend ran on the host at `:5296`; the app
+connected to `http://10.0.2.2:5296`. For repeated automation, credentials can be
+seeded through `run-as com.caldavfree.caldav_free` into
+`files/credentials.json` (debug builds only).
+
+The AVD/system image were installed manually from the Tencent AndroidSDK mirror
+because `sdkmanager` could not fetch Google manifests reliably in this network;
+`avdmanager create avd` also returned `null`, so `config.ini` was written by
+hand. A normal Android Studio/SDK install can replace this setup.
+
 Android emulator → host machine: use `http://10.0.2.2:5232`.
 Physical device: use the LAN address, e.g. `http://192.168.1.10:5232`.
 Public deployments must use HTTPS.

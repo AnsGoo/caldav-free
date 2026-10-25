@@ -907,12 +907,15 @@ class _CheckCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 1, right: 2, bottom: 6),
-        child: AnimatedContainer(
+    return Semantics(
+      button: true,
+      label: completed ? '标记为未完成' : '标记为完成',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 1, right: 2, bottom: 6),
+          child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           width: 22,
           height: 22,
@@ -926,9 +929,10 @@ class _CheckCircle extends StatelessWidget {
               width: 1.6,
             ),
           ),
-          child: completed
-              ? Icon(Icons.check_rounded, size: 15, color: scheme.onPrimary)
-              : null,
+            child: completed
+                ? Icon(Icons.check_rounded, size: 15, color: scheme.onPrimary)
+                : null,
+          ),
         ),
       ),
     );
@@ -1298,7 +1302,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
-        bottom: MediaQuery.viewInsetsOf(context).bottom + 20,
+        bottom: MediaQuery.viewInsetsOf(context).bottom +
+            MediaQuery.paddingOf(context).bottom +
+            20,
       ),
       child: SingleChildScrollView(
         child: Column(

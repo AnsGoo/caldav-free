@@ -480,22 +480,62 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: TextField(
-          controller: _query,
-          focusNode: _queryFocus,
-          autofocus: true,
-          textInputAction: TextInputAction.search,
-          onChanged: (_) => setState(() {}),
-          style: theme.textTheme.bodyLarge,
-          decoration: InputDecoration(
-            hintText: '搜索任务、日程、习惯、倒数',
-            filled: false,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.only(right: 8),
-            hintStyle: theme.textTheme.bodyLarge?.copyWith(
-              color: scheme.onSurfaceVariant,
+        title: Padding(
+          padding: const EdgeInsets.only(right: 2),
+          child: TextField(
+            controller: _query,
+            focusNode: _queryFocus,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
+            onChanged: (_) => setState(() {}),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontSize: 15,
+              color: scheme.onSurface,
+            ),
+            decoration: InputDecoration(
+              hintText: '搜索任务、日程、习惯、倒数',
+              hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                fontSize: 15,
+                color: scheme.onSurfaceVariant,
+              ),
+              filled: true,
+              fillColor: scheme.surfaceContainerHigh,
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: scheme.onSurfaceVariant,
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 42,
+                minHeight: 42,
+              ),
+              suffixIcon: _query.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: '清空搜索',
+                      onPressed: () {
+                        _query.clear();
+                        setState(() {});
+                        _queryFocus.requestFocus();
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                    ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: BorderSide(
+                  color: scheme.primary.withValues(alpha: 0.45),
+                  width: 1.2,
+                ),
+              ),
             ),
           ),
         ),

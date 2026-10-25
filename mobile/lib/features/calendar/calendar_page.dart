@@ -840,104 +840,114 @@ class _MonthView extends StatelessWidget {
           ],
         ),
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 7,
-              childAspectRatio: 0.72,
-            ),
-            itemCount: 42,
-            itemBuilder: (context, index) {
-              final day = gridStart.add(Duration(days: index));
-              final entries = _entriesForDay(snapshot, day);
-              final inMonth = day.month == anchor.month;
-              final isToday = day == today;
-              final dayAlmanac = almanac[_dateKey(day)];
-              final holiday = _holidayLabel(snapshot, day);
-              final label = dayAlmanac?.label ?? holiday ?? '';
-              final special = dayAlmanac?.special == true || holiday != null;
-              return InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => onSelectDay(day),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      width: 32,
-                      height: 32,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isToday ? scheme.primary : Colors.transparent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        '${day.day}',
-                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          fontSize: 14,
-                          fontWeight: isToday
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: isToday
-                              ? scheme.onPrimary
-                              : inMonth
-                              ? scheme.onSurface
-                              : scheme.onSurfaceVariant.withValues(alpha: 0.45),
+          child: LayoutBuilder(
+            builder: (context, constraints) => GridView.builder(
+              padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                // Six week rows have to stay on screen whatever the aspect
+                // ratio is; a fixed child aspect ratio pushes most of the
+                // month off-screen as soon as the device turns landscape.
+                mainAxisExtent: (constraints.maxHeight - 14) / 6,
+              ),
+              itemCount: 42,
+              itemBuilder: (context, index) {
+                final day = gridStart.add(Duration(days: index));
+                final entries = _entriesForDay(snapshot, day);
+                final inMonth = day.month == anchor.month;
+                final isToday = day == today;
+                final dayAlmanac = almanac[_dateKey(day)];
+                final holiday = _holidayLabel(snapshot, day);
+                final label = dayAlmanac?.label ?? holiday ?? '';
+                final special = dayAlmanac?.special == true || holiday != null;
+                return InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () => onSelectDay(day),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 32,
+                        height: 32,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: isToday ? scheme.primary : Colors.transparent,
+                          shape: BoxShape.circle,
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 10,
-                      child: Center(
                         child: Text(
-                          label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelSmall
+                          '${day.day}',
+                          style: Theme.of(context).textTheme.labelLarge
                               ?.copyWith(
-                                fontSize: 7.5,
-                                height: 1,
-                                color: special
-                                    ? AppColors.festivalFor(
-                                        Theme.of(context).brightness,
-                                      )
-                                    : scheme.onSurfaceVariant.withValues(
-                                        alpha: 0.8,
-                                      ),
-                                fontWeight: special
-                                    ? FontWeight.w600
+                                fontSize: 14,
+                                fontWeight: isToday
+                                    ? FontWeight.w700
                                     : FontWeight.w500,
+                                color: isToday
+                                    ? scheme.onPrimary
+                                    : inMonth
+                                    ? scheme.onSurface
+                                    : scheme.onSurfaceVariant.withValues(
+                                        alpha: 0.45,
+                                      ),
                               ),
                         ),
                       ),
-                    ),
-                    SizedBox(
-                      height: 6,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (final entry in entries.take(3))
-                            Container(
-                              width: 5,
-                              height: 5,
-                              margin: const EdgeInsets.symmetric(horizontal: 1),
-                              decoration: BoxDecoration(
-                                color: entry.completed
-                                    ? scheme.onSurfaceVariant.withValues(
-                                        alpha: 0.35,
-                                      )
-                                    : entry.color,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
+                      const SizedBox(height: 4),
+                      SizedBox(
+                        height: 10,
+                        child: Center(
+                          child: Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  fontSize: 7.5,
+                                  height: 1,
+                                  color: special
+                                      ? AppColors.festivalFor(
+                                          Theme.of(context).brightness,
+                                        )
+                                      : scheme.onSurfaceVariant.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                  fontWeight: special
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              );
-            },
+                      SizedBox(
+                        height: 6,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            for (final entry in entries.take(3))
+                              Container(
+                                width: 5,
+                                height: 5,
+                                margin: const EdgeInsets.symmetric(
+                                  horizontal: 1,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: entry.completed
+                                      ? scheme.onSurfaceVariant.withValues(
+                                          alpha: 0.35,
+                                        )
+                                      : entry.color,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ],

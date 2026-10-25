@@ -139,42 +139,56 @@ class AppEmptyState extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final tint = scheme.primary;
+    final verticalPadding = compact ? 20.0 : 36.0;
     return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: 28,
-        vertical: compact ? 20 : 36,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: compact ? 64 : 88,
-            height: compact ? 64 : 88,
-            decoration: BoxDecoration(
-              color: tint.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(compact ? 20 : 26),
+      padding: EdgeInsets.symmetric(horizontal: 28, vertical: verticalPadding),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxHeight = constraints.maxHeight;
+          // A rotated phone leaves barely 300dp of height, so the empty state
+          // has to scroll instead of overflowing. It still centres itself
+          // whenever the viewport is tall enough.
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: maxHeight.isFinite ? maxHeight : 0,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: compact ? 64 : 88,
+                    height: compact ? 64 : 88,
+                    decoration: BoxDecoration(
+                      color: tint.withValues(alpha: 0.09),
+                      borderRadius: BorderRadius.circular(compact ? 20 : 26),
+                    ),
+                    child: Icon(icon, size: compact ? 30 : 40, color: tint),
+                  ),
+                  SizedBox(height: compact ? 14 : 20),
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      height: 1.5,
+                    ),
+                  ),
+                  if (action != null) ...[const SizedBox(height: 18), action!],
+                ],
+              ),
             ),
-            child: Icon(icon, size: compact ? 30 : 40, color: tint),
-          ),
-          SizedBox(height: compact ? 14 : 20),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-              height: 1.5,
-            ),
-          ),
-          if (action != null) ...[const SizedBox(height: 18), action!],
-        ],
+          );
+        },
       ),
     );
   }
@@ -232,6 +246,59 @@ class AppNavDestination {
   final String label;
 }
 
+/// True once the viewport is wide enough to trade the bottom bar for the
+/// vertical rail and the task list for a master-detail pane: any landscape
+/// phone, plus tablets in either orientation.
+bool isWideLayout(BuildContext context) {
+  final size = MediaQuery.sizeOf(context);
+  return size.width > size.height || size.shortestSide >= 600;
+}
+
+/// Vertical companion of [AppBottomNav] for landscape phones and tablets,
+/// where a 62dp bar would eat the height the page content needs. Same icon
+/// language, same selection dot, no labels and no tooltips.
+class AppSideNav extends StatelessWidget {
+  const AppSideNav({
+    super.key,
+    required this.index,
+    required this.destinations,
+    required this.onSelected,
+  });
+
+  final int index;
+  final List<AppNavDestination> destinations;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      right: false,
+      bottom: false,
+      child: Container(
+        width: 64,
+        color: Theme.of(context).scaffoldBackgroundColor,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          children: [
+            for (var i = 0; i < destinations.length; i++)
+              Expanded(
+                child: _NavItem(
+                  destination: destinations[i],
+                  selected: i == index,
+                  activeColor: scheme.primary,
+                  inactiveColor: scheme.onSurfaceVariant,
+                  rail: true,
+                  onTap: () => onSelected(i),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NavItem extends StatelessWidget {
   const _NavItem({
     required this.destination,
@@ -239,6 +306,7 @@ class _NavItem extends StatelessWidget {
     required this.activeColor,
     required this.inactiveColor,
     required this.onTap,
+    this.rail = false,
   });
 
   final AppNavDestination destination;
@@ -247,9 +315,24 @@ class _NavItem extends StatelessWidget {
   final Color inactiveColor;
   final VoidCallback onTap;
 
+  /// In the vertical rail the selection reads as a filled rounded block
+  /// behind the icon; the horizontal bar keeps its quiet underline dot.
+  final bool rail;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final color = selected ? activeColor : inactiveColor;
+    final icon = AnimatedScale(
+      scale: selected && !rail ? 1.06 : 1,
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      child: Icon(
+        selected ? destination.selectedIcon : destination.icon,
+        size: 24,
+        color: color,
+      ),
+    );
     return Semantics(
       button: true,
       selected: selected,
@@ -260,35 +343,42 @@ class _NavItem extends StatelessWidget {
         containedInkWell: true,
         highlightShape: BoxShape.rectangle,
         borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          height: 56,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedScale(
-                scale: selected ? 1.06 : 1,
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                child: Icon(
-                  selected ? destination.selectedIcon : destination.icon,
-                  size: 24,
-                  color: color,
+        child: rail
+            ? Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  width: 44,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? scheme.primaryContainer
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(child: icon),
+                ),
+              )
+            : SizedBox(
+                height: 56,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    icon,
+                    const SizedBox(height: 3),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      width: selected ? 4 : 0,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: activeColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 3),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                width: selected ? 4 : 0,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: activeColor,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

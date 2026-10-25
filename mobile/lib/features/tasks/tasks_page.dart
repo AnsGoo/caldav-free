@@ -7,6 +7,7 @@ import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
 import '../../core/ui_utils.dart';
+import '../../data/db/local_store.dart';
 import '../../data/engine/sync_controller.dart';
 import '../../data/reminders/reminder_plan.dart';
 import '../../design/components.dart';
@@ -557,6 +558,7 @@ class _TasksPageState extends State<TasksPage> {
                   : '任务'));
     final listsById = {for (final list in _lists) list.id: list};
     final visible = _filteredTasks;
+    final wide = isWideLayout(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -725,31 +727,11 @@ class _TasksPageState extends State<TasksPage> {
                 const SizedBox(width: 6),
               ],
       ),
-      body: Column(
+      body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (sync?.error != null)
-            _SyncBanner(message: sync!.error!, onRetry: () => app.syncNow()),
-          if (!_searching && !_selecting)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
-              child: _LayoutSwitcher(layout: _layout, onChanged: _setLayout),
-            ),
-          if (_selecting && _layout == _TaskLayout.list)
-            _BatchBar(
-              count: _selectedIds.length,
-              onComplete: _batchComplete,
-              onMove: _batchMove,
-              onDelete: _batchDelete,
-              onPriority: _batchPriority,
-              onDue: _batchDue,
-              onTags: _batchTags,
-              onTitlePrefix: () => _batchTitle(prefix: true),
-              onTitleSuffix: () => _batchTitle(prefix: false),
-              onNotes: _batchNotes,
-            ),
-          if (_layout == _TaskLayout.list) ...[
-            _ListSelector(
+          if (wide)
+            _ListPane(
               lists: _lists,
               selectedId: _selectedListId,
               selectedView: _view,
@@ -771,173 +753,227 @@ class _TasksPageState extends State<TasksPage> {
               },
               onManage: _openLists,
             ),
-            Expanded(
-              child: visible.isEmpty
-                  ? RefreshIndicator(
-                      onRefresh: () => app.syncNow(),
-                      child: LayoutBuilder(
-                        builder: (context, constraints) => ListView(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          children: [
-                            SizedBox(
-                              height: constraints.maxHeight,
-                              child: Center(
-                                child: _EmptyState(
-                                  completed: _completed,
-                                  hasLists: _lists.isNotEmpty,
-                                  searching: _searching && _query.isNotEmpty,
-                                  onSync: () => app.syncNow(),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    )
-                  : _manualSort
-                  ? ReorderableListView.builder(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                      itemCount: visible.length,
-                      buildDefaultDragHandles: false,
-                      onReorderItem: _reorderTasks,
-                      itemBuilder: (context, index) {
-                        final task = visible[index];
-                        final list = listsById[task.listId];
-                        return Padding(
-                          key: ValueKey('reorder-${task.id}'),
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _TaskTile(
-                            task: task,
-                            list: list,
-                            showListName: _selectedListId == null,
-                            selected: _selectedIds.contains(task.id),
-                            dragHandle: ReorderableDragStartListener(
-                              index: index,
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                  vertical: 8,
-                                ),
-                                child: Icon(
-                                  Icons.drag_handle_rounded,
-                                  size: 20,
-                                ),
-                              ),
-                            ),
-                            onToggle: () => _toggle(task),
-                            onDelete: () => _delete(task),
-                            onLongPress: () => _toggleSelection(task),
-                            onTap: _selecting
-                                ? () => _toggleSelection(task)
-                                : () => _openEditor(task, list),
-                          ),
-                        );
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (sync?.error != null)
+                  _SyncBanner(message: sync!.error!, onRetry: () => app.syncNow()),
+                if (!_searching && !_selecting)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
+                    child: _LayoutSwitcher(layout: _layout, onChanged: _setLayout),
+                  ),
+                if (_selecting && _layout == _TaskLayout.list)
+                  _BatchBar(
+                    count: _selectedIds.length,
+                    onComplete: _batchComplete,
+                    onMove: _batchMove,
+                    onDelete: _batchDelete,
+                    onPriority: _batchPriority,
+                    onDue: _batchDue,
+                    onTags: _batchTags,
+                    onTitlePrefix: () => _batchTitle(prefix: true),
+                    onTitleSuffix: () => _batchTitle(prefix: false),
+                    onNotes: _batchNotes,
+                  ),
+                if (_layout == _TaskLayout.list) ...[
+                  if (!wide)
+                    _ListSelector(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      selectedView: _view,
+                      onSelected: (id) {
+                        setState(() {
+                          _view = 'all';
+                          _selectedListId = id;
+                          _manualSort = false;
+                        });
+                        _subscribeTasks();
                       },
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () => app.syncNow(),
-                      child: ListView.separated(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                        itemCount: visible.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final task = visible[index];
-                          final list = listsById[task.listId];
-                          return _TaskTile(
-                            key: ValueKey(task.id),
-                            task: task,
-                            list: list,
-                            showListName: _selectedListId == null,
-                            selected: _selectedIds.contains(task.id),
-                            onToggle: () => _toggle(task),
-                            onDelete: () => _delete(task),
-                            onLongPress: () => _toggleSelection(task),
-                            onTap: _selecting
-                                ? () => _toggleSelection(task)
-                                : () => _openEditor(task, list),
-                          );
-                        },
-                      ),
+                      onViewSelected: (view) {
+                        setState(() {
+                          _selectedListId = null;
+                          _view = view;
+                          _manualSort = false;
+                        });
+                        _subscribeTasks();
+                      },
+                      onManage: _openLists,
                     ),
-            ),
-          ] else if (_layout == _TaskLayout.board) ...[
-            _ViewScopeBar(
-              lists: _lists,
-              selectedId: _boardList?.id,
-              includeAll: false,
-              onChanged: _setScope,
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: _boardList == null
-                    ? Center(
-                        child: Text(
-                          _lists.isEmpty ? '先创建一个清单' : '暂无可展示的清单',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
+                  Expanded(
+                    child: visible.isEmpty
+                        ? RefreshIndicator(
+                            onRefresh: () => app.syncNow(),
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => ListView(
+                                physics: const AlwaysScrollableScrollPhysics(),
+                                children: [
+                                  SizedBox(
+                                    height: constraints.maxHeight,
+                                    child: Center(
+                                      child: _EmptyState(
+                                        completed: _completed,
+                                        hasLists: _lists.isNotEmpty,
+                                        searching: _searching && _query.isNotEmpty,
+                                        onSync: () => app.syncNow(),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : _manualSort
+                        ? ReorderableListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                            itemCount: visible.length,
+                            buildDefaultDragHandles: false,
+                            onReorderItem: _reorderTasks,
+                            itemBuilder: (context, index) {
+                              final task = visible[index];
+                              final list = listsById[task.listId];
+                              return Padding(
+                                key: ValueKey('reorder-${task.id}'),
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: _TaskTile(
+                                  task: task,
+                                  list: list,
+                                  showListName: _selectedListId == null,
+                                  selected: _selectedIds.contains(task.id),
+                                  dragHandle: ReorderableDragStartListener(
+                                    index: index,
+                                    child: const Padding(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                        vertical: 8,
+                                      ),
+                                      child: Icon(
+                                        Icons.drag_handle_rounded,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                  onToggle: () => _toggle(task),
+                                  onDelete: () => _delete(task),
+                                  onLongPress: () => _toggleSelection(task),
+                                  onTap: _selecting
+                                      ? () => _toggleSelection(task)
+                                      : () => _openEditor(task, list),
+                                ),
+                              );
+                            },
+                          )
+                        : RefreshIndicator(
+                            onRefresh: () => app.syncNow(),
+                            child: ListView.separated(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                              itemCount: visible.length,
+                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              itemBuilder: (context, index) {
+                                final task = visible[index];
+                                final list = listsById[task.listId];
+                                return _TaskTile(
+                                  key: ValueKey(task.id),
+                                  task: task,
+                                  list: list,
+                                  showListName: _selectedListId == null,
+                                  selected: _selectedIds.contains(task.id),
+                                  onToggle: () => _toggle(task),
+                                  onDelete: () => _delete(task),
+                                  onLongPress: () => _toggleSelection(task),
+                                  onTap: _selecting
+                                      ? () => _toggleSelection(task)
+                                      : () => _openEditor(task, list),
+                                );
+                              },
+                            ),
                           ),
-                        ),
-                      )
-                    : BoardView(
-                        list: _boardList!,
+                  ),
+                ] else if (_layout == _TaskLayout.board) ...[
+                  if (!wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _boardList?.id,
+                      includeAll: false,
+                      onChanged: _setScope,
+                    ),
+                  Expanded(
+                    child: SafeArea(
+                      top: false,
+                      child: _boardList == null
+                          ? Center(
+                              child: Text(
+                                _lists.isEmpty ? '先创建一个清单' : '暂无可展示的清单',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          : BoardView(
+                              list: _boardList!,
+                              tasks: _tasks,
+                              manualSort: _manualSort,
+                              onOpenTask: (task) =>
+                                  _openEditor(task, listsById[task.listId]),
+                              onToggleTask: _toggle,
+                            ),
+                    ),
+                  ),
+                ] else if (_layout == _TaskLayout.matrix) ...[
+                  if (!wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      includeAll: true,
+                      onChanged: _setScope,
+                    ),
+                  Expanded(
+                    child: SafeArea(
+                      top: false,
+                      child: MatrixView(
                         tasks: _tasks,
-                        manualSort: _manualSort,
                         onOpenTask: (task) =>
                             _openEditor(task, listsById[task.listId]),
                         onToggleTask: _toggle,
                       ),
-              ),
+                    ),
+                  ),
+                ] else ...[
+                  if (!wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      includeAll: true,
+                      onChanged: _setScope,
+                    ),
+                  _TimelineScaleBar(
+                    scale: _timelineScale,
+                    anchor: _timelineAnchor,
+                    onChanged: (value) => setState(() => _timelineScale = value),
+                    onAnchorChanged: (value) =>
+                        setState(() => _timelineAnchor = value),
+                  ),
+                  Expanded(
+                    child: SafeArea(
+                      top: false,
+                      child: TimelineView(
+                        tasks: _tasks,
+                        scale: _timelineScale,
+                        anchor: _timelineAnchor,
+                        onOpenTask: (task) =>
+                            _openEditor(task, listsById[task.listId]),
+                        onToggleTask: _toggle,
+                        onReschedule: _reschedule,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ] else if (_layout == _TaskLayout.matrix) ...[
-            _ViewScopeBar(
-              lists: _lists,
-              selectedId: _selectedListId,
-              includeAll: true,
-              onChanged: _setScope,
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: MatrixView(
-                  tasks: _tasks,
-                  onOpenTask: (task) =>
-                      _openEditor(task, listsById[task.listId]),
-                  onToggleTask: _toggle,
-                ),
-              ),
-            ),
-          ] else ...[
-            _ViewScopeBar(
-              lists: _lists,
-              selectedId: _selectedListId,
-              includeAll: true,
-              onChanged: _setScope,
-            ),
-            _TimelineScaleBar(
-              scale: _timelineScale,
-              anchor: _timelineAnchor,
-              onChanged: (value) => setState(() => _timelineScale = value),
-              onAnchorChanged: (value) =>
-                  setState(() => _timelineAnchor = value),
-            ),
-            Expanded(
-              child: SafeArea(
-                top: false,
-                child: TimelineView(
-                  tasks: _tasks,
-                  scale: _timelineScale,
-                  anchor: _timelineAnchor,
-                  onOpenTask: (task) =>
-                      _openEditor(task, listsById[task.listId]),
-                  onToggleTask: _toggle,
-                  onReschedule: _reschedule,
-                ),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
       bottomNavigationBar:
@@ -1595,6 +1631,196 @@ class _SelectorChip extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ListPane extends StatelessWidget {
+  const _ListPane({
+    required this.lists,
+    required this.selectedId,
+    required this.selectedView,
+    required this.onSelected,
+    required this.onViewSelected,
+    required this.onManage,
+  });
+
+  final List<TaskListItem> lists;
+  final String? selectedId;
+  final String selectedView;
+  final ValueChanged<String?> onSelected;
+  final ValueChanged<String> onViewSelected;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final store = context.watch<AppState>().store;
+    return StreamBuilder<List<FolderItem>>(
+      stream: store.watchFolders(),
+      builder: (context, folderSnapshot) {
+        final folders = folderSnapshot.data ?? const <FolderItem>[];
+        final folderIds = folders.map((folder) => folder.id).toSet();
+        final ungrouped = lists
+            .where(
+              (list) =>
+                  list.folderId == null || !folderIds.contains(list.folderId),
+            )
+            .toList(growable: false);
+        return Container(
+          width: 232,
+          color: scheme.surfaceContainerLow,
+          padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
+          child: ListView(
+            children: [
+              _PaneLabel(text: '视图'),
+              _PaneRow(
+                label: '全部',
+                dot: scheme.primary,
+                selected: selectedId == null && selectedView == 'all',
+                onTap: () => onViewSelected('all'),
+              ),
+              _PaneRow(
+                label: '今天',
+                dot: const Color(0xFFF59E0B),
+                selected: selectedId == null && selectedView == 'today',
+                onTap: () => onViewSelected('today'),
+              ),
+              _PaneRow(
+                label: '最近 7 天',
+                dot: const Color(0xFF3B82F6),
+                selected: selectedId == null && selectedView == 'next7',
+                onTap: () => onViewSelected('next7'),
+              ),
+              _PaneLabel(text: '清单'),
+              for (final list in ungrouped)
+                _listRow(context, store, list),
+              for (final folder in folders) ...[
+                if (lists.any((list) => list.folderId == folder.id))
+                  _PaneLabel(text: folder.name),
+                for (final list in lists.where(
+                  (list) => list.folderId == folder.id,
+                ))
+                  _listRow(context, store, list),
+              ],
+              const SizedBox(height: 8),
+              _PaneRow(
+                label: '管理',
+                icon: Icons.tune_rounded,
+                selected: false,
+                onTap: onManage,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _listRow(BuildContext context, LocalStore store, TaskListItem list) {
+    final open = store.tasksSnapshot(
+      listId: list.id,
+      completed: false,
+    );
+    return _PaneRow(
+      label: list.name,
+      dot: colorFromHex(list.color),
+      count: open.length,
+      selected: selectedId == list.id,
+      onTap: () => onSelected(list.id),
+    );
+  }
+}
+
+class _PaneLabel extends StatelessWidget {
+  const _PaneLabel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+class _PaneRow extends StatelessWidget {
+  const _PaneRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.dot,
+    this.icon,
+    this.count,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color? dot;
+  final IconData? icon;
+  final int? count;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = selected ? scheme.primary : scheme.onSurfaceVariant;
+    return Material(
+      color: selected ? scheme.primaryContainer : Colors.transparent,
+      borderRadius: BorderRadius.circular(12),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: SizedBox(
+          height: 40,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                if (icon != null)
+                  Icon(icon, size: 15, color: foreground)
+                else
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: selected ? scheme.primary : dot,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: foreground,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (count != null && count! > 0)
+                  Text(
+                    '$count',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

@@ -61,6 +61,9 @@ if ! curl -fsS --max-time 1 "$BASE/healthz" >/dev/null 2>&1; then
 fi
 
 echo "==> running mobile integration test"
+if [ ! -f "$ROOT/mobile/.dart_tool/package_config.json" ]; then
+  (cd "$ROOT/mobile" && "$FLUTTER" pub get)
+fi
 (
   cd "$ROOT/mobile"
   CALDAV_SYNC_BASE="$BASE" \

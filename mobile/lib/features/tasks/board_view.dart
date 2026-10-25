@@ -177,16 +177,10 @@ class _BoardColumn extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final title = section?.name ?? '未分列';
+    final accent = _columnColor(section?.id ?? 'unassigned');
     return Container(
-      width: 278,
-      margin: const EdgeInsets.only(right: 12),
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.45),
-        ),
-      ),
+      width: 264,
+      margin: const EdgeInsets.only(right: 10),
       child: Column(
         children: [
           DragTarget<String>(
@@ -201,14 +195,27 @@ class _BoardColumn extends StatelessWidget {
                 section!.id,
               );
             },
-            builder: (context, candidates, rejected) => Container(
-              color: candidates.isEmpty
-                  ? null
-                  : scheme.primary.withValues(alpha: 0.08),
+            builder: (context, candidates, rejected) => AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              decoration: BoxDecoration(
+                color: candidates.isEmpty
+                    ? Colors.transparent
+                    : scheme.primary.withValues(alpha: 0.07),
+                borderRadius: BorderRadius.circular(14),
+              ),
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 12, 6, 8),
+                padding: const EdgeInsets.fromLTRB(2, 4, 2, 10),
                 child: Row(
                   children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      margin: const EdgeInsets.only(left: 4, right: 7),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                     if (section != null)
                       LongPressDraggable<String>(
                         data: 'section:${section!.id}',
@@ -255,11 +262,42 @@ class _BoardColumn extends StatelessWidget {
                         ),
                       ),
                     ),
-                    Text(
-                      '${tasks.length}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
                       ),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        '${tasks.length}',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: '添加任务',
+                      onPressed: () {
+                        var order = 0;
+                        if (manualSort) {
+                          for (final task in tasks) {
+                            if (task.sortOrder >= order) {
+                              order = task.sortOrder + 1;
+                            }
+                          }
+                        }
+                        _addTask(context, list, section, order);
+                      },
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(32, 32),
+                        maximumSize: const Size(32, 32),
+                        padding: EdgeInsets.zero,
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 18),
                     ),
                     if (section != null)
                       PopupMenuButton<String>(
@@ -312,19 +350,34 @@ class _BoardColumn extends StatelessWidget {
               builder: (context, candidates, rejected) {
                 final active = candidates.isNotEmpty;
                 return Container(
-                  margin: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  margin: const EdgeInsets.fromLTRB(2, 0, 2, 4),
                   decoration: BoxDecoration(
                     color: active
-                        ? scheme.primary.withValues(alpha: 0.08)
+                        ? scheme.primary.withValues(alpha: 0.06)
                         : Colors.transparent,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: tasks.isEmpty
-                      ? Center(
-                          child: Text(
-                            active ? '放到这里' : '暂无任务',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
+                      ? Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: double.infinity,
+                            height: 116,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: scheme.surface.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: scheme.outlineVariant.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              active ? '放到这里' : '拖入任务',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
                             ),
                           ),
                         )
@@ -352,23 +405,6 @@ class _BoardColumn extends StatelessWidget {
                         ),
                 );
               },
-            ),
-          ),
-          TextButton.icon(
-            onPressed: () {
-              var order = 0;
-              if (manualSort) {
-                for (final task in tasks) {
-                  if (task.sortOrder >= order) order = task.sortOrder + 1;
-                }
-              }
-              _addTask(context, list, section, order);
-            },
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('添加任务'),
-            style: TextButton.styleFrom(
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
             ),
           ),
         ],
@@ -404,18 +440,15 @@ class _BoardCard extends StatelessWidget {
     };
     return Material(
       color: scheme.surface,
-      borderRadius: BorderRadius.circular(14),
+      elevation: 1,
+      shadowColor: scheme.shadow.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-          ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -430,6 +463,7 @@ class _BoardCard extends StatelessWidget {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w600,
                         height: 1.3,
                       ),
@@ -465,6 +499,7 @@ class _BoardCard extends StatelessWidget {
                               child: Text(
                                 tag,
                                 style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 11,
                                   color: scheme.primary,
                                 ),
                               ),
@@ -523,6 +558,19 @@ class _MiniCheck extends StatelessWidget {
       ),
     );
   }
+}
+
+Color _columnColor(String key) {
+  const palette = [
+    Color(0xFF3563F0),
+    Color(0xFF2F7D8C),
+    Color(0xFF1F7A4D),
+    Color(0xFFA85A12),
+    Color(0xFFC23B5A),
+    Color(0xFF6E4BD1),
+  ];
+  if (key.isEmpty) return palette.first;
+  return palette[key.hashCode.abs() % palette.length];
 }
 
 class _AddColumnButton extends StatelessWidget {

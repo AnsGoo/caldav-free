@@ -29,7 +29,7 @@ class MatrixView extends StatelessWidget {
       quadrants[index].add(task);
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
         children: [
           Expanded(
@@ -47,7 +47,7 @@ class MatrixView extends StatelessWidget {
                     onToggleTask: onToggleTask,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _Quadrant(
                     title: '重要不紧急',
@@ -62,7 +62,7 @@ class MatrixView extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -78,7 +78,7 @@ class MatrixView extends StatelessWidget {
                     onToggleTask: onToggleTask,
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: _Quadrant(
                     title: '不重要不紧急',
@@ -124,19 +124,26 @@ class _Quadrant extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.055),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 10, 6),
+            padding: const EdgeInsets.fromLTRB(12, 12, 10, 8),
             child: Row(
               children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Icon(icon, size: 15, color: color),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,8 +153,8 @@ class _Quadrant extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelLarge?.copyWith(
+                          fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: color,
                         ),
                       ),
                       Text(
@@ -155,16 +162,29 @@ class _Quadrant extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 10.5,
                           color: scheme.onSurfaceVariant,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Text(
-                  '${tasks.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${tasks.length}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 10,
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
@@ -176,14 +196,15 @@ class _Quadrant extends StatelessWidget {
                     child: Text(
                       '暂无任务',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
+                        fontSize: 11,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
                       ),
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                     itemCount: tasks.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 5),
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
                       final task = tasks[index];
                       return _MatrixTask(
@@ -217,10 +238,10 @@ class _MatrixTask extends StatelessWidget {
     final scheme = theme.colorScheme;
     final due = task.dueAt;
     return Material(
-      color: scheme.surface.withValues(alpha: 0.92),
-      borderRadius: BorderRadius.circular(10),
+      color: scheme.surfaceContainerLow,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
@@ -252,6 +273,7 @@ class _MatrixTask extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         height: 1.25,
                       ),

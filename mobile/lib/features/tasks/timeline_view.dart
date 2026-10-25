@@ -39,7 +39,7 @@ class TimelineView extends StatelessWidget {
       TimelineScale.month => DateTime(anchorDay.year, anchorDay.month),
     };
     final count = switch (scale) {
-      TimelineScale.day => 14,
+      TimelineScale.day => 7,
       TimelineScale.week => 8,
       TimelineScale.month => 3,
     };
@@ -92,7 +92,11 @@ class TimelineView extends StatelessWidget {
           ),
         for (var i = 0; i < count; i++)
           _TimelineColumn(
-            width: scale == TimelineScale.day ? 196 : 220,
+            width: scale == TimelineScale.day
+                ? 164
+                : scale == TimelineScale.week
+                ? 198
+                : 220,
             title: _bucketTitle(start, i),
             subtitle: _bucketSubtitle(start, i),
             tasks: buckets[_bucketKey(_bucketStart(start, i))] ?? const [],
@@ -229,7 +233,7 @@ class _TimelineColumn extends StatelessWidget {
     required this.onDrop,
     required this.onOpenTask,
     required this.onToggleTask,
-    this.width = 196,
+    this.width = 164,
     this.accent,
     this.today = false,
   });
@@ -250,105 +254,137 @@ class _TimelineColumn extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final color = accent ?? scheme.primary;
-    return Container(
+    return SizedBox(
       width: width,
-      margin: const EdgeInsets.only(right: 10),
-      decoration: BoxDecoration(
-        color: today
-            ? scheme.primary.withValues(alpha: 0.045)
-            : scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: today
-              ? scheme.primary.withValues(alpha: 0.35)
-              : scheme.outlineVariant.withValues(alpha: 0.45),
-        ),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 10, 6),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: today || accent != null ? color : null,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Text(
-                  '${tasks.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: _withDrop(
-              context,
-              child: tasks.isEmpty
-                  ? Center(
-                      child: Text(
-                        acceptsDrop ? '拖入任务' : '暂无任务',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
+      child: Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+              decoration: today
+                  ? BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.07),
+                      borderRadius: BorderRadius.circular(14),
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(6, 2, 6, 8),
-                      itemCount: tasks.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 6),
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return LongPressDraggable<TaskItem>(
-                          data: task,
-                          feedback: Material(
-                            color: Colors.transparent,
-                            child: SizedBox(
-                              width: 180,
+                  : null,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: today || accent != null ? color : null,
+                          ),
+                        ),
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            fontSize: 10.5,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: today
+                          ? scheme.primaryContainer
+                          : scheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '${tasks.length}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 10,
+                        color: today ? scheme.primary : scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _withDrop(
+                context,
+                child: tasks.isEmpty
+                    ? Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          height: 96,
+                          margin: const EdgeInsets.fromLTRB(4, 2, 4, 0),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: scheme.surface.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: scheme.outlineVariant.withValues(
+                                alpha: 0.7,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            acceptsDrop ? '拖入任务' : '暂无任务',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                        itemCount: tasks.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 6),
+                        itemBuilder: (context, index) {
+                          final task = tasks[index];
+                          return LongPressDraggable<TaskItem>(
+                            data: task,
+                            feedback: Material(
+                              color: Colors.transparent,
+                              child: SizedBox(
+                                width: 180,
+                                child: _TimelineCard(
+                                  task: task,
+                                  onTap: null,
+                                  onToggle: null,
+                                ),
+                              ),
+                            ),
+                            childWhenDragging: Opacity(
+                              opacity: 0.35,
                               child: _TimelineCard(
                                 task: task,
                                 onTap: null,
                                 onToggle: null,
                               ),
                             ),
-                          ),
-                          childWhenDragging: Opacity(
-                            opacity: 0.35,
                             child: _TimelineCard(
                               task: task,
-                              onTap: null,
-                              onToggle: null,
+                              onTap: () => onOpenTask(task),
+                              onToggle: () => onToggleTask(task),
                             ),
-                          ),
-                          child: _TimelineCard(
-                            task: task,
-                            onTap: () => onOpenTask(task),
-                            onToggle: () => onToggleTask(task),
-                          ),
-                        );
-                      },
-                    ),
+                          );
+                        },
+                      ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -390,12 +426,15 @@ class _TimelineCard extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Material(
       color: scheme.surface,
-      borderRadius: BorderRadius.circular(11),
+      elevation: 1,
+      shadowColor: scheme.shadow.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+          padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -424,6 +463,7 @@ class _TimelineCard extends StatelessWidget {
                       maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         height: 1.25,
                       ),

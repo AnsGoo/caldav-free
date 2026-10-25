@@ -19,8 +19,8 @@ pushes it in the background.
 - Global search across all open lists; pinned tasks sort first.
 - Calendar entry in the task app bar: month/week/day/agenda views, CalDAV/iCal/
   holiday events, task occurrences and task completion from the calendar.
-- Create/edit/delete calendar events from the mobile app, and manage iCal
-  subscriptions (add/delete http/https ICS feeds).
+- Create/edit/delete calendar events from the mobile app, with “this occurrence
+  / entire series” handling for recurring events, and manage iCal subscriptions.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.
@@ -41,7 +41,8 @@ P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.
 P2 is feature-complete. P3 adds calendar views with tasks on the same timeline,
 CalDAV/iCal/holiday events, event create/edit/delete and iCal subscription
-management. Per-occurrence recurring edits and offline event sync are next.
+management and per-occurrence recurring edits. Offline event sync, subscription
+refresh and calendar-to-task navigation are next.
 
 ## Run
 

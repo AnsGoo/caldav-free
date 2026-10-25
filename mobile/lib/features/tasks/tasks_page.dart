@@ -9,6 +9,7 @@ import '../../core/models.dart';
 import '../../data/engine/sync_controller.dart';
 import '../../data/reminders/reminder_plan.dart';
 import '../../design/format.dart';
+import '../calendar/calendar_page.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
 import 'board_view.dart';
@@ -684,6 +685,15 @@ class _TasksPageState extends State<TasksPage> {
                       color: _manualSort ? scheme.primary : null,
                     ),
                   ),
+                IconButton(
+                  tooltip: '日历',
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const CalendarPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.calendar_month_rounded),
+                ),
                 IconButton(
                   tooltip: '搜索',
                   onPressed: () {

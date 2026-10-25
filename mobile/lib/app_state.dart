@@ -33,6 +33,13 @@ class AppState extends ChangeNotifier {
 
   bool get signedIn => session != null;
 
+  String get accent => store.accent;
+
+  Future<void> setAccent(String value) async {
+    await store.setAccent(value);
+    notifyListeners();
+  }
+
   Future<void> restore() async {
     session = await credentials.load();
     if (session != null) {

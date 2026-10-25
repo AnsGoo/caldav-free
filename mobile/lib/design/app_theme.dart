@@ -28,8 +28,55 @@ abstract final class AppColors {
   static const darkLine = Color(0xFF2A2F3A);
 }
 
-ThemeData buildAppTheme(Brightness brightness) {
+/// Accent presets inspired by the domestic Dida VIP color series, tuned so
+/// every choice keeps at least 4.5:1 contrast with white text.
+class AppAccent {
+  const AppAccent(this.name, this.hex);
+
+  final String name;
+  final String hex;
+
+  Color get color => parseAccent(hex);
+}
+
+const appAccents = [
+  AppAccent('经典蓝', '#3563F0'),
+  AppAccent('湖水青', '#2F7D8C'),
+  AppAccent('松柏绿', '#1F7A4D'),
+  AppAccent('琥珀', '#A85A12'),
+  AppAccent('玫瑰', '#C23B5A'),
+  AppAccent('暮山紫', '#6E4BD1'),
+  AppAccent('雾灰蓝', '#4F637A'),
+  AppAccent('咖啡', '#8A5A2B'),
+];
+
+Color parseAccent(String raw) {
+  var value = raw.trim();
+  if (value.startsWith('#')) value = value.substring(1);
+  if (value.length == 6) value = 'FF$value';
+  final parsed = int.tryParse(value, radix: 16);
+  if (parsed == null) return AppColors.primary;
+  return Color(parsed);
+}
+
+Color _darkAccent(Color base) {
+  final hsl = HSLColor.fromColor(base);
+  return hsl
+      .withLightness(0.68)
+      .withSaturation((hsl.saturation * 0.82).clamp(0.25, 1.0))
+      .toColor();
+}
+
+Color _onAccent(Color accent) =>
+    accent.computeLuminance() > 0.55 ? const Color(0xFF07122F) : Colors.white;
+
+Color _containerOn(Color accent, bool dark) => dark
+    ? Color.lerp(accent, Colors.white, 0.62)!
+    : Color.lerp(accent, Colors.black, 0.36)!;
+
+ThemeData buildAppTheme(Brightness brightness, {Color? accent}) {
   final dark = brightness == Brightness.dark;
+  final picked = accent ?? AppColors.primary;
   final canvas = dark ? AppColors.darkCanvas : AppColors.canvas;
   final surface = dark ? AppColors.darkSurface : AppColors.surface;
   final surfaceMuted = dark
@@ -40,19 +87,16 @@ ThemeData buildAppTheme(Brightness brightness) {
       ? AppColors.darkInkSecondary
       : AppColors.inkSecondary;
   final line = dark ? AppColors.darkLine : AppColors.line;
-  final primary = dark ? const Color(0xFF7F9BFF) : AppColors.primary;
+  final primary = dark ? _darkAccent(picked) : picked;
 
-  final base = ColorScheme.fromSeed(
-    seedColor: AppColors.primary,
-    brightness: brightness,
-  );
+  final base = ColorScheme.fromSeed(seedColor: picked, brightness: brightness);
   final scheme = base.copyWith(
     primary: primary,
-    onPrimary: dark ? const Color(0xFF07122F) : Colors.white,
-    primaryContainer: dark ? const Color(0xFF23335F) : AppColors.primarySoft,
-    onPrimaryContainer: dark
-        ? const Color(0xFFDCE5FF)
-        : const Color(0xFF17357F),
+    onPrimary: _onAccent(primary),
+    primaryContainer: dark
+        ? Color.lerp(primary, Colors.black, 0.58)!
+        : Color.lerp(primary, Colors.white, 0.9)!,
+    onPrimaryContainer: _containerOn(primary, dark),
     secondary: dark ? const Color(0xFF9BA8C2) : const Color(0xFF5C6B8A),
     onSecondary: dark ? const Color(0xFF11151E) : Colors.white,
     surface: surface,
@@ -309,7 +353,9 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: surfaceMuted,
-      selectedColor: dark ? const Color(0xFF26365F) : AppColors.primarySoft,
+      selectedColor: dark
+          ? Color.lerp(primary, Colors.black, 0.58)!
+          : Color.lerp(primary, Colors.white, 0.9)!,
       disabledColor: surfaceMuted,
       side: BorderSide.none,
       shape: const StadiumBorder(),

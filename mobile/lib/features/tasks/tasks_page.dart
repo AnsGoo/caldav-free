@@ -13,6 +13,7 @@ import '../../design/components.dart';
 import '../../design/format.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
+import '../settings/theme_sheet.dart';
 import 'board_view.dart';
 import 'matrix_view.dart';
 import 'timeline_view.dart';
@@ -652,6 +653,11 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 IconButton(
+                  tooltip: '主题颜色',
+                  onPressed: _openTheme,
+                  icon: const Icon(Icons.palette_outlined),
+                ),
+                IconButton(
                   tooltip: '搜索',
                   onPressed: () {
                     setState(() {
@@ -698,6 +704,10 @@ class _TasksPageState extends State<TasksPage> {
                         Icons.swap_vert_rounded,
                         _manualSort ? '按截止时间排序' : '手动排序',
                       ),
+                    ),
+                    PopupMenuItem(
+                      value: 'theme',
+                      child: _menuRow(Icons.palette_outlined, '主题颜色'),
                     ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
@@ -1014,6 +1024,9 @@ class _TasksPageState extends State<TasksPage> {
       case 'sort':
         _toggleManualSort();
         break;
+      case 'theme':
+        await _openTheme();
+        break;
       case 'lists':
         _openLists();
         break;
@@ -1087,6 +1100,15 @@ class _TasksPageState extends State<TasksPage> {
         Text(label),
       ],
     );
+  }
+
+  Future<void> _openTheme() async {
+    final selected = await showThemeSheet(
+      context,
+      current: context.read<AppState>().accent,
+    );
+    if (selected == null || !mounted) return;
+    await context.read<AppState>().setAccent(selected);
   }
 
   void _openLists() {

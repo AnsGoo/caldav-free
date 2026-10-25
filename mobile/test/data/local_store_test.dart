@@ -25,6 +25,17 @@ void main() {
     await store.dispose();
   });
 
+  test(
+    'accent choice defaults and updates without touching task data',
+    () async {
+      final store = LocalStore.memory();
+      expect(store.accent, '#3563F0');
+      await store.setAccent('#C23B5A');
+      expect(store.accent, '#C23B5A');
+      await store.dispose();
+    },
+  );
+
   test('deleting a never-synced task removes both task and outbox', () async {
     final store = LocalStore.memory();
     final repo = TaskRepository(store);

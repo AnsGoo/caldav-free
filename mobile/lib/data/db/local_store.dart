@@ -162,9 +162,11 @@ class LocalStore {
 
   String _cursor = '0';
   DateTime? _syncedAt;
+  String _accent = '#3563F0';
 
   String get cursor => _cursor;
   DateTime? get syncedAt => _syncedAt;
+  String get accent => _accent;
   int get pendingCount => _outbox.length;
   int get failedCount => _outbox.values.where((op) => op.attempts >= 99).length;
   int get conflictCount => _conflicts.length;
@@ -503,6 +505,10 @@ class LocalStore {
     });
   }
 
+  Future<void> setAccent(String value) {
+    return _mutate(() => _accent = value);
+  }
+
   Future<void> clearAll() {
     return _mutate(() {
       _tasks.clear();
@@ -531,6 +537,7 @@ class LocalStore {
       if (decoded is! Map<String, dynamic>) return;
       _cursor = (decoded['cursor'] ?? '0').toString();
       _syncedAt = _date(decoded['syncedAt']);
+      _accent = (decoded['accent'] ?? '#3563F0').toString();
       final tasks = decoded['tasks'];
       if (tasks is Map<String, dynamic>) {
         for (final entry in tasks.entries) {
@@ -603,6 +610,7 @@ class LocalStore {
     'schema': 1,
     'cursor': _cursor,
     if (_syncedAt != null) 'syncedAt': _syncedAt!.toUtc().toIso8601String(),
+    'accent': _accent,
     'tasks': _tasks.map(
       (id, task) => MapEntry(id, {
         'dirty': _dirtyTasks.contains(id),

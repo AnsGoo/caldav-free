@@ -9,7 +9,7 @@ import '../../data/calendar/calendar_api.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
-enum CalendarView { month, week, day, agenda }
+enum CalendarView { month, week, threeDay, day, agenda, year }
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -55,7 +55,7 @@ class _CalendarPageState extends State<CalendarPage> {
     }
     final (from, to) = _rangeFor(_view, _anchor);
     try {
-      final snapshot = await _api.fetch(from: from, to: to);
+      final snapshot = await _fetchSnapshot(from, to);
       if (!mounted || request != _request) return;
       setState(() {
         _snapshot = snapshot;
@@ -69,6 +69,46 @@ class _CalendarPageState extends State<CalendarPage> {
         _error = error.toString();
       });
     }
+  }
+
+  Future<CalendarSnapshot> _fetchSnapshot(DateTime from, DateTime to) async {
+    if (_view != CalendarView.year) {
+      return _api.fetch(from: from, to: to);
+    }
+    final year = from.year;
+    final ranges = [
+      (DateTime(year, 1, 1), DateTime(year, 4, 1)),
+      (DateTime(year, 4, 1), DateTime(year, 7, 1)),
+      (DateTime(year, 7, 1), DateTime(year, 10, 1)),
+      (DateTime(year, 10, 1), DateTime(year + 1, 1, 1)),
+    ];
+    final snapshots = await Future.wait(
+      ranges.map((range) => _api.fetch(from: range.$1, to: range.$2)),
+    );
+    final sources = <int, CalendarSource>{};
+    final events = <String, CalendarEvent>{};
+    final tasks = <String, CalendarTask>{};
+    for (final snapshot in snapshots) {
+      for (final source in snapshot.sources) {
+        sources[source.id] = source;
+      }
+      for (final event in snapshot.events) {
+        events['${event.id}:${event.start.toUtc().toIso8601String()}'] = event;
+      }
+      for (final task in snapshot.tasks) {
+        tasks['${task.syncId}:${task.occurrence}:${task.id}'] = task;
+      }
+    }
+    final mergedEvents = events.values.toList(growable: false)
+      ..sort((a, b) => a.start.compareTo(b.start));
+    final mergedTasks = tasks.values.toList(growable: false);
+    return CalendarSnapshot(
+      sources: sources.values.toList(growable: false),
+      events: mergedEvents,
+      tasks: mergedTasks,
+      from: from,
+      to: to,
+    );
   }
 
   (DateTime, DateTime) _rangeFor(CalendarView view, DateTime anchor) {
@@ -86,10 +126,14 @@ class _CalendarPageState extends State<CalendarPage> {
       case CalendarView.week:
         final monday = anchor.subtract(Duration(days: anchor.weekday - 1));
         return (monday, monday.add(const Duration(days: 7)));
+      case CalendarView.threeDay:
+        return (anchor, anchor.add(const Duration(days: 3)));
       case CalendarView.day:
         return (anchor, anchor.add(const Duration(days: 1)));
       case CalendarView.agenda:
         return (anchor, anchor.add(const Duration(days: 30)));
+      case CalendarView.year:
+        return (DateTime(anchor.year, 1, 1), DateTime(anchor.year + 1, 1, 1));
     }
   }
 
@@ -103,8 +147,10 @@ class _CalendarPageState extends State<CalendarPage> {
       _anchor = switch (_view) {
         CalendarView.month => DateTime(_anchor.year, _anchor.month + delta, 1),
         CalendarView.week => _anchor.add(Duration(days: 7 * delta)),
+        CalendarView.threeDay => _anchor.add(Duration(days: 3 * delta)),
         CalendarView.day => _anchor.add(Duration(days: delta)),
         CalendarView.agenda => _anchor.add(Duration(days: 30 * delta)),
+        CalendarView.year => DateTime(_anchor.year + delta, 1, 1),
       };
     });
     unawaited(_load());
@@ -179,7 +225,7 @@ class _CalendarPageState extends State<CalendarPage> {
             const Text('日历'),
             const SizedBox(height: 5),
             Text(
-              '日程与任务总览',
+              _viewLabel(_view),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
@@ -187,6 +233,42 @@ class _CalendarPageState extends State<CalendarPage> {
           ],
         ),
         actions: [
+          PopupMenuButton<CalendarView>(
+            tooltip: '切换日历视图',
+            icon: const Icon(Icons.calendar_view_month_rounded),
+            onSelected: _setView,
+            itemBuilder: (context) => [
+              for (final view in const [
+                CalendarView.agenda,
+                CalendarView.year,
+                CalendarView.month,
+                CalendarView.week,
+                CalendarView.threeDay,
+                CalendarView.day,
+              ])
+                PopupMenuItem(
+                  value: view,
+                  child: Row(
+                    children: [
+                      Icon(
+                        _viewIcon(view),
+                        size: 19,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(_viewLabel(view)),
+                      const SizedBox(width: 20),
+                      if (_view == view)
+                        Icon(
+                          Icons.check_rounded,
+                          size: 18,
+                          color: scheme.primary,
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
           IconButton(
             tooltip: 'iCal 订阅',
             onPressed: _manageSubscriptions,
@@ -213,17 +295,7 @@ class _CalendarPageState extends State<CalendarPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
-            child: AppUnderlineTabs<CalendarView>(
-              values: CalendarView.values,
-              labels: const ['月', '周', '日', '议程'],
-              selected: _view,
-              onChanged: _setView,
-              padding: EdgeInsets.zero,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 8, 2),
+            padding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
             child: Row(
               children: [
                 IconButton(
@@ -294,6 +366,14 @@ class _CalendarPageState extends State<CalendarPage> {
                       onOpenTask: _openTask,
                       onToggleTask: _toggleTask,
                     ),
+                    CalendarView.threeDay => _ThreeDayView(
+                      anchor: _anchor,
+                      snapshot: snapshot,
+                      onSelectDay: _selectDay,
+                      onOpenEvent: _openEvent,
+                      onOpenTask: _openTask,
+                      onToggleTask: _toggleTask,
+                    ),
                     CalendarView.day => _DayView(
                       anchor: _anchor,
                       snapshot: snapshot,
@@ -308,6 +388,11 @@ class _CalendarPageState extends State<CalendarPage> {
                       onOpenEvent: _openEvent,
                       onOpenTask: _openTask,
                       onToggleTask: _toggleTask,
+                    ),
+                    CalendarView.year => _YearView(
+                      anchor: _anchor,
+                      snapshot: snapshot,
+                      onSelectDay: _selectDay,
                     ),
                   },
           ),
@@ -324,12 +409,35 @@ class _CalendarPageState extends State<CalendarPage> {
         final monday = anchor.subtract(Duration(days: anchor.weekday - 1));
         final sunday = monday.add(const Duration(days: 6));
         return '${monday.month}月${monday.day}日 - ${sunday.month}月${sunday.day}日';
+      case CalendarView.threeDay:
+        final end = anchor.add(const Duration(days: 2));
+        return '${anchor.month}月${anchor.day}日 - ${end.month}月${end.day}日';
       case CalendarView.day:
         return '${anchor.month}月${anchor.day}日 ${_weekday(anchor)}';
       case CalendarView.agenda:
         return '${anchor.month}月${anchor.day}日起 30 天';
+      case CalendarView.year:
+        return '${anchor.year}年';
     }
   }
+
+  String _viewLabel(CalendarView view) => switch (view) {
+    CalendarView.month => '月视图',
+    CalendarView.week => '周视图',
+    CalendarView.threeDay => '3 日视图',
+    CalendarView.day => '日视图',
+    CalendarView.agenda => '议程',
+    CalendarView.year => '年视图',
+  };
+
+  IconData _viewIcon(CalendarView view) => switch (view) {
+    CalendarView.month => Icons.calendar_view_month_rounded,
+    CalendarView.week => Icons.view_week_outlined,
+    CalendarView.threeDay => Icons.view_column_outlined,
+    CalendarView.day => Icons.calendar_view_day_rounded,
+    CalendarView.agenda => Icons.view_agenda_outlined,
+    CalendarView.year => Icons.grid_view_rounded,
+  };
 
   Future<void> _openEvent(CalendarEvent event) async {
     final canEdit =
@@ -600,6 +708,17 @@ class _Entry {
       event?.id ?? 'task:${task!.syncId}:${task!.occurrence}:${task!.id}';
 }
 
+String? _holidayLabel(CalendarSnapshot snapshot, DateTime day) {
+  final target = _dateOnly(day);
+  for (final event in snapshot.events) {
+    if (event.calendarName != '节假日' || event.summary.isEmpty) continue;
+    if (_dateOnly(event.start.toLocal()) == target) {
+      return event.summary;
+    }
+  }
+  return null;
+}
+
 List<_Entry> _entriesForDay(CalendarSnapshot snapshot, DateTime day) {
   final start = _dateOnly(day);
   final end = start.add(const Duration(days: 1));
@@ -684,6 +803,7 @@ class _MonthView extends StatelessWidget {
               final entries = _entriesForDay(snapshot, day);
               final inMonth = day.month == anchor.month;
               final isToday = day == today;
+              final holiday = _holidayLabel(snapshot, day);
               return InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: () => onSelectDay(day),
@@ -714,7 +834,24 @@ class _MonthView extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 4),
+                    SizedBox(
+                      height: 10,
+                      child: Center(
+                        child: Text(
+                          holiday ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                fontSize: 7.5,
+                                height: 1,
+                                color: const Color(0xFFE08A2E),
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ),
                     SizedBox(
                       height: 6,
                       child: Row(
@@ -916,6 +1053,283 @@ class _DayView extends StatelessWidget {
         onOpenTask: onOpenTask,
         onToggleTask: onToggleTask,
       ),
+    );
+  }
+}
+
+class _ThreeDayView extends StatelessWidget {
+  const _ThreeDayView({
+    required this.anchor,
+    required this.snapshot,
+    required this.onSelectDay,
+    required this.onOpenEvent,
+    required this.onOpenTask,
+    required this.onToggleTask,
+  });
+
+  final DateTime anchor;
+  final CalendarSnapshot snapshot;
+  final void Function(DateTime day) onSelectDay;
+  final Future<void> Function(CalendarEvent event) onOpenEvent;
+  final Future<void> Function(CalendarTask task) onOpenTask;
+  final Future<void> Function(CalendarTask task) onToggleTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final today = _dateOnly(DateTime.now());
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 100),
+      children: [
+        for (var offset = 0; offset < 3; offset++) ...[
+          _ThreeDayHeader(
+            day: anchor.add(Duration(days: offset)),
+            count: _entriesForDay(
+              snapshot,
+              anchor.add(Duration(days: offset)),
+            ).length,
+            today: today,
+            onTap: () => onSelectDay(anchor.add(Duration(days: offset))),
+          ),
+          const SizedBox(height: 10),
+          if (_entriesForDay(
+            snapshot,
+            anchor.add(Duration(days: offset)),
+          ).isEmpty)
+            AppCard(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  '暂无安排',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            )
+          else
+            for (final entry in _entriesForDay(
+              snapshot,
+              anchor.add(Duration(days: offset)),
+            )) ...[
+              _EntryTile(
+                entry: entry,
+                onOpenEvent: onOpenEvent,
+                onOpenTask: onOpenTask,
+                onToggleTask: onToggleTask,
+              ),
+              const SizedBox(height: 8),
+            ],
+          const SizedBox(height: 18),
+        ],
+      ],
+    );
+  }
+}
+
+class _ThreeDayHeader extends StatelessWidget {
+  const _ThreeDayHeader({
+    required this.day,
+    required this.count,
+    required this.today,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final int count;
+  final DateTime today;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isToday = day == today;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Text(
+              '${day.month}月${day.day}日',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              _weekday(day),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            if (isToday) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '今天',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+            const Spacer(),
+            Text(
+              '$count 项',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _YearView extends StatelessWidget {
+  const _YearView({
+    required this.anchor,
+    required this.snapshot,
+    required this.onSelectDay,
+  });
+
+  final DateTime anchor;
+  final CalendarSnapshot snapshot;
+  final void Function(DateTime day) onSelectDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _dateOnly(DateTime.now());
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 100),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.82,
+        mainAxisSpacing: 18,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: 12,
+      itemBuilder: (context, index) {
+        final month = index + 1;
+        return _MiniMonth(
+          year: anchor.year,
+          month: month,
+          snapshot: snapshot,
+          today: today,
+          onSelectDay: onSelectDay,
+        );
+      },
+    );
+  }
+}
+
+class _MiniMonth extends StatelessWidget {
+  const _MiniMonth({
+    required this.year,
+    required this.month,
+    required this.snapshot,
+    required this.today,
+    required this.onSelectDay,
+  });
+
+  final int year;
+  final int month;
+  final CalendarSnapshot snapshot;
+  final DateTime today;
+  final void Function(DateTime day) onSelectDay;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final first = DateTime(year, month, 1);
+    final start = first.subtract(Duration(days: first.weekday - 1));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$month月',
+          style: theme.textTheme.titleSmall?.copyWith(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Row(
+          children: [
+            for (final label in const ['一', '二', '三', '四', '五', '六', '日'])
+              Expanded(
+                child: Center(
+                  child: Text(
+                    label,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 8.5,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 3),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: 42,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            childAspectRatio: 1,
+          ),
+          itemBuilder: (context, index) {
+            final day = start.add(Duration(days: index));
+            final inMonth = day.month == month;
+            final isToday = day == today;
+            final hasEntries = _entriesForDay(snapshot, day).isNotEmpty;
+            return InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => onSelectDay(day),
+              child: Center(
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isToday ? scheme.primary : null,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text(
+                    '${day.day}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 9,
+                      height: 1,
+                      fontWeight: hasEntries || isToday
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: isToday
+                          ? scheme.onPrimary
+                          : inMonth
+                          ? (hasEntries ? scheme.primary : scheme.onSurface)
+                          : scheme.onSurfaceVariant.withValues(alpha: 0.35),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 }

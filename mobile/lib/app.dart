@@ -12,11 +12,12 @@ class CalDavApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
+    final accent = parseAccent(app.accent);
     return MaterialApp(
       title: 'caldav-free',
       debugShowCheckedModeBanner: false,
-      theme: buildAppTheme(Brightness.light),
-      darkTheme: buildAppTheme(Brightness.dark),
+      theme: buildAppTheme(Brightness.light, accent: accent),
+      darkTheme: buildAppTheme(Brightness.dark, accent: accent),
       themeMode: ThemeMode.system,
       home: app.signedIn ? const HomeShell() : const LoginPage(),
     );

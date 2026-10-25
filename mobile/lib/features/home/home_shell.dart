@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_page.dart';
+import '../countdowns/countdown_page.dart';
 import '../focus/focus_page.dart';
 import '../habits/habits_page.dart';
 import '../tasks/tasks_page.dart';
@@ -25,6 +26,7 @@ class _HomeShellState extends State<HomeShell> {
           CalendarPage(),
           HabitsPage(),
           FocusPage(),
+          CountdownPage(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -50,6 +52,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.timer_outlined),
             selectedIcon: Icon(Icons.timer_rounded),
             label: '专注',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.hourglass_bottom_rounded),
+            selectedIcon: Icon(Icons.hourglass_full_rounded),
+            label: '倒数',
           ),
         ],
       ),

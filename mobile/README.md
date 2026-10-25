@@ -17,11 +17,11 @@ pushes it in the background.
   complete/skip the current occurrence.
 - Trash: restore a deleted task or purge it permanently.
 - Global search across all open lists; pinned tasks sort first.
-- P2 views: Kanban board with custom synced columns, column ordering and
-  drag-between-columns; Eisenhower matrix; day/week/month timeline with
-  drag-to-reschedule.
+- P2 views: Kanban board with custom synced columns, drag-reordered columns,
+  drag-between-columns and manual card ordering; Eisenhower matrix;
+  day/week/month timeline with custom start date and drag-to-reschedule.
 - Multi-select in the list view for batch complete, move, delete, priority,
-  due date and tags.
+  due date, tags, title prefix/suffix and appended notes.
 - Manual list ordering with drag handles; order is field-synced and restored
   across clients.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
@@ -35,9 +35,9 @@ pushes it in the background.
 
 P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.
-The P2 slices add the board, matrix and day/week/month timeline with column
-ordering, batch field edits and manual list ordering; column drag-reorder,
-board task reorder, batch titles/notes and custom timeline ranges are next.
+P2 is feature-complete: board, matrix, day/week/month timeline, column and
+task ordering, batch field edits and custom timeline ranges. P3 (calendar) is
+next.
 
 ## Run
 

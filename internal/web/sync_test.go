@@ -612,6 +612,67 @@ func TestSyncCalendarEndpoint(t *testing.T) {
 	}
 }
 
+func TestSyncHabits(t *testing.T) {
+	env := newAPIEnv(t)
+
+	status, body := env.syncRequest(t, "POST", "/api/sync/habits", map[string]any{
+		"name":      "喝水",
+		"color":     "#4772fa",
+		"goal":      8,
+		"step":      1,
+		"unit":      "杯",
+		"frequency": `{"type":"daily","weekdays":[0,1,2,3,4,5,6]}`,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create habit = %d: %s", status, body)
+	}
+	created := decode[map[string]any](t, body)
+	habit, _ := created["habit"].(map[string]any)
+	id, _ := habit["id"].(float64)
+	if id <= 0 {
+		t.Fatalf("habit id missing: %s", body)
+	}
+
+	stamp, _ := strconv.Atoi(time.Now().Format("20060102"))
+	status, body = env.syncRequest(
+		t, "POST", "/api/sync/habits/"+strconv.FormatInt(int64(id), 10)+"/checkin",
+		map[string]any{"stamp": stamp},
+	)
+	if status != http.StatusOK {
+		t.Fatalf("habit checkin = %d: %s", status, body)
+	}
+
+	status, body = env.syncRequest(
+		t, "PATCH", "/api/sync/habits/"+strconv.FormatInt(int64(id), 10),
+		map[string]any{"name": "多喝水", "status": 0},
+	)
+	if status != http.StatusOK {
+		t.Fatalf("update habit = %d: %s", status, body)
+	}
+
+	status, body = env.syncRequest(t, "GET", "/api/sync/habits", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list habits = %d: %s", status, body)
+	}
+	snapshot := decode[struct {
+		Habits   []store.Habit                   `json:"habits"`
+		Checkins map[string][]store.HabitCheckin `json:"checkins"`
+	}](t, body)
+	if len(snapshot.Habits) != 1 || snapshot.Habits[0].Name != "多喝水" {
+		t.Fatalf("habit list: %s", body)
+	}
+	if len(snapshot.Checkins) != 1 {
+		t.Fatalf("checkin list: %s", body)
+	}
+
+	status, body = env.syncRequest(
+		t, "DELETE", "/api/sync/habits/"+strconv.FormatInt(int64(id), 10), nil,
+	)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete habit = %d: %s", status, body)
+	}
+}
+
 func TestSyncSubscriptions(t *testing.T) {
 	env := newAPIEnv(t)
 

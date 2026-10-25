@@ -108,6 +108,38 @@ func (s *Server) apiSyncCalendar(w http.ResponseWriter, r *http.Request) {
 	s.apiTaskCalendarEvents(w, r, current, nil)
 }
 
+func (s *Server) apiSyncHabits(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiHabits(w, r, current, nil)
+}
+
+func (s *Server) apiSyncHabit(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiHabit(w, r, current, nil)
+}
+
+func (s *Server) apiSyncHabitCheckin(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiHabitCheckin(w, r, current, nil)
+}
+
+func (s *Server) apiSyncHabitDetail(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiHabitDetail(w, r, current, nil)
+}
+
 func (s *Server) apiSyncSubscriptions(w http.ResponseWriter, r *http.Request) {
 	current, ok := s.apiSyncUser(w, r)
 	if !ok {

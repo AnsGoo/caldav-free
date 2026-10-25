@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
+import '../../design/components.dart';
 import '../../design/format.dart';
 
 enum CalendarView { month, week, day, agenda }
@@ -170,7 +171,21 @@ class _CalendarPageState extends State<CalendarPage> {
     final snapshot = _snapshot;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('日历'),
+        toolbarHeight: 88,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('日历'),
+            const SizedBox(height: 5),
+            Text(
+              '日程与任务总览',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: 'iCal 订阅',
@@ -182,42 +197,33 @@ class _CalendarPageState extends State<CalendarPage> {
             onPressed: _loading ? null : () => _load(),
             icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 6),
         ],
       ),
       floatingActionButton: _writableSources.isEmpty
           ? null
-          : FloatingActionButton.extended(
-              onPressed: _createEvent,
-              icon: const Icon(Icons.add_rounded),
-              label: const Text('新建日程'),
+          : Tooltip(
+              message: '新建日程',
+              child: FloatingActionButton(
+                onPressed: _createEvent,
+                child: const Icon(Icons.add_rounded),
+              ),
             ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<CalendarView>(
-                showSelectedIcon: false,
-                segments: const [
-                  ButtonSegment(value: CalendarView.month, label: Text('月')),
-                  ButtonSegment(value: CalendarView.week, label: Text('周')),
-                  ButtonSegment(value: CalendarView.day, label: Text('日')),
-                  ButtonSegment(value: CalendarView.agenda, label: Text('议程')),
-                ],
-                selected: {_view},
-                onSelectionChanged: (values) => _setView(values.first),
-                style: const ButtonStyle(
-                  visualDensity: VisualDensity.compact,
-                  padding: WidgetStatePropertyAll(
-                    EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  ),
-                ),
-              ),
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 2),
+            child: AppUnderlineTabs<CalendarView>(
+              values: CalendarView.values,
+              labels: const ['月', '周', '日', '议程'],
+              selected: _view,
+              onChanged: _setView,
+              padding: EdgeInsets.zero,
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 12, 6),
+            padding: const EdgeInsets.fromLTRB(12, 0, 8, 2),
             child: Row(
               children: [
                 IconButton(
@@ -229,9 +235,7 @@ class _CalendarPageState extends State<CalendarPage> {
                   child: Text(
                     _title(_view, _anchor),
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: theme.textTheme.titleMedium,
                   ),
                 ),
                 IconButton(
@@ -680,96 +684,60 @@ class _MonthView extends StatelessWidget {
               final entries = _entriesForDay(snapshot, day);
               final inMonth = day.month == anchor.month;
               final isToday = day == today;
-              return Padding(
-                padding: const EdgeInsets.all(1),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => onSelectDay(day),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(3, 3, 3, 2),
-                    decoration: BoxDecoration(
-                      color: isToday
-                          ? scheme.primary.withValues(alpha: 0.08)
-                          : null,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isToday
-                            ? scheme.primary.withValues(alpha: 0.4)
-                            : scheme.outlineVariant.withValues(alpha: 0.35),
+              return InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () => onSelectDay(day),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: 32,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isToday ? scheme.primary : Colors.transparent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${day.day}',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontSize: 14,
+                          fontWeight: isToday
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                          color: isToday
+                              ? scheme.onPrimary
+                              : inMonth
+                              ? scheme.onSurface
+                              : scheme.onSurfaceVariant.withValues(alpha: 0.45),
+                        ),
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${day.day}',
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(
-                                fontWeight: isToday
-                                    ? FontWeight.w800
-                                    : FontWeight.w600,
-                                color: inMonth
-                                    ? scheme.onSurface
-                                    : scheme.onSurfaceVariant.withValues(
-                                        alpha: 0.5,
-                                      ),
-                              ),
-                        ),
-                        const SizedBox(height: 1),
-                        for (final entry in entries.take(2))
-                          GestureDetector(
-                            onTap: () => entry.isTask
-                                ? onOpenTask(entry.task!)
-                                : onOpenEvent(entry.event!),
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 1),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 4,
-                                    height: 4,
-                                    decoration: BoxDecoration(
-                                      color: entry.color,
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Expanded(
-                                    child: Text(
-                                      entry.title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelSmall
-                                          ?.copyWith(
-                                            fontSize: 8,
-                                            height: 1.15,
-                                            decoration: entry.completed
-                                                ? TextDecoration.lineThrough
-                                                : null,
-                                            color: inMonth
-                                                ? scheme.onSurface
-                                                : scheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ),
-                                ],
+                    const SizedBox(height: 5),
+                    SizedBox(
+                      height: 6,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (final entry in entries.take(3))
+                            Container(
+                              width: 5,
+                              height: 5,
+                              margin: const EdgeInsets.symmetric(horizontal: 1),
+                              decoration: BoxDecoration(
+                                color: entry.completed
+                                    ? scheme.onSurfaceVariant.withValues(
+                                        alpha: 0.35,
+                                      )
+                                    : entry.color,
+                                shape: BoxShape.circle,
                               ),
                             ),
-                          ),
-                        if (entries.length > 2)
-                          Text(
-                            '+${entries.length - 2}',
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  fontSize: 8,
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               );
             },
@@ -929,48 +897,25 @@ class _DayView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final entries = _entriesForDay(snapshot, anchor);
-    final scheme = Theme.of(context).colorScheme;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-      children: [
-        Text(
-          '${anchor.month}月${anchor.day}日 ${_weekday(anchor)}',
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+    if (entries.isEmpty) {
+      return const Center(
+        child: AppEmptyState(
+          icon: Icons.event_available_rounded,
+          title: '今天没有安排',
+          message: '留一点空白，也是一种安排。',
         ),
-        const SizedBox(height: 10),
-        if (entries.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 48),
-            child: Center(
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.event_available_rounded,
-                    size: 40,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '今天没有安排',
-                    style: Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else
-          for (final entry in entries) ...[
-            _EntryTile(
-              entry: entry,
-              onOpenEvent: onOpenEvent,
-              onOpenTask: onOpenTask,
-              onToggleTask: onToggleTask,
-            ),
-            const SizedBox(height: 8),
-          ],
-      ],
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+      itemCount: entries.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) => _EntryTile(
+        entry: entries[index],
+        onOpenEvent: onOpenEvent,
+        onOpenTask: onOpenTask,
+        onToggleTask: onToggleTask,
+      ),
     );
   }
 }
@@ -1083,35 +1028,33 @@ class _EntryTile extends StatelessWidget {
         : '${entry.start.hour.toString().padLeft(2, '0')}:${entry.start.minute.toString().padLeft(2, '0')}';
     return Material(
       color: scheme.surface,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => task != null ? onOpenTask(task) : onOpenEvent(event!),
-        child: Container(
+        child: Padding(
           padding: EdgeInsets.fromLTRB(
-            10,
-            compact ? 8 : 10,
-            10,
-            compact ? 8 : 10,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.45),
-            ),
+            14,
+            compact ? 10 : 13,
+            14,
+            compact ? 10 : 13,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 3,
-                height: compact ? 30 : 38,
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.only(top: 6),
                 decoration: BoxDecoration(
-                  color: entry.color,
-                  borderRadius: BorderRadius.circular(99),
+                  color: entry.completed
+                      ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
+                      : entry.color,
+                  shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

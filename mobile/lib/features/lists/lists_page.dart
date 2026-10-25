@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/models.dart';
+import '../../design/components.dart';
 import '../../design/format.dart';
 
 const _listColors = [
@@ -23,9 +24,6 @@ class ListsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final store = app.store;
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('清单管理'),
@@ -42,10 +40,9 @@ class ListsPage extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => _createList(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('新建清单'),
+        child: const Icon(Icons.add_rounded),
       ),
       body: StreamBuilder<List<FolderItem>>(
         stream: store.watchFolders(),
@@ -58,20 +55,21 @@ class ListsPage extends StatelessWidget {
                   .where((list) => list.kind == TaskKind.task)
                   .toList();
               if (lists.isEmpty && folders.isEmpty) {
-                return Center(
-                  child: Text(
-                    '还没有清单',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                return const Center(
+                  child: AppEmptyState(
+                    icon: Icons.folder_open_rounded,
+                    title: '还没有清单',
+                    message: '创建一个清单，开始整理你的任务。',
                   ),
                 );
               }
               final folderIds = folders.map((folder) => folder.id).toSet();
               final ungrouped = lists
-                  .where((list) =>
-                      list.folderId == null ||
-                      !folderIds.contains(list.folderId))
+                  .where(
+                    (list) =>
+                        list.folderId == null ||
+                        !folderIds.contains(list.folderId),
+                  )
                   .toList(growable: false);
               return ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -121,11 +119,7 @@ class ListsPage extends StatelessWidget {
     );
   }
 
-  Widget _folderHeader(
-    BuildContext context,
-    FolderItem folder,
-    int count,
-  ) {
+  Widget _folderHeader(BuildContext context, FolderItem folder, int count) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Padding(
@@ -182,10 +176,7 @@ class ListsPage extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         child: ListTile(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-              color: scheme.outlineVariant.withValues(alpha: 0.55),
-            ),
+            borderRadius: BorderRadius.circular(16),
           ),
           leading: Container(
             width: 12,
@@ -220,19 +211,10 @@ class ListsPage extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('编辑'),
-                    ),
+                    const PopupMenuItem(value: 'edit', child: Text('编辑')),
                     if (canMove)
-                      const PopupMenuItem(
-                        value: 'move',
-                        child: Text('移动到文件夹'),
-                      ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('删除'),
-                    ),
+                      const PopupMenuItem(value: 'move', child: Text('移动到文件夹')),
+                    const PopupMenuItem(value: 'delete', child: Text('删除')),
                   ],
                 ),
           onTap: list.isInbox ? null : () => _editList(context, list),
@@ -244,10 +226,7 @@ class ListsPage extends StatelessWidget {
   Future<void> _createFolder(BuildContext context) async {
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => const _NameDialog(
-        title: '新建文件夹',
-        hint: '例如：工作、生活',
-      ),
+      builder: (_) => const _NameDialog(title: '新建文件夹', hint: '例如：工作、生活'),
     );
     if (name == null || !context.mounted) return;
     try {
@@ -260,11 +239,8 @@ class ListsPage extends StatelessWidget {
   Future<void> _editFolder(BuildContext context, FolderItem folder) async {
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => _NameDialog(
-        title: '重命名文件夹',
-        hint: '文件夹名称',
-        initial: folder.name,
-      ),
+      builder: (_) =>
+          _NameDialog(title: '重命名文件夹', hint: '文件夹名称', initial: folder.name),
     );
     if (name == null || !context.mounted) return;
     try {
@@ -346,9 +322,9 @@ class ListsPage extends StatelessWidget {
     if (selected == null || !context.mounted) return;
     try {
       await context.read<AppState>().repository.moveListToFolder(
-            list.id,
-            selected.isEmpty ? null : selected,
-          );
+        list.id,
+        selected.isEmpty ? null : selected,
+      );
     } catch (error) {
       if (context.mounted) _snack(context, '移动失败：$error');
     }
@@ -362,9 +338,9 @@ class ListsPage extends StatelessWidget {
     if (value == null || !context.mounted) return;
     try {
       await context.read<AppState>().repository.createList(
-            name: value.name,
-            color: value.color,
-          );
+        name: value.name,
+        color: value.color,
+      );
     } catch (error) {
       if (context.mounted) _snack(context, '新建失败：$error');
     }
@@ -378,10 +354,10 @@ class ListsPage extends StatelessWidget {
     if (value == null || !context.mounted) return;
     try {
       await context.read<AppState>().repository.updateList(
-            list.id,
-            name: value.name,
-            color: value.color,
-          );
+        list.id,
+        name: value.name,
+        color: value.color,
+      );
     } catch (error) {
       if (context.mounted) _snack(context, '保存失败：$error');
     }
@@ -428,11 +404,7 @@ class _ListDraft {
 }
 
 class _NameDialog extends StatefulWidget {
-  const _NameDialog({
-    required this.title,
-    required this.hint,
-    this.initial,
-  });
+  const _NameDialog({required this.title, required this.hint, this.initial});
 
   final String title;
   final String hint;
@@ -476,10 +448,7 @@ class _NameDialogState extends State<_NameDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('保存'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('保存')),
       ],
     );
   }
@@ -580,10 +549,7 @@ class _ListEditorDialogState extends State<_ListEditorDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('保存'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('保存')),
       ],
     );
   }

@@ -1,10 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../data/focus/focus_api.dart';
+import '../../design/components.dart';
 import '../../design/format.dart';
 
 class FocusPage extends StatefulWidget {
@@ -82,6 +84,7 @@ class _FocusPageState extends State<FocusPage> {
 
   void _start() {
     if (_running) return;
+    HapticFeedback.lightImpact();
     final now = DateTime.now();
     _startedAt ??= now;
     _deadline = now.add(Duration(seconds: _remaining));
@@ -92,6 +95,7 @@ class _FocusPageState extends State<FocusPage> {
 
   void _pause() {
     if (!_running) return;
+    HapticFeedback.selectionClick();
     _ticker?.cancel();
     final deadline = _deadline;
     if (deadline != null) {
@@ -102,6 +106,7 @@ class _FocusPageState extends State<FocusPage> {
   }
 
   void _reset() {
+    HapticFeedback.selectionClick();
     _ticker?.cancel();
     setState(() {
       _running = false;
@@ -124,6 +129,7 @@ class _FocusPageState extends State<FocusPage> {
 
   Future<void> _complete() async {
     _ticker?.cancel();
+    HapticFeedback.mediumImpact();
     final started = _startedAt ?? DateTime.now();
     final ended = DateTime.now();
     final seconds = _minutes * 60;
@@ -172,58 +178,87 @@ class _FocusPageState extends State<FocusPage> {
         : (1 - _remaining / total).clamp(0.0, 1.0);
     final minutes = _remaining ~/ 60;
     final seconds = _remaining % 60;
+    final stats = dash?.stats;
+    final ringSize = (MediaQuery.sizeOf(context).width - 56).clamp(
+      228.0,
+      286.0,
+    );
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('专注'),
+        toolbarHeight: 88,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '专注',
+              style: theme.textTheme.headlineMedium?.copyWith(fontSize: 30),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              stats == null
+                  ? '把注意力留给当下'
+                  : '今日 ${stats.todayFocusMinutes} 分钟 · '
+                        '${stats.todayPomodoroCount}/${stats.goal} 番茄',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: '刷新专注',
             onPressed: _loading ? null : () => _load(),
             icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 6),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [
           if (_loading) const LinearProgressIndicator(minHeight: 2),
           if (_error != null)
-            Material(
-              color: scheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: scheme.onErrorContainer),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Material(
+                color: scheme.errorContainer,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: scheme.onErrorContainer),
+                        ),
                       ),
-                    ),
-                    TextButton(onPressed: _load, child: const Text('重试')),
-                  ],
+                      TextButton(onPressed: _load, child: const Text('重试')),
+                    ],
+                  ),
                 ),
               ),
             ),
-          if (dash != null) _StatsRow(stats: dash.stats),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
           Center(
             child: SizedBox(
-              width: 240,
-              height: 240,
+              width: ringSize,
+              height: ringSize,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  SizedBox(
-                    width: 240,
-                    height: 240,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 12,
-                      backgroundColor: scheme.surfaceContainerHighest,
-                      color: scheme.primary,
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _RingPainter(
+                        progress: progress,
+                        track: scheme.surfaceContainerHighest,
+                        color: scheme.primary,
+                      ),
                     ),
                   ),
                   Column(
@@ -231,16 +266,22 @@ class _FocusPageState extends State<FocusPage> {
                     children: [
                       Text(
                         '$minutes:${seconds.toString().padLeft(2, '0')}',
-                        style: theme.textTheme.displayMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -1,
+                        style: theme.textTheme.displayLarge?.copyWith(
+                          fontSize: 58,
+                          fontWeight: FontWeight.w300,
+                          letterSpacing: -2.4,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _running ? '专注中' : '准备开始',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
+                      const SizedBox(height: 6),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Text(
+                          _running ? '专注中' : '准备开始',
+                          key: ValueKey(_running),
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ],
@@ -249,62 +290,68 @@ class _FocusPageState extends State<FocusPage> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 28),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               for (final value in _durations) ...[
-                ChoiceChip(
-                  label: Text('$value 分钟'),
+                _DurationPill(
+                  minutes: value,
                   selected: _minutes == value,
-                  onSelected: _running ? null : (_) => _setMinutes(value),
+                  enabled: !_running,
+                  onTap: () => _setMinutes(value),
                 ),
-                const SizedBox(width: 8),
+                if (value != _durations.last) const SizedBox(width: 8),
               ],
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 22),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FilledButton.icon(
-                onPressed: _running ? _pause : _start,
-                icon: Icon(
-                  _running ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                ),
-                label: Text(_running ? '暂停' : '开始'),
-              ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                onPressed: _reset,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-                label: const Text('重置'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Text(
-                '最近专注',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              if (dash != null)
-                Text(
-                  '累计 ${dash.stats.totalFocusMinutes} 分钟',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
+              SizedBox(
+                width: 188,
+                child: FilledButton(
+                  onPressed: _running ? _pause : _start,
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 56),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28),
+                    ),
                   ),
+                  child: Text(_running ? '暂停' : '开始'),
                 ),
+              ),
+              const SizedBox(width: 10),
+              IconButton(
+                tooltip: '重置计时',
+                onPressed: _reset,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(52, 52),
+                  maximumSize: const Size(52, 52),
+                  backgroundColor: scheme.surface,
+                  foregroundColor: scheme.onSurfaceVariant,
+                  shape: const CircleBorder(),
+                ),
+                icon: const Icon(Icons.refresh_rounded, size: 21),
+              ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 36),
+          AppSectionLabel(
+            title: '最近专注',
+            trailing: dash == null
+                ? null
+                : Text(
+                    '累计 ${dash.stats.totalFocusMinutes} 分钟',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+          ),
           if (dash == null || dash.sessions.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
+            AppCard(
+              padding: const EdgeInsets.symmetric(vertical: 22),
               child: Center(
                 child: Text(
                   '还没有专注记录',
@@ -315,96 +362,118 @@ class _FocusPageState extends State<FocusPage> {
               ),
             )
           else
-            for (final session in dash.sessions.take(8))
-              _SessionTile(
-                session: session,
-                onDelete: () => _deleteSession(session),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  for (var i = 0; i < dash.sessions.length && i < 8; i++) ...[
+                    _SessionRow(
+                      session: dash.sessions[i],
+                      onDelete: () => _deleteSession(dash.sessions[i]),
+                    ),
+                    if (i != dash.sessions.length - 1 && i != 7)
+                      Divider(
+                        height: 1,
+                        indent: 64,
+                        endIndent: 16,
+                        color: scheme.outlineVariant,
+                      ),
+                  ],
+                ],
               ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _StatsRow extends StatelessWidget {
-  const _StatsRow({required this.stats});
-
-  final FocusStats stats;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        _StatCard(
-          label: '今日专注',
-          value: '${stats.todayFocusMinutes} 分钟',
-          icon: Icons.timer_outlined,
-        ),
-        const SizedBox(width: 8),
-        _StatCard(
-          label: '今日番茄',
-          value: '${stats.todayPomodoroCount} / ${stats.goal}',
-          icon: Icons.local_fire_department_outlined,
-        ),
-        const SizedBox(width: 8),
-        _StatCard(
-          label: '累计次数',
-          value: '${stats.totalPomodoroCount}',
-          icon: Icons.auto_awesome_outlined,
-        ),
-      ],
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    required this.icon,
+class _RingPainter extends CustomPainter {
+  const _RingPainter({
+    required this.progress,
+    required this.track,
+    required this.color,
   });
 
-  final String label;
-  final String value;
-  final IconData icon;
+  final double progress;
+  final Color track;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = (size.shortestSide - 14) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+    final trackPaint = Paint()
+      ..color = track
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10;
+    canvas.drawCircle(center, radius, trackPaint);
+    if (progress <= 0) return;
+    final progressPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      rect,
+      -1.5707963267948966,
+      6.283185307179586 * progress,
+      false,
+      progressPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.track != track ||
+      oldDelegate.color != color;
+}
+
+class _DurationPill extends StatelessWidget {
+  const _DurationPill({
+    required this.minutes,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final int minutes;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, size: 17, color: scheme.primary),
-            const SizedBox(height: 8),
-            Text(
-              value,
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? scheme.primaryContainer : Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Text(
+            '$minutes 分钟',
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: selected
+                  ? scheme.primary
+                  : scheme.onSurfaceVariant.withValues(
+                      alpha: enabled ? 1 : 0.5,
+                    ),
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             ),
-            Text(
-              label,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _SessionTile extends StatelessWidget {
-  const _SessionTile({required this.session, required this.onDelete});
+class _SessionRow extends StatelessWidget {
+  const _SessionRow({required this.session, required this.onDelete});
 
   final FocusSession session;
   final VoidCallback onDelete;
@@ -413,39 +482,53 @@ class _SessionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final started = session.startedAt?.toLocal();
     final minutes = (session.durationSeconds / 60).round();
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      leading: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: scheme.primary.withValues(alpha: 0.1),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(Icons.timer_rounded, size: 18, color: scheme.primary),
-      ),
-      title: Text(
-        session.title.isEmpty ? '专注' : session.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      subtitle: Text(
-        started == null
-            ? '$minutes 分钟'
-            : '${relativeTime(session.startedAt)} · $minutes 分钟',
-        style: theme.textTheme.labelSmall?.copyWith(
-          color: scheme.onSurfaceVariant,
-        ),
-      ),
-      trailing: IconButton(
-        tooltip: '删除记录',
-        onPressed: onDelete,
-        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 6, 10),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: scheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(Icons.timer_rounded, size: 18, color: scheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  session.title.isEmpty ? '专注' : session.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  session.startedAt == null
+                      ? '$minutes 分钟'
+                      : '${relativeTime(session.startedAt)} · $minutes 分钟',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: '删除记录',
+            onPressed: onDelete,
+            icon: Icon(
+              Icons.close_rounded,
+              size: 18,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }

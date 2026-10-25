@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ui_utils.dart';
 import '../../data/countdowns/countdown_api.dart';
+import '../../design/components.dart';
 
 class CountdownPage extends StatefulWidget {
   const CountdownPage({super.key});
@@ -133,60 +134,85 @@ class _CountdownPageState extends State<CountdownPage> {
     final scheme = theme.colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('倒数日'),
+        toolbarHeight: 88,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('倒数日'),
+            const SizedBox(height: 5),
+            Text(
+              _items.isEmpty ? '记住值得期待的日子' : '${_items.length} 个日子',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: '刷新倒数日',
             onPressed: _loading ? null : () => _load(),
             icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 6),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _create,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('新建'),
+        child: const Icon(Icons.add_rounded),
       ),
       body: RefreshIndicator(
         onRefresh: () => _load(showLoading: false),
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-          children: [
-            if (_loading) const LinearProgressIndicator(minHeight: 2),
-            if (_error != null)
-              Material(
-                color: scheme.errorContainer,
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: scheme.onErrorContainer),
+        child: LayoutBuilder(
+          builder: (context, constraints) => ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
+            children: [
+              if (_loading) const LinearProgressIndicator(minHeight: 2),
+              if (_error != null)
+                Material(
+                  color: scheme.errorContainer,
+                  borderRadius: BorderRadius.circular(16),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: scheme.onErrorContainer),
+                          ),
                         ),
-                      ),
-                      TextButton(onPressed: _load, child: const Text('重试')),
-                    ],
+                        TextButton(onPressed: _load, child: const Text('重试')),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            if (_items.isEmpty && !_loading && _error == null)
-              const _EmptyCountdowns()
-            else
-              for (final item in _items) ...[
-                _CountdownCard(
-                  item: item,
-                  onEdit: () => _edit(item),
-                  onDelete: () => _delete(item),
-                ),
-                const SizedBox(height: 10),
-              ],
-          ],
+              if (_items.isEmpty && !_loading && _error == null)
+                SizedBox(
+                  height: constraints.maxHeight - 40,
+                  child: const Center(
+                    child: AppEmptyState(
+                      icon: Icons.hourglass_empty_rounded,
+                      title: '还没有倒数记录',
+                      message: '记录重要日子，看看还有多少天',
+                    ),
+                  ),
+                )
+              else
+                for (final item in _items) ...[
+                  _CountdownCard(
+                    item: item,
+                    onEdit: () => _edit(item),
+                    onDelete: () => _delete(item),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+            ],
+          ),
         ),
       ),
     );
@@ -208,156 +234,128 @@ class _CountdownCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final accent = _hexColor(item.color, scheme.primary);
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 6, 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(item.icon, style: const TextStyle(fontSize: 22)),
+    final base = _hexColor(item.color, scheme.primary);
+    final accent = _strongColor(base, theme.brightness);
+    return AppCard(
+      onTap: onEdit,
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: base.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(16),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          item.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+            child: Icon(_countdownIcon(item.type), color: accent, size: 25),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        item.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                      if (item.pinned)
-                        Icon(Icons.push_pin_rounded, size: 15, color: accent),
+                    ),
+                    if (item.pinned) ...[
+                      const SizedBox(width: 6),
+                      Icon(Icons.push_pin_rounded, size: 14, color: accent),
                     ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  _countdownDateLabel(item),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
                   ),
+                ),
+                if (item.remark.isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Text(
-                    _countdownDateLabel(item),
-                    style: theme.textTheme.labelSmall?.copyWith(
+                    item.remark,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
-                  if (item.remark.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      item.remark,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (item.isToday)
+                Text(
+                  '今天',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: accent,
+                    letterSpacing: -0.5,
+                  ),
+                )
+              else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text(
                       '${item.days}',
-                      style: theme.textTheme.headlineMedium?.copyWith(
+                      style: theme.textTheme.displaySmall?.copyWith(
+                        fontSize: 34,
                         fontWeight: FontWeight.w800,
                         color: item.isPast ? scheme.onSurfaceVariant : accent,
                         letterSpacing: -1,
                       ),
                     ),
-                    const SizedBox(width: 3),
+                    const SizedBox(width: 2),
                     Text(
-                      item.isToday ? '' : '天',
+                      '天',
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
+              if (item.isPast)
                 Text(
-                  _countdownStateLabel(item),
+                  '前',
                   style: theme.textTheme.labelSmall?.copyWith(
-                    color: item.isPast ? scheme.onSurfaceVariant : accent,
-                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                SizedBox(
-                  height: 28,
-                  child: PopupMenuButton<String>(
-                    tooltip: '更多操作',
-                    padding: EdgeInsets.zero,
-                    iconSize: 18,
-                    onSelected: (value) {
-                      if (value == 'edit') onEdit();
-                      if (value == 'delete') onDelete();
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'edit', child: Text('编辑')),
-                      PopupMenuItem(value: 'delete', child: Text('删除')),
-                    ],
-                  ),
+              SizedBox(
+                height: 26,
+                child: PopupMenuButton<String>(
+                  tooltip: '更多操作',
+                  padding: EdgeInsets.zero,
+                  iconSize: 18,
+                  onSelected: (value) {
+                    if (value == 'edit') onEdit();
+                    if (value == 'delete') onDelete();
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('编辑')),
+                    PopupMenuItem(value: 'delete', child: Text('删除')),
+                  ],
                 ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyCountdowns extends StatelessWidget {
-  const _EmptyCountdowns();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(top: 110),
-      child: Column(
-        children: [
-          Icon(
-            Icons.hourglass_empty_rounded,
-            size: 52,
-            color: scheme.primary.withValues(alpha: 0.55),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '还没有倒数记录',
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '记录重要日子，看看还有多少天',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
+              ),
+            ],
           ),
         ],
       ),
@@ -584,11 +582,20 @@ class _CountdownEditorSheetState extends State<_CountdownEditorSheet> {
   }
 }
 
-String _countdownStateLabel(CountdownItem item) {
-  if (item.isToday) return '就是今天';
-  if (item.isPast) return '天前';
-  if (item.type == 'birthday' && item.age > 0) return '天后 · ${item.age} 岁';
-  return '天后';
+IconData _countdownIcon(String type) => switch (type) {
+  'birthday' => Icons.cake_rounded,
+  'anniversary' => Icons.favorite_rounded,
+  'festival' => Icons.celebration_rounded,
+  _ => Icons.hourglass_bottom_rounded,
+};
+
+Color _strongColor(Color color, Brightness brightness) {
+  if (brightness == Brightness.dark) return color;
+  final hsl = HSLColor.fromColor(color);
+  return hsl
+      .withLightness((hsl.lightness * 0.72).clamp(0.32, 0.55))
+      .withSaturation((hsl.saturation * 0.95).clamp(0.0, 1.0))
+      .toColor();
 }
 
 String _countdownDateLabel(CountdownItem item) {

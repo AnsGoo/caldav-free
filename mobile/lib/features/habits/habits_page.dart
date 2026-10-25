@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../data/habits/habit_api.dart';
+import '../../design/components.dart';
 import '../../design/format.dart';
 
 class HabitsPage extends StatefulWidget {
@@ -191,73 +192,63 @@ class _HabitsPageState extends State<HabitsPage> {
     final done = due.where((habit) => habit.doneToday).length;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('习惯'),
+        toolbarHeight: 88,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('习惯'),
+            const SizedBox(height: 5),
+            Text(
+              due.isEmpty ? '用微小的重复，换取长期的变化' : '今天完成 $done / ${due.length}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             tooltip: '刷新习惯',
             onPressed: _loading ? null : () => _load(),
             icon: const Icon(Icons.refresh_rounded),
           ),
+          const SizedBox(width: 6),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: _create,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('新建习惯'),
+        child: const Icon(Icons.add_rounded),
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_loading) const LinearProgressIndicator(minHeight: 2),
           if (_error != null)
-            Material(
-              color: scheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: scheme.onErrorContainer),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _load(),
-                      child: const Text('重试'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (snapshot != null && due.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-              child: Row(
-                children: [
-                  Text(
-                    '今日完成',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+              padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+              child: Material(
+                color: scheme.errorContainer,
+                borderRadius: BorderRadius.circular(16),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: scheme.onErrorContainer),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _load(),
+                        child: const Text('重试'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$done / ${due.length}',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: scheme.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '连续打卡',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           Expanded(
@@ -265,44 +256,59 @@ class _HabitsPageState extends State<HabitsPage> {
                 ? const Center(child: CircularProgressIndicator())
                 : active.isEmpty
                 ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.loop_rounded,
-                          size: 48,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(height: 10),
-                        Text('还没有习惯', style: theme.textTheme.bodyLarge),
-                        const SizedBox(height: 4),
-                        Text(
-                          '创建一个每天坚持的小目标。',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
+                    child: AppEmptyState(
+                      icon: Icons.local_fire_department_outlined,
+                      title: '还没有习惯',
+                      message: '从一个小目标开始，今天就能完成第一次打卡。',
+                      action: FilledButton(
+                        onPressed: _create,
+                        child: const Text('创建习惯'),
+                      ),
                     ),
                   )
                 : RefreshIndicator(
                     onRefresh: () => _load(showLoading: false),
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-                      itemCount: active.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final habit = active[index];
-                        final checkin = _todayCheckin(habit);
-                        return _HabitCard(
-                          habit: habit,
-                          checkin: checkin,
-                          onCheckin: () => _checkin(habit),
-                          onOpen: () => _openDetail(habit),
-                          onEdit: () => _edit(habit),
-                          onDelete: () => _delete(habit),
-                        );
-                      },
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),
+                      children: [
+                        AppSectionLabel(
+                          title: '我的习惯',
+                          trailing: due.isEmpty
+                              ? null
+                              : Text(
+                                  '$done / ${due.length}',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    color: scheme.primary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
+                        AppCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              for (var i = 0; i < active.length; i++) ...[
+                                _HabitRow(
+                                  habit: active[i],
+                                  checkin: _todayCheckin(active[i]),
+                                  onCheckin: () => _checkin(active[i]),
+                                  onOpen: () => _openDetail(active[i]),
+                                  onEdit: () => _edit(active[i]),
+                                  onDelete: () => _delete(active[i]),
+                                ),
+                                if (i != active.length - 1)
+                                  Divider(
+                                    height: 1,
+                                    indent: 78,
+                                    endIndent: 16,
+                                    color: scheme.outlineVariant,
+                                  ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
           ),
@@ -312,8 +318,8 @@ class _HabitsPageState extends State<HabitsPage> {
   }
 }
 
-class _HabitCard extends StatelessWidget {
-  const _HabitCard({
+class _HabitRow extends StatelessWidget {
+  const _HabitRow({
     required this.habit,
     required this.checkin,
     required this.onCheckin,
@@ -338,110 +344,105 @@ class _HabitCard extends StatelessWidget {
     final progress = habit.goal <= 1
         ? (habit.doneToday ? 1.0 : 0.0)
         : value / habit.goal;
-    return Material(
-      color: scheme.surface,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: onOpen,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: scheme.outlineVariant.withValues(alpha: 0.5),
-            ),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 46,
-                height: 46,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CircularProgressIndicator(
+    return InkWell(
+      onTap: onOpen,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 6, 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 46,
+                    height: 46,
+                    child: CircularProgressIndicator(
                       value: progress.clamp(0, 1),
-                      strokeWidth: 4,
+                      strokeWidth: 3.5,
+                      strokeCap: StrokeCap.round,
                       color: color,
-                      backgroundColor: color.withValues(alpha: 0.15),
+                      backgroundColor: color.withValues(alpha: 0.16),
                     ),
-                    InkResponse(
-                      onTap: onCheckin,
-                      radius: 22,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: progress >= 1
-                              ? color
-                              : color.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          progress >= 1
-                              ? Icons.check_rounded
-                              : Icons.add_rounded,
-                          size: 18,
-                          color: progress >= 1 ? Colors.white : color,
-                        ),
+                  ),
+                  InkResponse(
+                    onTap: onCheckin,
+                    radius: 22,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: progress >= 1
+                            ? color
+                            : color.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        progress >= 1 ? Icons.check_rounded : Icons.add_rounded,
+                        size: 18,
+                        color: progress >= 1 ? Colors.white : color,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    habit.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      '连续 ${habit.currentStreak} 天',
+                      '累计 ${habit.totalCheckIns} 次',
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (habit.goal > 1) ...[
+                    const SizedBox(height: 4),
                     Text(
-                      habit.name,
-                      style: theme.textTheme.bodyLarge?.copyWith(
+                      '${_number(value)} / ${_number(habit.goal)} ${habit.unit}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: color,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      [
-                        '连续 ${habit.currentStreak} 天',
-                        '最长 ${habit.maxStreak} 天',
-                        '累计 ${habit.totalCheckIns} 次',
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (habit.goal > 1) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        '${_number(value)} / ${_number(habit.goal)} ${habit.unit}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: color,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
                   ],
-                ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: '习惯操作',
-                iconSize: 18,
-                padding: EdgeInsets.zero,
-                onSelected: (value) {
-                  if (value == 'edit') onEdit();
-                  if (value == 'delete') onDelete();
-                },
-                itemBuilder: (context) => const [
-                  PopupMenuItem(value: 'edit', child: Text('编辑')),
-                  PopupMenuItem(value: 'delete', child: Text('删除')),
                 ],
               ),
-            ],
-          ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: '习惯操作',
+              iconSize: 18,
+              padding: EdgeInsets.zero,
+              onSelected: (value) {
+                if (value == 'edit') onEdit();
+                if (value == 'delete') onDelete();
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'edit', child: Text('编辑')),
+                PopupMenuItem(value: 'delete', child: Text('删除')),
+              ],
+            ),
+          ],
         ),
       ),
     );

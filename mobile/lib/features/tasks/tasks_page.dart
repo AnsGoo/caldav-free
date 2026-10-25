@@ -9,6 +9,7 @@ import '../../core/models.dart';
 import '../../core/ui_utils.dart';
 import '../../data/engine/sync_controller.dart';
 import '../../data/reminders/reminder_plan.dart';
+import '../../design/components.dart';
 import '../../design/format.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
@@ -557,17 +558,12 @@ class _TasksPageState extends State<TasksPage> {
 
     return Scaffold(
       appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        backgroundColor: Colors.transparent,
-        toolbarHeight: 72,
+        toolbarHeight: 82,
         titleSpacing: 20,
         title: _selecting
             ? Text(
                 '已选 ${_selectedIds.length} 项',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+                style: theme.textTheme.titleLarge,
               )
             : _searching
             ? TextField(
@@ -575,12 +571,19 @@ class _TasksPageState extends State<TasksPage> {
                 focusNode: _searchFocus,
                 autofocus: true,
                 textInputAction: TextInputAction.search,
+                style: Theme.of(context).textTheme.bodyLarge,
                 onChanged: (value) =>
                     setState(() => _query = value.trim().toLowerCase()),
-                decoration: const InputDecoration(
-                  hintText: '搜索标题、备注、标签、子任务',
+                decoration: InputDecoration(
+                  hintText: '搜索任务、备注、标签',
+                  fillColor: Colors.transparent,
+                  contentPadding: EdgeInsets.zero,
                   border: InputBorder.none,
-                  isDense: true,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               )
             : Column(
@@ -589,12 +592,12 @@ class _TasksPageState extends State<TasksPage> {
                 children: [
                   Text(
                     title,
-                    style: theme.textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontSize: 30,
+                      letterSpacing: -0.9,
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 5),
                   Row(
                     children: [
                       Container(
@@ -611,7 +614,7 @@ class _TasksPageState extends State<TasksPage> {
                           _statusText(sync),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.bodySmall?.copyWith(
+                          style: theme.textTheme.labelSmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
                         ),
@@ -627,7 +630,7 @@ class _TasksPageState extends State<TasksPage> {
                   onPressed: _clearSelection,
                   icon: const Icon(Icons.close_rounded),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
               ]
             : _searching
             ? [
@@ -636,53 +639,16 @@ class _TasksPageState extends State<TasksPage> {
                   onPressed: _closeSearch,
                   icon: const Icon(Icons.close_rounded),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
               ]
             : [
                 if (sync?.phase == SyncPhase.syncing)
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14),
+                    padding: EdgeInsets.symmetric(horizontal: 8),
                     child: SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                else
-                  IconButton(
-                    tooltip: '立即同步',
-                    onPressed: () => app.syncNow(),
-                    icon: const Icon(Icons.sync_rounded),
-                  ),
-                if (_layout == _TaskLayout.list) ...[
-                  IconButton(
-                    tooltip: _completed ? '查看未完成' : '查看已完成',
-                    onPressed: () {
-                      setState(() {
-                        _completed = !_completed;
-                        _manualSort = false;
-                      });
-                      _subscribeTasks();
-                    },
-                    icon: Icon(
-                      _completed
-                          ? Icons.check_circle_rounded
-                          : Icons.check_circle_outline_rounded,
-                      color: _completed ? scheme.primary : null,
-                    ),
-                  ),
-                ],
-                if ((_layout == _TaskLayout.list ||
-                        _layout == _TaskLayout.board) &&
-                    !_completed)
-                  IconButton(
-                    tooltip: _manualSort ? '按截止时间排序' : '手动排序',
-                    onPressed: _toggleManualSort,
-                    icon: Icon(
-                      _manualSort
-                          ? Icons.swap_vert_circle_rounded
-                          : Icons.swap_vert_rounded,
-                      color: _manualSort ? scheme.primary : null,
                     ),
                   ),
                 IconButton(
@@ -703,50 +669,67 @@ class _TasksPageState extends State<TasksPage> {
                 ),
                 PopupMenuButton<String>(
                   tooltip: '更多',
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'diagnostics':
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const SyncDiagnosticsPage(),
-                          ),
-                        );
-                        break;
-                      case 'full':
-                        app.syncNow(full: true);
-                        break;
-                      case 'lists':
-                        _openLists();
-                        break;
-                      case 'trash':
-                        Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => const TrashPage()),
-                        );
-                        break;
-                      case 'logout':
-                        _confirmLogout();
-                        break;
-                    }
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'diagnostics', child: Text('同步诊断')),
-                    PopupMenuItem(value: 'full', child: Text('全量同步')),
-                    PopupMenuItem(value: 'lists', child: Text('清单管理')),
-                    PopupMenuItem(value: 'trash', child: Text('回收站')),
-                    PopupMenuDivider(),
-                    PopupMenuItem(value: 'logout', child: Text('退出登录')),
+                  icon: const Icon(Icons.more_vert_rounded),
+                  onSelected: _handleTaskMenu,
+                  itemBuilder: (context) => [
+                    PopupMenuItem(
+                      value: 'sync',
+                      child: _menuRow(
+                        Icons.sync_rounded,
+                        sync?.phase == SyncPhase.syncing ? '正在同步…' : '立即同步',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'full',
+                      child: _menuRow(Icons.sync_alt_rounded, '全量同步'),
+                    ),
+                    PopupMenuItem(
+                      value: 'completed',
+                      child: _menuRow(
+                        _completed
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.check_circle_rounded,
+                        _completed ? '查看未完成' : '查看已完成',
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'sort',
+                      child: _menuRow(
+                        Icons.swap_vert_rounded,
+                        _manualSort ? '按截止时间排序' : '手动排序',
+                      ),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'lists',
+                      child: _menuRow(Icons.folder_outlined, '清单管理'),
+                    ),
+                    PopupMenuItem(
+                      value: 'trash',
+                      child: _menuRow(Icons.delete_outline_rounded, '回收站'),
+                    ),
+                    PopupMenuItem(
+                      value: 'diagnostics',
+                      child: _menuRow(Icons.troubleshoot_rounded, '同步诊断'),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'logout',
+                      child: _menuRow(Icons.logout_rounded, '退出登录'),
+                    ),
                   ],
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
               ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (sync?.error != null)
             _SyncBanner(message: sync!.error!, onRetry: () => app.syncNow()),
           if (!_searching && !_selecting)
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
               child: _LayoutSwitcher(layout: _layout, onChanged: _setLayout),
             ),
           if (_selecting && _layout == _TaskLayout.list)
@@ -789,19 +772,23 @@ class _TasksPageState extends State<TasksPage> {
               child: visible.isEmpty
                   ? RefreshIndicator(
                       onRefresh: () => app.syncNow(),
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.sizeOf(context).height * 0.35,
-                          ),
-                          _EmptyState(
-                            completed: _completed,
-                            hasLists: _lists.isNotEmpty,
-                            searching: _searching && _query.isNotEmpty,
-                            onSync: () => app.syncNow(),
-                          ),
-                        ],
+                      child: LayoutBuilder(
+                        builder: (context, constraints) => ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: constraints.maxHeight,
+                              child: Center(
+                                child: _EmptyState(
+                                  completed: _completed,
+                                  hasLists: _lists.isNotEmpty,
+                                  searching: _searching && _query.isNotEmpty,
+                                  onSync: () => app.syncNow(),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     )
                   : _manualSort
@@ -1008,6 +995,43 @@ class _TasksPageState extends State<TasksPage> {
     return const Color(0xFF22C55E);
   }
 
+  Future<void> _handleTaskMenu(String value) async {
+    final app = context.read<AppState>();
+    switch (value) {
+      case 'sync':
+        app.syncNow();
+        break;
+      case 'full':
+        app.syncNow(full: true);
+        break;
+      case 'completed':
+        setState(() {
+          _completed = !_completed;
+          _manualSort = false;
+        });
+        _subscribeTasks();
+        break;
+      case 'sort':
+        _toggleManualSort();
+        break;
+      case 'lists':
+        _openLists();
+        break;
+      case 'trash':
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const TrashPage()));
+        break;
+      case 'diagnostics':
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SyncDiagnosticsPage()));
+        break;
+      case 'logout':
+        await _confirmLogout();
+        break;
+    }
+  }
+
   Future<void> _addTask() async {
     if (_adding) return;
     final title = _quickAdd.text.trim();
@@ -1052,6 +1076,17 @@ class _TasksPageState extends State<TasksPage> {
     } catch (error) {
       _snack('删除失败：$error');
     }
+  }
+
+  Widget _menuRow(IconData icon, String label) {
+    final color = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Icon(icon, size: 19, color: color.onSurfaceVariant),
+        const SizedBox(width: 12),
+        Text(label),
+      ],
+    );
   }
 
   void _openLists() {
@@ -1147,41 +1182,14 @@ class _LayoutSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: SegmentedButton<_TaskLayout>(
-        showSelectedIcon: false,
-        segments: const [
-          ButtonSegment(
-            value: _TaskLayout.list,
-            icon: Icon(Icons.view_list_rounded, size: 17),
-            label: Text('列表'),
-          ),
-          ButtonSegment(
-            value: _TaskLayout.board,
-            icon: Icon(Icons.view_kanban_outlined, size: 17),
-            label: Text('看板'),
-          ),
-          ButtonSegment(
-            value: _TaskLayout.matrix,
-            icon: Icon(Icons.grid_view_rounded, size: 17),
-            label: Text('矩阵'),
-          ),
-          ButtonSegment(
-            value: _TaskLayout.timeline,
-            icon: Icon(Icons.view_timeline_outlined, size: 17),
-            label: Text('时间线'),
-          ),
-        ],
-        selected: {layout},
-        onSelectionChanged: (values) => onChanged(values.first),
-        style: const ButtonStyle(
-          visualDensity: VisualDensity.compact,
-          padding: WidgetStatePropertyAll(
-            EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          ),
-          textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      child: AppUnderlineTabs<_TaskLayout>(
+        values: _TaskLayout.values,
+        labels: const ['列表', '看板', '矩阵', '时间线'],
+        selected: layout,
+        onChanged: onChanged,
+        padding: EdgeInsets.zero,
       ),
     );
   }
@@ -1456,12 +1464,12 @@ class _ListSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return SizedBox(
-      height: 46,
+      height: 44,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         itemCount: lists.length + 4,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _SelectorChip(
@@ -1528,32 +1536,27 @@ class _SelectorChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final foreground = selected ? scheme.primary : scheme.onSurfaceVariant;
     return Material(
-      color: selected ? color.withValues(alpha: 0.14) : scheme.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(999),
-        side: BorderSide(
-          color: selected
-              ? color.withValues(alpha: 0.5)
-              : scheme.outlineVariant.withValues(alpha: 0.6),
-        ),
-      ),
+      color: selected ? scheme.primaryContainer : Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(999),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null)
-                Icon(icon, size: 14, color: color)
+                Icon(icon, size: 14, color: foreground)
               else
                 Container(
-                  width: 8,
-                  height: 8,
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(
-                    color: color,
+                    color: selected ? scheme.primary : color,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -1561,7 +1564,7 @@ class _SelectorChip extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: selected ? color : scheme.onSurfaceVariant,
+                  color: foreground,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
@@ -1654,30 +1657,29 @@ class _TaskTile extends StatelessWidget {
         ),
       ),
       child: Material(
-        color: selected
-            ? scheme.primary.withValues(alpha: 0.08)
-            : scheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        color: selected ? scheme.primaryContainer : scheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           onTap: onTap,
           onLongPress: onLongPress,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+            padding: const EdgeInsets.fromLTRB(10, 14, 14, 14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: selected
-                    ? scheme.primary
-                    : scheme.outlineVariant.withValues(alpha: 0.5),
-                width: selected ? 1.6 : 1,
-              ),
+              borderRadius: BorderRadius.circular(18),
+              border: selected
+                  ? Border.all(
+                      color: scheme.primary.withValues(alpha: 0.45),
+                      width: 1.2,
+                    )
+                  : null,
             ),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 _CheckCircle(completed: task.completed, onTap: onToggle),
-                const SizedBox(width: 12),
+                const SizedBox(width: 4),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1685,8 +1687,10 @@ class _TaskTile extends StatelessWidget {
                       Text(
                         task.title,
                         style: theme.textTheme.bodyLarge?.copyWith(
+                          fontSize: 15.5,
                           fontWeight: FontWeight.w600,
-                          height: 1.35,
+                          height: 1.32,
+                          letterSpacing: -0.1,
                           decoration: task.completed
                               ? TextDecoration.lineThrough
                               : null,
@@ -1713,9 +1717,9 @@ class _TaskTile extends StatelessWidget {
                           task.pinned ||
                           task.reminderOffsets.isNotEmpty ||
                           task.recurrence.isNotEmpty) ...[
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 6),
                         Wrap(
-                          spacing: 8,
+                          spacing: 10,
                           runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
@@ -1822,7 +1826,7 @@ class _MetaBadge extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null)
-          Icon(icon, size: 13, color: color)
+          Icon(icon, size: 14, color: color)
         else if (dotColor != null)
           Container(
             width: 6,
@@ -1834,6 +1838,7 @@ class _MetaBadge extends StatelessWidget {
           Text(
             text,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontSize: 12,
               color: color,
               fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
             ),
@@ -1853,9 +1858,9 @@ class _TagBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: 0.09),
+        color: scheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -1882,25 +1887,29 @@ class _CheckCircle extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 1, right: 2, bottom: 6),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: completed ? scheme.primary : Colors.transparent,
-              border: Border.all(
-                color: completed
-                    ? scheme.primary
-                    : scheme.outline.withValues(alpha: 0.65),
-                width: 1.6,
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: completed ? scheme.primary : Colors.transparent,
+                border: Border.all(
+                  color: completed
+                      ? scheme.primary
+                      : scheme.outline.withValues(alpha: 0.8),
+                  width: 1.6,
+                ),
               ),
+              child: completed
+                  ? Icon(Icons.check_rounded, size: 16, color: scheme.onPrimary)
+                  : null,
             ),
-            child: completed
-                ? Icon(Icons.check_rounded, size: 15, color: scheme.onPrimary)
-                : null,
           ),
         ),
       ),
@@ -1923,47 +1932,25 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Container(
-          width: 64,
-          height: 64,
-          decoration: BoxDecoration(
-            color: scheme.primary.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(
-            completed ? Icons.task_alt_rounded : Icons.playlist_add_rounded,
-            color: scheme.primary,
-            size: 30,
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          searching
-              ? '没有匹配的任务'
-              : (completed ? '还没有已完成任务' : (hasLists ? '这里还没有任务' : '正在获取清单…')),
-          style: Theme.of(context).textTheme.titleSmall
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          searching
-              ? '试试标题、备注、标签或子任务里的关键词'
-              : (completed ? '完成的任务会出现在这里' : '在下方输入框添加第一条任务，离线也能记录'),
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: scheme.onSurfaceVariant),
-        ),
-        if (!hasLists) ...[
-          const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: onSync,
-            icon: const Icon(Icons.sync_rounded, size: 18),
-            label: const Text('立即同步'),
-          ),
-        ],
-      ],
+    return AppEmptyState(
+      icon: searching
+          ? Icons.search_off_rounded
+          : completed
+          ? Icons.task_alt_rounded
+          : Icons.checklist_rounded,
+      title: searching
+          ? '没有匹配的任务'
+          : (completed ? '还没有已完成任务' : (hasLists ? '这里还没有任务' : '正在获取清单…')),
+      message: searching
+          ? '试试标题、备注、标签或子任务里的关键词'
+          : (completed ? '完成的任务会出现在这里' : '在下方输入框添加第一条任务，离线也能记录'),
+      action: !hasLists
+          ? TextButton.icon(
+              onPressed: onSync,
+              icon: const Icon(Icons.sync_rounded, size: 18),
+              label: const Text('立即同步'),
+            )
+          : null,
     );
   }
 }
@@ -1988,51 +1975,63 @@ class _QuickAddBar extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return SafeArea(
       top: false,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          border: Border(
-            top: BorderSide(
-              color: scheme.outlineVariant.withValues(alpha: 0.5),
-            ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                enabled: enabled,
-                textInputAction: TextInputAction.done,
-                onSubmitted: (_) => onAdd(),
-                decoration: InputDecoration(
-                  isDense: true,
-                  hintText: enabled ? '添加到「$listName」' : '等待清单同步…',
-                  prefixIcon: const Icon(Icons.add_rounded, size: 20),
-                  filled: true,
-                  fillColor: scheme.surfaceContainerHighest.withValues(
-                    alpha: 0.55,
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide.none,
+          child: Row(
+            children: [
+              const SizedBox(width: 8),
+              Icon(Icons.add_rounded, size: 20, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  enabled: enabled,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => onAdd(),
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: enabled ? '添加到「$listName」' : '等待清单同步…',
+                    filled: false,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                    hintStyle: Theme.of(context).textTheme.bodyMedium
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
-              tooltip: '添加任务',
-              onPressed: enabled ? onAdd : null,
-              icon: const Icon(Icons.arrow_upward_rounded),
-            ),
-          ],
+              const SizedBox(width: 6),
+              IconButton.filled(
+                tooltip: '添加任务',
+                onPressed: enabled ? onAdd : null,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(40, 40),
+                  maximumSize: const Size(40, 40),
+                  backgroundColor: scheme.primary,
+                  foregroundColor: scheme.onPrimary,
+                  disabledBackgroundColor: scheme.surfaceContainerHighest,
+                  disabledForegroundColor: scheme.onSurfaceVariant,
+                ),
+                icon: const Icon(Icons.arrow_upward_rounded, size: 20),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -2554,6 +2553,23 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                     color: _pinned ? scheme.primary : scheme.onSurfaceVariant,
                   ),
                 ),
+                IconButton.filled(
+                  tooltip: '保存',
+                  onPressed: _saving ? null : _save,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(40, 40),
+                    maximumSize: const Size(40, 40),
+                    backgroundColor: scheme.primary,
+                    foregroundColor: scheme.onPrimary,
+                  ),
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_rounded, size: 20),
+                ),
                 if (task.completed)
                   Text(
                     '已完成',
@@ -2567,23 +2583,31 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _title,
-              autofocus: true,
               maxLines: null,
               textInputAction: TextInputAction.next,
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w600,
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.4,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: '任务标题',
+                filled: false,
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
                 contentPadding: EdgeInsets.zero,
+                hintStyle: theme.textTheme.headlineSmall?.copyWith(
+                  fontSize: 24,
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
             const Divider(height: 24),
             TextField(
               controller: _notes,
-              maxLines: 6,
-              minLines: 3,
+              maxLines: 5,
+              minLines: 2,
               style: theme.textTheme.bodyMedium?.copyWith(height: 1.5),
               decoration: InputDecoration(
                 hintText: '备注',
@@ -2615,13 +2639,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               label: Text(
                 context.read<AppState>().store.list(_listId)?.name ?? '选择清单',
               ),
-              style: OutlinedButton.styleFrom(
-                alignment: Alignment.centerLeft,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 14,
-                ),
-              ),
+              style: _pickerStyle(context),
             ),
             const SizedBox(height: 16),
             _sheetLabel(context, '开始时间'),
@@ -2637,13 +2655,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                           ? '设置开始时间'
                           : formatDue(_startAt!, allDay: _allDay),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                    ),
+                    style: _pickerStyle(context),
                   ),
                 ),
                 if (_startAt != null)
@@ -2668,13 +2680,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                     label: Text(
                       due == null ? '设置日期' : formatDue(due, allDay: _allDay),
                     ),
-                    style: OutlinedButton.styleFrom(
-                      alignment: Alignment.centerLeft,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 14,
-                      ),
-                    ),
+                    style: _pickerStyle(context),
                   ),
                 ),
                 if (due != null)
@@ -2920,6 +2926,19 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  ButtonStyle _pickerStyle(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return OutlinedButton.styleFrom(
+      backgroundColor: scheme.surfaceContainerLow,
+      foregroundColor: scheme.onSurface,
+      side: BorderSide.none,
+      alignment: Alignment.centerLeft,
+      minimumSize: const Size(0, 50),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
     );
   }
 

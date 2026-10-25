@@ -5,6 +5,7 @@ import 'package:caldav_free/data/session/credentials.dart';
 import 'package:caldav_free/data/tasks_repository.dart';
 import 'package:caldav_free/features/auth/login_page.dart';
 import 'package:caldav_free/features/lists/lists_page.dart';
+import 'package:caldav_free/features/search/search_page.dart';
 import 'package:caldav_free/features/tasks/tasks_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,6 +103,64 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('买牛奶'), findsOneWidget);
     expect(find.text('写周报'), findsOneWidget);
+  });
+
+  testWidgets('global search finds tasks across lists', (tester) async {
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
+    );
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'task-milk',
+        listId: 'inbox-1',
+        title: '买牛奶',
+        notes: '顺便买面包',
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'task-report',
+        listId: 'work-1',
+        title: '写周报',
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: SearchPage(loadRemote: false)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('搜索所有内容'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).first, '牛奶');
+    await tester.pumpAndSettle();
+    expect(find.text('买牛奶'), findsOneWidget);
+    expect(find.text('写周报'), findsNothing);
+
+    await tester.enterText(find.byType(TextField).first, '周报');
+    await tester.pumpAndSettle();
+    expect(find.text('写周报'), findsOneWidget);
+    expect(find.text('买牛奶'), findsNothing);
   });
 
   testWidgets('layout switcher renders board, matrix and timeline', (

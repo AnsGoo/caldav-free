@@ -13,6 +13,7 @@ import '../../design/components.dart';
 import '../../design/format.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
+import '../search/search_page.dart';
 import '../settings/theme_sheet.dart';
 import 'board_view.dart';
 import 'matrix_view.dart';
@@ -679,6 +680,10 @@ class _TasksPageState extends State<TasksPage> {
                   onSelected: _handleTaskMenu,
                   itemBuilder: (context) => [
                     PopupMenuItem(
+                      value: 'search',
+                      child: _menuRow(Icons.search_rounded, '全局搜索'),
+                    ),
+                    PopupMenuItem(
                       value: 'sync',
                       child: _menuRow(
                         Icons.sync_rounded,
@@ -1008,6 +1013,9 @@ class _TasksPageState extends State<TasksPage> {
   Future<void> _handleTaskMenu(String value) async {
     final app = context.read<AppState>();
     switch (value) {
+      case 'search':
+        await _openGlobalSearch();
+        break;
       case 'sync':
         app.syncNow();
         break;
@@ -1100,6 +1108,14 @@ class _TasksPageState extends State<TasksPage> {
         Text(label),
       ],
     );
+  }
+
+  Future<void> _openGlobalSearch() async {
+    final task = await Navigator.of(context)
+        .push<TaskItem>(MaterialPageRoute(builder: (_) => const SearchPage()));
+    if (task == null || !mounted) return;
+    final list = context.read<AppState>().store.list(task.listId);
+    _openEditor(task, list);
   }
 
   Future<void> _openTheme() async {

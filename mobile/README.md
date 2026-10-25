@@ -33,7 +33,9 @@ pushes it in the background.
   a calendar view menu, 3-day and year views, holiday labels, and per-day
   lunar/solar-term/festival labels. Habits now have a week strip, per-day
   check-in history and section grouping. Board, matrix and timeline views were
-  rebuilt with compact, borderless cards. See `docs/客户端UI设计.md`.
+  rebuilt with compact, borderless cards. Global search covers local tasks
+  plus remote events, habits and countdowns, with task filters for status,
+  priority, list, due date and tags. See `docs/客户端UI设计.md`.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.

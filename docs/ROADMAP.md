@@ -155,6 +155,8 @@
 | 149 | Android UI 重构第四批：习惯 section 分组、sectionId 保留与回到今天 | `5707f94` |
 | 150 | Android UI 重构第五批：看板列头/无边框卡片/列头添加/空列拖放区 | `01cae3f` |
 | 151 | Android UI 重构第五批：矩阵白卡与紧凑象限、时间线日期头与紧凑列 | `01cae3f` |
+| 152 | Android 全局搜索：本地任务搜索 + 日程/习惯/倒数远程搜索 | — |
+| 153 | Android 全局搜索：任务状态/优先级/清单/日期/标签筛选与结果分组 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -162,7 +164,7 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现，并完成五轮 UI 重构（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现，并完成五轮 UI 重构与全局搜索第一批（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）

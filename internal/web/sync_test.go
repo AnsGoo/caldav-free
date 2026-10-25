@@ -612,6 +612,40 @@ func TestSyncCalendarEndpoint(t *testing.T) {
 	}
 }
 
+func TestSyncCalendarAlmanac(t *testing.T) {
+	env := newAPIEnv(t)
+
+	status, body := env.syncRequest(
+		t,
+		"GET",
+		"/api/sync/calendar/almanac?from=2026-10-01&to=2026-10-10",
+		nil,
+	)
+	if status != http.StatusOK {
+		t.Fatalf("almanac = %d: %s", status, body)
+	}
+	result := decode[struct {
+		Days []struct {
+			Date     string `json:"date"`
+			Lunar    string `json:"lunar"`
+			JieQi    string `json:"jieQi"`
+			Festival string `json:"festival"`
+			Label    string `json:"label"`
+		} `json:"days"`
+	}](t, body)
+	if len(result.Days) != 9 {
+		t.Fatalf("almanac days = %d: %s", len(result.Days), body)
+	}
+	october := result.Days[0]
+	if october.Date != "2026-10-01" || october.Festival != "国庆节" || october.Label != "国庆节" {
+		t.Fatalf("national day almanac: %+v", october)
+	}
+	october8 := result.Days[7]
+	if october8.Date != "2026-10-08" || october8.JieQi != "寒露" || october8.Label != "寒露" {
+		t.Fatalf("cold dew almanac: %+v", october8)
+	}
+}
+
 func TestSyncCountdowns(t *testing.T) {
 	env := newAPIEnv(t)
 

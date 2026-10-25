@@ -135,6 +135,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sync/pull", s.apiSyncPull)
 	mux.HandleFunc("POST /api/sync/push", s.apiSyncPush)
 	mux.HandleFunc("GET /api/sync/calendar", s.apiSyncCalendar)
+	mux.HandleFunc("GET /api/sync/calendar/almanac", s.apiSyncCalendarAlmanac)
 	mux.HandleFunc("GET /api/sync/countdowns", s.apiSyncCountdowns)
 	mux.HandleFunc("POST /api/sync/countdowns", s.apiSyncCountdowns)
 	mux.HandleFunc("PATCH /api/sync/countdowns/{id}", s.apiSyncCountdown)

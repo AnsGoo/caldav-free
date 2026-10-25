@@ -726,6 +726,92 @@ func TestSyncEventCRUD(t *testing.T) {
 	}
 }
 
+func TestSyncRecurringEventOccurrence(t *testing.T) {
+	env := newAPIEnv(t)
+	ctx := context.Background()
+	cal, err := env.store.CreateCalendar(
+		ctx, env.userID, "p3-recur", "重复日历", "", "#22c55e",
+		"Asia/Shanghai", 1, []string{"VEVENT"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, body := env.syncRequest(t, "POST", "/api/sync/events", map[string]any{
+		"calendarId": cal.ID,
+		"summary":    "每日站会",
+		"start":      "2026-10-26T10:00:00+08:00",
+		"end":        "2026-10-26T10:30:00+08:00",
+		"rrule":      "FREQ=DAILY;COUNT=3",
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create recurring = %d: %s", status, body)
+	}
+	created := decode[map[string]any](t, body)
+	href, _ := created["href"].(string)
+
+	read := func() []apiCalendarEvent {
+		status, body := env.syncRequest(
+			t, "GET", "/api/sync/calendar?from=2026-10-26&to=2026-10-30", nil,
+		)
+		if status != http.StatusOK {
+			t.Fatalf("calendar = %d: %s", status, body)
+		}
+		snapshot := decode[struct {
+			Events []apiCalendarEvent `json:"events"`
+		}](t, body)
+		return snapshot.Events
+	}
+
+	occurrences := read()
+	if len(occurrences) != 3 {
+		t.Fatalf("occurrences = %d: %+v", len(occurrences), occurrences)
+	}
+	occurrence := occurrences[0]
+	if occurrence.RecurrenceID == "" {
+		t.Fatalf("missing recurrence id: %+v", occurrence)
+	}
+
+	status, body = env.syncRequest(t, "PUT", "/api/sync/events", map[string]any{
+		"calendarId":   cal.ID,
+		"href":         href,
+		"scope":        "single",
+		"recurrenceId": occurrence.RecurrenceID,
+		"summary":      "单次改",
+		"start":        occurrence.Start,
+		"end":          occurrence.End,
+	})
+	if status != http.StatusOK {
+		t.Fatalf("single update = %d: %s", status, body)
+	}
+	occurrences = read()
+	if len(occurrences) != 3 {
+		t.Fatalf("occurrences after single update = %d", len(occurrences))
+	}
+	changed := false
+	for _, item := range occurrences {
+		if item.Summary == "单次改" {
+			changed = true
+		}
+	}
+	if !changed {
+		t.Fatalf("single update not visible: %+v", occurrences)
+	}
+
+	status, body = env.syncRequest(
+		t, "DELETE",
+		"/api/sync/events?calendarId="+strconv.FormatInt(cal.ID, 10)+
+			"&href="+url.QueryEscape(href)+
+			"&recurrenceId="+url.QueryEscape(occurrence.RecurrenceID),
+		nil,
+	)
+	if status != http.StatusNoContent {
+		t.Fatalf("single delete = %d: %s", status, body)
+	}
+	if items := read(); len(items) != 2 {
+		t.Fatalf("occurrences after single delete = %d: %+v", len(items), items)
+	}
+}
+
 func TestSyncRejectsCrossKindAndBadBaseEtag(t *testing.T) {
 	env := newAPIEnv(t)
 	listPush := env.push(t, syncapi.PushOp{

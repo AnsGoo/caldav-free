@@ -13,18 +13,20 @@ import (
 )
 
 type syncEventBody struct {
-	CalendarID  int64    `json:"calendarId"`
-	Href        string   `json:"href"`
-	Summary     string   `json:"summary"`
-	Location    string   `json:"location"`
-	Description string   `json:"description"`
-	Start       string   `json:"start"`
-	End         string   `json:"end"`
-	AllDay      bool     `json:"allDay"`
-	RRule       string   `json:"rrule"`
-	Count       int      `json:"count"`
-	Reminders   []int    `json:"reminders"`
-	Attendees   []string `json:"attendees"`
+	CalendarID   int64    `json:"calendarId"`
+	Href         string   `json:"href"`
+	Summary      string   `json:"summary"`
+	Location     string   `json:"location"`
+	Description  string   `json:"description"`
+	Start        string   `json:"start"`
+	End          string   `json:"end"`
+	AllDay       bool     `json:"allDay"`
+	RRule        string   `json:"rrule"`
+	Count        int      `json:"count"`
+	Reminders    []int    `json:"reminders"`
+	Attendees    []string `json:"attendees"`
+	Scope        string   `json:"scope"`
+	RecurrenceID string   `json:"recurrenceId"`
 }
 
 func (s *Server) syncEventCalendar(ctx context.Context, userID, calendarID int64) (*store.Calendar, bool) {
@@ -138,6 +140,46 @@ func (s *Server) apiSyncUpdateEvent(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if strings.EqualFold(body.Scope, "single") {
+		patch := eventPatchBody{
+			Summary: body.Summary, Location: body.Location,
+			Description: body.Description, Start: body.Start, End: body.End,
+			AllDay: body.AllDay, RRule: body.RRule, Count: body.Count,
+			Scope: "single", RecurrenceID: body.RecurrenceID,
+			Reminders: body.Reminders, Attendees: body.Attendees,
+		}
+		data, err := buildOccurrenceUpdate(cal, obj, patch, start, end, tzid)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		parsed, err := ical.Load(data, cal.Timezone)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+			return
+		}
+		info, err := parsed.Analyze()
+		if err != nil || info.ComponentType != "VEVENT" {
+			writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+			return
+		}
+		obj.Data = data
+		obj.ETag = hashData(data)
+		obj.ComponentType = info.ComponentType
+		obj.FirstStart = unixOrZero(info.FirstStart)
+		obj.LastEnd = unixOrZero(info.LastEnd)
+		obj.Recurring = info.Recurring
+		obj.Size = int64(len(data))
+		if _, _, _, err := s.store.PutObject(ctx, obj); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "保存事件失败")
+			return
+		}
+		writeAPIJSON(w, http.StatusOK, map[string]any{
+			"href": obj.Href,
+			"uid":  obj.UID,
+		})
+		return
+	}
 	data, uid, err := buildEventICS(
 		cal, obj.UID, body.Summary, body.Location, body.Description,
 		start, end, body.AllDay, tzid, body.RRule, body.Count,
@@ -196,11 +238,47 @@ func (s *Server) apiSyncDeleteEvent(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusNotFound, "日历不存在或不可写")
 		return
 	}
-	if _, _, err := s.store.DeleteObject(ctx, cal.ID, href); err != nil {
-		if err == store.ErrNotFound {
-			writeAPIError(w, http.StatusNotFound, "事件不存在")
+	recurrenceID := strings.TrimSpace(r.URL.Query().Get("recurrenceId"))
+	if recurrenceID == "" {
+		if _, _, err := s.store.DeleteObject(ctx, cal.ID, href); err != nil {
+			if err == store.ErrNotFound {
+				writeAPIError(w, http.StatusNotFound, "事件不存在")
+				return
+			}
+			writeAPIError(w, http.StatusInternalServerError, "删除事件失败")
 			return
 		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	obj, err := s.store.GetObject(ctx, cal.ID, href)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "事件不存在")
+		return
+	}
+	data, err := buildOccurrenceDelete(cal, obj, recurrenceID)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	parsed, err := ical.Load(data, cal.Timezone)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+		return
+	}
+	info, err := parsed.Analyze()
+	if err != nil || info.ComponentType != "VEVENT" {
+		writeAPIError(w, http.StatusBadRequest, "事件数据无效")
+		return
+	}
+	obj.Data = data
+	obj.ETag = hashData(data)
+	obj.ComponentType = info.ComponentType
+	obj.FirstStart = unixOrZero(info.FirstStart)
+	obj.LastEnd = unixOrZero(info.LastEnd)
+	obj.Recurring = info.Recurring
+	obj.Size = int64(len(data))
+	if _, _, _, err := s.store.PutObject(ctx, obj); err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "删除事件失败")
 		return
 	}

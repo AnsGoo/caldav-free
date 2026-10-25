@@ -246,6 +246,13 @@ func parseTarget(u *url.URL) (target, bool) {
 	return t, true
 }
 
+// Authenticate validates HTTP Basic credentials using the same short-lived
+// cache as CalDAV requests. It is exported so the JSON sync API can share the
+// credential cache instead of hashing PBKDF2 on every request.
+func (h *Handler) Authenticate(r *http.Request) (*store.User, bool) {
+	return h.authenticate(r)
+}
+
 func (h *Handler) authenticate(r *http.Request) (*store.User, bool) {
 	username, password, ok := r.BasicAuth()
 	if !ok || username == "" {

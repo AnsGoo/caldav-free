@@ -176,7 +176,7 @@ func Open(path string) (*Store, error) {
 	dsn += sep + "_pragma=busy_timeout(10000)&_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)&_pragma=synchronous(NORMAL)"
 
 	db, err := gorm.Open(sqlite.Dialector{DriverName: "sqlite", DSN: dsn}, &gorm.Config{
-		Logger:  logger.Default.LogMode(logger.Silent),
+		Logger:  logger.Default.LogMode(sqlLogLevel()),
 		NowFunc: func() time.Time { return time.Now().UTC() },
 	})
 	if err != nil {
@@ -192,7 +192,14 @@ func Open(path string) (*Store, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &TaskSection{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}, &TaskComment{}, &CommentAttachment{}, &EventReminderDelivery{}, &EventSnooze{}, &TaskSnooze{}, &TaskActivity{}, &TaskTagColor{}, &MatrixView{}, &MatrixRuleTemplate{}, &Habit{}, &HabitSection{}, &HabitCheckin{}, &HabitRecord{}, &HabitPreference{}, &HabitFocusSession{}, &HabitShare{}, &FocusSession{}, &FocusPreference{}, &FocusTimerState{}, &CountdownEvent{}, &CountdownBackground{}, &TaskShare{}, &TaskRecurrenceInstance{}, &TaskTemplate{}, &TaskAttachment{}, &CalendarSubscription{}); err != nil {
+	// AutoMigrate may recreate SQLite tables by renaming/dropping them. Drop
+	// the journal triggers first so SQLite's schema reparse cannot trip over a
+	// temporarily missing sync_logs table; installSyncJournal reinstalls them.
+	if err := dropSyncTriggers(db); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("prepare sync journal: %w", err)
+	}
+	if err := db.WithContext(ctx).AutoMigrate(&User{}, &Calendar{}, &Object{}, &SyncChange{}, &Setting{}, &TaskFolder{}, &TaskList{}, &TaskSection{}, &Task{}, &SavedFilter{}, &SummaryDocument{}, &PushSubscription{}, &ReminderDelivery{}, &ReminderAttempt{}, &TaskListShare{}, &Notification{}, &TaskComment{}, &CommentAttachment{}, &EventReminderDelivery{}, &EventSnooze{}, &TaskSnooze{}, &TaskActivity{}, &TaskTagColor{}, &MatrixView{}, &MatrixRuleTemplate{}, &Habit{}, &HabitSection{}, &HabitCheckin{}, &HabitRecord{}, &HabitPreference{}, &HabitFocusSession{}, &HabitShare{}, &FocusSession{}, &FocusPreference{}, &FocusTimerState{}, &CountdownEvent{}, &CountdownBackground{}, &TaskShare{}, &TaskRecurrenceInstance{}, &TaskTemplate{}, &TaskAttachment{}, &CalendarSubscription{}, &SyncLog{}, &SyncOp{}); err != nil {
 		sqlDB.Close()
 		return nil, fmt.Errorf("migrate schema: %w", err)
 	}
@@ -218,6 +225,21 @@ func Open(path string) (*Store, error) {
 		sqlDB.Close()
 		return nil, fmt.Errorf("backfill recurrence anchors: %w", err)
 	}
+	if err := installSyncJournal(db); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("install sync journal: %w", err)
+	}
+	// Journal retention: clients that have not synced within this window must
+	// perform a full sync (cursor 0).
+	now := time.Now().UTC()
+	if err := db.WithContext(ctx).Where("created_at < ?", now.Add(-90*24*time.Hour).Unix()).Delete(&SyncLog{}).Error; err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("prune sync journal: %w", err)
+	}
+	if err := db.WithContext(ctx).Where("created_at < ?", now.Add(-7*24*time.Hour).Unix()).Delete(&SyncOp{}).Error; err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("prune sync operations: %w", err)
+	}
 	if path != ":memory:" && !strings.HasPrefix(path, "file:") {
 		// The database contains credentials and calendar data.
 		_ = os.Chmod(path, 0o600)
@@ -236,6 +258,15 @@ func (s *Store) Close() error {
 
 // DB exposes the GORM handle (used by tests and maintenance commands).
 func (s *Store) DB() *gorm.DB { return s.db }
+
+// sqlLogLevel keeps migrations quiet in production while allowing
+// CALDAV_SQL_DEBUG=1 to trace schema changes.
+func sqlLogLevel() logger.LogLevel {
+	if os.Getenv("CALDAV_SQL_DEBUG") != "" {
+		return logger.Info
+	}
+	return logger.Silent
+}
 
 func translate(err error) error {
 	if err == nil {

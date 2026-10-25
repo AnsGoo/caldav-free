@@ -18,6 +18,7 @@ import (
 // exactly one inbox list, created lazily on first use.
 type TaskList struct {
 	ID         int64     `gorm:"primaryKey"`
+	SyncID     string    `gorm:"column:sync_id;size:64;not null;default:''"`
 	UserID     int64     `gorm:"not null;uniqueIndex:idx_tasklist_owner_name,priority:1;index:idx_tasklist_user"`
 	FolderID   int64     `gorm:"not null;default:0;index:idx_tasklist_folder"`
 	Name       string    `gorm:"size:190;not null;uniqueIndex:idx_tasklist_owner_name,priority:2"`
@@ -33,6 +34,7 @@ type TaskList struct {
 // TaskSection is a user-defined kanban column inside one task list.
 type TaskSection struct {
 	ID         int64     `gorm:"primaryKey"`
+	SyncID     string    `gorm:"column:sync_id;size:64;not null;default:''"`
 	UserID     int64     `gorm:"not null;index:idx_tasksection_user"`
 	ListID     int64     `gorm:"not null;uniqueIndex:idx_tasksection_list_name,priority:1;index:idx_tasksection_list"`
 	Name       string    `gorm:"size:120;not null;uniqueIndex:idx_tasksection_list_name,priority:2"`
@@ -46,6 +48,7 @@ type TaskSection struct {
 // inspected before a future purge.
 type Task struct {
 	ID          int64      `gorm:"primaryKey"`
+	SyncID      string     `gorm:"column:sync_id;size:64;not null;default:''"`
 	UserID      int64      `gorm:"not null;index:idx_task_user_completed,priority:1;index:idx_task_user_due,priority:1"`
 	ListID      int64      `gorm:"not null;index:idx_task_list_completed,priority:1"`
 	ParentID    int64      `gorm:"not null;default:0;index:idx_task_parent"`
@@ -233,6 +236,12 @@ func (s *Store) CreateTaskList(ctx context.Context, userID int64, name, color st
 
 // CreateTaskListKind adds a task or note list for the user.
 func (s *Store) CreateTaskListKind(ctx context.Context, userID int64, name, color, kind string) (*TaskList, error) {
+	return s.CreateTaskListKindWithSyncID(ctx, userID, name, color, kind, "")
+}
+
+// CreateTaskListKindWithSyncID adds a list using a caller-supplied sync ID.
+// Sync clients generate IDs offline, so the server must honor them.
+func (s *Store) CreateTaskListKindWithSyncID(ctx context.Context, userID int64, name, color, kind, syncID string) (*TaskList, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("list name is required")
@@ -243,7 +252,7 @@ func (s *Store) CreateTaskListKind(ctx context.Context, userID int64, name, colo
 	var maxOrder int
 	_ = s.db.WithContext(ctx).Model(&TaskList{}).Where("user_id = ?", userID).
 		Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
-	list := TaskList{UserID: userID, Name: name, Color: color, Kind: kind, Order: maxOrder + 1}
+	list := TaskList{UserID: userID, SyncID: syncID, Name: name, Color: color, Kind: kind, Order: maxOrder + 1}
 	if err := s.db.WithContext(ctx).Create(&list).Error; err != nil {
 		if errors.Is(translate(err), ErrConflict) {
 			return nil, ErrConflict
@@ -717,6 +726,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	normalizeTaskTimes(task)
 	updates := map[string]any{
 		"list_id":           task.ListID,
+		"parent_id":         task.ParentID,
 		"section_id":        task.SectionID,
 		"title":             task.Title,
 		"notes":             task.Notes,
@@ -724,6 +734,7 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 		"notes_text":        task.NotesText,
 		"kind":              task.Kind,
 		"priority":          task.Priority,
+		"start_at":          task.StartAt,
 		"due_at":            task.DueAt,
 		"recurrence":        task.Recurrence,
 		"recurrence_anchor": task.RecurrenceAnchor,
@@ -1049,6 +1060,11 @@ func (s *Store) GetTaskSection(ctx context.Context, userID, id int64) (*TaskSect
 
 // CreateTaskSection appends a column to a list.
 func (s *Store) CreateTaskSection(ctx context.Context, userID, listID int64, name string) (*TaskSection, error) {
+	return s.CreateTaskSectionWithSyncID(ctx, userID, listID, name, "")
+}
+
+// CreateTaskSectionWithSyncID appends a column using a caller-supplied sync ID.
+func (s *Store) CreateTaskSectionWithSyncID(ctx context.Context, userID, listID int64, name, syncID string) (*TaskSection, error) {
 	if _, err := s.GetTaskList(ctx, userID, listID); err != nil {
 		return nil, err
 	}
@@ -1060,7 +1076,7 @@ func (s *Store) CreateTaskSection(ctx context.Context, userID, listID int64, nam
 	_ = s.db.WithContext(ctx).Model(&TaskSection{}).
 		Where("user_id = ? AND list_id = ?", userID, listID).
 		Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
-	section := &TaskSection{UserID: userID, ListID: listID, Name: name, Order: maxOrder + 1}
+	section := &TaskSection{UserID: userID, SyncID: syncID, ListID: listID, Name: name, Order: maxOrder + 1}
 	if err := s.db.WithContext(ctx).Create(section).Error; err != nil {
 		if errors.Is(translate(err), ErrConflict) {
 			return nil, ErrConflict

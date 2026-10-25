@@ -22,6 +22,7 @@ import (
 	"caldav-free/internal/dav"
 	"caldav-free/internal/ical"
 	"caldav-free/internal/store"
+	"caldav-free/internal/syncapi"
 	"caldav-free/internal/tasksync"
 )
 
@@ -56,6 +57,7 @@ type Server struct {
 	// CalDAVURL is the public CalDAV base URL shown to administrators.
 	CalDAVURL     string
 	taskSync      *tasksync.Syncer
+	syncService   *syncapi.Service
 	notifications *notificationHub
 	focusStreams  *focusHub
 	taskStreams   *taskSyncHub
@@ -98,6 +100,7 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 	st.SetNotificationListener(func(notification *store.Notification) {
 		notifications.publish(notification.UserID)
 	})
+	taskSync := tasksync.New(st)
 	return &Server{
 		store:         st,
 		notifications: notifications,
@@ -111,7 +114,8 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 		limiter:       newLoginLimiter(),
 		publicLimiter: newPublicRateLimiter(60, time.Minute),
 		externalURL:   strings.TrimRight(externalURL, "/"),
-		taskSync:      tasksync.New(st),
+		taskSync:      taskSync,
+		syncService:   syncapi.New(st, taskSync),
 	}, nil
 }
 
@@ -127,6 +131,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 		_, _ = w.Write([]byte("ok\n"))
 	})
 	mux.HandleFunc("GET /api/public/habit-shares/{token}", s.apiPublicHabitShare)
+	// Machine sync protocol (Basic Auth, no CSRF).
+	mux.HandleFunc("GET /api/sync/pull", s.apiSyncPull)
+	mux.HandleFunc("POST /api/sync/push", s.apiSyncPush)
 
 	// JSON API used by the Vue admin SPA.
 	mux.HandleFunc("POST /api/admin/login", s.apiLogin)

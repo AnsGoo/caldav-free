@@ -139,6 +139,8 @@
 | 133 | Android P3 第二批：Basic Auth 日程新建/编辑/删除、事件表单与重复规则保留 | `bf68649` / `d4fc056` |
 | 134 | Android P3 第二批：iCal 订阅管理、对话框控制器延迟释放修复 | `d4fc056` |
 | 135 | Android P3 第三批：重复事件“仅此次/整个系列”编辑与删除、RECURRENCE-ID 例外 | `a6c9834` / `5cc02c0` |
+| 136 | Android P4 第一批：底部导航、习惯列表、今日打卡、新建/编辑/删除、30 天热力图 | — |
+| 137 | Android P4 第一批：Basic Auth 习惯接口、Habit API 解析与打卡/创建测试 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -146,12 +148,13 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2 与 P3 前三批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2/P3 与 P4 第一批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、SSE 实时提示、账号切换
 - P3 后续：事件离线同步/推送、订阅手动刷新、日历直达任务编辑
+- P4 后续：习惯分组/归档/排序、专注/番茄、倒数日、统计页
 - 同步协议扩展到习惯、专注、倒数日、评论/附件、共享清单
 
 ### AI 与自动化

@@ -21,6 +21,8 @@ pushes it in the background.
   holiday events, task occurrences and task completion from the calendar.
 - Create/edit/delete calendar events from the mobile app, with “this occurrence
   / entire series” handling for recurring events, and manage iCal subscriptions.
+- Bottom navigation with Tasks / Calendar / Habits; habits support today
+  check-in, create/edit/delete, streaks and a 30-day heatmap.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.
@@ -41,8 +43,8 @@ P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.
 P2 is feature-complete. P3 adds calendar views with tasks on the same timeline,
 CalDAV/iCal/holiday events, event create/edit/delete and iCal subscription
-management and per-occurrence recurring edits. Offline event sync, subscription
-refresh and calendar-to-task navigation are next.
+management and per-occurrence recurring edits. P4 first slice adds habits;
+focus, countdowns, statistics and remaining calendar polish are next.
 
 ## Run
 

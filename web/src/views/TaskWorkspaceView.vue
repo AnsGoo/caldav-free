@@ -429,6 +429,7 @@
             @reschedule-task="rescheduleTask"
             @reschedule-event="rescheduleEvent"
             @focus-opened="clearCalendarFocus"
+            @occurrence-changed="onOccurrenceChanged"
             @create="createFromCalendar"
             @change-view="calendarView = $event"
             @prev="stepCalendar(-1)"
@@ -536,6 +537,7 @@
           @calendars="calendarSources = $event"
           @reschedule-task="rescheduleTask"
           @reschedule-event="rescheduleEvent"
+          @occurrence-changed="onOccurrenceChanged"
           @create="createFromCalendar"
           @change-view="splitViewMode = $event"
           @prev="stepSplitCalendar(-1)"
@@ -2390,6 +2392,12 @@ function confirmDeleteList(list: TaskList) {
 function replaceTask(updated: TaskItem) {
   const index = tasks.value.findIndex((task) => task.id === updated.id)
   if (index >= 0) tasks.value[index] = updated
+}
+
+function onOccurrenceChanged(updated: TaskItem) {
+  replaceTask(updated)
+  calendarReload.value += 1
+  scheduleRefresh()
 }
 
 function onTaskChanged(updated: TaskItem) {

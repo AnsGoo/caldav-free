@@ -1332,6 +1332,7 @@ func (s *Server) aiCreateTask(ctx context.Context, current *store.User, args map
 			return nil, nil, fmt.Errorf("重复规则无效")
 		}
 		task.Recurrence = rule
+		task.RecurrenceAnchor = nil
 	}
 	created, err := s.store.CreateTask(ctx, task)
 	if err != nil {
@@ -1377,11 +1378,17 @@ func (s *Server) aiUpdateTask(ctx context.Context, current *store.User, args map
 		if !ok {
 			return nil, nil, fmt.Errorf("到期时间格式无效")
 		}
+		previousDue := task.DueAt
 		task.DueAt = due
 		if strings.TrimSpace(value) != "" {
 			task.AllDay = allDay
+			if task.Recurrence != "" && (previousDue == nil || !due.Equal(*previousDue)) {
+				anchor := due.UTC()
+				task.RecurrenceAnchor = &anchor
+			}
 		} else {
 			task.AllDay = false
+			task.RecurrenceAnchor = nil
 		}
 	}
 	if value, ok := args["tags"].([]any); ok {
@@ -1423,6 +1430,11 @@ func (s *Server) aiUpdateTask(ctx context.Context, current *store.User, args map
 	}
 	if completedOccurrence != nil {
 		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
+		if s.advancePastHandledInstances(ctx, task) {
+			task.SyncPending = true
+			_ = s.store.UpdateTask(ctx, task)
+			_ = s.taskSync.PushTask(ctx, current.ID, task)
+		}
 	}
 	label := "已更新任务「" + task.Title + "」"
 	if completed {

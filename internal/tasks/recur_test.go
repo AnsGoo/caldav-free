@@ -60,3 +60,38 @@ func TestOccurrencesBetween(t *testing.T) {
 		t.Fatalf("weekly occurrences = %v", weekly)
 	}
 }
+
+func TestNextOccurrenceAfterKeepsCount(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	start := time.Date(2026, 11, 1, 9, 0, 0, 0, loc)
+	first, ok := NextOccurrenceAfter("FREQ=DAILY;COUNT=3", start, start)
+	if !ok || !first.Equal(start.AddDate(0, 0, 1)) {
+		t.Fatalf("first counted occurrence = %v (%v)", first, ok)
+	}
+	second, ok := NextOccurrenceAfter("FREQ=DAILY;COUNT=3", start, first)
+	if !ok || !second.Equal(start.AddDate(0, 0, 2)) {
+		t.Fatalf("second counted occurrence = %v (%v)", second, ok)
+	}
+	if _, ok := NextOccurrenceAfter("FREQ=DAILY;COUNT=3", start, second); ok {
+		t.Fatal("counted recurrence should be exhausted")
+	}
+	until, ok := NextOccurrenceAfter("FREQ=DAILY;UNTIL=20261103T010000Z", start, start)
+	if !ok || !until.Equal(start.AddDate(0, 0, 1)) {
+		t.Fatalf("until occurrence = %v (%v)", until, ok)
+	}
+}
+
+func TestRecurrenceRuleForCurrent(t *testing.T) {
+	loc, _ := time.LoadLocation("Asia/Shanghai")
+	start := time.Date(2026, 11, 1, 9, 0, 0, 0, loc)
+	rule := RecurrenceRuleForCurrent("FREQ=DAILY;COUNT=5", start, start.AddDate(0, 0, 2))
+	if rule != "FREQ=DAILY;COUNT=3" {
+		t.Fatalf("remaining count = %q", rule)
+	}
+	if got := RecurrenceRuleForCurrent("FREQ=DAILY;UNTIL=20261105T010000Z", start, start.AddDate(0, 0, 2)); got != "FREQ=DAILY;UNTIL=20261105T010000Z" {
+		t.Fatalf("until rule changed: %q", got)
+	}
+	if got := RecurrenceRuleForCurrent("FREQ=WEEKLY", start, start.AddDate(0, 7, 0)); got != "FREQ=WEEKLY" {
+		t.Fatalf("plain rule changed: %q", got)
+	}
+}

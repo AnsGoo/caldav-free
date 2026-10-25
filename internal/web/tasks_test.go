@@ -3,9 +3,11 @@ package web
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -1244,5 +1246,136 @@ func TestRecurringTaskInstanceHistoryAndSkip(t *testing.T) {
 		if strings.Contains(obj.Href, "-rid-") {
 			t.Fatalf("recurrence exceptions were not removed after clearing recurrence: %s", obj.Href)
 		}
+	}
+}
+
+func TestRecurringCountUsesOriginalAnchor(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "三次任务", "recurrence": "FREQ=DAILY;COUNT=3", "due": "2026-11-01T09:00:00Z", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create = %d: %s", status, body)
+	}
+	created := decode[taskResponse](t, body)
+	id := itoa(created.Task.ID)
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+id, map[string]any{"title": "三次任务改名", "due": "2026-11-01T09:00:00Z"}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("unchanged due update = %d: %s", status, body)
+	}
+	for index, want := range []string{"2026-11-02T09:00:00Z", "2026-11-03T09:00:00Z"} {
+		status, body = env.request(t, "PATCH", "/api/admin/tasks/"+id, map[string]any{"completed": true}, env.csrf)
+		if status != http.StatusOK {
+			t.Fatalf("complete %d = %d: %s", index, status, body)
+		}
+		updated := decode[taskResponse](t, body)
+		if updated.Task.Completed || updated.Task.Due != want {
+			t.Fatalf("complete %d = %+v, want due %s", index, updated.Task, want)
+		}
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+id, map[string]any{"completed": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("final complete = %d: %s", status, body)
+	}
+	updated := decode[taskResponse](t, body)
+	if !updated.Task.Completed {
+		t.Fatalf("counted recurrence should be exhausted: %+v", updated.Task)
+	}
+}
+
+func TestRecurrenceOccurrenceActions(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "实例操作", "recurrence": "FREQ=WEEKLY", "due": "2026-11-01T09:00:00Z", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create = %d: %s", status, body)
+	}
+	created := decode[taskResponse](t, body)
+	id := itoa(created.Task.ID)
+
+	status, body = env.request(t, "POST", "/api/admin/tasks/"+id+"/recurrence/complete", map[string]any{"occurrence": "2026-11-15T09:00:00Z"}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("future complete = %d: %s", status, body)
+	}
+	future := decode[taskResponse](t, body)
+	if future.Task.Due != "2026-11-01T09:00:00Z" {
+		t.Fatalf("future completion moved master: %+v", future.Task)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks/"+id+"/recurrence/postpone", map[string]any{"days": 2}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("postpone = %d: %s", status, body)
+	}
+	postponed := decode[struct {
+		Task struct {
+			Due string `json:"due"`
+		} `json:"task"`
+		Instances []struct {
+			Status      string `json:"status"`
+			PostponedTo string `json:"postponedTo"`
+		} `json:"instances"`
+	}](t, body)
+	if postponed.Task.Due != "2026-11-08T09:00:00Z" {
+		t.Fatalf("postpone did not advance series: %+v", postponed.Task)
+	}
+	foundPostponed := false
+	for _, item := range postponed.Instances {
+		if item.Status == "postponed" && item.PostponedTo == "2026-11-03T09:00:00Z" {
+			foundPostponed = true
+		}
+	}
+	if !foundPostponed {
+		t.Fatalf("postpone history = %+v", postponed.Instances)
+	}
+
+	status, body = env.request(t, "GET", "/api/admin/tasks/calendar?from="+url.QueryEscape("2026-11-01T00:00:00Z")+"&to="+url.QueryEscape("2026-11-10T00:00:00Z"), nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("calendar = %d: %s", status, body)
+	}
+	var cal struct {
+		Tasks []struct {
+			ID         int64  `json:"id"`
+			Due        string `json:"due"`
+			Occurrence string `json:"occurrence"`
+			Postponed  bool   `json:"postponed"`
+			Virtual    bool   `json:"virtual"`
+		} `json:"tasks"`
+	}
+	if err := json.Unmarshal(body, &cal); err != nil {
+		t.Fatal(err)
+	}
+	foundVirtual := false
+	for _, task := range cal.Tasks {
+		if task.ID == created.Task.ID && task.Postponed && task.Due == "2026-11-03T09:00:00Z" && task.Occurrence == "2026-11-01T09:00:00Z" {
+			foundVirtual = true
+		}
+	}
+	if !foundVirtual {
+		t.Fatalf("postponed virtual task missing: %+v", cal.Tasks)
+	}
+}
+
+func TestCompletingCurrentSkipsHandledFutureInstance(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "提前完成", "recurrence": "FREQ=DAILY", "due": "2026-11-01T09:00:00Z", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create = %d: %s", status, body)
+	}
+	created := decode[taskResponse](t, body)
+	id := itoa(created.Task.ID)
+	status, body = env.request(t, "POST", "/api/admin/tasks/"+id+"/recurrence/complete", map[string]any{"occurrence": "2026-11-02T09:00:00Z"}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("future complete = %d: %s", status, body)
+	}
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+id, map[string]any{"completed": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("current complete = %d: %s", status, body)
+	}
+	updated := decode[taskResponse](t, body)
+	if updated.Task.Completed || updated.Task.Due != "2026-11-03T09:00:00Z" {
+		t.Fatalf("handled future instance not skipped: %+v", updated.Task)
 	}
 }

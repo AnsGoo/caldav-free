@@ -153,7 +153,8 @@ func (s *Server) apiTaskCalendarEvents(w http.ResponseWriter, r *http.Request, c
 
 // taskOccurrencesInRange expands recurring tasks into virtual task rows so
 // calendar views can show every instance in the visible range. The task ID is
-// preserved; only due/occurrence fields change.
+// preserved; only due/occurrence fields change. Postponed instances are added
+// from the recurrence history at their new time.
 func (s *Server) taskOccurrencesInRange(ctx context.Context, userID int64, from, to time.Time) ([]apiTask, error) {
 	tasks, err := s.store.ListAllTasks(ctx, userID, 2000)
 	if err != nil {
@@ -167,30 +168,81 @@ func (s *Server) taskOccurrencesInRange(ctx context.Context, userID int64, from,
 	for _, list := range lists {
 		byID[list.ID] = list
 	}
-	out := make([]apiTask, 0, 64)
+	taskByID := make(map[int64]*store.Task, len(tasks))
 	for _, task := range tasks {
-		if task.Kind == "NOTE" || task.Recurrence == "" || task.DueAt == nil || task.Completed {
-			continue
-		}
-		start := *task.DueAt
-		if start.After(to) {
-			continue
-		}
-		occurrences := taskparse.OccurrencesBetween(task.Recurrence, start, from, to, 500)
-		for _, occurrence := range occurrences {
-			dto := apiTaskDTO(task, byID[task.ListID])
-			dto.Due = occurrence.Format(time.RFC3339)
-			dto.Occurrence = dto.Due
-			dto.Virtual = true
-			dto.Completed = false
+		taskByID[task.ID] = task
+	}
+	instances, err := s.store.ListRecurrenceInstancesInRange(ctx, userID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	instanceByOccurrence := make(map[string]*store.TaskRecurrenceInstance, len(instances))
+	for _, instance := range instances {
+		instanceByOccurrence[recurrenceOccurrenceKey(instance.TaskID, instance.OccurrenceAt)] = instance
+	}
+	out := make([]apiTask, 0, 64)
+	add := func(task *store.Task, due time.Time, occurrence time.Time, postponed, completed bool) {
+		dto := apiTaskDTO(task, byID[task.ListID])
+		dto.Due = due.Format(time.RFC3339)
+		dto.Occurrence = occurrence.Format(time.RFC3339)
+		dto.Virtual = true
+		dto.Postponed = postponed
+		dto.Completed = completed
+		if completed {
+			dto.CompletedAt = due.Format(time.RFC3339)
+		} else {
 			dto.CompletedAt = ""
-			out = append(out, dto)
-			if len(out) >= 2000 {
-				return out, nil
+		}
+		out = append(out, dto)
+	}
+	for _, task := range tasks {
+		if task.Kind == "NOTE" || task.Recurrence == "" || task.DueAt == nil {
+			continue
+		}
+		anchor := *task.DueAt
+		if task.RecurrenceAnchor != nil {
+			anchor = *task.RecurrenceAnchor
+		}
+		windowStart := from
+		if task.DueAt.After(windowStart) {
+			windowStart = *task.DueAt
+		}
+		if !task.Completed && !windowStart.After(to) {
+			occurrences := taskparse.OccurrencesBetween(task.Recurrence, anchor, windowStart, to, 500)
+			for _, occurrence := range occurrences {
+				if instance := instanceByOccurrence[recurrenceOccurrenceKey(task.ID, occurrence)]; instance != nil {
+					if instance.Status == "completed" || instance.Status == "skipped" || instance.Status == "postponed" {
+						continue
+					}
+				}
+				add(task, occurrence, occurrence, false, false)
+				if len(out) >= 2000 {
+					return out, nil
+				}
 			}
 		}
 	}
+	for _, instance := range instances {
+		if instance.PostponedTo == nil || instance.PostponedTo.Before(from) || !instance.PostponedTo.Before(to) {
+			continue
+		}
+		if instance.Status != "postponed" && instance.Status != "completed" {
+			continue
+		}
+		task := taskByID[instance.TaskID]
+		if task == nil || task.Kind == "NOTE" {
+			continue
+		}
+		add(task, *instance.PostponedTo, instance.OccurrenceAt, true, instance.Status == "completed")
+		if len(out) >= 2000 {
+			return out, nil
+		}
+	}
 	return out, nil
+}
+
+func recurrenceOccurrenceKey(taskID int64, occurrence time.Time) string {
+	return strconv.FormatInt(taskID, 10) + ":" + strconv.FormatInt(occurrence.UTC().Unix(), 10)
 }
 
 func parseEventRange(r *http.Request) (time.Time, time.Time, bool) {

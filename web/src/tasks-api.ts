@@ -201,8 +201,25 @@ export function fetchTaskRecurrence(taskId: number) {
   return api<{ instances: TaskRecurrenceInstance[] }>(`/tasks/${taskId}/recurrence`)
 }
 
-export function skipTaskOccurrence(taskId: number) {
-  return api<{ task: TaskItem; instances: TaskRecurrenceInstance[] }>(`/tasks/${taskId}/recurrence/skip`, { method: 'POST' })
+export function completeTaskOccurrence(taskId: number, occurrence?: string) {
+  return api<{ task: TaskItem; instances: TaskRecurrenceInstance[] }>(`/tasks/${taskId}/recurrence/complete`, {
+    method: 'POST',
+    body: JSON.stringify({ occurrence }),
+  })
+}
+
+export function skipTaskOccurrence(taskId: number, occurrence?: string) {
+  return api<{ task: TaskItem; instances: TaskRecurrenceInstance[] }>(`/tasks/${taskId}/recurrence/skip`, {
+    method: 'POST',
+    body: JSON.stringify({ occurrence }),
+  })
+}
+
+export function postponeTaskOccurrence(taskId: number, occurrence?: string, days = 1) {
+  return api<{ task: TaskItem; instances: TaskRecurrenceInstance[] }>(`/tasks/${taskId}/recurrence/postpone`, {
+    method: 'POST',
+    body: JSON.stringify({ occurrence, days }),
+  })
 }
 
 export function fetchTaskActivities(taskId: number) {

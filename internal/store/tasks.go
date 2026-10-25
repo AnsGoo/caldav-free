@@ -60,6 +60,10 @@ type Task struct {
 	DueAt       *time.Time `gorm:"index:idx_task_user_due,priority:2"`
 	AllDay      bool       `gorm:"not null;default:false"`
 	Recurrence  string     `gorm:"size:255;not null;default:''"`
+	// RecurrenceAnchor is the DTSTART of the recurring series. DueAt advances
+	// as occurrences are completed, but the anchor stays fixed so COUNT and
+	// UNTIL keep their original meaning.
+	RecurrenceAnchor *time.Time `gorm:"index:idx_task_recurrence_anchor"`
 	// ReminderOffset is the legacy single reminder (minutes before due; -1
 	// means none). ReminderOffsets stores all offsets as a comma-separated
 	// list; when it is non-empty it is authoritative.
@@ -610,6 +614,17 @@ func normalizeTaskTimes(task *Task) {
 		value := task.CompletedAt.UTC()
 		task.CompletedAt = &value
 	}
+	if task.Recurrence == "" || task.DueAt == nil {
+		task.RecurrenceAnchor = nil
+		return
+	}
+	if task.RecurrenceAnchor == nil {
+		value := task.DueAt.UTC()
+		task.RecurrenceAnchor = &value
+		return
+	}
+	value := task.RecurrenceAnchor.UTC()
+	task.RecurrenceAnchor = &value
 }
 
 // CreateTask stores a new task after validating its list ownership.
@@ -687,26 +702,27 @@ func (s *Store) UpdateTask(ctx context.Context, task *Task) error {
 	task.SyncPending = true
 	normalizeTaskTimes(task)
 	updates := map[string]any{
-		"list_id":          task.ListID,
-		"section_id":       task.SectionID,
-		"title":            task.Title,
-		"notes":            task.Notes,
-		"notes_format":     task.NotesFormat,
-		"notes_text":       task.NotesText,
-		"kind":             task.Kind,
-		"priority":         task.Priority,
-		"due_at":           task.DueAt,
-		"recurrence":       task.Recurrence,
-		"reminder_offset":  task.ReminderOffset,
-		"reminder_offsets": task.ReminderOffsets,
-		"assignee":         task.Assignee,
-		"all_day":          task.AllDay,
-		"completed":        task.Completed,
-		"completed_at":     task.CompletedAt,
-		"pinned_at":        task.PinnedAt,
-		"tags":             task.Tags,
-		"checklist":        task.Checklist,
-		"order_index":      task.Order,
+		"list_id":           task.ListID,
+		"section_id":        task.SectionID,
+		"title":             task.Title,
+		"notes":             task.Notes,
+		"notes_format":      task.NotesFormat,
+		"notes_text":        task.NotesText,
+		"kind":              task.Kind,
+		"priority":          task.Priority,
+		"due_at":            task.DueAt,
+		"recurrence":        task.Recurrence,
+		"recurrence_anchor": task.RecurrenceAnchor,
+		"reminder_offset":   task.ReminderOffset,
+		"reminder_offsets":  task.ReminderOffsets,
+		"assignee":          task.Assignee,
+		"all_day":           task.AllDay,
+		"completed":         task.Completed,
+		"completed_at":      task.CompletedAt,
+		"pinned_at":         task.PinnedAt,
+		"tags":              task.Tags,
+		"checklist":         task.Checklist,
+		"order_index":       task.Order,
 	}
 	err := s.db.WithContext(ctx).Model(&Task{}).
 		Where("id = ? AND user_id = ? AND deleted = ?", task.ID, task.UserID, false).

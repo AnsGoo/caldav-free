@@ -83,7 +83,7 @@
                 :title="item.title"
                 :draggable="!item.task?.virtual"
                 @dragstart="!item.task?.virtual && startDrag(item, $event)"
-                @click="$emit('open', item.task!)"
+                @click="openCalendarItem(item)"
               >
                 <i :style="{ background: item.task!.listColor || '#4772fa' }" />
                 <span>{{ item.title }}</span>
@@ -151,7 +151,7 @@
               :title="item.title"
               :draggable="!item.task?.virtual"
               @dragstart="!item.task?.virtual && startDrag(item, $event)"
-              @click="$emit('open', item.task!)"
+              @click="openCalendarItem(item)"
             >
               {{ item.title }}
             </button>
@@ -309,15 +309,28 @@
       </div>
     </div>
   </section>
+
+  <TaskOccurrenceDialog
+    v-if="occurrenceDialog"
+    :task="occurrenceDialog"
+    :busy="occurrenceBusy"
+    @close="occurrenceDialog = null"
+    @complete="runOccurrenceAction('complete')"
+    @skip="runOccurrenceAction('skip')"
+    @postpone="runOccurrenceAction('postpone')"
+    @open="openOccurrenceTask"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { CalendarEvent, CalendarSource, HabitCalendarEntry, TaskItem } from '../../types'
 import { dayKey, startOfToday, taskDayKey } from '../../tasks-utils'
-import { fetchCalendarEvents, fetchHabitCalendar } from '../../tasks-api'
+import { Message } from '@arco-design/web-vue'
+import { completeTaskOccurrence, fetchCalendarEvents, fetchHabitCalendar, postponeTaskOccurrence, skipTaskOccurrence } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 import CalendarSubscriptionDialog from './CalendarSubscriptionDialog.vue'
+import TaskOccurrenceDialog from './TaskOccurrenceDialog.vue'
 
 const props = defineProps<{
   tasks: TaskItem[]
@@ -340,6 +353,7 @@ const emit = defineEmits<{
   (event: 'reschedule-task', payload: { task: TaskItem; due: string; allDay: boolean }): void
   (event: 'reschedule-event', payload: { event: CalendarEvent; start: string; end: string; allDay: boolean }): void
   (event: 'focus-opened'): void
+  (event: 'occurrence-changed', task: TaskItem): void
 }>()
 
 const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
@@ -357,6 +371,8 @@ const HOUR_HEIGHT = 56
 const todayKey = dayKey(startOfToday())
 const events = ref<CalendarEvent[]>([])
 const taskOccurrences = ref<TaskItem[]>([])
+const occurrenceDialog = ref<TaskItem | null>(null)
+const occurrenceBusy = ref(false)
 const habitEntries = ref<HabitCalendarEntry[]>([])
 const sources = ref<CalendarSource[]>([])
 const hiddenCalendarIds = ref<Set<number>>(new Set())
@@ -589,7 +605,7 @@ const itemsByDay = computed(() => {
     push(key, {
       key: `task-${task.id}-${task.occurrence || task.due || key}`,
       kind: 'task',
-      title: task.virtual ? `${task.title}（重复）` : task.title,
+      title: task.postponed ? `${task.title}（顺延）` : task.virtual ? `${task.title}（重复）` : task.title,
       color: task.listColor || '#4772fa',
       allDay: task.allDay,
       start: task.allDay ? undefined : start,
@@ -915,8 +931,7 @@ function finishResize() {
 
 function onBlockClick(item: CalItem) {
   if (suppressClick.value) return
-  if (item.kind === 'task') emit('open', item.task!)
-  else emit('open-event', item.event!)
+  openCalendarItem(item)
 }
 
 function resizeStyle(item: CalItem) {
@@ -1077,9 +1092,46 @@ function openDay(key: string) {
 }
 
 function openCalendarItem(item: CalItem) {
-  if (item.kind === 'task' && item.task) emit('open', item.task)
-  else if (item.kind === 'habit' && item.habitId) emit('open-habit', item.habitId)
-  else if (item.event) emit('open-event', item.event)
+  if (item.kind === 'task' && item.task) {
+    if (item.task.virtual) {
+      occurrenceDialog.value = item.task
+      return
+    }
+    emit('open', item.task)
+  } else if (item.kind === 'habit' && item.habitId) {
+    emit('open-habit', item.habitId)
+  } else if (item.event) {
+    emit('open-event', item.event)
+  }
+}
+
+async function runOccurrenceAction(action: 'complete' | 'skip' | 'postpone') {
+  const task = occurrenceDialog.value
+  if (!task || occurrenceBusy.value) return
+  occurrenceBusy.value = true
+  try {
+    const occurrence = task.occurrence || task.due
+    const result = action === 'complete'
+      ? await completeTaskOccurrence(task.id, occurrence)
+      : action === 'skip'
+        ? await skipTaskOccurrence(task.id, occurrence)
+        : await postponeTaskOccurrence(task.id, occurrence, 1)
+    occurrenceDialog.value = null
+    emit('occurrence-changed', result.task)
+    if (action === 'complete') Message.success('已完成本次实例')
+    else if (action === 'skip') Message.success('已跳过本次实例')
+    else Message.success('已顺延本次实例')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '处理实例失败')
+  } finally {
+    occurrenceBusy.value = false
+  }
+}
+
+function openOccurrenceTask() {
+  const task = occurrenceDialog.value
+  occurrenceDialog.value = null
+  if (task) emit('open', task)
 }
 
 function openDayItem(item: CalItem) {

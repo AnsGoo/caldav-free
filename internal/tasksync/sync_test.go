@@ -446,6 +446,21 @@ func TestRecurrenceExceptionIsWrittenAndNotImported(t *testing.T) {
 		t.Fatalf("skip exception not updated:\n%s", body)
 	}
 
+	postponedDue := due.AddDate(0, 0, 2)
+	if err := syncer.UpsertRecurrenceExceptionAt(ctx, userID, task, due, "postponed", &postponedDue); err != nil {
+		t.Fatal(err)
+	}
+	updated, err = st.GetObject(ctx, cal.ID, exception.Href)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = string(updated.Data)
+	for _, want := range []string{"STATUS:NEEDS-ACTION", "DUE:20261103T090000Z", "X-CALDDAV-POSTPONED:TRUE", "RECURRENCE-ID:20261101T090000Z"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("postponed exception missing %q:\n%s", want, body)
+		}
+	}
+
 	if err := syncer.DeleteTask(ctx, userID, task); err != nil {
 		t.Fatal(err)
 	}
@@ -457,5 +472,85 @@ func TestRecurrenceExceptionIsWrittenAndNotImported(t *testing.T) {
 		if strings.Contains(obj.Href, "-rid-") {
 			t.Fatalf("recurrence exception was not cleaned up: %s", obj.Href)
 		}
+	}
+}
+
+func TestClientRecurrenceExceptionAdvancesMaster(t *testing.T) {
+	st, syncer, userID, inbox := newSyncEnv(t)
+	ctx := context.Background()
+	due := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	task, err := st.CreateTask(ctx, &store.Task{
+		UserID: userID, ListID: inbox.ID, Title: "客户端实例", DueAt: &due, Recurrence: "FREQ=DAILY",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := syncer.PushTask(ctx, userID, task); err != nil {
+		t.Fatal(err)
+	}
+	cal, err := syncer.EnsureTaskCalendar(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	putClientException := func(href, recurrenceID, status, dueValue string) {
+		data := []byte("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:" + task.VTODOUID + "\r\nRECURRENCE-ID:" + recurrenceID + "\r\nDTSTAMP:20261020T000000Z\r\nSUMMARY:客户端实例\r\nDUE:" + dueValue + "\r\nSTATUS:" + status + "\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+		obj := &store.Object{
+			CalendarID: cal.ID, Href: href, UID: task.VTODOUID, ETag: computeETag(data),
+			ContentType: "text/calendar; charset=utf-8", Data: data,
+			ComponentType: "VTODO", Size: int64(len(data)),
+		}
+		if _, _, _, err := st.PutObject(ctx, obj); err != nil {
+			t.Fatal(err)
+		}
+	}
+	putClientException("client-completed.ics", "20261101T090000Z", "COMPLETED", "20261101T090000Z")
+	if err := syncer.Sync(ctx, userID); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := st.GetTask(ctx, userID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.DueAt == nil || !reloaded.DueAt.Equal(due.AddDate(0, 0, 1)) || reloaded.Completed {
+		t.Fatalf("master did not advance after client completion: %+v", reloaded)
+	}
+	rows, err := st.ListRecurrenceInstances(ctx, userID, task.ID, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].Status != "completed" {
+		t.Fatalf("client completion history = %+v", rows)
+	}
+
+	putClientException("client-postponed.ics", "20261102T090000Z", "NEEDS-ACTION", "20261104T090000Z")
+	if err := syncer.Sync(ctx, userID); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err = st.GetTask(ctx, userID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.DueAt == nil || !reloaded.DueAt.Equal(due.AddDate(0, 0, 2)) {
+		t.Fatalf("master did not advance after client postpone: %+v", reloaded)
+	}
+	rows, err = st.ListRecurrenceInstances(ctx, userID, task.ID, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var postponed *store.TaskRecurrenceInstance
+	for _, row := range rows {
+		if row.Status == "postponed" {
+			postponed = row
+		}
+	}
+	if postponed == nil || postponed.PostponedTo == nil || !postponed.PostponedTo.Equal(due.AddDate(0, 0, 3)) {
+		t.Fatalf("client postpone history = %+v", rows)
+	}
+	tasks, err := st.ListAllTasks(ctx, userID, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("client exceptions were imported as tasks: %d", len(tasks))
 	}
 }

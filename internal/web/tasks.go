@@ -86,6 +86,7 @@ type apiTask struct {
 	Order           int                `json:"order"`
 	Occurrence      string             `json:"occurrence,omitempty"`
 	Virtual         bool               `json:"virtual,omitempty"`
+	Postponed       bool               `json:"postponed,omitempty"`
 	CreatedAt       string             `json:"createdAt"`
 	ModifiedAt      string             `json:"modifiedAt"`
 }
@@ -651,6 +652,7 @@ func (s *Server) apiCreateTask(w http.ResponseWriter, r *http.Request, current *
 			return
 		}
 		task.Recurrence = rule
+		task.RecurrenceAnchor = nil
 	}
 	if err := applyTaskReminders(task, body); err != nil {
 		writeAPIError(w, http.StatusBadRequest, err.Error())
@@ -978,8 +980,13 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		task.DueAt = due
 		if strings.TrimSpace(*body.Due) != "" {
 			task.AllDay = allDay
+			if task.Recurrence != "" && (!hasPreviousDue || !due.Equal(previousDue)) {
+				anchor := due.UTC()
+				task.RecurrenceAnchor = &anchor
+			}
 		} else {
 			task.AllDay = false
+			task.RecurrenceAnchor = nil
 		}
 	}
 	var completedOccurrence *time.Time
@@ -1096,6 +1103,14 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 	}
 	if completedOccurrence != nil {
 		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
+		if s.advancePastHandledInstances(ctx, task) {
+			task.SyncPending = true
+			if err := s.store.UpdateTask(ctx, task); err != nil {
+				s.logger.Warn("advance recurring task", "task", task.ID, "error", err)
+			} else if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
+				s.logger.Warn("push advanced recurring task", "task", task.ID, "error", err)
+			}
+		}
 	}
 	s.notifyAssignment(ctx, r, current, previousAssignee, task)
 	changed := make([]string, 0, 6)
@@ -1333,7 +1348,11 @@ func (s *Server) apiDeleteTaskList(w http.ResponseWriter, r *http.Request, curre
 // result reports whether the task was advanced.
 func applyTaskCompletion(task *store.Task, completed bool) bool {
 	if completed && task.Recurrence != "" && task.DueAt != nil {
-		if next, ok := taskparse.NextOccurrence(task.Recurrence, *task.DueAt); ok {
+		anchor := *task.DueAt
+		if task.RecurrenceAnchor != nil {
+			anchor = *task.RecurrenceAnchor
+		}
+		if next, ok := taskparse.NextOccurrenceAfter(task.Recurrence, anchor, *task.DueAt); ok {
 			task.DueAt = &next
 			task.Completed = false
 			task.CompletedAt = nil
@@ -1445,11 +1464,16 @@ func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *
 		if err := s.store.UpdateTask(ctx, task); err != nil {
 			continue
 		}
-		if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
+		if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
 			s.logger.Warn("push task to caldav", "task", id, "error", err)
 		}
 		if completedOccurrence != nil {
 			s.recordCompletedOccurrence(ctx, task, completedOccurrence)
+			if s.advancePastHandledInstances(ctx, task) {
+				task.SyncPending = true
+				_ = s.store.UpdateTask(ctx, task)
+				_ = s.taskSync.PushTask(ctx, task.UserID, task)
+			}
 		}
 		updated++
 	}

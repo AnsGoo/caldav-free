@@ -228,12 +228,19 @@
             <TaskIcon name="chevron" :size="13" />
             {{ recurrenceBusy ? '处理中…' : '跳过本次' }}
           </button>
+          <button type="button" class="tw-recurrence-skip" :disabled="readonly || recurrenceBusy" @click="postponeOccurrence">
+            <TaskIcon name="calendar" :size="13" />
+            {{ recurrenceBusy ? '处理中…' : '顺延一天' }}
+          </button>
         </div>
         <div v-if="recurrenceInstances.length" class="tw-recurrence-history">
           <span>最近实例</span>
           <div v-for="instance in recurrenceInstances" :key="instance.id" class="tw-recurrence-history-row">
-            <span>{{ formatMoment(instance.occurrenceAt) }}</span>
-            <em :class="instance.status">{{ instance.status === 'skipped' ? '已跳过' : '已完成' }}</em>
+            <span>
+              {{ formatMoment(instance.occurrenceAt) }}
+              <small v-if="instance.status === 'postponed' && instance.postponedTo">→ {{ formatMoment(instance.postponedTo) }}</small>
+            </span>
+            <em :class="instance.status">{{ instance.status === 'skipped' ? '已跳过' : instance.status === 'postponed' ? '已顺延' : '已完成' }}</em>
           </div>
         </div>
         <p class="tw-field-hint">
@@ -432,7 +439,7 @@ import { Message } from '@arco-design/web-vue'
 import type { ChecklistItem, CommentAttachment, TaskActivity, TaskAttachment, TaskComment, TaskItem, TaskList, TaskListMember, TaskRecurrenceInstance } from '../../types'
 import { tagColor, tagTint } from '../../tag-colors'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskAttachments, fetchTaskComments, fetchTaskRecurrence, skipTaskOccurrence, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskAttachments, fetchTaskComments, fetchTaskRecurrence, postponeTaskOccurrence, skipTaskOccurrence, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = withDefaults(defineProps<{ task: TaskItem; lists: TaskList[]; subtasks?: TaskItem[]; members?: TaskListMember[]; tagColors?: Record<string, string>; readonly?: boolean; listLocked?: boolean }>(), { subtasks: () => [] })
@@ -625,26 +632,45 @@ async function loadRecurrence() {
   }
 }
 
+function applyOccurrenceResult(task: TaskItem, instances: TaskRecurrenceInstance[]) {
+  recurrenceInstances.value = instances
+  const input = toDateInput(task)
+  const [datePart, timePart] = input.split('T')
+  draft.dueDate = datePart || ''
+  draft.dueTime = task.allDay ? '09:00' : timePart || '09:00'
+  draft.allDay = task.allDay
+  lastSaved = JSON.stringify({
+    ...JSON.parse(lastSaved),
+    due: duePayload(),
+    allDay: draft.allDay,
+  })
+  emit('changed', task)
+}
+
 async function skipOccurrence() {
   if (props.readonly || recurrenceBusy.value) return
   recurrenceBusy.value = true
   try {
     const result = await skipTaskOccurrence(props.task.id)
-    recurrenceInstances.value = result.instances
-    const input = toDateInput(result.task)
-    const [datePart, timePart] = input.split('T')
-    draft.dueDate = datePart || ''
-    draft.dueTime = result.task.allDay ? '09:00' : timePart || '09:00'
-    draft.allDay = result.task.allDay
-    lastSaved = JSON.stringify({
-      ...JSON.parse(lastSaved),
-      due: duePayload(),
-      allDay: draft.allDay,
-    })
-    emit('changed', result.task)
+    applyOccurrenceResult(result.task, result.instances)
     Message.info(`已跳过本次，下次 ${formatDue(result.task)}`)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '跳过本次失败')
+  } finally {
+    recurrenceBusy.value = false
+  }
+}
+
+async function postponeOccurrence() {
+  if (props.readonly || recurrenceBusy.value) return
+  recurrenceBusy.value = true
+  try {
+    const result = await postponeTaskOccurrence(props.task.id, undefined, 1)
+    applyOccurrenceResult(result.task, result.instances)
+    const postponed = result.instances.find((item) => item.status === 'postponed')
+    Message.info(postponed?.postponedTo ? `已顺延到 ${formatMoment(postponed.postponedTo)}` : '已顺延本次')
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '顺延本次失败')
   } finally {
     recurrenceBusy.value = false
   }

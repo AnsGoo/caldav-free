@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +26,30 @@ func NextOccurrence(rule string, current time.Time) (time.Time, bool) {
 	}
 	next := recurrence.After(current, false)
 	if next.IsZero() || !next.After(current) {
+		return time.Time{}, false
+	}
+	return next, true
+}
+
+// NextOccurrenceAfter computes the next occurrence after after while keeping
+// start as the series anchor. This preserves COUNT and UNTIL semantics even
+// after a task's current due date has advanced.
+func NextOccurrenceAfter(rule string, start, after time.Time) (time.Time, bool) {
+	rule = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rule), "RRULE:"))
+	if rule == "" || start.IsZero() || after.IsZero() {
+		return time.Time{}, false
+	}
+	option, err := rrule.StrToROptionInLocation(rule, start.Location())
+	if err != nil {
+		return time.Time{}, false
+	}
+	option.Dtstart = start
+	recurrence, err := rrule.NewRRule(*option)
+	if err != nil {
+		return time.Time{}, false
+	}
+	next := recurrence.After(after, false)
+	if next.IsZero() || !next.After(after) {
 		return time.Time{}, false
 	}
 	return next, true
@@ -72,4 +97,39 @@ func ValidRule(rule string) bool {
 	}
 	_, err := rrule.StrToROption(rule)
 	return err == nil
+}
+
+// RecurrenceRuleForCurrent rewrites a COUNT rule so the master VTODO exposes
+// only the occurrences that remain from current onward. This keeps CalDAV
+// clients aligned after a task's due date has rolled forward.
+func RecurrenceRuleForCurrent(rule string, anchor, current time.Time) string {
+	rule = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rule), "RRULE:"))
+	if rule == "" || anchor.IsZero() || current.IsZero() {
+		return rule
+	}
+	option, err := rrule.StrToROptionInLocation(rule, anchor.Location())
+	if err != nil || option.Count <= 0 {
+		return rule
+	}
+	option.Dtstart = anchor
+	recurrence, err := rrule.NewRRule(*option)
+	if err != nil {
+		return rule
+	}
+	occurrences := recurrence.Between(anchor.Add(-time.Second), current.Add(time.Second), true)
+	if len(occurrences) == 0 {
+		return rule
+	}
+	remaining := option.Count - (len(occurrences) - 1)
+	if remaining < 1 {
+		remaining = 1
+	}
+	parts := strings.Split(rule, ";")
+	for index, part := range parts {
+		if eq := strings.IndexByte(part, '='); eq > 0 && strings.EqualFold(strings.TrimSpace(part[:eq]), "COUNT") {
+			parts[index] = "COUNT=" + strconv.Itoa(remaining)
+			return strings.Join(parts, ";")
+		}
+	}
+	return rule
 }

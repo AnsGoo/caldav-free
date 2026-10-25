@@ -257,7 +257,9 @@ docker run -d --name caldav \
 | `/api/admin/tasks/reorder` | 手动排序 |
 | `/api/admin/tasks/{id}/restore` | 从垃圾桶恢复 |
 | `/api/admin/tasks/{id}/recurrence` | 重复任务实例历史 |
-| `/api/admin/tasks/{id}/recurrence/skip` | 跳过当前重复实例并推进日期 |
+| `/api/admin/tasks/{id}/recurrence/complete` | 完成指定重复实例（可传 `occurrence`） |
+| `/api/admin/tasks/{id}/recurrence/skip` | 跳过指定重复实例（可传 `occurrence`） |
+| `/api/admin/tasks/{id}/recurrence/postpone` | 顺延指定重复实例（`occurrence`、`days` 或 `due`） |
 | `/api/admin/tasks/{id}/purge` | 彻底删除垃圾桶任务 |
 | `/api/admin/task-lists` | 清单 CRUD（支持文件夹） |
 | `/api/admin/task-lists/{id}/copy` | 复制清单（`mode=open/all/keep`） |

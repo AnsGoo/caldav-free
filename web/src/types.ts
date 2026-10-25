@@ -123,6 +123,7 @@ export interface TaskItem {
   order: number
   occurrence?: string
   virtual?: boolean
+  postponed?: boolean
   createdAt: string
   modifiedAt: string
 }
@@ -341,7 +342,8 @@ export interface TaskComment {
 export interface TaskRecurrenceInstance {
   id: number
   occurrenceAt: string
-  status: 'completed' | 'skipped'
+  status: 'completed' | 'skipped' | 'postponed'
+  postponedTo?: string
   title: string
   createdAt: string
 }

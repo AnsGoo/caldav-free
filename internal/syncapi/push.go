@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"caldav-free/internal/store"
+	taskparse "caldav-free/internal/tasks"
 )
 
 const maxPushOps = 200
@@ -132,6 +133,12 @@ func normalizeAction(action string) string {
 		return "update"
 	case "delete":
 		return "delete"
+	case "restore":
+		return "restore"
+	case "purge":
+		return "purge"
+	case "skip", "skip_occurrence", "skip-occurrence":
+		return "skip"
 	default:
 		return ""
 	}
@@ -179,6 +186,12 @@ func (s *Service) applyTask(ctx context.Context, userID int64, action, entityID 
 		return s.createTask(ctx, userID, entityID, patch)
 	case "delete":
 		return s.deleteTask(ctx, userID, entityID, baseSeq)
+	case "restore":
+		return s.restoreTask(ctx, userID, entityID, baseSeq)
+	case "purge":
+		return s.purgeTask(ctx, userID, entityID, baseSeq)
+	case "skip":
+		return s.skipTaskOccurrence(ctx, userID, entityID, baseSeq)
 	default:
 		return s.updateTask(ctx, userID, entityID, baseSeq, patch)
 	}
@@ -289,7 +302,131 @@ func (s *Service) deleteTask(ctx context.Context, userID int64, entityID string,
 	return s.taskOutcome(ctx, userID, task.SyncID)
 }
 
+func (s *Service) restoreTask(ctx context.Context, userID int64, entityID string, baseSeq int64) outcome {
+	task, err := s.store.GetTaskBySyncID(ctx, userID, entityID)
+	if err == store.ErrNotFound {
+		return outcome{status: "gone"}
+	}
+	if err != nil {
+		return errorOutcome("server_error", err.Error())
+	}
+	if !task.Deleted {
+		// Another client already restored it; restoring is idempotent.
+		return s.taskOutcome(ctx, userID, task.SyncID)
+	}
+	if failure := s.checkBase(ctx, userID, store.SyncEntityTask, entityID, baseSeq); failure != nil {
+		return *failure
+	}
+	restored, err := s.store.RestoreTask(ctx, userID, task.ID)
+	if err != nil {
+		return storeFailure("restore task", err)
+	}
+	if err := s.syncer.PushTask(ctx, userID, restored); err != nil {
+		slog.Default().Warn("push restored task to caldav", "task", restored.SyncID, "error", err)
+	}
+	return s.taskOutcome(ctx, userID, restored.SyncID)
+}
+
+func (s *Service) purgeTask(ctx context.Context, userID int64, entityID string, baseSeq int64) outcome {
+	task, err := s.store.GetTaskBySyncID(ctx, userID, entityID)
+	if err == store.ErrNotFound {
+		return outcome{status: "gone"}
+	}
+	if err != nil {
+		return errorOutcome("server_error", err.Error())
+	}
+	if failure := s.checkBase(ctx, userID, store.SyncEntityTask, entityID, baseSeq); failure != nil {
+		return *failure
+	}
+	if err := s.syncer.DeleteTask(ctx, userID, task); err != nil {
+		slog.Default().Warn("delete purged task vtodo", "task", task.SyncID, "error", err)
+	}
+	if err := s.store.PurgeTask(ctx, userID, task.ID); err != nil {
+		return storeFailure("purge task", err)
+	}
+	return outcome{status: "ok"}
+}
+
+func (s *Service) completeTaskOccurrence(ctx context.Context, userID int64, task *store.Task) bool {
+	if task == nil || task.Recurrence == "" || task.DueAt == nil {
+		return false
+	}
+	occurrence := task.DueAt.UTC()
+	if err := s.store.RecordRecurrenceInstance(ctx, &store.TaskRecurrenceInstance{
+		UserID: task.UserID, TaskID: task.ID, OccurrenceAt: occurrence,
+		Status: "completed", Title: task.Title,
+	}); err != nil {
+		slog.Default().Warn("record completed recurrence", "task", task.SyncID, "error", err)
+	}
+	if err := s.syncer.UpsertRecurrenceException(ctx, userID, task, occurrence, "completed"); err != nil {
+		slog.Default().Warn("write completed recurrence exception", "task", task.SyncID, "error", err)
+	}
+	anchor := *task.DueAt
+	if task.RecurrenceAnchor != nil {
+		anchor = *task.RecurrenceAnchor
+	}
+	next, ok := taskparse.NextOccurrenceAfter(task.Recurrence, anchor, occurrence)
+	if !ok {
+		return false
+	}
+	task.DueAt = &next
+	task.Completed = false
+	task.CompletedAt = nil
+	return true
+}
+
+func (s *Service) skipTaskOccurrence(ctx context.Context, userID int64, entityID string, baseSeq int64) outcome {
+	task, err := s.store.GetTaskBySyncID(ctx, userID, entityID)
+	if err == store.ErrNotFound {
+		return outcome{status: "gone"}
+	}
+	if err != nil {
+		return errorOutcome("server_error", err.Error())
+	}
+	if task.Deleted {
+		return s.goneTask(ctx, userID, task)
+	}
+	if task.Recurrence == "" || task.DueAt == nil {
+		return errorOutcome("invalid_operation", "task is not recurring")
+	}
+	if failure := s.checkBase(ctx, userID, store.SyncEntityTask, entityID, baseSeq); failure != nil {
+		return *failure
+	}
+	occurrence := task.DueAt.UTC()
+	anchor := *task.DueAt
+	if task.RecurrenceAnchor != nil {
+		anchor = *task.RecurrenceAnchor
+	}
+	if err := s.store.RecordRecurrenceInstance(ctx, &store.TaskRecurrenceInstance{
+		UserID: task.UserID, TaskID: task.ID, OccurrenceAt: occurrence,
+		Status: "skipped", Title: task.Title,
+	}); err != nil {
+		return storeFailure("record skipped occurrence", err)
+	}
+	if next, ok := taskparse.NextOccurrenceAfter(task.Recurrence, anchor, occurrence); ok {
+		task.DueAt = &next
+		task.Completed = false
+		task.CompletedAt = nil
+	} else {
+		now := time.Now().UTC()
+		task.Completed = true
+		task.CompletedAt = &now
+	}
+	task.SyncPending = true
+	if err := s.store.UpdateTask(ctx, task); err != nil {
+		return storeFailure("skip occurrence", err)
+	}
+	if err := s.syncer.PushTask(ctx, userID, task); err != nil {
+		slog.Default().Warn("push skipped recurring task to caldav", "task", task.SyncID, "error", err)
+	}
+	if err := s.syncer.UpsertRecurrenceException(ctx, userID, task, occurrence, "skipped"); err != nil {
+		slog.Default().Warn("write skipped recurrence exception", "task", task.SyncID, "error", err)
+	}
+	return s.taskOutcome(ctx, userID, task.SyncID)
+}
+
 func (s *Service) applyTaskFields(ctx context.Context, userID int64, task *store.Task, patch map[string]json.RawMessage, creating bool) *outcome {
+	recurrenceAdvanced := false
 	if value, set, _, err := patchString(patch, "kind"); err != nil {
 		return failure("invalid_patch", err.Error())
 	} else if set && !creating {
@@ -435,14 +572,25 @@ func (s *Service) applyTaskFields(ctx context.Context, userID int64, task *store
 	if value, set, err := patchBool(patch, "completed"); err != nil {
 		return failure("invalid_patch", err.Error())
 	} else if set {
-		applyTaskCompletion(task, value)
+		recurrenceAdvanced = false
+		if value && task.Recurrence != "" && task.DueAt != nil {
+			recurrenceAdvanced = s.completeTaskOccurrence(ctx, userID, task)
+		}
+		if !recurrenceAdvanced {
+			applyTaskCompletion(task, value)
+		}
 	}
 	if value, set, err := patchTime(patch, "completedAt"); err != nil {
 		return failure("invalid_patch", err.Error())
 	} else if set {
-		task.CompletedAt = value
-		if value != nil {
-			task.Completed = true
+		if recurrenceAdvanced && value != nil {
+			// Completing a recurring task moved the master to its next
+			// occurrence; keep the stale completion timestamp from undoing it.
+		} else {
+			task.CompletedAt = value
+			if value != nil {
+				task.Completed = true
+			}
 		}
 	}
 	if value, set, err := patchBool(patch, "pinned"); err != nil {

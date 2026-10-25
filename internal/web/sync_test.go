@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"caldav-free/internal/store"
 	"caldav-free/internal/syncapi"
@@ -264,6 +265,163 @@ func TestSyncProtocolConvergesTwoClients(t *testing.T) {
 	}
 	if !foundTombstone {
 		t.Fatalf("purge did not produce a tombstone: %+v", afterPurge)
+	}
+}
+
+func TestSyncRestoreAndPurgeTask(t *testing.T) {
+	env := newAPIEnv(t)
+
+	created := env.push(t, syncapi.PushOp{
+		OpID: "op-restore-create", Entity: "task", Action: "create",
+		Patch: map[string]json.RawMessage{
+			"title": json.RawMessage(`"回收站任务"`),
+		},
+	})
+	if created.Results[0].Status != "ok" {
+		t.Fatalf("create: %+v", created.Results[0])
+	}
+	taskID := created.Results[0].EntityID
+	createETag := created.Results[0].ETag
+
+	deleted := env.push(t, syncapi.PushOp{
+		OpID: "op-restore-delete", Entity: "task", EntityID: taskID,
+		Action: "delete", BaseETag: createETag,
+	})
+	if deleted.Results[0].Status != "ok" {
+		t.Fatalf("delete: %+v", deleted.Results[0])
+	}
+
+	restored := env.push(t, syncapi.PushOp{
+		OpID: "op-restore", Entity: "task", EntityID: taskID,
+		Action: "restore", BaseETag: deleted.Results[0].ETag,
+	})
+	if restored.Results[0].Status != "ok" {
+		t.Fatalf("restore: %+v", restored.Results[0])
+	}
+	restoredTask := snapshotAs[syncapi.TaskDTO](t, restored.Results[0])
+	if restoredTask.Deleted {
+		t.Fatalf("restored task still deleted: %+v", restoredTask)
+	}
+	if restoredTask.ListID == "" {
+		t.Fatalf("restored task has no live list: %+v", restoredTask)
+	}
+
+	// Restoring an already-live task is idempotent.
+	again := env.push(t, syncapi.PushOp{
+		OpID: "op-restore-again", Entity: "task", EntityID: taskID,
+		Action: "restore", BaseETag: restored.Results[0].ETag,
+	})
+	if again.Results[0].Status != "ok" {
+		t.Fatalf("idempotent restore: %+v", again.Results[0])
+	}
+
+	deletedAgain := env.push(t, syncapi.PushOp{
+		OpID: "op-restore-delete-2", Entity: "task", EntityID: taskID,
+		Action: "delete", BaseETag: again.Results[0].ETag,
+	})
+	if deletedAgain.Results[0].Status != "ok" {
+		t.Fatalf("delete 2: %+v", deletedAgain.Results[0])
+	}
+
+	purged := env.push(t, syncapi.PushOp{
+		OpID: "op-purge", Entity: "task", EntityID: taskID,
+		Action: "purge", BaseETag: deletedAgain.Results[0].ETag,
+	})
+	if purged.Results[0].Status != "ok" {
+		t.Fatalf("purge: %+v", purged.Results[0])
+	}
+
+	after := env.pull(t, deletedAgain.Cursor)
+	foundTombstone := false
+	for _, item := range after.Tombstones {
+		if item.Entity == "task" && item.ID == taskID {
+			foundTombstone = true
+		}
+	}
+	if !foundTombstone {
+		t.Fatalf("purge did not produce a tombstone: %+v", after)
+	}
+
+	// Purge of an already-hard-deleted row is a no-op for the caller.
+	gone := env.push(t, syncapi.PushOp{
+		OpID: "op-purge-gone", Entity: "task", EntityID: taskID,
+		Action: "purge", BaseETag: purged.Results[0].ETag,
+	})
+	if gone.Results[0].Status != "gone" {
+		t.Fatalf("purge gone = %+v", gone.Results[0])
+	}
+}
+
+func TestSyncRecurringCompleteAndSkip(t *testing.T) {
+	env := newAPIEnv(t)
+	due := "2026-11-01T09:00:00Z"
+
+	created := env.push(t, syncapi.PushOp{
+		OpID: "op-recur-create", Entity: "task", Action: "create",
+		Patch: map[string]json.RawMessage{
+			"title":      json.RawMessage(`"每日站会"`),
+			"due":        json.RawMessage(`"` + due + `"`),
+			"recurrence": json.RawMessage(`"FREQ=DAILY"`),
+		},
+	})
+	if created.Results[0].Status != "ok" {
+		t.Fatalf("create recurring: %+v", created.Results[0])
+	}
+	taskID := created.Results[0].EntityID
+
+	completed := env.push(t, syncapi.PushOp{
+		OpID: "op-recur-complete", Entity: "task", EntityID: taskID,
+		Action: "update", BaseETag: created.Results[0].ETag,
+		Patch: map[string]json.RawMessage{
+			"completed":   json.RawMessage(`true`),
+			"completedAt": json.RawMessage(`"2026-11-01T10:00:00Z"`),
+		},
+	})
+	if completed.Results[0].Status != "ok" {
+		t.Fatalf("complete recurring: %+v", completed.Results[0])
+	}
+	afterComplete := snapshotAs[syncapi.TaskDTO](t, completed.Results[0])
+	if afterComplete.Completed {
+		t.Fatalf("recurring completion should advance instead of completing: %+v", afterComplete)
+	}
+	if afterComplete.Due != "2026-11-02T09:00:00Z" {
+		t.Fatalf("next due = %q", afterComplete.Due)
+	}
+
+	skipped := env.push(t, syncapi.PushOp{
+		OpID: "op-recur-skip", Entity: "task", EntityID: taskID,
+		Action: "skip", BaseETag: completed.Results[0].ETag,
+	})
+	if skipped.Results[0].Status != "ok" {
+		t.Fatalf("skip recurring: %+v", skipped.Results[0])
+	}
+	afterSkip := snapshotAs[syncapi.TaskDTO](t, skipped.Results[0])
+	if afterSkip.Due != "2026-11-03T09:00:00Z" {
+		t.Fatalf("due after skip = %q", afterSkip.Due)
+	}
+	if afterSkip.Completed {
+		t.Fatalf("skip should leave the task open: %+v", afterSkip)
+	}
+
+	task, err := env.store.GetTaskBySyncID(context.Background(), env.userID, taskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := env.store.ListRecurrenceInstances(
+		context.Background(), env.userID, task.ID, 20,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statuses := map[string]string{}
+	for _, row := range rows {
+		statuses[row.OccurrenceAt.UTC().Format(time.RFC3339)] = row.Status
+	}
+	if statuses["2026-11-01T09:00:00Z"] != "completed" {
+		t.Fatalf("completed instance missing: %+v", statuses)
+	}
+	if statuses["2026-11-02T09:00:00Z"] != "skipped" {
+		t.Fatalf("skipped instance missing: %+v", statuses)
 	}
 }
 

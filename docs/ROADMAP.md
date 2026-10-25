@@ -141,8 +141,8 @@
 | 135 | Android P3 第三批：重复事件“仅此次/整个系列”编辑与删除、RECURRENCE-ID 例外 | `a6c9834` / `5cc02c0` |
 | 136 | Android P4 第一批：底部导航、习惯列表、今日打卡、新建/编辑/删除、30 天热力图 | `3fb511b` |
 | 137 | Android P4 第一批：Basic Auth 习惯接口、Habit API 解析与打卡/创建测试 | `b6ebc7f` / `3fb511b` |
-| 138 | Android P4 第二批：专注/番茄 Tab、25/45/60 分钟计时、今日/累计统计、最近记录 | — |
-| 139 | Android P4 第二批：Basic Auth 专注 dashboard/session 接口、Focus API 测试 | — |
+| 138 | Android P4 第二批：专注/番茄 Tab、25/45/60 分钟计时、今日/累计统计、最近记录 | `58d94ea` |
+| 139 | Android P4 第二批：Basic Auth 专注 dashboard/session 接口、Focus API 测试 | `e5901cf` / `58d94ea` |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 

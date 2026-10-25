@@ -58,6 +58,7 @@ type Server struct {
 	taskSync      *tasksync.Syncer
 	notifications *notificationHub
 	focusStreams  *focusHub
+	taskStreams   *taskSyncHub
 }
 
 // New creates the admin web server. externalURL may be empty to derive URLs
@@ -101,6 +102,7 @@ func New(st *store.Store, davHandler *dav.Handler, logger *slog.Logger, external
 		store:         st,
 		notifications: notifications,
 		focusStreams:  newFocusHub(),
+		taskStreams:   newTaskSyncHub(),
 		dav:           davHandler,
 		logger:        logger,
 		templates:     tmpl,
@@ -133,6 +135,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/dashboard", s.apiAdmin(s.apiDashboard))
 	mux.HandleFunc("GET /api/admin/notifications", s.apiAdmin(s.apiNotifications))
 	mux.HandleFunc("GET /api/admin/notifications/stream", s.apiAdmin(s.apiNotificationStream))
+	mux.HandleFunc("GET /api/admin/tasks/stream", s.apiAdmin(s.apiTaskStream))
 	mux.HandleFunc("GET /api/admin/focus/stream", s.apiAdmin(s.apiFocusStream))
 	mux.HandleFunc("POST /api/admin/notifications/read", s.apiAdmin(s.apiNotificationsRead))
 	mux.HandleFunc("POST /api/admin/notifications/{id}/snooze", s.apiAdmin(s.apiSnoozeNotification))

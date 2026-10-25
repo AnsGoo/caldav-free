@@ -1290,6 +1290,7 @@ const NOTIFY_KEY = 'caldav-task-notified'
 let reminderTimer: ReturnType<typeof setInterval> | undefined
 let notificationTimer: ReturnType<typeof setInterval> | undefined
 let notificationSource: EventSource | null = null
+let taskStreamSource: EventSource | null = null
 
 const quickInputEl = ref<HTMLInputElement | null>(null)
 const sectionRenameInput = ref<HTMLInputElement | HTMLInputElement[] | null>(null)
@@ -3671,6 +3672,19 @@ function startNotificationStream() {
   }
 }
 
+function startTaskStream() {
+  if (typeof EventSource === 'undefined' || taskStreamSource) return
+  taskStreamSource = new EventSource('/api/admin/tasks/stream')
+  taskStreamSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as { revision?: string; ready?: boolean }
+      if (data.revision) scheduleRefresh()
+    } catch {
+      /* ignore malformed SSE frames */
+    }
+  }
+}
+
 async function openNotification(url: string) {
   notificationDialogOpen.value = false
   const target = url.startsWith('/admin/') ? url.slice('/admin'.length) : url
@@ -3756,6 +3770,7 @@ onMounted(async () => {
   await loadWorkspace()
   void refreshNotifications()
   startNotificationStream()
+  startTaskStream()
   notificationTimer = setInterval(() => {
     void refreshNotifications()
     if (view.value === 'shared') void refreshSharedView()
@@ -3773,6 +3788,8 @@ onBeforeUnmount(() => {
   if (notificationTimer) clearInterval(notificationTimer)
   notificationSource?.close()
   notificationSource = null
+  taskStreamSource?.close()
+  taskStreamSource = null
   document.removeEventListener('visibilitychange', onVisibilityChange)
   stopReminderTimer()
   delete document.documentElement.dataset.theme

@@ -264,6 +264,7 @@ docker run -d --name caldav \
 | `/api/admin/task-lists/{id}/shares` | 清单共享成员与角色管理 |
 | `/api/admin/task-lists/{id}/members` | 清单所有者与成员列表（用于指派） |
 | `/api/admin/tasks/shared` | 共享清单任务列表 |
+| `/api/admin/tasks/stream` | 任务工作台变更 SSE（每 15 秒增量同步 CalDAV VTODO） |
 | `/api/admin/notifications` | 站内通知列表与未读数 |
 | `/api/admin/notifications/stream` | 通知未读数 SSE 流 |
 | `/api/admin/notifications/read` | 单条或全部标记已读 |

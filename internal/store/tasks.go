@@ -1211,3 +1211,31 @@ func (s *Store) CopyTaskList(ctx context.Context, userID, sourceID int64, newNam
 	}
 	return list, nil
 }
+
+// TaskWorkspaceRevision returns a cheap fingerprint of task and list changes
+// for the current user. It is used by the workspace SSE stream to notify the
+// browser only when something actually changed.
+func (s *Store) TaskWorkspaceRevision(ctx context.Context, userID int64) (string, error) {
+	var taskRow struct {
+		Count       int64
+		MaxModified string
+		MaxDeleted  string
+	}
+	if err := s.db.WithContext(ctx).Model(&Task{}).
+		Where("user_id = ?", userID).
+		Select("COUNT(*) AS count, COALESCE(MAX(modified_at), '') AS max_modified, COALESCE(MAX(deleted_at), '') AS max_deleted").
+		Scan(&taskRow).Error; err != nil {
+		return "", fmt.Errorf("task revision: %w", err)
+	}
+	var listRow struct {
+		Count       int64
+		MaxModified string
+	}
+	if err := s.db.WithContext(ctx).Model(&TaskList{}).
+		Where("user_id = ?", userID).
+		Select("COUNT(*) AS count, COALESCE(MAX(modified_at), '') AS max_modified").
+		Scan(&listRow).Error; err != nil {
+		return "", fmt.Errorf("list revision: %w", err)
+	}
+	return fmt.Sprintf("%d:%s:%s|%d:%s", taskRow.Count, taskRow.MaxModified, taskRow.MaxDeleted, listRow.Count, listRow.MaxModified), nil
+}

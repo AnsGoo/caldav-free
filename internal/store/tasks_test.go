@@ -414,3 +414,36 @@ func TestNormalizeCrossKindTaskLists(t *testing.T) {
 		t.Fatalf("note should return to a note list: %+v", movedNote)
 	}
 }
+
+func TestTaskWorkspaceRevisionChanges(t *testing.T) {
+	s, userID := newTaskUser(t)
+	ctx := context.Background()
+	before, err := s.TaskWorkspaceRevision(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbox, _ := s.EnsureInbox(ctx, userID)
+	task, err := s.CreateTask(ctx, &Task{UserID: userID, ListID: inbox.ID, Title: "revision"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.TaskWorkspaceRevision(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created == before {
+		t.Fatalf("revision did not change after create: %q", created)
+	}
+	task.Title = "revision 2"
+	task.SyncPending = true
+	if err := s.UpdateTask(ctx, task); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := s.TaskWorkspaceRevision(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated == created {
+		t.Fatalf("revision did not change after update: %q", updated)
+	}
+}

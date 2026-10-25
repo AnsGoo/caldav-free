@@ -286,6 +286,22 @@ export interface TaskListShare {
   createdAt: string
 }
 
+export interface TaskShare {
+  userId: number
+  username: string
+  displayName: string
+  role: 'viewer' | 'editor'
+  createdAt: string
+}
+
+export interface SharedNote {
+  task: TaskItem
+  role: 'viewer' | 'editor'
+  ownerId: number
+  ownerUsername: string
+  ownerDisplay: string
+}
+
 export interface AppNotification {
   id: number
   type: string
@@ -338,6 +354,7 @@ export interface TaskListMember {
 export interface TaskWorkspaceData {
   lists: TaskList[]
   sharedLists: SharedTaskList[]
+  sharedNotes: SharedNote[]
   folders: TaskFolder[]
   sections: TaskSection[]
   filters: SavedFilter[]

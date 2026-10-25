@@ -88,3 +88,38 @@ func TestSharedNoteListKeepsKind(t *testing.T) {
 		t.Fatalf("shared notes = %+v (%v)", tasks, err)
 	}
 }
+
+func TestTaskShareSingleNote(t *testing.T) {
+	s, aliceID := newTaskUser(t)
+	ctx := context.Background()
+	hash, _ := auth.HashPassword("password123")
+	bob, err := s.CreateUser(ctx, "bob", "Bob", "", hash, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	noteList, err := s.CreateTaskListKind(ctx, aliceID, "笔记", "#4772fa", "NOTE")
+	if err != nil {
+		t.Fatal(err)
+	}
+	note, err := s.CreateTask(ctx, &Task{UserID: aliceID, ListID: noteList.ID, Kind: "NOTE", Title: "单篇共享"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ShareTask(ctx, aliceID, note.ID, "bob", "editor"); err != nil {
+		t.Fatal(err)
+	}
+	access, err := s.GetTaskAccess(ctx, bob.ID, note.ID)
+	if err != nil || access.Role != "editor" || access.Task.ID != note.ID {
+		t.Fatalf("task access = %+v (%v)", access, err)
+	}
+	shared, err := s.ListSharedNotes(ctx, bob.ID)
+	if err != nil || len(shared) != 1 || shared[0].Task.ID != note.ID || shared[0].Role != "editor" {
+		t.Fatalf("shared notes = %+v (%v)", shared, err)
+	}
+	if err := s.DeleteTaskShare(ctx, aliceID, note.ID, bob.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.GetTaskAccess(ctx, bob.ID, note.ID); err == nil {
+		t.Fatal("removed task share should not grant access")
+	}
+}

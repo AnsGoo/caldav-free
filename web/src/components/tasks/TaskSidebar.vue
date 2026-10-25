@@ -296,6 +296,27 @@
         </ul>
       </section>
 
+      <section v-if="sharedNotes.length" class="tw-side-section">
+        <header class="tw-section-head">
+          <span>共享笔记</span>
+          <span class="tw-shared-readonly">共享</span>
+        </header>
+        <ul class="tw-list-nav">
+          <li v-for="note in sharedNotes" :key="`shared-note-${note.task.id}`">
+            <button
+              class="tw-nav-item tw-list-item tw-shared-note-item"
+              :class="{ active: activeSharedNoteId === note.task.id }"
+              :title="`来自 ${note.ownerDisplay || note.ownerUsername}`"
+              @click="$emit('select-shared-note', note)"
+            >
+              <span class="tw-note-list-mark"><TaskIcon name="note" :size="14" /></span>
+              <span class="tw-nav-label">{{ note.task.title || '无标题笔记' }}</span>
+            </button>
+            <p class="tw-shared-owner">{{ note.ownerDisplay || note.ownerUsername }}</p>
+          </li>
+        </ul>
+      </section>
+
       <section class="tw-side-section">
         <header class="tw-section-head">
           <span>标签</span>
@@ -353,13 +374,14 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
-import type { SavedFilter, SharedTaskList, TaskCounts, TaskFolder, TaskList, TaskTagCount } from '../../types'
+import type { SavedFilter, SharedNote, SharedTaskList, TaskCounts, TaskFolder, TaskList, TaskTagCount } from '../../types'
 import { tagColor, tagTint } from '../../tag-colors'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
   lists: TaskList[]
   sharedLists: SharedTaskList[]
+  sharedNotes: SharedNote[]
   folders: TaskFolder[]
   filters: SavedFilter[]
   tagCounts: TaskTagCount[]
@@ -369,6 +391,7 @@ const props = defineProps<{
   activeFilterId: number
   activeTag: string
   activeSharedListId: number
+  activeSharedNoteId: number
   unreadNotifications: number
   userName: string
   displayName: string
@@ -381,6 +404,7 @@ const emit = defineEmits<{
   (event: 'select-filter', id: number): void
   (event: 'select-tag', tag: string): void
   (event: 'select-shared', listId: number): void
+  (event: 'select-shared-note', note: SharedNote): void
   (event: 'create-list', payload: { name: string; kind: 'TASK' | 'NOTE' }): void
   (event: 'create-note'): void
   (event: 'edit-list', list: TaskList): void

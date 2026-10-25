@@ -2,20 +2,21 @@
   <section class="tw-ai">
     <header class="tw-ai-head">
       <div class="tw-ai-head-actions">
-        <select
+        <a-select
           v-if="settings.configured && chatModelOptions.length > 1"
           v-model="chatModel"
           class="tw-ai-chat-model"
+          size="small"
           title="选择对话模型"
           @change="onChatModelChange"
         >
-          <optgroup v-if="recentChatModels.length" label="最近使用">
-            <option v-for="model in recentChatModels" :key="model" :value="model">{{ modelOptionLabel(model) }}</option>
-          </optgroup>
-          <optgroup v-if="otherChatModels.length" label="全部模型">
-            <option v-for="model in otherChatModels" :key="model" :value="model">{{ modelOptionLabel(model) }}</option>
-          </optgroup>
-        </select>
+          <a-optgroup v-if="recentChatModels.length" label="最近使用">
+            <a-option v-for="model in recentChatModels" :key="model" :value="model">{{ modelOptionLabel(model) }}</a-option>
+          </a-optgroup>
+          <a-optgroup v-if="otherChatModels.length" label="全部模型">
+            <a-option v-for="model in otherChatModels" :key="model" :value="model">{{ modelOptionLabel(model) }}</a-option>
+          </a-optgroup>
+        </a-select>
         <span v-else-if="settings.configured" class="tw-ai-model">{{ chatModel || settings.model }}</span>
         <button class="tw-icon-button" title="清空对话" @click="clearChat">
           <TaskIcon name="trash" :size="16" />
@@ -98,31 +99,30 @@
           </button>
         </header>
         <div class="tw-dialog-body tw-ai-settings">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             服务商
-            <select v-model="settingsForm.provider" class="tw-field-select" @change="onProviderChange">
-              <option v-for="option in providerOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          </label>
-          <label class="tw-modal-label">
+            <a-select v-model="settingsForm.provider" class="tw-field-select" @change="onProviderChange">
+              <a-option v-for="option in providerOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option>
+            </a-select>
+          </div>
+          <div class="tw-modal-label">
             API Key
-            <input
+            <a-input-password
               v-model="settingsForm.apiKey"
               class="tw-dialog-input"
-              type="password"
               autocomplete="new-password"
               :placeholder="settings.hasKey ? '已保存，留空表示不修改' : '本地模型可留空'"
               @blur="onKeyBlur"
             />
-          </label>
-          <label class="tw-modal-label">
+          </div>
+          <div class="tw-modal-label">
             接口地址（Base URL）
-            <input v-model="settingsForm.baseUrl" class="tw-dialog-input" placeholder="选择服务商后自动填充，也可手动修改" @change="models = []" />
-          </label>
-          <label class="tw-modal-label">
+            <a-input v-model="settingsForm.baseUrl" class="tw-dialog-input" placeholder="选择服务商后自动填充，也可手动修改" @change="models = []" />
+          </div>
+          <div class="tw-modal-label">
             模型
             <div class="tw-ai-model-row">
-              <input
+              <a-input
                 v-model="settingsForm.model"
                 class="tw-dialog-input"
                 placeholder="获取模型后选择，或手动填写"
@@ -134,7 +134,7 @@
             </div>
             <span v-if="models.length" class="tw-ai-model-count">已获取 {{ models.length }} 个模型，点击下方列表选择或直接手动填写</span>
             <div v-if="models.length" class="tw-ai-model-picker">
-              <input v-model="modelFilter" class="tw-ai-model-filter" placeholder="筛选模型…" />
+              <a-input v-model="modelFilter" class="tw-ai-model-filter" placeholder="筛选模型…" />
               <div class="tw-ai-model-options">
                 <button
                   v-for="model in filteredModels"
@@ -168,11 +168,8 @@
               </button>
               <span v-if="testResult" :class="testResult.ok ? (testResult.warn ? 'warn' : 'ok') : 'error'">{{ testResult.text }}</span>
             </div>
-          </label>
-          <label v-if="settings.hasKey" class="tw-check-label">
-            <input v-model="settingsForm.clearKey" type="checkbox" />
-            清除已保存的 API Key
-          </label>
+          </div>
+          <a-checkbox v-if="settings.hasKey" v-model="settingsForm.clearKey" class="tw-check-label">清除已保存的 API Key</a-checkbox>
           <div class="tw-ai-provider-hint">
             <strong>提示</strong>
             <span>选择服务商会自动填充接口地址；填写 API Key 后可获取并选择模型。</span>

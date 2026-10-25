@@ -10,11 +10,11 @@
       <div class="tw-dialog-body tw-share-body">
         <p class="tw-share-hint">输入管理后台用户名，对方会在“共享给我”中看到这个清单。可选择只读或可编辑权限。</p>
         <form class="tw-share-form" @submit.prevent="addShare">
-          <input v-model="username" class="tw-dialog-input" placeholder="用户名" autocomplete="off" />
-          <select v-model="role" class="tw-dialog-input tw-share-role">
-            <option value="viewer">只读</option>
-            <option value="editor">可编辑</option>
-          </select>
+          <a-input v-model="username" class="tw-dialog-input" placeholder="用户名" autocomplete="off" />
+          <a-select v-model="role" class="tw-dialog-input tw-share-role">
+            <a-option value="viewer">只读</a-option>
+            <a-option value="editor">可编辑</a-option>
+          </a-select>
           <button class="tw-dialog-ok" :disabled="busy || !username.trim()">添加</button>
         </form>
         <div v-if="loading" class="tw-share-empty">加载中…</div>
@@ -25,15 +25,15 @@
               <strong>{{ share.displayName || share.username }}</strong>
               <small>@{{ share.username }}</small>
             </span>
-            <select
+            <a-select
               class="tw-share-role-select"
-              :value="share.role"
+              :model-value="share.role"
               :disabled="busy"
-              @change="updateShareRole(share, $event)"
+              @change="(value) => updateShareRole(share, value)"
             >
-              <option value="viewer">只读</option>
-              <option value="editor">可编辑</option>
-            </select>
+              <a-option value="viewer">只读</a-option>
+              <a-option value="editor">可编辑</a-option>
+            </a-select>
             <button class="tw-icon-button" title="移除共享" :disabled="busy" @click="removeShare(share)">
               <TaskIcon name="close" :size="14" />
             </button>
@@ -102,8 +102,8 @@ async function addShare() {
   }
 }
 
-async function updateShareRole(share: TaskListShare, event: Event) {
-  const nextRole = (event.target as HTMLSelectElement).value as 'viewer' | 'editor'
+async function updateShareRole(share: TaskListShare, value: unknown) {
+  const nextRole = String(value) as 'viewer' | 'editor'
   if (nextRole === share.role) return
   busy.value = true
   error.value = ''

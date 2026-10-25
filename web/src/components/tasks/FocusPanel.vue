@@ -65,7 +65,7 @@
             <span>专注笔记</span>
             <small>{{ note.length }}/2000</small>
           </header>
-          <textarea v-model="note" maxlength="2000" placeholder="记录此刻的想法…" />
+          <a-textarea v-model="note" class="tw-focus-note" :max-length="2000" :auto-size="{ minRows: 2, maxRows: 5 }" placeholder="记录此刻的想法…" />
         </div>
       </main>
 
@@ -134,10 +134,10 @@
           <div class="tw-focus-picker-groups">
             <button v-for="group in pickerGroups" :key="group.value" :class="{ active: pickerGroup === group.value }" @click="pickerGroup = group.value">{{ group.label }}</button>
           </div>
-          <select v-model.number="pickerListId" title="按清单筛选">
-            <option :value="0">全部清单</option>
-            <option v-for="list in pickerLists" :key="list.id" :value="list.id">{{ list.name }}</option>
-          </select>
+          <a-select v-model.number="pickerListId" class="tw-focus-picker-select" size="small" title="按清单筛选">
+            <a-option :value="0">全部清单</a-option>
+            <a-option v-for="list in pickerLists" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+          </a-select>
         </div>
         <div class="tw-focus-picker-search">
           <TaskIcon name="search" :size="15" />
@@ -163,18 +163,18 @@
         <div class="tw-dialog-body tw-focus-settings-body">
           <section class="tw-focus-setting-card">
             <h3>计时选项</h3>
-            <label class="tw-focus-setting-row"><span>番茄时长</span><input v-model.number="settingsDraft.pomodoroMinutes" type="number" min="5" max="180" /><em>分钟</em></label>
-            <label class="tw-focus-setting-row"><span>短休息时长</span><input v-model.number="settingsDraft.shortBreakMinutes" type="number" min="1" max="60" /><em>分钟</em></label>
-            <label class="tw-focus-setting-row"><span>长休息时长</span><input v-model.number="settingsDraft.longBreakMinutes" type="number" min="1" max="60" /><em>分钟</em></label>
-            <label class="tw-focus-setting-row"><span>长休息间隔</span><input v-model.number="settingsDraft.longBreakInterval" type="number" min="1" max="60" /><em>个番茄</em></label>
-            <label class="tw-focus-setting-row"><span>每日目标</span><input v-model.number="settingsDraft.dailyGoal" type="number" min="0" max="100" /><em>个番茄</em></label>
+            <div class="tw-focus-setting-row"><span>番茄时长</span><a-input-number v-model="settingsDraft.pomodoroMinutes" class="tw-focus-number" :min="5" :max="180" /><em>分钟</em></div>
+            <div class="tw-focus-setting-row"><span>短休息时长</span><a-input-number v-model="settingsDraft.shortBreakMinutes" class="tw-focus-number" :min="1" :max="60" /><em>分钟</em></div>
+            <div class="tw-focus-setting-row"><span>长休息时长</span><a-input-number v-model="settingsDraft.longBreakMinutes" class="tw-focus-number" :min="1" :max="60" /><em>分钟</em></div>
+            <div class="tw-focus-setting-row"><span>长休息间隔</span><a-input-number v-model="settingsDraft.longBreakInterval" class="tw-focus-number" :min="1" :max="60" /><em>个番茄</em></div>
+            <div class="tw-focus-setting-row"><span>每日目标</span><a-input-number v-model="settingsDraft.dailyGoal" class="tw-focus-number" :min="0" :max="100" /><em>个番茄</em></div>
           </section>
           <section class="tw-focus-setting-card">
             <h3>自动选项</h3>
-            <label class="tw-focus-setting-toggle"><span>自动开始下个番茄</span><input v-model="settingsDraft.autoStartPomodoro" type="checkbox" /></label>
-            <label class="tw-focus-setting-toggle"><span>自动开始休息</span><input v-model="settingsDraft.autoStartBreak" type="checkbox" /></label>
-            <label class="tw-focus-setting-toggle"><span>番茄提示音</span><input v-model="settingsDraft.soundEnabled" type="checkbox" /></label>
-            <label class="tw-focus-setting-toggle"><span>浏览器标签页计时</span><input v-model="settingsDraft.tabTitleEnabled" type="checkbox" /></label>
+            <div class="tw-focus-setting-toggle"><span>自动开始下个番茄</span><a-switch v-model="settingsDraft.autoStartPomodoro" size="small" /></div>
+            <div class="tw-focus-setting-toggle"><span>自动开始休息</span><a-switch v-model="settingsDraft.autoStartBreak" size="small" /></div>
+            <div class="tw-focus-setting-toggle"><span>番茄提示音</span><a-switch v-model="settingsDraft.soundEnabled" size="small" /></div>
+            <div class="tw-focus-setting-toggle"><span>浏览器标签页计时</span><a-switch v-model="settingsDraft.tabTitleEnabled" size="small" /></div>
           </section>
         </div>
         <footer class="tw-dialog-foot">
@@ -196,13 +196,13 @@
             <span>{{ manualTarget?.title || '选择任务或习惯' }}</span>
             <TaskIcon name="chevron" :size="12" />
           </button>
-          <label class="tw-focus-field"><span>开始时间</span><a-date-picker v-model="manualForm.startedAt" class="tw-date-control" show-time value-format="YYYY-MM-DDTHH:mm" format="YYYY-MM-DD HH:mm" /></label>
-          <label class="tw-focus-field"><span>结束时间</span><a-date-picker v-model="manualForm.endedAt" class="tw-date-control" show-time value-format="YYYY-MM-DDTHH:mm" format="YYYY-MM-DD HH:mm" /></label>
+          <div class="tw-focus-field"><span>开始时间</span><a-date-picker v-model="manualForm.startedAt" class="tw-date-control" show-time value-format="YYYY-MM-DDTHH:mm" format="YYYY-MM-DD HH:mm" /></div>
+          <div class="tw-focus-field"><span>结束时间</span><a-date-picker v-model="manualForm.endedAt" class="tw-date-control" show-time value-format="YYYY-MM-DDTHH:mm" format="YYYY-MM-DD HH:mm" /></div>
           <div class="tw-focus-field-row">
-            <label class="tw-focus-field"><span>类型</span><select v-model="manualForm.mode"><option value="pomodoro">番茄计时</option><option value="stopwatch">正计时</option></select></label>
-            <label v-if="manualForm.mode === 'pomodoro'" class="tw-focus-field small"><span>番茄数</span><input v-model.number="manualForm.pomodoroCount" type="number" min="0" max="10" /></label>
+            <div class="tw-focus-field"><span>类型</span><a-select v-model="manualForm.mode"><a-option value="pomodoro">番茄计时</a-option><a-option value="stopwatch">正计时</a-option></a-select></div>
+            <div v-if="manualForm.mode === 'pomodoro'" class="tw-focus-field small"><span>番茄数</span><a-input-number v-model="manualForm.pomodoroCount" :min="0" :max="10" /></div>
           </div>
-          <label class="tw-focus-field"><span>专注笔记</span><textarea v-model="manualForm.note" maxlength="2000" placeholder="记录本次专注…" /></label>
+          <div class="tw-focus-field"><span>专注笔记</span><a-textarea v-model="manualForm.note" :max-length="2000" :auto-size="{ minRows: 3, maxRows: 6 }" placeholder="记录本次专注…" /></div>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="manualOpen = false">关闭</button>

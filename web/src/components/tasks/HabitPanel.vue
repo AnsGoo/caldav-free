@@ -201,14 +201,14 @@
             <button v-if="!archived" class="tw-ghost-button" @click="logComposerOpen = !logComposerOpen">{{ logComposerOpen ? '取消' : '写日志' }}</button>
           </header>
           <div v-if="logComposerOpen" class="tw-habit-log-form">
-            <textarea v-model="logContent" rows="2" maxlength="1000" placeholder="记录今天的感受…" />
+            <a-textarea v-model="logContent" :auto-size="{ minRows: 2, maxRows: 5 }" :max-length="1000" placeholder="记录今天的感受…" />
             <button class="tw-primary-button" :disabled="!logContent.trim()" @click="saveLog">保存</button>
           </div>
           <div v-if="!detail.records.length" class="tw-habit-log-empty">这个月没有写打卡日志哦</div>
           <article v-for="record in detail.records" :key="record.id" class="tw-habit-log">
             <span class="tw-habit-log-emoji">{{ record.emoji || '📝' }}</span>
             <div v-if="editingLogId === record.id" class="tw-habit-log-edit">
-              <textarea v-model="editingLogContent" rows="2" maxlength="1000" />
+              <a-textarea v-model="editingLogContent" :auto-size="{ minRows: 2, maxRows: 5 }" :max-length="1000" />
               <div class="tw-habit-log-edit-actions">
                 <button class="tw-primary-button" :disabled="!editingLogContent.trim()" @click="saveLogEdit(record)">保存</button>
                 <button class="tw-ghost-button" @click="cancelLogEdit">取消</button>
@@ -234,56 +234,56 @@
         <div class="tw-dialog-body tw-habit-form">
           <div class="tw-habit-form-title">
             <button class="tw-habit-icon-picker" :style="{ backgroundColor: form.color }" @click="cycleIcon">{{ form.icon }}</button>
-            <input v-model="form.name" class="tw-dialog-input" maxlength="100" placeholder="每天进步一点点" />
+            <a-input v-model="form.name" class="tw-dialog-input" :max-length="100" placeholder="每天进步一点点" />
           </div>
           <div class="tw-emoji-row">
             <button v-for="emoji in emojis" :key="emoji" :class="{ active: form.icon === emoji }" @click="form.icon = emoji">{{ emoji }}</button>
             <button v-for="color in colors" :key="color" class="tw-color-dot" :class="{ active: form.color === color }" :style="{ background: color }" @click="form.color = color" />
           </div>
 
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             频率
             <div class="tw-habit-frequency">
-              <select v-model="form.frequencyType" class="tw-field-select">
-                <option value="daily">按天</option>
-                <option value="weekly">按周</option>
-                <option value="interval">按时间间隔</option>
-              </select>
+              <a-select v-model="form.frequencyType" class="tw-field-select">
+                <a-option value="daily">按天</a-option>
+                <a-option value="weekly">按周</a-option>
+                <a-option value="interval">按时间间隔</a-option>
+              </a-select>
               <div v-if="form.frequencyType === 'daily'" class="tw-habit-weekday-picks">
                 <button v-for="(label, index) in ['日', '一', '二', '三', '四', '五', '六']" :key="label" :class="{ active: form.weekdays.includes(index) }" @click="toggleWeekday(index)">{{ label }}</button>
               </div>
               <div v-else-if="form.frequencyType === 'weekly'" class="tw-habit-inline-field">
                 每周
-                <input v-model.number="form.daysPerWeek" type="number" min="1" max="7" class="tw-dialog-input" />
+                <a-input-number v-model="form.daysPerWeek" class="tw-dialog-input" :min="1" :max="7" />
                 天
               </div>
               <div v-else class="tw-habit-inline-field">
                 每
-                <input v-model.number="form.interval" type="number" min="1" max="365" class="tw-dialog-input" />
+                <a-input-number v-model="form.interval" class="tw-dialog-input" :min="1" :max="365" />
                 天
               </div>
             </div>
-          </label>
+          </div>
 
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             目标
             <div class="tw-habit-goal-row">
-              <select v-model="form.goalMode" class="tw-field-select">
-                <option value="completion">当天完成打卡</option>
-                <option value="quantity">当天完成一定量</option>
-              </select>
+              <a-select v-model="form.goalMode" class="tw-field-select">
+                <a-option value="completion">当天完成打卡</a-option>
+                <a-option value="quantity">当天完成一定量</a-option>
+              </a-select>
               <template v-if="form.goalMode === 'quantity'">
-                <input v-model.number="form.goal" type="number" min="1" step="1" class="tw-dialog-input" />
+                <a-input-number v-model="form.goal" class="tw-dialog-input" :min="1" />
                 <span>次/天</span>
               </template>
             </div>
-          </label>
+          </div>
 
-          <label class="tw-modal-label">开始日期
+          <div class="tw-modal-label">开始日期
             <a-date-picker v-model="form.startDate" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" />
-          </label>
+          </div>
 
-          <label class="tw-modal-label">例外日期
+          <div class="tw-modal-label">例外日期
             <div class="tw-habit-exdates">
               <a-date-picker v-model="exDateInput" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" placeholder="选择需要跳过的日期" @change="addExDate" />
               <div v-if="form.exDates.length" class="tw-habit-exdate-chips">
@@ -294,34 +294,34 @@
               </div>
               <small>例外日期不会进入打卡和连续统计，也不能补卡。</small>
             </div>
-          </label>
+          </div>
 
-          <label class="tw-modal-label">坚持天数
+          <div class="tw-modal-label">坚持天数
             <div class="tw-habit-goal-row">
-              <select v-model="form.durationMode" class="tw-field-select">
-                <option value="forever">永远</option>
-                <option value="days">指定天数</option>
-              </select>
-              <input v-if="form.durationMode === 'days'" v-model.number="form.targetDays" type="number" min="1" class="tw-dialog-input" />
+              <a-select v-model="form.durationMode" class="tw-field-select">
+                <a-option value="forever">永远</a-option>
+                <a-option value="days">指定天数</a-option>
+              </a-select>
+              <a-input-number v-if="form.durationMode === 'days'" v-model="form.targetDays" class="tw-dialog-input" :min="1" />
               <span v-if="form.durationMode === 'days'">天</span>
             </div>
-          </label>
+          </div>
 
-          <label class="tw-modal-label">所属分组
-            <select v-model.number="form.sectionId" class="tw-field-select">
-              <option :value="0">其他</option>
-              <option v-for="section in sections" :key="section.id" :value="section.id">{{ section.name }}</option>
-            </select>
-          </label>
+          <div class="tw-modal-label">所属分组
+            <a-select v-model.number="form.sectionId" class="tw-field-select">
+              <a-option :value="0">其他</a-option>
+              <a-option v-for="section in sections" :key="section.id" :value="section.id">{{ section.name }}</a-option>
+            </a-select>
+          </div>
 
-          <label class="tw-modal-label">打卡样式
-            <select v-model="form.style" class="tw-field-select">
-              <option value="check">对勾</option>
-              <option value="icon">习惯图标</option>
-            </select>
-          </label>
+          <div class="tw-modal-label">打卡样式
+            <a-select v-model="form.style" class="tw-field-select">
+              <a-option value="check">对勾</a-option>
+              <a-option value="icon">习惯图标</a-option>
+            </a-select>
+          </div>
 
-          <label class="tw-modal-label">提醒
+          <div class="tw-modal-label">提醒
             <div class="tw-habit-reminders">
               <div v-for="(_, index) in form.reminders" :key="index" class="tw-habit-reminder">
                 <a-time-picker v-model="form.reminders[index]" class="tw-date-control" format="HH:mm" />
@@ -329,9 +329,9 @@
               </div>
               <button class="tw-habit-reminder-add" type="button" @click="form.reminders.push('10:00')">+ 添加提醒</button>
             </div>
-          </label>
+          </div>
 
-          <label class="tw-check-label"><input v-model="form.recordEnable" type="checkbox" /> 自动弹出打卡日志</label>
+          <a-checkbox v-model="form.recordEnable" class="tw-check-label">自动弹出打卡日志</a-checkbox>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="dialogOpen = false">取消</button>
@@ -361,7 +361,7 @@
         <div class="tw-dialog-body">
           <p class="tw-modal-note">获得链接的人可以查看「{{ shareDialog.habit.name }}」的名称、统计和最近 30 天打卡，不会展示日志、备注和账号信息。</p>
           <div class="tw-habit-share-link">
-            <input :value="shareURL" readonly />
+            <a-input :model-value="shareURL" readonly />
             <button class="tw-primary-button" @click="copyShareLink">复制链接</button>
           </div>
           <a class="tw-habit-share-open" :href="shareDialog.link.path" target="_blank" rel="noopener">在新标签页预览</a>
@@ -389,7 +389,7 @@
           </div>
           <div class="tw-habit-checkin-stepper">
             <button type="button" @click="adjustCheckin(-(checkinDialog.habit.step || 1))">−{{ checkinDialog.habit.step || 1 }}</button>
-            <input v-model.number="checkinDialog.value" type="number" min="0" step="1" class="tw-dialog-input" />
+            <a-input-number v-model="checkinDialog.value" class="tw-dialog-input" :min="0" />
             <button type="button" @click="adjustCheckin(checkinDialog.habit.step || 1)">+{{ checkinDialog.habit.step || 1 }}</button>
           </div>
           <div class="tw-habit-checkin-quick">
@@ -408,28 +408,28 @@
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true">
         <header class="tw-dialog-head"><h2>习惯设置</h2><button class="tw-icon-button" @click="settingsOpen = false"><TaskIcon name="close" :size="16" /></button></header>
         <div class="tw-dialog-body tw-habit-settings">
-          <label class="tw-habit-setting-row"><span>在“今天”“最近 7 天”中显示</span><a-switch v-model="preferences.showInToday" /></label>
-          <label class="tw-habit-setting-row"><span>在日历中显示</span><a-switch v-model="preferences.showInCalendar" /></label>
-          <label class="tw-habit-setting-row"><span>按完成状态分类显示</span><a-switch v-model="preferences.groupByCompleted" /></label>
+          <div class="tw-habit-setting-row"><span>在“今天”“最近 7 天”中显示</span><a-switch v-model="preferences.showInToday" /></div>
+          <div class="tw-habit-setting-row"><span>在日历中显示</span><a-switch v-model="preferences.showInCalendar" /></div>
+          <div class="tw-habit-setting-row"><span>按完成状态分类显示</span><a-switch v-model="preferences.groupByCompleted" /></div>
           <div class="tw-habit-setting-row"><span>显示方式</span>
-            <select v-model="preferences.displayType" class="tw-field-select" @change="savePreferences">
-              <option value="list">列表</option>
-              <option value="card">卡片</option>
-            </select>
+            <a-select v-model="preferences.displayType" class="tw-field-select" @change="savePreferences">
+              <a-option value="list">列表</a-option>
+              <a-option value="card">卡片</a-option>
+            </a-select>
           </div>
           <div class="tw-habit-setting-row"><span>提醒时区</span>
-            <select v-model="preferences.timezone" class="tw-field-select" @change="savePreferences">
-              <option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</option>
-            </select>
+            <a-select v-model="preferences.timezone" class="tw-field-select" @change="savePreferences">
+              <a-option v-for="zone in timezoneOptions" :key="zone" :value="zone">{{ zone }}</a-option>
+            </a-select>
           </div>
           <div class="tw-habit-section-manage">
             <strong>习惯分组</strong>
             <div v-for="section in sections" :key="section.id" class="tw-habit-section-row">
-              <input class="tw-dialog-input" :value="section.name" maxlength="30" @change="renameSection(section, $event)" />
+              <a-input class="tw-dialog-input" :model-value="section.name" :max-length="30" @change="(value) => renameSection(section, value)" />
               <button class="tw-icon-button" title="删除分组" @click="removeSection(section)"><TaskIcon name="trash" :size="13" /></button>
             </div>
             <div class="tw-habit-section-row">
-              <input v-model="newSectionName" class="tw-dialog-input" maxlength="30" placeholder="新分组名称" @keydown.enter="addSection" />
+              <a-input v-model="newSectionName" class="tw-dialog-input" :max-length="30" placeholder="新分组名称" @keydown.enter="addSection" />
               <button class="tw-ghost-button" :disabled="!newSectionName.trim()" @click="addSection">添加</button>
             </div>
           </div>
@@ -438,11 +438,11 @@
             <a class="tw-ghost-button" href="/api/admin/habits/export?format=xlsx">导出 Dida XLSX</a>
             <a class="tw-ghost-button" href="/api/admin/habits/export">导出 CSV</a>
             <a class="tw-ghost-button" href="/api/admin/habits/export?format=json">导出 JSON</a>
-            <select v-model="importMode" class="tw-field-select tw-import-mode" title="导入方式">
-              <option value="append">新增副本</option>
-              <option value="skip">跳过同名</option>
-              <option value="overwrite">覆盖同名</option>
-            </select>
+            <a-select v-model="importMode" class="tw-field-select tw-import-mode" title="导入方式">
+              <a-option value="append">新增副本</a-option>
+              <a-option value="skip">跳过同名</a-option>
+              <a-option value="overwrite">覆盖同名</a-option>
+            </a-select>
             <button class="tw-ghost-button" :disabled="importBusy" @click="importInput?.click()">{{ importBusy ? '导入中…' : '导入 JSON / XLSX' }}</button>
             <input ref="importInput" type="file" accept=".json,.xlsx,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden @change="importBackup" />
           </div>
@@ -1130,8 +1130,8 @@ async function addSection() {
   }
 }
 
-async function renameSection(section: HabitSection, event: Event) {
-  const name = (event.target as HTMLInputElement).value.trim()
+async function renameSection(section: HabitSection, value: unknown) {
+  const name = String(value).trim()
   if (!name || name === section.name) return
   try {
     const result = await updateHabitSection(section.id, { name })

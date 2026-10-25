@@ -7,10 +7,10 @@
       </div>
       <div class="tw-matrix-head-actions">
         <div class="tw-matrix-view-picker">
-          <select :value="activeViewId" @change="$emit('select-view', Number(($event.target as HTMLSelectElement).value))">
-            <option :value="0">默认四象限</option>
-            <option v-for="view in views" :key="view.id" :value="view.id">{{ view.name }}</option>
-          </select>
+          <a-select :model-value="activeViewId" size="small" @change="(value) => $emit('select-view', Number(value))">
+            <a-option :value="0">默认四象限</a-option>
+            <a-option v-for="view in views" :key="view.id" :value="view.id">{{ view.name }}</a-option>
+          </a-select>
           <button title="新建四象限视图" @click="$emit('create-view')">
             <TaskIcon name="plus" :size="13" />
           </button>

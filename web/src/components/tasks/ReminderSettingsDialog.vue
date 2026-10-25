@@ -67,54 +67,47 @@
             <p v-else class="tw-reminder-warning">当前账号没有邮箱，请先在管理后台用户资料中填写。</p>
 
             <div class="tw-reminder-form">
-              <label class="tw-reminder-check">
-                <input v-model="email.enabled" type="checkbox" />
-                <span>启用邮件提醒</span>
-              </label>
+              <a-checkbox v-model="email.enabled" class="tw-reminder-check">启用邮件提醒</a-checkbox>
               <div class="tw-reminder-grid">
-                <label class="tw-reminder-field">
+                <div class="tw-reminder-field">
                   <span>SMTP 服务器</span>
-                  <input v-model="email.host" class="tw-dialog-input" placeholder="smtp.example.com" />
-                </label>
-                <label class="tw-reminder-field tw-reminder-field-sm">
+                  <a-input v-model="email.host" class="tw-dialog-input" placeholder="smtp.example.com" />
+                </div>
+                <div class="tw-reminder-field tw-reminder-field-sm">
                   <span>端口</span>
-                  <input v-model.number="email.port" class="tw-dialog-input" type="number" min="1" max="65535" />
-                </label>
+                  <a-input-number v-model="email.port" class="tw-dialog-input" :min="1" :max="65535" />
+                </div>
               </div>
               <div class="tw-reminder-grid">
-                <label class="tw-reminder-field">
+                <div class="tw-reminder-field">
                   <span>用户名</span>
-                  <input v-model="email.username" class="tw-dialog-input" autocomplete="username" placeholder="可选" />
-                </label>
-                <label class="tw-reminder-field">
+                  <a-input v-model="email.username" class="tw-dialog-input" autocomplete="username" placeholder="可选" />
+                </div>
+                <div class="tw-reminder-field">
                   <span>密码 / 授权码</span>
-                  <input
+                  <a-input-password
                     v-model="email.password"
                     class="tw-dialog-input"
-                    type="password"
                     autocomplete="new-password"
                     :placeholder="email.passwordSet ? '已保存，留空不修改' : '可选'"
                   />
-                </label>
+                </div>
               </div>
               <div class="tw-reminder-grid">
-                <label class="tw-reminder-field">
+                <div class="tw-reminder-field">
                   <span>发件人</span>
-                  <input v-model="email.from" class="tw-dialog-input" placeholder="CalDAV <caldav@example.com>" />
-                </label>
-                <label class="tw-reminder-field">
+                  <a-input v-model="email.from" class="tw-dialog-input" placeholder="CalDAV <caldav@example.com>" />
+                </div>
+                <div class="tw-reminder-field">
                   <span>加密方式</span>
-                  <select v-model="email.security" class="tw-dialog-input">
-                    <option value="starttls">STARTTLS（587）</option>
-                    <option value="tls">SSL/TLS（465）</option>
-                    <option value="none">无加密</option>
-                  </select>
-                </label>
+                  <a-select v-model="email.security" class="tw-dialog-input">
+                    <a-option value="starttls">STARTTLS（587）</a-option>
+                    <a-option value="tls">SSL/TLS（465）</a-option>
+                    <a-option value="none">无加密</a-option>
+                  </a-select>
+                </div>
               </div>
-              <label v-if="email.passwordSet" class="tw-reminder-check">
-                <input v-model="email.clearPassword" type="checkbox" />
-                <span>清除已保存的密码</span>
-              </label>
+              <a-checkbox v-if="email.passwordSet" v-model="email.clearPassword" class="tw-reminder-check">清除已保存的密码</a-checkbox>
               <div class="tw-reminder-actions">
                 <button class="tw-reminder-action primary" :disabled="emailBusy" @click="saveEmail">
                   {{ emailBusy ? '保存中…' : '保存邮件设置' }}

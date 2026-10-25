@@ -1,5 +1,5 @@
 import { api, apiForm, getCSRFToken, notifyUnauthorized } from './api'
-import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, CalendarSubscription, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskAttachment, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskSection, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
+import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, CalendarSubscription, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskAttachment, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskSection, TaskShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
 
 export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
 
@@ -290,6 +290,18 @@ export function createTaskListShare(listId: number, username: string, role: 'vie
 
 export function deleteTaskListShare(listId: number, userId: number) {
   return api<void>(`/task-lists/${listId}/shares/${userId}`, { method: 'DELETE' })
+}
+
+export function fetchTaskShares(taskId: number) {
+  return api<{ shares: TaskShare[] }>(`/tasks/${taskId}/shares`)
+}
+
+export function createTaskShare(taskId: number, payload: { username: string; role: 'viewer' | 'editor' }) {
+  return api<{ share: TaskShare }>(`/tasks/${taskId}/shares`, { method: 'POST', body: JSON.stringify(payload) })
+}
+
+export function deleteTaskShare(taskId: number, userId: number) {
+  return api<void>(`/tasks/${taskId}/shares/${userId}`, { method: 'DELETE' })
 }
 
 export function fetchTaskReminders() {

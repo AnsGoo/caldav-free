@@ -6,12 +6,12 @@
         <span class="tw-timeline-sub">{{ tasks.length }} 个任务</span>
       </div>
       <div class="tw-timeline-actions">
-        <select class="tw-field-select tw-timeline-select" :value="colorBy" @change="onColorChange">
-          <option value="list">按清单着色</option>
-          <option value="tag">按标签着色</option>
-          <option value="priority">按优先级着色</option>
-          <option value="none">无颜色</option>
-        </select>
+        <a-select class="tw-field-select tw-timeline-select" :model-value="colorBy" @change="onColorChange">
+          <a-option value="list">按清单着色</a-option>
+          <a-option value="tag">按标签着色</a-option>
+          <a-option value="priority">按优先级着色</a-option>
+          <a-option value="none">无颜色</a-option>
+        </a-select>
         <div class="tw-mode-switch" role="group" aria-label="时间线缩放">
           <button v-for="option in zoomOptions" :key="option.value" :class="{ active: zoom === option.value }" :title="option.label" @click="$emit('change-zoom', option.value)">
             {{ option.short }}
@@ -308,8 +308,8 @@ function barTextColor(task: TaskItem) {
   return '#fff'
 }
 
-function onColorChange(event: Event) {
-  emit('change-color', (event.target as HTMLSelectElement).value as ColorBy)
+function onColorChange(value: unknown) {
+  emit('change-color', String(value) as ColorBy)
 }
 
 function shift(direction: number) {

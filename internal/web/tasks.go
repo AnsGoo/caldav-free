@@ -398,6 +398,18 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	for _, item := range shared {
 		sharedRows = append(sharedRows, sharedTaskListDTO(item))
 	}
+	sharedNotes, err := s.store.ListSharedNotes(ctx, current.ID)
+	if err != nil {
+		s.apiServerError(w, err)
+		return
+	}
+	sharedNoteRows := make([]apiSharedNote, 0, len(sharedNotes))
+	for _, item := range sharedNotes {
+		sharedNoteRows = append(sharedNoteRows, apiSharedNote{
+			Task: apiTaskDTO(item.Task, item.List), Role: item.Role,
+			OwnerID: item.OwnerID, OwnerUsername: item.OwnerUsername, OwnerDisplay: item.OwnerDisplay,
+		})
+	}
 	matrixViews, err := s.store.ListMatrixViews(ctx, current.ID)
 	if err != nil {
 		s.apiServerError(w, err)
@@ -419,6 +431,7 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	writeAPIJSON(w, http.StatusOK, map[string]any{
 		"lists":       listRows,
 		"sharedLists": sharedRows,
+		"sharedNotes": sharedNoteRows,
 		"folders":     folderRows,
 		"sections":    sectionRows,
 		"filters":     filterRows,

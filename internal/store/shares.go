@@ -180,13 +180,21 @@ func (s *Store) GetSharedTask(ctx context.Context, userID, taskID int64) (*Task,
 		return nil, nil, "", fmt.Errorf("get shared task: %w", err)
 	}
 	list, role, err := s.GetSharedTaskList(ctx, userID, task.ListID)
-	if err != nil {
+	if err == nil {
+		if list.UserID != task.UserID {
+			return nil, nil, "", ErrNotFound
+		}
+		return &task, list, role, nil
+	}
+	var share TaskShare
+	if shareErr := s.db.WithContext(ctx).Where("task_id = ? AND user_id = ?", taskID, userID).First(&share).Error; shareErr != nil {
 		return nil, nil, "", ErrNotFound
 	}
-	if list.UserID != task.UserID {
+	list, err = s.GetTaskList(ctx, share.OwnerID, task.ListID)
+	if err != nil || task.UserID != share.OwnerID {
 		return nil, nil, "", ErrNotFound
 	}
-	return &task, list, role, nil
+	return &task, list, share.Role, nil
 }
 
 // ListSharedTasks returns tasks in a list shared with the user.
@@ -238,4 +246,143 @@ func (s *Store) ListTaskListMembers(ctx context.Context, userID, listID int64) (
 		})
 	}
 	return members, nil
+}
+
+// TaskShare grants another user access to one note without sharing its list.
+type TaskShare struct {
+	ID        int64     `gorm:"primaryKey"`
+	TaskID    int64     `gorm:"not null;uniqueIndex:idx_task_share,priority:1;index:idx_task_share_task"`
+	OwnerID   int64     `gorm:"not null;index:idx_task_share_owner"`
+	UserID    int64     `gorm:"not null;uniqueIndex:idx_task_share,priority:2;index:idx_task_share_user"`
+	Role      string    `gorm:"size:16;not null;default:'viewer'"`
+	CreatedAt time.Time `gorm:"not null;autoCreateTime"`
+}
+
+// TaskShareView is a single-note share joined with the recipient profile.
+type TaskShareView struct {
+	ID          int64
+	TaskID      int64
+	UserID      int64
+	Username    string
+	DisplayName string
+	Role        string
+	CreatedAt   time.Time
+}
+
+// SharedNote is a single note shared with the current user.
+type SharedNote struct {
+	Task          *Task
+	List          *TaskList
+	OwnerID       int64
+	OwnerUsername string
+	OwnerDisplay  string
+	Role          string
+}
+
+// ShareTask shares one note with another user.
+func (s *Store) ShareTask(ctx context.Context, ownerID, taskID int64, username, role string) (*TaskShareView, error) {
+	task, err := s.GetTask(ctx, ownerID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if task.Kind != "NOTE" {
+		return nil, errors.New("仅笔记支持单篇共享")
+	}
+	user, err := s.GetUserByUsername(ctx, username)
+	if err != nil {
+		return nil, errors.New("用户不存在")
+	}
+	if user.ID == ownerID {
+		return nil, errors.New("不能共享给自己")
+	}
+	role = strings.ToLower(strings.TrimSpace(role))
+	if role == "" {
+		role = "viewer"
+	}
+	if role != "viewer" && role != "editor" {
+		return nil, errors.New("共享角色必须是 viewer 或 editor")
+	}
+	share := TaskShare{TaskID: taskID, OwnerID: ownerID, UserID: user.ID, Role: role}
+	err = s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "task_id"}, {Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"owner_id", "role"}),
+	}).Create(&share).Error
+	if err != nil {
+		return nil, fmt.Errorf("share task: %w", err)
+	}
+	return &TaskShareView{
+		ID: share.ID, TaskID: taskID, UserID: user.ID,
+		Username: user.Username, DisplayName: user.DisplayName, Role: role,
+		CreatedAt: share.CreatedAt,
+	}, nil
+}
+
+// ListTaskShares returns the recipients of one note.
+func (s *Store) ListTaskShares(ctx context.Context, ownerID, taskID int64) ([]TaskShareView, error) {
+	task, err := s.GetTask(ctx, ownerID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if task.Kind != "NOTE" {
+		return nil, errors.New("仅笔记支持单篇共享")
+	}
+	var shares []TaskShare
+	if err := s.db.WithContext(ctx).Where("task_id = ? AND owner_id = ?", taskID, ownerID).
+		Order("created_at ASC").Find(&shares).Error; err != nil {
+		return nil, fmt.Errorf("list task shares: %w", err)
+	}
+	out := make([]TaskShareView, 0, len(shares))
+	for _, share := range shares {
+		user, err := s.GetUser(ctx, share.UserID)
+		if err != nil {
+			continue
+		}
+		out = append(out, TaskShareView{
+			ID: share.ID, TaskID: share.TaskID, UserID: share.UserID,
+			Username: user.Username, DisplayName: user.DisplayName,
+			Role: share.Role, CreatedAt: share.CreatedAt,
+		})
+	}
+	return out, nil
+}
+
+// DeleteTaskShare removes one recipient from a note.
+func (s *Store) DeleteTaskShare(ctx context.Context, ownerID, taskID, userID int64) error {
+	result := s.db.WithContext(ctx).Where("task_id = ? AND owner_id = ? AND user_id = ?", taskID, ownerID, userID).
+		Delete(&TaskShare{})
+	if result.Error != nil {
+		return fmt.Errorf("delete task share: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListSharedNotes returns single notes shared directly with a user.
+func (s *Store) ListSharedNotes(ctx context.Context, userID int64) ([]SharedNote, error) {
+	var shares []TaskShare
+	if err := s.db.WithContext(ctx).Where("user_id = ?", userID).Order("created_at ASC").Find(&shares).Error; err != nil {
+		return nil, fmt.Errorf("list shared notes: %w", err)
+	}
+	out := make([]SharedNote, 0, len(shares))
+	for _, share := range shares {
+		task, err := s.GetTask(ctx, share.OwnerID, share.TaskID)
+		if err != nil || task.Kind != "NOTE" {
+			continue
+		}
+		list, err := s.GetTaskList(ctx, share.OwnerID, task.ListID)
+		if err != nil {
+			continue
+		}
+		owner, err := s.GetUser(ctx, share.OwnerID)
+		if err != nil {
+			continue
+		}
+		out = append(out, SharedNote{
+			Task: task, List: list, OwnerID: owner.ID,
+			OwnerUsername: owner.Username, OwnerDisplay: owner.DisplayName, Role: share.Role,
+		})
+	}
+	return out, nil
 }

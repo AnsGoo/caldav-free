@@ -7,8 +7,8 @@
       </header>
       <div class="tw-dialog-body">
         <div class="tw-calendar-sub-form">
-          <input v-model="name" class="tw-dialog-input" maxlength="120" placeholder="订阅名称，例如：公司节假日" />
-          <input v-model="url" class="tw-dialog-input" maxlength="1000" placeholder="https://example.com/holidays.ics" />
+          <a-input v-model="name" class="tw-dialog-input" :max-length="120" placeholder="订阅名称，例如：公司节假日" />
+          <a-input v-model="url" class="tw-dialog-input" :max-length="1000" placeholder="https://example.com/holidays.ics" />
           <div class="tw-calendar-sub-actions">
             <input v-model="color" class="tw-calendar-sub-color" type="color" title="订阅颜色" />
             <button class="tw-primary-button" :disabled="busy || !name.trim() || !url.trim()" @click="add">{{ busy ? '添加中…' : '添加订阅' }}</button>

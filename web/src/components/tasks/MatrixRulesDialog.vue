@@ -14,17 +14,13 @@
         <div class="tw-matrix-rules-toolbar">
           <span>条件组内部为“且”；条件组之间可按“任意/全部”组合。按 Q1 → Q4 顺序匹配，未匹配任务归入 Q4。</span>
           <div class="tw-matrix-rules-tools">
-            <select v-model="template" class="tw-matrix-template-select" @change="applyTemplate">
-              <option value="">套用模板…</option>
-              <optgroup label="内置模板">
-                <option value="builtin:priority">按优先级分组</option>
-                <option value="builtin:eisenhower">优先级 + 日期</option>
-                <option value="builtin:empty">清空全部条件</option>
-              </optgroup>
-              <optgroup v-if="templates.length" label="我的模板">
-                <option v-for="item in templates" :key="item.id" :value="`custom:${item.id}`">{{ item.name }}</option>
-              </optgroup>
-            </select>
+            <a-select v-model="template" class="tw-matrix-template-select" @change="applyTemplate">
+              <a-option value="">套用模板…</a-option>
+              <a-option value="builtin:priority">内置：按优先级分组</a-option>
+              <a-option value="builtin:eisenhower">内置：优先级 + 日期</a-option>
+              <a-option value="builtin:empty">内置：清空全部条件</a-option>
+              <a-option v-for="item in templates" :key="item.id" :value="`custom:${item.id}`">我的模板：{{ item.name }}</a-option>
+            </a-select>
             <button class="tw-matrix-rules-reset" @click="templateFormOpen = !templateFormOpen">
               <TaskIcon name="copy" :size="11" />
               保存为模板
@@ -37,14 +33,14 @@
         </div>
 
         <div v-if="templateFormOpen" class="tw-matrix-template-save">
-          <input v-model="templateName" class="tw-dialog-input" placeholder="模板名称" maxlength="60" @keydown.enter="saveTemplate" />
+          <a-input v-model="templateName" class="tw-dialog-input" placeholder="模板名称" :max-length="60" @keydown.enter="saveTemplate" />
           <button class="tw-dialog-ok" :disabled="templateSaving || !templateName.trim()" @click="saveTemplate">{{ templateSaving ? '保存中…' : '保存模板' }}</button>
           <button class="tw-dialog-cancel" @click="templateFormOpen = false">取消</button>
         </div>
 
         <div v-if="selectedTemplateId" class="tw-matrix-template-save tw-matrix-template-current">
           <span class="tw-matrix-template-label">当前模板</span>
-          <input v-model="templateRename" class="tw-dialog-input" maxlength="60" aria-label="模板名称" @keydown.enter="renameTemplate" />
+          <a-input v-model="templateRename" class="tw-dialog-input" :max-length="60" aria-label="模板名称" @keydown.enter="renameTemplate" />
           <button class="tw-matrix-rule-action" :disabled="!templateRename.trim()" @click="renameTemplate">重命名</button>
           <button class="tw-matrix-rule-action" @click="updateTemplate">更新规则</button>
           <button class="tw-matrix-template-delete" :title="deleteArmed === selectedTemplateId ? '再次点击确认删除' : '删除当前模板'" @click="deleteTemplate">
@@ -56,18 +52,18 @@
         <section v-for="quadrant in MATRIX_QUADRANTS" :key="quadrant.id" class="tw-matrix-rule-card" :style="{ '--matrix-color': form[quadrant.id].color }">
           <header class="tw-matrix-rule-head">
             <span class="tw-matrix-rule-dot" />
-            <input
+            <a-input
               v-model="form[quadrant.id].name"
               class="tw-matrix-rule-name"
-              maxlength="12"
+              :max-length="12"
               aria-label="象限名称"
               placeholder="象限名称"
             />
             <input v-model="form[quadrant.id].color" class="tw-matrix-rule-color" type="color" :title="`${form[quadrant.id].name}颜色`" />
-            <select v-if="form[quadrant.id].groups.length > 1" v-model="form[quadrant.id].match" class="tw-matrix-rule-match">
-              <option value="all">满足全部条件组</option>
-              <option value="any">满足任一条件组</option>
-            </select>
+            <a-select v-if="form[quadrant.id].groups.length > 1" v-model="form[quadrant.id].match" class="tw-matrix-rule-match">
+              <a-option value="all">满足全部条件组</a-option>
+              <a-option value="any">满足任一条件组</a-option>
+            </a-select>
             <span class="tw-matrix-rule-preview" title="按当前规则预览命中数量">{{ quadrantCounts[quadrant.id] }} 项</span>
             <button class="tw-matrix-rule-clear" title="重置当前象限的全部条件" @click="clearMatrixConditions(form[quadrant.id])">
               <TaskIcon name="refresh" :size="11" />
@@ -115,40 +111,40 @@
             </div>
 
             <div class="tw-matrix-rule-grid">
-              <label>
+              <div>
                 <span>日期</span>
-                <select v-model="group.due" class="tw-field-select">
-                  <option value="any">任意</option>
-                  <option value="urgent">紧急（逾期/今天/明天）</option>
-                  <option value="overdue">已过期</option>
-                  <option value="today">今天</option>
-                  <option value="tomorrow">明天</option>
-                  <option value="next7">未来 7 天</option>
-                  <option value="later">7 天以后</option>
-                  <option value="none">无日期</option>
-                </select>
-              </label>
-              <label>
+                <a-select v-model="group.due" class="tw-field-select">
+                  <a-option value="any">任意</a-option>
+                  <a-option value="urgent">紧急（逾期/今天/明天）</a-option>
+                  <a-option value="overdue">已过期</a-option>
+                  <a-option value="today">今天</a-option>
+                  <a-option value="tomorrow">明天</a-option>
+                  <a-option value="next7">未来 7 天</a-option>
+                  <a-option value="later">7 天以后</a-option>
+                  <a-option value="none">无日期</a-option>
+                </a-select>
+              </div>
+              <div>
                 <span>清单</span>
-                <select v-model.number="group.listId" class="tw-field-select">
-                  <option :value="0">任意清单</option>
-                  <option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</option>
-                </select>
-              </label>
-              <label>
+                <a-select v-model.number="group.listId" class="tw-field-select">
+                  <a-option :value="0">任意清单</a-option>
+                  <a-option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+                </a-select>
+              </div>
+              <div>
                 <span>标签</span>
-                <select v-model="group.tag" class="tw-field-select">
-                  <option value="">任意标签</option>
-                  <option v-for="tag in tags" :key="tag" :value="tag">#{{ tag }}</option>
-                </select>
-              </label>
-              <label>
+                <a-select v-model="group.tag" class="tw-field-select">
+                  <a-option value="">任意标签</a-option>
+                  <a-option v-for="tag in tags" :key="tag" :value="tag">#{{ tag }}</a-option>
+                </a-select>
+              </div>
+              <div>
                 <span>指派人</span>
-                <select v-model="group.assignee" class="tw-field-select">
-                  <option value="">任意指派人</option>
-                  <option v-for="name in assignees" :key="name" :value="name">@{{ name }}</option>
-                </select>
-              </label>
+                <a-select v-model="group.assignee" class="tw-field-select">
+                  <a-option value="">任意指派人</a-option>
+                  <a-option v-for="name in assignees" :key="name" :value="name">@{{ name }}</a-option>
+                </a-select>
+              </div>
             </div>
             <p v-if="conditionEmpty(group)" class="tw-matrix-rule-hint">空白条件组会匹配全部任务。</p>
           </div>

@@ -365,7 +365,8 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `habits` / `habit_sections` / `habit_checkins` / `habit_records` / `habit_preferences`：习惯、分组、打卡、日志和偏好
 - `task_comments`：任务评论与作者
 - `comment_attachments`：评论附件元数据与文件内容（SQLite BLOB）
-- 共享清单响应包含 `kind`（`TASK` / `NOTE`），共享笔记清单的笔记同样通过任务评论/动态接口读写
+- `GET/POST /tasks/{id}/shares`、`DELETE /tasks/{id}/shares/{userId}`：单篇笔记共享（仅 `kind=NOTE`）；工作台响应通过 `sharedNotes` 返回共享给当前用户的单篇笔记
+- 共享清单响应包含 `kind`（`TASK` / `NOTE`），共享笔记清单和单篇共享笔记同样通过任务评论/动态接口读写
 - `summary_documents`：摘要模板与历史文档，`format` 为 `markdown` / `html`
 - `push_subscriptions`：浏览器 Web Push 订阅（endpoint、p256dh、auth）
 - `reminder_deliveries`：服务端提醒成功投递记录

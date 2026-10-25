@@ -11,11 +11,11 @@
         </button>
       </header>
       <div class="tw-dialog-body">
-        <textarea
+        <a-textarea
           v-model="content"
-          class="tw-dialog-input tw-habit-log-input"
-          rows="4"
-          maxlength="1000"
+          class="tw-habit-log-input"
+          :auto-size="{ minRows: 4, maxRows: 7 }"
+          :max-length="1000"
           placeholder="记录一下今天的感受…"
         />
       </div>

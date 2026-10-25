@@ -13,15 +13,18 @@
     />
     <header class="tw-detail-head">
       <div class="tw-detail-title">
-        <label class="tw-detail-list" title="移动到笔记清单">
+        <div class="tw-detail-list" title="移动到笔记清单">
           <i :style="{ background: currentList?.color || task.listColor || '#4772fa' }" />
-          <select v-model.number="listId" :disabled="readonly" @change="moveToList">
-            <option v-for="list in noteListOptions" :key="list.id" :value="list.id">{{ list.name }}</option>
-          </select>
-        </label>
+          <a-select v-model.number="listId" class="tw-detail-list-select" size="small" :disabled="readonly || moveLocked" @change="moveToList">
+            <a-option v-for="list in noteListOptions" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+          </a-select>
+        </div>
         <span class="tw-note-status">{{ saving ? '保存中…' : '已保存' }}</span>
       </div>
       <div class="tw-detail-actions">
+        <button v-if="!readonly && shareable !== false" class="tw-icon-button" title="共享笔记" @click="$emit('share', task)">
+          <TaskIcon name="share" :size="16" />
+        </button>
         <button
           class="tw-icon-button"
           :class="{ active: task.pinned }"
@@ -84,6 +87,8 @@ const props = defineProps<{
   task: TaskItem
   lists: TaskList[]
   readonly?: boolean
+  shareable?: boolean
+  moveLocked?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -91,6 +96,7 @@ const emit = defineEmits<{
   (event: 'changed', task: TaskItem): void
   (event: 'pin', task: TaskItem): void
   (event: 'remove', task: TaskItem): void
+  (event: 'share', task: TaskItem): void
 }>()
 
 const title = ref(props.task.title)

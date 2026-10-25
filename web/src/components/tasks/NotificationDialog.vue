@@ -44,16 +44,17 @@
             >
               {{ completing === item.id ? '处理中…' : '完成' }}
             </button>
-            <select
+            <a-select
               class="tw-notification-snooze-select"
-              :value="snoozeMinutes[item.id] || 10"
-              @change="setSnoozeMinutes(item.id, $event)"
+              :model-value="snoozeMinutes[item.id] || 10"
+              size="small"
+              @change="(value) => setSnoozeMinutes(item.id, value)"
             >
-              <option :value="10">10 分钟</option>
-              <option :value="30">30 分钟</option>
-              <option :value="60">1 小时</option>
-              <option :value="1440">1 天</option>
-            </select>
+              <a-option :value="10">10 分钟</a-option>
+              <a-option :value="30">30 分钟</a-option>
+              <a-option :value="60">1 小时</a-option>
+              <a-option :value="1440">1 天</a-option>
+            </a-select>
             <button
               class="tw-notification-snooze"
               :disabled="snoozing === item.id"
@@ -139,8 +140,8 @@ async function open(item: AppNotification) {
   else emit('close')
 }
 
-function setSnoozeMinutes(id: number, event: Event) {
-  const value = Number((event.target as HTMLSelectElement).value)
+function setSnoozeMinutes(id: number, next: unknown) {
+  const value = Number(next)
   snoozeMinutes.value = { ...snoozeMinutes.value, [id]: value }
 }
 

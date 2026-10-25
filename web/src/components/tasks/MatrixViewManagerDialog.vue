@@ -24,12 +24,12 @@
           <span class="tw-matrix-drag" title="拖动排序">
             <TaskIcon name="drag" :size="14" />
           </span>
-          <input v-model="view.name" class="tw-dialog-input" maxlength="60" @blur="saveName(view)" @keydown.enter="($event.target as HTMLInputElement).blur()" />
-          <select v-model="view.mode" class="tw-field-select tw-matrix-mode-select" @change="saveMode(view)">
-            <option value="simple">按优先级</option>
-            <option value="complex">优先级 + 日期</option>
-            <option value="custom">自定义规则</option>
-          </select>
+          <a-input v-model="view.name" class="tw-dialog-input" :max-length="60" @blur="saveName(view)" @keydown.enter="saveName(view)" />
+          <a-select v-model="view.mode" class="tw-field-select tw-matrix-mode-select" @change="saveMode(view)">
+            <a-option value="simple">按优先级</a-option>
+            <a-option value="complex">优先级 + 日期</a-option>
+            <a-option value="custom">自定义规则</a-option>
+          </a-select>
           <button v-if="view.mode === 'custom'" class="tw-icon-button" title="编辑自定义规则" @click="$emit('edit-rules', view)">
             <TaskIcon name="filter" :size="14" />
           </button>

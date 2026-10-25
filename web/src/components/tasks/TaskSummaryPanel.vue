@@ -87,63 +87,63 @@
 
       <section class="tw-summary-panel">
         <header class="tw-summary-panel-head"><h3>筛选</h3></header>
-        <label class="tw-summary-field">
+        <div class="tw-summary-field">
           <span>日期</span>
-          <select v-model="preset">
-            <option v-for="option in dateOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
-          </select>
-        </label>
+          <a-select v-model="preset" size="small">
+            <a-option v-for="option in dateOptions" :key="option.value" :value="option.value">{{ option.label }}</a-option>
+          </a-select>
+        </div>
         <div v-if="preset === 'custom'" class="tw-summary-custom-dates">
           <a-date-picker v-model="customFrom" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" />
           <span>→</span>
           <a-date-picker v-model="customTo" class="tw-date-control" value-format="YYYY-MM-DD" format="YYYY-MM-DD" size="small" />
         </div>
-        <label class="tw-summary-field">
+        <div class="tw-summary-field">
           <span>清单</span>
-          <select v-model.number="listId">
-            <option :value="0">所有清单</option>
-            <option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</option>
-          </select>
-        </label>
-        <label class="tw-summary-field">
+          <a-select v-model.number="listId" size="small">
+            <a-option :value="0">所有清单</a-option>
+            <a-option v-for="list in lists" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+          </a-select>
+        </div>
+        <div class="tw-summary-field">
           <span>状态</span>
-          <select v-model="status">
-            <option value="all">所有状态</option>
-            <option value="completed">已完成</option>
-            <option value="open">未完成</option>
-          </select>
-        </label>
-        <label class="tw-summary-field">
+          <a-select v-model="status" size="small">
+            <a-option value="all">所有状态</a-option>
+            <a-option value="completed">已完成</a-option>
+            <a-option value="open">未完成</a-option>
+          </a-select>
+        </div>
+        <div class="tw-summary-field">
           <span>优先级</span>
-          <select v-model.number="priority">
-            <option :value="0">所有优先级</option>
-            <option :value="3">高优先级</option>
-            <option :value="2">中优先级</option>
-            <option :value="1">低优先级</option>
-          </select>
-        </label>
-        <label class="tw-summary-field">
+          <a-select v-model.number="priority" size="small">
+            <a-option :value="0">所有优先级</a-option>
+            <a-option :value="3">高优先级</a-option>
+            <a-option :value="2">中优先级</a-option>
+            <a-option :value="1">低优先级</a-option>
+          </a-select>
+        </div>
+        <div class="tw-summary-field">
           <span>标签</span>
-          <select v-model="tag">
-            <option value="">所有标签</option>
-            <option v-for="item in tags" :key="item.name" :value="item.name">#{{ item.name }}</option>
-          </select>
-        </label>
+          <a-select v-model="tag" size="small">
+            <a-option value="">所有标签</a-option>
+            <a-option v-for="item in tags" :key="item.name" :value="item.name">#{{ item.name }}</a-option>
+          </a-select>
+        </div>
       </section>
 
       <section class="tw-summary-panel">
         <header class="tw-summary-panel-head"><h3>显示设置</h3></header>
-        <label class="tw-summary-field">
+        <div class="tw-summary-field">
           <span>分组</span>
-          <select v-model="groupBy">
-            <option value="status">按完成状态</option>
-            <option value="list">按清单</option>
-            <option value="completedAt">按完成时间</option>
-            <option value="due">按任务时间</option>
-            <option value="tag">按标签</option>
-            <option value="priority">按优先级</option>
-          </select>
-        </label>
+          <a-select v-model="groupBy" size="small">
+            <a-option value="status">按完成状态</a-option>
+            <a-option value="list">按清单</a-option>
+            <a-option value="completedAt">按完成时间</a-option>
+            <a-option value="due">按任务时间</a-option>
+            <a-option value="tag">按标签</a-option>
+            <a-option value="priority">按优先级</a-option>
+          </a-select>
+        </div>
         <div class="tw-summary-fields">
           <div class="tw-summary-fields-head">
             <span>显示内容</span>
@@ -161,15 +161,15 @@
             </button>
           </div>
         </div>
-        <label class="tw-summary-toggle">
+        <div class="tw-summary-toggle">
           <span>下一周期任务</span>
-          <input v-model="includeNext" type="checkbox" />
-        </label>
+          <a-switch v-model="includeNext" size="small" />
+        </div>
         <p class="tw-summary-hint">“下一周期任务”会追加当前范围之后同等长度时间段内到期的未完成任务。</p>
-        <label class="tw-summary-toggle">
+        <div class="tw-summary-toggle">
           <span>内容优化 <em class="tw-ai-badge">AI</em></span>
-          <input v-model="optimize" type="checkbox" :disabled="!aiConfigured" />
-        </label>
+          <a-switch v-model="optimize" size="small" :disabled="!aiConfigured" />
+        </div>
         <p v-if="aiConfigured" class="tw-summary-hint">开启后会调用 AI 重写当前摘要，内容会发送到配置的模型服务。</p>
         <p v-else class="tw-summary-hint">需先在 AI 助手中配置模型才能启用内容优化。</p>
       </section>
@@ -186,17 +186,17 @@
           </button>
         </header>
         <div class="tw-dialog-body">
-          <label class="tw-modal-label">
+          <div class="tw-modal-label">
             模板名称
-            <input
+            <a-input
               ref="templateNameInput"
               v-model="templateName"
               class="tw-dialog-input"
-              maxlength="80"
+              :max-length="80"
               placeholder="例如：本周工作摘要"
               @keydown.enter="confirmSaveTemplate"
             />
-          </label>
+          </div>
         </div>
         <footer class="tw-dialog-foot">
           <button class="tw-dialog-cancel" @click="templateDialogOpen = false">取消</button>
@@ -278,7 +278,7 @@ const optimizing = ref(false)
 const templateDialogOpen = ref(false)
 const templateName = ref('')
 const templateBusy = ref(false)
-const templateNameInput = ref<HTMLInputElement | null>(null)
+const templateNameInput = ref<{ focus?: () => void } | null>(null)
 let optimizeSeq = 0
 
 let loadTimer: ReturnType<typeof setTimeout> | undefined
@@ -583,7 +583,7 @@ async function removeHistory(id: number) {
 function saveAsTemplate() {
   templateName.value = data.value?.title || '摘要模板'
   templateDialogOpen.value = true
-  void nextTick(() => templateNameInput.value?.focus())
+  void nextTick(() => templateNameInput.value?.focus?.())
 }
 
 async function confirmSaveTemplate() {

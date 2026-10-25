@@ -86,6 +86,8 @@ func TestToggleHabitCheckinConcurrentSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	now := time.Now()
+	stamp := now.Year()*10000 + int(now.Month())*100 + now.Day()
 	value := 2.0
 	var wg sync.WaitGroup
 	errs := make(chan error, 24)
@@ -93,7 +95,7 @@ func TestToggleHabitCheckinConcurrentSet(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, 20261024, &value); err != nil {
+			if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, stamp, &value); err != nil {
 				errs <- err
 			}
 		}()
@@ -104,7 +106,7 @@ func TestToggleHabitCheckinConcurrentSet(t *testing.T) {
 		t.Fatalf("concurrent checkin: %v", err)
 	}
 	var rows []HabitCheckin
-	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habit.ID, 20261024).Find(&rows).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habit.ID, stamp).Find(&rows).Error; err != nil {
 		t.Fatal(err)
 	}
 	if len(rows) != 1 {
@@ -125,12 +127,14 @@ func TestToggleHabitCheckinConcurrentToggleStable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	now := time.Now()
+	stamp := now.Year()*10000 + int(now.Month())*100 + now.Day()
 	var wg sync.WaitGroup
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, 20261024, nil); err != nil {
+			if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, stamp, nil); err != nil {
 				t.Errorf("toggle: %v", err)
 			}
 		}()
@@ -138,7 +142,7 @@ func TestToggleHabitCheckinConcurrentToggleStable(t *testing.T) {
 	wg.Wait()
 	var count int64
 	if err := s.db.WithContext(ctx).Model(&HabitCheckin{}).
-		Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habit.ID, 20261024).Count(&count).Error; err != nil {
+		Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habit.ID, stamp).Count(&count).Error; err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {

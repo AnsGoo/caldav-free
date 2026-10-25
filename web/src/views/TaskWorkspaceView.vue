@@ -67,6 +67,7 @@
       v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown'"
       :lists="lists"
       :shared-lists="sharedLists"
+      :shared-notes="sharedNotes"
       :folders="folders"
       :filters="filters"
       :tag-counts="tagCounts"
@@ -75,6 +76,7 @@
       :active-list-id="activeListId"
       :active-filter-id="activeFilterId"
       :active-shared-list-id="activeSharedListId"
+      :active-shared-note-id="sharedNote?.task.id || 0"
       :unread-notifications="unreadNotifications"
       :active-tag="activeTag"
       :user-name="auth.user?.username || ''"
@@ -84,6 +86,7 @@
       @select-list="selectList"
       @select-filter="selectFilter"
       @select-shared="selectSharedList"
+      @select-shared-note="selectSharedNote"
       @share-list="openShareList"
       @create-list="createList"
       @create-note="createNote"
@@ -548,11 +551,14 @@
       :key="selectedTask.id"
       :task="selectedTask"
       :lists="detailLists"
-      :readonly="sharedReadonly"
-      @close="selectedId = 0"
+      :readonly="sharedNote ? sharedNote.role === 'viewer' : sharedReadonly"
+      :shareable="!sharedNote"
+      :move-locked="!!sharedNote"
+      @close="closeTaskDetail"
       @changed="onTaskChanged"
       @pin="toggleTaskPin"
       @remove="confirmRemoveTask"
+      @share="openNoteShare"
     />
 
     <TaskDetail
@@ -965,6 +971,12 @@
       @close="shareDialogOpen = false"
     />
 
+    <NoteShareDialog
+      v-if="noteShareTarget"
+      :task="noteShareTarget"
+      @close="noteShareTarget = null"
+    />
+
     <CalendarEventDialog
       v-if="eventDialogOpen"
       :event="editingEvent"
@@ -1072,7 +1084,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useRoute, useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import { auth, logout } from '../auth'
-import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskSection, TaskTagCount, TaskTemplate, TaskWorkspaceData } from '../types'
+import type { CalendarEvent, CalendarSource, MatrixQuadrantKey, MatrixRuleMode, MatrixView, SavedFilter, SharedNote, SharedTaskList, TaskCounts, TaskFilterConditions, TaskFolder, TaskItem, TaskList, TaskListMember, TaskSection, TaskTagCount, TaskTemplate, TaskWorkspaceData } from '../types'
 import {
   batchTasks,
   copyTaskList,
@@ -1134,6 +1146,7 @@ import TaskCalendar from '../components/tasks/TaskCalendar.vue'
 import TaskTimeline from '../components/tasks/TaskTimeline.vue'
 import NoteCard from '../components/tasks/NoteCard.vue'
 import NoteDetail from '../components/tasks/NoteDetail.vue'
+import NoteShareDialog from '../components/tasks/NoteShareDialog.vue'
 import TaskMatrixPanel from '../components/tasks/TaskMatrixPanel.vue'
 import HabitPanel from '../components/tasks/HabitPanel.vue'
 import FocusPanel from '../components/tasks/FocusPanel.vue'
@@ -1172,6 +1185,9 @@ const router = useRouter()
 
 const lists = ref<TaskList[]>([])
 const sharedLists = ref<SharedTaskList[]>([])
+const sharedNotes = ref<SharedNote[]>([])
+const sharedNote = ref<SharedNote | null>(null)
+const noteShareTarget = ref<TaskItem | null>(null)
 const folders = ref<TaskFolder[]>([])
 const sections = ref<TaskSection[]>([])
 const filters = ref<SavedFilter[]>([])
@@ -1348,6 +1364,7 @@ const heading = computed(() => {
   if (view.value === 'habit') return '习惯'
   if (view.value === 'focus') return '专注'
   if (view.value === 'countdown') return '倒数纪念日'
+  if (sharedNote.value) return sharedNote.value.task.title || '共享笔记'
   if (view.value === 'shared') return activeSharedList.value?.name || '共享清单'
   if (view.value === 'list') {
     const list = lists.value.find((item) => item.id === activeListId.value)
@@ -1358,7 +1375,7 @@ const heading = computed(() => {
 })
 
 const headingIcon = computed(() => {
-  if (sharedNoteView.value) return 'note'
+  if (sharedNote.value || sharedNoteView.value) return 'note'
   if (view.value === 'list') return activeList.value?.kind === 'NOTE' ? 'note' : 'inbox'
   if (view.value === 'today') return 'today'
   if (view.value === 'next7') return 'next7'
@@ -1400,7 +1417,10 @@ const groups = computed(() => {
   }
   return groupTasks(filteredTasks.value, view.value === 'shared' ? 'all' : view.value)
 })
-const selectedTask = computed(() => tasks.value.find((task) => task.id === selectedId.value))
+const selectedTask = computed(() => {
+  if (sharedNote.value && sharedNote.value.task.id === selectedId.value) return sharedNote.value.task
+  return tasks.value.find((task) => task.id === selectedId.value)
+})
 const selectedSubtasks = computed(() => selectedTask.value ? tasks.value.filter((task) => task.parentId === selectedTask.value?.id) : [])
 const taskMembers = ref<TaskListMember[]>([])
 watch(
@@ -1418,10 +1438,9 @@ watch(
 )
 const detailLists = computed<TaskList[]>(() => {
   const shared = view.value === 'shared' ? activeSharedList.value : undefined
-  if (!shared || lists.value.some((list) => list.id === shared.listId)) return lists.value
-  return [
-    ...lists.value,
-    {
+  const extra: TaskList[] = []
+  if (shared && !lists.value.some((list) => list.id === shared.listId)) {
+    extra.push({
       id: shared.listId,
       folderId: 0,
       name: shared.name,
@@ -1431,8 +1450,23 @@ const detailLists = computed<TaskList[]>(() => {
       pinned: false,
       isInbox: false,
       count: shared.count,
-    },
-  ]
+    })
+  }
+  const note = sharedNote.value
+  if (note && !lists.value.some((list) => list.id === note.task.listId) && !extra.some((list) => list.id === note.task.listId)) {
+    extra.push({
+      id: note.task.listId,
+      folderId: 0,
+      name: note.task.listName || '笔记',
+      color: note.task.listColor || '#4772fa',
+      kind: 'NOTE',
+      order: 0,
+      pinned: false,
+      isInbox: false,
+      count: 0,
+    })
+  }
+  return extra.length ? [...lists.value, ...extra] : lists.value
 })
 
 const quickTargetList = computed(() => {
@@ -1534,6 +1568,7 @@ async function loadWorkspace(silent = false) {
       mode.value = 'list'
     }
     sharedLists.value = data.sharedLists || []
+    sharedNotes.value = data.sharedNotes || []
     matrixViews.value = data.matrixViews || []
     if (matrixViews.value.length) {
       if (!activeMatrixViewId.value || !matrixViews.value.some((view) => view.id === activeMatrixViewId.value)) {
@@ -1570,8 +1605,11 @@ async function loadWorkspace(silent = false) {
     inboxId.value = data.inbox
     Object.assign(counts, data.counts)
     if (view.value === 'trash' && mode.value !== 'list') mode.value = 'list'
-    if (selectedId.value && !tasks.value.some((task) => task.id === selectedId.value)) {
+    const sharedMatch = sharedNotes.value.find((item) => item.task.id === selectedId.value)
+    if (sharedMatch) sharedNote.value = sharedMatch
+    if (selectedId.value && !sharedMatch && !tasks.value.some((task) => task.id === selectedId.value)) {
       selectedId.value = 0
+      if (sharedNote.value && sharedNote.value.task.id !== selectedId.value) sharedNote.value = null
     }
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '加载任务失败')
@@ -1646,6 +1684,7 @@ function syncURL() {
 }
 
 function selectView(nextView: string) {
+  sharedNote.value = null
   view.value = nextView as TaskView
   activeListId.value = 0
   quickSectionId.value = 0
@@ -1662,6 +1701,7 @@ function selectView(nextView: string) {
 }
 
 function selectList(id: number) {
+  sharedNote.value = null
   view.value = 'list'
   activeListId.value = id
   quickSectionId.value = 0
@@ -1683,6 +1723,7 @@ function selectList(id: number) {
 }
 
 function selectFilter(id: number) {
+  sharedNote.value = null
   view.value = 'filter'
   activeFilterId.value = id
   activeListId.value = 0
@@ -1694,6 +1735,7 @@ function selectFilter(id: number) {
 }
 
 function selectSharedList(listId: number) {
+  sharedNote.value = null
   view.value = 'shared'
   activeSharedListId.value = listId
   activeListId.value = 0
@@ -1705,6 +1747,23 @@ function selectSharedList(listId: number) {
   clearSelection()
   syncURL()
   void loadWorkspace(true)
+}
+
+function selectSharedNote(note: SharedNote) {
+  sharedNote.value = note
+  selectedId.value = note.task.id
+  sidebarOpen.value = false
+  clearSelection()
+  syncURL()
+}
+
+function closeTaskDetail() {
+  selectedId.value = 0
+  sharedNote.value = null
+}
+
+function openNoteShare(task: TaskItem) {
+  noteShareTarget.value = task
 }
 
 function openShareList(list: TaskList) {
@@ -1727,6 +1786,7 @@ function selectTagFromStats(tag: string) {
 }
 
 function resetWorkspaceToAll() {
+  sharedNote.value = null
   view.value = 'all'
   activeListId.value = 0
   activeFilterId.value = 0
@@ -1769,6 +1829,7 @@ function toggleGroup(key: string) {
 }
 
 function openTask(task: TaskItem) {
+  sharedNote.value = null
   if (selectionMode.value) {
     toggleSelect(task)
     return
@@ -1808,9 +1869,13 @@ async function toggleTaskPin(task: TaskItem) {
   task.pinned = target
   try {
     const { task: updated } = await updateTask(task.id, { pinned: target })
-    replaceTask(updated)
+    if (sharedNote.value?.task.id === updated.id) {
+      sharedNote.value = { ...sharedNote.value, task: updated }
+    } else {
+      replaceTask(updated)
+      scheduleRefresh()
+    }
     Message.success(target ? '已置顶任务' : '已取消置顶')
-    scheduleRefresh()
   } catch (error) {
     task.pinned = !target
     Message.error(error instanceof Error ? error.message : '更新置顶失败')
@@ -2327,12 +2392,17 @@ function replaceTask(updated: TaskItem) {
 }
 
 function onTaskChanged(updated: TaskItem) {
+  if (sharedNote.value?.task.id === updated.id) {
+    sharedNote.value = { ...sharedNote.value, task: updated }
+    return
+  }
   replaceTask(updated)
   scheduleRefresh()
 }
 
 function onTaskDeleted(id: number) {
   tasks.value = tasks.value.filter((task) => task.id !== id)
+  if (sharedNote.value?.task.id === id) sharedNote.value = null
   if (selectedId.value === id) selectedId.value = 0
   scheduleRefresh()
 }

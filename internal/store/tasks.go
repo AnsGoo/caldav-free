@@ -627,6 +627,20 @@ func normalizeTaskTimes(task *Task) {
 	task.RecurrenceAnchor = &value
 }
 
+// backfillRecurrenceAnchors gives existing recurring tasks an anchor. When
+// instance history exists, the earliest occurrence is the best available
+// proxy for the original DTSTART; otherwise the current due date is used.
+func backfillRecurrenceAnchors(ctx context.Context, db *gorm.DB) error {
+	return db.WithContext(ctx).Exec(`
+		UPDATE tasks
+		SET recurrence_anchor = COALESCE(
+			(SELECT MIN(occurrence_at) FROM task_recurrence_instances WHERE task_recurrence_instances.task_id = tasks.id),
+			due_at
+		)
+		WHERE recurrence <> '' AND due_at IS NOT NULL AND recurrence_anchor IS NULL
+	`).Error
+}
+
 // CreateTask stores a new task after validating its list ownership.
 func (s *Store) CreateTask(ctx context.Context, task *Task) (*Task, error) {
 	if strings.TrimSpace(task.Title) == "" {

@@ -214,6 +214,10 @@ func Open(path string) (*Store, error) {
 		sqlDB.Close()
 		return nil, fmt.Errorf("normalize task list kinds: %w", err)
 	}
+	if err := backfillRecurrenceAnchors(ctx, db); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("backfill recurrence anchors: %w", err)
+	}
 	if path != ":memory:" && !strings.HasPrefix(path, "file:") {
 		// The database contains credentials and calendar data.
 		_ = os.Chmod(path, 0o600)

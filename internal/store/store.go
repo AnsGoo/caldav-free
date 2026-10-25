@@ -486,15 +486,31 @@ func (s *Store) CountUsers(ctx context.Context) (int64, error) {
 
 // ---------------------------------------------------------------- calendars
 
-// SplitComponents normalizes a comma-separated component list.
+// SplitComponents splits a comma-separated list while preserving case. Tags,
+// reminder offsets and calendar component names share the same column type.
 func SplitComponents(s string) []string {
 	parts := strings.Split(s, ",")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
-		p = strings.ToUpper(strings.TrimSpace(p))
+		p = strings.TrimSpace(p)
 		if p != "" {
 			out = append(out, p)
 		}
+	}
+	return out
+}
+
+// normalizeComponents uppercases Calendar.Components values on write.
+func normalizeComponents(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := make(map[string]bool, len(values))
+	for _, raw := range values {
+		value := strings.ToUpper(strings.TrimSpace(raw))
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
 	}
 	return out
 }
@@ -520,7 +536,7 @@ func (s *Store) CreateCalendar(ctx context.Context, userID int64, slug, displayN
 		Color:       color,
 		Order:       order,
 		Timezone:    timezone,
-		Components:  StringList(components),
+		Components:  StringList(normalizeComponents(components)),
 		CreatedAt:   now,
 		ModifiedAt:  now,
 	}
@@ -576,7 +592,7 @@ func (s *Store) UpdateCalendar(ctx context.Context, id int64, displayName, descr
 		"color":        color,
 		"timezone":     timezone,
 		"order_index":  order,
-		"components":   StringList(components),
+		"components":   StringList(normalizeComponents(components)),
 		"modified_at":  time.Now().UTC(),
 	})
 	if res.Error != nil {

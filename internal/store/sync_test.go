@@ -186,3 +186,28 @@ func TestSyncJournalBackfillsLegacyRows(t *testing.T) {
 		t.Fatalf("task sequence = %d, %v", seq, err)
 	}
 }
+
+func TestTaskTagsPreserveCase(t *testing.T) {
+	st, userID := newSyncTestStore(t)
+	ctx := context.Background()
+	inbox, err := st.EnsureInbox(ctx, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := st.CreateTask(ctx, &Task{
+		UserID: userID,
+		ListID: inbox.ID,
+		Title:  "tag case",
+		Tags:   StringList{"p0", "CamelCase"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := st.GetTask(ctx, userID, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(loaded.Tags) != 2 || loaded.Tags[0] != "p0" || loaded.Tags[1] != "CamelCase" {
+		t.Fatalf("tags lost their case: %#v", loaded.Tags)
+	}
+}

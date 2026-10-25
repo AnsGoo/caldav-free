@@ -10037,3 +10037,64 @@ html[data-theme] .tw-recurrence-popup .arco-select-option {
   height: 28px;
   font-size: 12px;
 }
+
+.tw-recurrence-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.tw-recurrence-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--tw-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.tw-recurrence-skip:hover:not(:disabled) {
+  border-color: var(--tw-accent);
+  color: var(--tw-accent);
+}
+
+.tw-recurrence-skip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tw-recurrence-history {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--tw-border);
+}
+
+.tw-recurrence-history > span {
+  color: var(--tw-text-3);
+  font-size: 10px;
+}
+
+.tw-recurrence-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--tw-text-3);
+  font-size: 10.5px;
+}
+
+.tw-recurrence-history-row em {
+  color: var(--tw-text-2);
+  font-style: normal;
+}
+
+.tw-recurrence-history-row em.skipped {
+  color: #d98b2b;
+}

@@ -1155,3 +1155,57 @@ func TestNoteCommentsAndActivities(t *testing.T) {
 		t.Fatalf("unexpected note comments: %+v", comments.Comments)
 	}
 }
+
+func TestRecurringTaskInstanceHistoryAndSkip(t *testing.T) {
+	env := newAPIEnv(t)
+	status, body := env.request(t, "POST", "/api/admin/tasks", map[string]any{
+		"title": "每日站会", "recurrence": "FREQ=DAILY", "due": "2026-11-01T09:00:00Z", "allDay": false,
+	}, env.csrf)
+	if status != http.StatusCreated {
+		t.Fatalf("create recurring task = %d: %s", status, body)
+	}
+	task := decode[taskResponse](t, body)
+	status, body = env.request(t, "PATCH", "/api/admin/tasks/"+itoa(task.Task.ID), map[string]any{"completed": true}, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("complete recurrence = %d: %s", status, body)
+	}
+	completed := decode[taskResponse](t, body)
+	if completed.Task.Completed || completed.Task.Due == task.Task.Due {
+		t.Fatalf("recurring task did not roll: %+v", completed.Task)
+	}
+	status, body = env.request(t, "GET", "/api/admin/tasks/"+itoa(task.Task.ID)+"/recurrence", nil, "")
+	if status != http.StatusOK {
+		t.Fatalf("recurrence history = %d: %s", status, body)
+	}
+	history := decode[struct {
+		Instances []struct {
+			Status string `json:"status"`
+		} `json:"instances"`
+	}](t, body)
+	if len(history.Instances) != 1 || history.Instances[0].Status != "completed" {
+		t.Fatalf("unexpected completed history: %+v", history.Instances)
+	}
+
+	status, body = env.request(t, "POST", "/api/admin/tasks/"+itoa(task.Task.ID)+"/recurrence/skip", nil, env.csrf)
+	if status != http.StatusOK {
+		t.Fatalf("skip recurrence = %d: %s", status, body)
+	}
+	skipped := decode[struct {
+		Task      any `json:"task"`
+		Instances []struct {
+			Status string `json:"status"`
+		} `json:"instances"`
+	}](t, body)
+	if len(skipped.Instances) != 2 {
+		t.Fatalf("unexpected skip history: %+v", skipped.Instances)
+	}
+	foundSkip := false
+	for _, item := range skipped.Instances {
+		if item.Status == "skipped" {
+			foundSkip = true
+		}
+	}
+	if !foundSkip {
+		t.Fatalf("skip not recorded: %+v", skipped.Instances)
+	}
+}

@@ -1400,12 +1400,20 @@ func (s *Server) aiUpdateTask(ctx context.Context, current *store.User, args map
 		task.Recurrence = rule
 	}
 	completed := false
+	var completedOccurrence *time.Time
 	if value, ok := args["completed"].(bool); ok {
 		completed = value
+		if value && task.Recurrence != "" && task.DueAt != nil {
+			occurrence := *task.DueAt
+			completedOccurrence = &occurrence
+		}
 		applyTaskCompletion(task, value)
 	}
 	if err := s.store.UpdateTask(ctx, task); err != nil {
 		return nil, nil, err
+	}
+	if completedOccurrence != nil {
+		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
 	}
 	if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
 		s.logger.Warn("push AI task", "task", task.ID, "error", err)

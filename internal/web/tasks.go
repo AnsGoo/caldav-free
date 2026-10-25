@@ -980,6 +980,11 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 			task.AllDay = false
 		}
 	}
+	var completedOccurrence *time.Time
+	if body.Completed != nil && *body.Completed && task.Recurrence != "" && task.DueAt != nil {
+		occurrence := *task.DueAt
+		completedOccurrence = &occurrence
+	}
 	if body.Completed != nil {
 		applyTaskCompletion(task, *body.Completed)
 	}
@@ -1078,6 +1083,9 @@ func (s *Server) apiUpdateTask(w http.ResponseWriter, r *http.Request, current *
 		}
 		writeAPIError(w, http.StatusBadRequest, err.Error())
 		return
+	}
+	if completedOccurrence != nil {
+		s.recordCompletedOccurrence(ctx, task, completedOccurrence)
 	}
 	if err := s.taskSync.PushTask(ctx, task.UserID, task); err != nil {
 		s.logger.Warn("push task to caldav", "user", current.Username, "task", task.ID, "error", err)
@@ -1403,6 +1411,11 @@ func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *
 		if err != nil {
 			continue
 		}
+		var completedOccurrence *time.Time
+		if body.Action == "complete" && task.Recurrence != "" && task.DueAt != nil {
+			occurrence := *task.DueAt
+			completedOccurrence = &occurrence
+		}
 		switch body.Action {
 		case "delete":
 			if err := s.taskSync.DeleteTask(ctx, current.ID, task); err != nil {
@@ -1424,6 +1437,9 @@ func (s *Server) apiBatchTasks(w http.ResponseWriter, r *http.Request, current *
 		}
 		if err := s.store.UpdateTask(ctx, task); err != nil {
 			continue
+		}
+		if completedOccurrence != nil {
+			s.recordCompletedOccurrence(ctx, task, completedOccurrence)
 		}
 		if err := s.taskSync.PushTask(ctx, current.ID, task); err != nil {
 			s.logger.Warn("push task to caldav", "task", id, "error", err)

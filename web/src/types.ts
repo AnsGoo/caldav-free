@@ -336,6 +336,14 @@ export interface TaskComment {
   attachments: CommentAttachment[]
 }
 
+export interface TaskRecurrenceInstance {
+  id: number
+  occurrenceAt: string
+  status: 'completed' | 'skipped'
+  title: string
+  createdAt: string
+}
+
 export interface TaskActivity {
   id: number
   type: string

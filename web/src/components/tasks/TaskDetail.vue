@@ -223,6 +223,19 @@
           @change="onCustomRule"
           @keydown.enter.prevent="onCustomRule"
         />
+        <div v-if="draft.recurrence && draft.dueDate" class="tw-recurrence-actions">
+          <button type="button" class="tw-recurrence-skip" :disabled="readonly || recurrenceBusy" @click="skipOccurrence">
+            <TaskIcon name="chevron" :size="13" />
+            {{ recurrenceBusy ? '处理中…' : '跳过本次' }}
+          </button>
+        </div>
+        <div v-if="recurrenceInstances.length" class="tw-recurrence-history">
+          <span>最近实例</span>
+          <div v-for="instance in recurrenceInstances" :key="instance.id" class="tw-recurrence-history-row">
+            <span>{{ formatMoment(instance.occurrenceAt) }}</span>
+            <em :class="instance.status">{{ instance.status === 'skipped' ? '已跳过' : '已完成' }}</em>
+          </div>
+        </div>
         <p class="tw-field-hint">
           重复任务完成后会自动滚到下一次。提醒会写入 CalDAV VALARM；页面打开时可同时使用浏览器通知。
         </p>
@@ -416,10 +429,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, CommentAttachment, TaskActivity, TaskAttachment, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
+import type { ChecklistItem, CommentAttachment, TaskActivity, TaskAttachment, TaskComment, TaskItem, TaskList, TaskListMember, TaskRecurrenceInstance } from '../../types'
 import { tagColor, tagTint } from '../../tag-colors'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskAttachments, fetchTaskComments, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskAttachments, fetchTaskComments, fetchTaskRecurrence, skipTaskOccurrence, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = withDefaults(defineProps<{ task: TaskItem; lists: TaskList[]; subtasks?: TaskItem[]; members?: TaskListMember[]; tagColors?: Record<string, string>; readonly?: boolean; listLocked?: boolean }>(), { subtasks: () => [] })
@@ -483,6 +496,8 @@ const attachments = ref<TaskAttachment[]>([])
 const attachmentInput = ref<HTMLInputElement | null>(null)
 const comments = ref<TaskComment[]>([])
 const activities = ref<TaskActivity[]>([])
+const recurrenceInstances = ref<TaskRecurrenceInstance[]>([])
+const recurrenceBusy = ref(false)
 const commentsLoading = ref(false)
 const commentBusy = ref(false)
 const commentText = ref('')
@@ -555,6 +570,7 @@ function hydrate() {
   editingCommentText.value = ''
   void loadComments()
   void loadActivities()
+  void loadRecurrence()
   nextTick(() => {
     growTitle()
     lastSaved = snapshotDraft()
@@ -595,6 +611,42 @@ async function loadActivities() {
     if (id === props.task.id) activities.value = result.activities
   } catch {
     if (id === props.task.id) activities.value = []
+  }
+}
+
+async function loadRecurrence() {
+  const id = props.task.id
+  if (!id) return
+  try {
+    const result = await fetchTaskRecurrence(id)
+    if (id === props.task.id) recurrenceInstances.value = result.instances
+  } catch {
+    if (id === props.task.id) recurrenceInstances.value = []
+  }
+}
+
+async function skipOccurrence() {
+  if (props.readonly || recurrenceBusy.value) return
+  recurrenceBusy.value = true
+  try {
+    const result = await skipTaskOccurrence(props.task.id)
+    recurrenceInstances.value = result.instances
+    const input = toDateInput(result.task)
+    const [datePart, timePart] = input.split('T')
+    draft.dueDate = datePart || ''
+    draft.dueTime = result.task.allDay ? '09:00' : timePart || '09:00'
+    draft.allDay = result.task.allDay
+    lastSaved = JSON.stringify({
+      ...JSON.parse(lastSaved),
+      due: duePayload(),
+      allDay: draft.allDay,
+    })
+    emit('changed', result.task)
+    Message.info(`已跳过本次，下次 ${formatDue(result.task)}`)
+  } catch (error) {
+    Message.error(error instanceof Error ? error.message : '跳过本次失败')
+  } finally {
+    recurrenceBusy.value = false
   }
 }
 
@@ -907,6 +959,7 @@ async function save() {
     const { task } = await updateTask(props.task.id, payload)
     lastSaved = JSON.stringify({ ...payload, title, checklist: payload.checklist })
     void loadActivities()
+    void loadRecurrence()
     if (completing && !task.completed && task.recurrence) {
       draft.completed = false
       const input = toDateInput(task)

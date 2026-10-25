@@ -17,6 +17,7 @@ caldav-free 是一个自托管的 CalDAV 日历服务器，内置任务工作台
 | [跨端客户端架构](跨端客户端架构.md) | Flutter 五端方案：分层、drift 本地库、同步引擎、后端 pull/push 协议、平台能力矩阵、分期与风险 |
 | [客户端同步协议](同步协议.md) | `/api/sync/pull` 与 `/api/sync/push` 的认证、实体、游标、ETag 冲突、幂等、保留策略与 curl 示例 |
 | [客户端 P0](客户端P0.md) | Android Flutter 骨架：登录、本地库、outbox、同步内核、任务页、测试结果、环境偏差与真机待办 |
+| [Android 调试手册](Android调试手册.md) | 模拟器/真机、后端、构建安装、adb 输入、截图、UI 自动化、通知、字体缩放与 LAN 分发 |
 
 ## 快速入口
 

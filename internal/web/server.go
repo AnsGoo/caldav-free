@@ -135,6 +135,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/sync/pull", s.apiSyncPull)
 	mux.HandleFunc("POST /api/sync/push", s.apiSyncPush)
 	mux.HandleFunc("GET /api/sync/calendar", s.apiSyncCalendar)
+	mux.HandleFunc("GET /api/sync/subscriptions", s.apiSyncSubscriptions)
+	mux.HandleFunc("POST /api/sync/subscriptions", s.apiSyncSubscriptions)
+	mux.HandleFunc("DELETE /api/sync/subscriptions/{id}", s.apiSyncSubscriptionDelete)
+	mux.HandleFunc("POST /api/sync/events", s.apiSyncCreateEvent)
+	mux.HandleFunc("PUT /api/sync/events", s.apiSyncUpdateEvent)
+	mux.HandleFunc("DELETE /api/sync/events", s.apiSyncDeleteEvent)
 
 	// JSON API used by the Vue admin SPA.
 	mux.HandleFunc("POST /api/admin/login", s.apiLogin)

@@ -107,3 +107,19 @@ func (s *Server) apiSyncCalendar(w http.ResponseWriter, r *http.Request) {
 	}
 	s.apiTaskCalendarEvents(w, r, current, nil)
 }
+
+func (s *Server) apiSyncSubscriptions(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiCalendarSubscriptions(w, r, current, nil)
+}
+
+func (s *Server) apiSyncSubscriptionDelete(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiCalendarSubscription(w, r, current, nil)
+}

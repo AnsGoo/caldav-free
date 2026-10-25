@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -607,6 +609,120 @@ func TestSyncCalendarEndpoint(t *testing.T) {
 		if _, ok := payload[key]; !ok {
 			t.Fatalf("calendar response missing %q: %s", key, body)
 		}
+	}
+}
+
+func TestSyncSubscriptions(t *testing.T) {
+	env := newAPIEnv(t)
+
+	status, body := env.syncRequest(t, "GET", "/api/sync/subscriptions", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list subscriptions = %d: %s", status, body)
+	}
+	if !strings.Contains(string(body), `"subscriptions"`) {
+		t.Fatalf("subscriptions payload: %s", body)
+	}
+
+	status, body = env.syncRequest(t, "POST", "/api/sync/subscriptions", map[string]any{
+		"name": "测试订阅",
+		"url":  "https://example.com/feed.ics",
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create subscription = %d: %s", status, body)
+	}
+	created := decode[map[string]any](t, body)
+	subscription, _ := created["subscription"].(map[string]any)
+	id, _ := subscription["id"].(float64)
+	if id <= 0 {
+		t.Fatalf("subscription id missing: %s", body)
+	}
+
+	status, body = env.syncRequest(
+		t, "DELETE", "/api/sync/subscriptions/"+strconv.FormatInt(int64(id), 10), nil,
+	)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete subscription = %d: %s", status, body)
+	}
+}
+
+func TestSyncEventCRUD(t *testing.T) {
+	env := newAPIEnv(t)
+	ctx := context.Background()
+	cal, err := env.store.CreateCalendar(
+		ctx, env.userID, "p3-mobile", "移动日历", "", "#3b82f6",
+		"Asia/Shanghai", 1, []string{"VEVENT"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	status, body := env.syncRequest(t, "POST", "/api/sync/events", map[string]any{
+		"calendarId": cal.ID,
+		"summary":    "移动端创建",
+		"start":      "2026-10-26T10:00:00+08:00",
+		"end":        "2026-10-26T11:00:00+08:00",
+		"location":   "会议室",
+		"reminders":  []int{10},
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create event = %d: %s", status, body)
+	}
+	created := decode[map[string]any](t, body)
+	href, _ := created["href"].(string)
+	if href == "" {
+		t.Fatalf("create event href missing: %s", body)
+	}
+
+	status, body = env.syncRequest(t, "GET", "/api/sync/calendar?from=2026-10-26&to=2026-10-27", nil)
+	if status != http.StatusOK {
+		t.Fatalf("calendar = %d: %s", status, body)
+	}
+	snapshot := decode[struct {
+		Events []apiCalendarEvent `json:"events"`
+	}](t, body)
+	if len(snapshot.Events) != 1 || snapshot.Events[0].Summary != "移动端创建" {
+		t.Fatalf("created event not visible: %s", body)
+	}
+
+	status, body = env.syncRequest(t, "PUT", "/api/sync/events", map[string]any{
+		"calendarId": cal.ID,
+		"href":       href,
+		"summary":    "移动端改名",
+		"start":      "2026-10-26T10:30:00+08:00",
+		"end":        "2026-10-26T11:30:00+08:00",
+	})
+	if status != http.StatusOK {
+		t.Fatalf("update event = %d: %s", status, body)
+	}
+	status, body = env.syncRequest(t, "GET", "/api/sync/calendar?from=2026-10-26&to=2026-10-27", nil)
+	if status != http.StatusOK {
+		t.Fatalf("calendar after update = %d: %s", status, body)
+	}
+	snapshot = decode[struct {
+		Events []apiCalendarEvent `json:"events"`
+	}](t, body)
+	if len(snapshot.Events) != 1 || snapshot.Events[0].Summary != "移动端改名" {
+		t.Fatalf("updated event not visible: %s", body)
+	}
+
+	status, body = env.syncRequest(
+		t, "DELETE",
+		"/api/sync/events?calendarId="+strconv.FormatInt(cal.ID, 10)+
+			"&href="+url.QueryEscape(href),
+		nil,
+	)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete event = %d: %s", status, body)
+	}
+	status, body = env.syncRequest(t, "GET", "/api/sync/calendar?from=2026-10-26&to=2026-10-27", nil)
+	if status != http.StatusOK {
+		t.Fatalf("calendar after delete = %d: %s", status, body)
+	}
+	snapshot = decode[struct {
+		Events []apiCalendarEvent `json:"events"`
+	}](t, body)
+	if len(snapshot.Events) != 0 {
+		t.Fatalf("deleted event still visible: %s", body)
 	}
 }
 

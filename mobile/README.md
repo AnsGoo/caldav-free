@@ -22,6 +22,8 @@ pushes it in the background.
   drag-to-reschedule.
 - Multi-select in the list view for batch complete, move, delete, priority,
   due date and tags.
+- Manual list ordering with drag handles; order is field-synced and restored
+  across clients.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
 - Local write debounce, 15 s foreground polling, pull-to-refresh, manual and
   full sync.
@@ -34,8 +36,8 @@ pushes it in the background.
 P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.
 The P2 slices add the board, matrix and day/week/month timeline with column
-ordering and batch field edits; task/list reordering within a column and
-custom timeline ranges are next.
+ordering, batch field edits and manual list ordering; column drag-reorder,
+board task reorder, batch titles/notes and custom timeline ranges are next.
 
 ## Run
 

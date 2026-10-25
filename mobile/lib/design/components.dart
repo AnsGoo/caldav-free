@@ -254,42 +254,39 @@ class _NavItem extends StatelessWidget {
       button: true,
       selected: selected,
       label: destination.label,
-      child: Tooltip(
-        message: destination.label,
-        child: InkResponse(
-          onTap: onTap,
-          radius: 28,
-          containedInkWell: true,
-          highlightShape: BoxShape.rectangle,
-          borderRadius: BorderRadius.circular(16),
-          child: SizedBox(
-            height: 56,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedScale(
-                  scale: selected ? 1.06 : 1,
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  child: Icon(
-                    selected ? destination.selectedIcon : destination.icon,
-                    size: 24,
-                    color: color,
-                  ),
+      child: InkResponse(
+        onTap: onTap,
+        radius: 28,
+        containedInkWell: true,
+        highlightShape: BoxShape.rectangle,
+        borderRadius: BorderRadius.circular(16),
+        child: SizedBox(
+          height: 56,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AnimatedScale(
+                scale: selected ? 1.06 : 1,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                child: Icon(
+                  selected ? destination.selectedIcon : destination.icon,
+                  size: 24,
+                  color: color,
                 ),
-                const SizedBox(height: 3),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  curve: Curves.easeOutCubic,
-                  width: selected ? 4 : 0,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: activeColor,
-                    shape: BoxShape.circle,
-                  ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                width: selected ? 4 : 0,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: activeColor,
+                  shape: BoxShape.circle,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -362,6 +359,98 @@ class AppUnderlineTabs<T> extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Capsule search field: light gray fill, leading search icon, inline clear
+/// button, and a thin accent ring only while focused.
+class AppSearchField extends StatelessWidget {
+  const AppSearchField({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    this.focusNode,
+    this.onChanged,
+    this.onSubmitted,
+    this.autofocus = false,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final bodyStyle = theme.textTheme.bodyLarge?.copyWith(
+      fontSize: 15,
+      color: scheme.onSurface,
+    );
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          autofocus: autofocus,
+          textInputAction: TextInputAction.search,
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          style: bodyStyle,
+          // Fill, radius and the focused ring come from the app's
+          // InputDecorationTheme so every input stays on the same token set.
+          decoration: InputDecoration(
+            hintText: hintText,
+            hintStyle: bodyStyle?.copyWith(color: scheme.onSurfaceVariant),
+            prefixIcon: Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: scheme.onSurfaceVariant,
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 40,
+              minHeight: 40,
+            ),
+            suffixIcon: value.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: '清空搜索',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    onPressed: () {
+                      controller.clear();
+                      onChanged?.call('');
+                      focusNode?.requestFocus();
+                    },
+                    icon: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.22),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 12,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 13,
+            ),
+          ),
+        );
+      },
     );
   }
 }

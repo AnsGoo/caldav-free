@@ -20,12 +20,19 @@ abstract final class AppColors {
   static const green = Color(0xFF2DCB8A);
   static const orange = Color(0xFFFF9F43);
   static const red = Color(0xFFFF5C5C);
+  static const festival = Color(0xFFE08A2E);
   static const darkCanvas = Color(0xFF0E1015);
   static const darkSurface = Color(0xFF171A22);
   static const darkSurfaceMuted = Color(0xFF20242E);
   static const darkInk = Color(0xFFF2F4F8);
   static const darkInkSecondary = Color(0xFF9AA3B2);
   static const darkLine = Color(0xFF2A2F3A);
+  static const darkFestival = Color(0xFFF0A75A);
+
+  /// Lunar/festival label colour, the one orange the calendar grid uses for
+  /// holidays and solar terms.
+  static Color festivalFor(Brightness brightness) =>
+      brightness == Brightness.dark ? darkFestival : festival;
 }
 
 /// Accent presets inspired by the domestic Dida VIP color series, tuned so

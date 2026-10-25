@@ -568,25 +568,13 @@ class _TasksPageState extends State<TasksPage> {
                 style: theme.textTheme.titleLarge,
               )
             : _searching
-            ? TextField(
+            ? AppSearchField(
                 controller: _search,
                 focusNode: _searchFocus,
                 autofocus: true,
-                textInputAction: TextInputAction.search,
-                style: Theme.of(context).textTheme.bodyLarge,
+                hintText: '搜索任务、备注、标签',
                 onChanged: (value) =>
                     setState(() => _query = value.trim().toLowerCase()),
-                decoration: InputDecoration(
-                  hintText: '搜索任务、备注、标签',
-                  fillColor: Colors.transparent,
-                  contentPadding: EdgeInsets.zero,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  hintStyle: theme.textTheme.bodyLarge?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

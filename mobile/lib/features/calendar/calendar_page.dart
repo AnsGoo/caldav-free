@@ -899,7 +899,9 @@ class _MonthView extends StatelessWidget {
                                 fontSize: 7.5,
                                 height: 1,
                                 color: special
-                                    ? const Color(0xFFE08A2E)
+                                    ? AppColors.festivalFor(
+                                        Theme.of(context).brightness,
+                                      )
                                     : scheme.onSurfaceVariant.withValues(
                                         alpha: 0.8,
                                       ),
@@ -1009,59 +1011,74 @@ class _WeekViewState extends State<_WeekView> {
   @override
   Widget build(BuildContext context) {
     final today = _dateOnly(DateTime.now());
-    final headerWeekStart = _visibleWeekStart;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-          child: Row(
-            children: [
-              for (var i = 0; i < 7; i++)
-                Expanded(
-                  child: () {
-                    final day = headerWeekStart.add(Duration(days: i));
-                    final almanac = widget.almanac[_dateKey(day)];
-                    return _DayHeaderCell(
-                      day: day,
-                      today: today,
-                      label: almanac?.label ?? '',
-                      special: almanac?.special ?? false,
-                      onTap: () => widget.onSelectDay(day),
-                    );
-                  }(),
-                ),
-            ],
+    return PageView.builder(
+      controller: _controller,
+      onPageChanged: (page) {
+        if (page == _page) return;
+        setState(() => _page = page);
+        widget.onSelectedDate(
+          _baseWeekStart.add(Duration(days: (page - _kPagerOrigin) * 7)),
+        );
+      },
+      itemBuilder: (context, page) {
+        final weekStart = _baseWeekStart.add(
+          Duration(days: (page - _kPagerOrigin) * 7),
+        );
+        final days = [
+          for (var i = 0; i < 7; i++) weekStart.add(Duration(days: i)),
+        ];
+        return _TimeGrid(
+          days: days,
+          header: _WeekHeaderRow(
+            days: days,
+            today: today,
+            almanac: widget.almanac,
+            onSelectDay: widget.onSelectDay,
           ),
-        ),
-        Expanded(
-          child: PageView.builder(
-            controller: _controller,
-            onPageChanged: (page) {
-              if (page == _page) return;
-              setState(() => _page = page);
-              widget.onSelectedDate(
-                _baseWeekStart.add(Duration(days: (page - _kPagerOrigin) * 7)),
-              );
-            },
-            itemBuilder: (context, page) {
-              final weekStart = _baseWeekStart.add(
-                Duration(days: (page - _kPagerOrigin) * 7),
-              );
-              final days = [
-                for (var i = 0; i < 7; i++) weekStart.add(Duration(days: i)),
-              ];
-              return _TimeGrid(
-                days: days,
-                snapshot: widget.snapshot,
-                selectedDay: null,
-                onOpenEvent: widget.onOpenEvent,
-                onOpenTask: widget.onOpenTask,
-                onToggleTask: widget.onToggleTask,
-              );
-            },
-          ),
-        ),
-      ],
+          snapshot: widget.snapshot,
+          selectedDay: null,
+          onOpenEvent: widget.onOpenEvent,
+          onOpenTask: widget.onOpenTask,
+          onToggleTask: widget.onToggleTask,
+        );
+      },
+    );
+  }
+}
+
+/// Day titles drawn inside the grid sheet and inset by the time gutter, so
+/// every header sits exactly above its column.
+class _WeekHeaderRow extends StatelessWidget {
+  const _WeekHeaderRow({
+    required this.days,
+    required this.today,
+    required this.almanac,
+    required this.onSelectDay,
+  });
+
+  final List<DateTime> days;
+  final DateTime today;
+  final Map<String, CalendarAlmanacDay> almanac;
+  final void Function(DateTime day) onSelectDay;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(_kTimeGutterWidth, 6, 0, 0),
+      child: Row(
+        children: [
+          for (final day in days)
+            Expanded(
+              child: _DayHeaderCell(
+                day: day,
+                today: today,
+                label: almanac[_dateKey(day)]?.label ?? '',
+                special: almanac[_dateKey(day)]?.special ?? false,
+                onTap: () => onSelectDay(day),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -1131,7 +1148,7 @@ class _DayHeaderCell extends StatelessWidget {
                     color: label.isEmpty
                         ? Colors.transparent
                         : special
-                        ? const Color(0xFFE08A2E)
+                        ? AppColors.festivalFor(theme.brightness)
                         : scheme.onSurfaceVariant,
                   ),
                 ),
@@ -1275,7 +1292,7 @@ class _DayViewState extends State<_DayView> {
                                     ? FontWeight.w600
                                     : FontWeight.w500,
                                 color: special
-                                    ? const Color(0xFFE08A2E)
+                                    ? AppColors.festivalFor(theme.brightness)
                                     : scheme.onSurfaceVariant,
                               ),
                             ),
@@ -1298,17 +1315,49 @@ class _DayViewState extends State<_DayView> {
                 _baseDay.add(Duration(days: page - _kPagerOrigin)),
               );
             },
-            itemBuilder: (context, page) => _TimeGrid(
-              days: [_baseDay.add(Duration(days: page - _kPagerOrigin))],
-              snapshot: widget.snapshot,
-              selectedDay: null,
-              onOpenEvent: widget.onOpenEvent,
-              onOpenTask: widget.onOpenTask,
-              onToggleTask: widget.onToggleTask,
-            ),
+            itemBuilder: (context, page) {
+              final day = _baseDay.add(Duration(days: page - _kPagerOrigin));
+              if (_entriesForDay(widget.snapshot, day).isEmpty) {
+                return _EmptyDaySheet(day: day);
+              }
+              return _TimeGrid(
+                days: [day],
+                snapshot: widget.snapshot,
+                selectedDay: null,
+                onOpenEvent: widget.onOpenEvent,
+                onOpenTask: widget.onOpenTask,
+                onToggleTask: widget.onToggleTask,
+              );
+            },
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Day view keeps the spec's empty state instead of an all-day empty grid.
+class _EmptyDaySheet extends StatelessWidget {
+  const _EmptyDaySheet({required this.day});
+
+  final DateTime day;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Center(
+        child: AppEmptyState(
+          icon: Icons.event_note_outlined,
+          title: '暂无安排',
+          message: '${day.month} 月 ${day.day} 日没有日程和任务，左右滑动可以换一天。',
+          compact: true,
+        ),
+      ),
     );
   }
 }
@@ -1383,9 +1432,13 @@ List<_PlacedTimed> _packDayTimed(List<_DayTimed> items) {
   final bottom = item.endMinutes / 60 * _kHourSlotHeight;
   return (
     top: top,
-    height: math.max(bottom - top, _kHourSlotHeight * 0.3),
+    height: math.max(bottom - top, _kMinTimedBlockHeight),
   );
 }
+
+/// Shortest block the grid draws: keeps a 30-minute event readable and
+/// close enough to the 48dp touch target rule for a scrollable grid.
+const double _kMinTimedBlockHeight = 26;
 
 class _TimeGrid extends StatefulWidget {
   const _TimeGrid({
@@ -1395,6 +1448,7 @@ class _TimeGrid extends StatefulWidget {
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
+    this.header,
   });
 
   final List<DateTime> days;
@@ -1403,6 +1457,10 @@ class _TimeGrid extends StatefulWidget {
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
+
+  /// Optional day titles drawn inside the same sheet as the grid, so the
+  /// columns and their headers share one paper surface.
+  final Widget? header;
 
   @override
   State<_TimeGrid> createState() => _TimeGridState();
@@ -1470,10 +1528,11 @@ class _TimeGridState extends State<_TimeGrid> {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
         children: [
+          if (widget.header != null) widget.header!,
           SizedBox(
             height: 30,
             child: Row(
@@ -1484,7 +1543,7 @@ class _TimeGridState extends State<_TimeGrid> {
                     child: Text(
                       '全天',
                       style: theme.textTheme.labelSmall?.copyWith(
-                        fontSize: 9.5,
+                        fontSize: 10.5,
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
@@ -1539,16 +1598,9 @@ class _TimeGridState extends State<_TimeGrid> {
                               left: _kTimeGutterWidth,
                               right: 0,
                               top: hour * _kHourSlotHeight,
-                              child: Container(height: 1, color: AppColors.line),
-                            ),
-                          for (var d = 1; d < days.length; d++)
-                            Positioned(
-                              left: _kTimeGutterWidth + d * columnWidth,
-                              top: 0,
-                              bottom: 0,
-                              child: const SizedBox(
-                                width: 1,
-                                child: ColoredBox(color: AppColors.line),
+                              child: Container(
+                                height: 1,
+                                color: scheme.outlineVariant,
                               ),
                             ),
                           for (var hour = 0; hour < 24; hour++)
@@ -1594,24 +1646,44 @@ class _TimeGridState extends State<_TimeGrid> {
                                       ),
                                     ),
                                   for (final placed in timed[d])
-                                    Positioned(
-                                      left:
-                                          columnWidth *
-                                          placed.column /
-                                          placed.columns,
-                                      width: columnWidth / placed.columns - 4,
-                                      top: _timedBlockRect(placed.item).top,
-                                      height: _timedBlockRect(placed.item).height,
-                                      child: _TimedBlock(
-                                        entry: placed.item.entry,
-                                        startMinutes: placed.item.startMinutes,
-                                        endMinutes: placed.item.endMinutes,
-                                        width: columnWidth / placed.columns - 4,
-                                        onOpenEvent: widget.onOpenEvent,
-                                        onOpenTask: widget.onOpenTask,
-                                        onToggleTask: widget.onToggleTask,
-                                      ),
-                                    ),
+                                    () {
+                                      final rect = _timedBlockRect(placed.item);
+                                      final split = columnWidth / placed.columns;
+                                      // A real split leaves ~17dp in a seven-day
+                                      // column, so cascade instead and keep the
+                                      // blocks wide enough to read.
+                                      final cascade = split - 4 < 40;
+                                      final step = placed.columns > 1
+                                          ? math.min(
+                                              0.18,
+                                              0.5 / (placed.columns - 1),
+                                            )
+                                          : 0.0;
+                                      final left = cascade
+                                          ? columnWidth * step * placed.column
+                                          : split * placed.column;
+                                      final width = cascade
+                                          ? math.max(
+                                              12.0,
+                                              columnWidth - left - 4,
+                                            )
+                                          : math.max(12.0, split - 4);
+                                      return Positioned(
+                                        left: left,
+                                        width: width,
+                                        top: rect.top,
+                                        height: rect.height,
+                                        child: _TimedBlock(
+                                          entry: placed.item.entry,
+                                          startMinutes: placed.item.startMinutes,
+                                          endMinutes: placed.item.endMinutes,
+                                          width: width,
+                                          onOpenEvent: widget.onOpenEvent,
+                                          onOpenTask: widget.onOpenTask,
+                                          onToggleTask: widget.onToggleTask,
+                                        ),
+                                      );
+                                    }(),
                                 ],
                               ),
                             ),
@@ -1764,16 +1836,37 @@ class _TimedBlock extends StatelessWidget {
     final event = entry.event;
     final blockHeight = math.max(
       (endMinutes - startMinutes) / 60 * _kHourSlotHeight,
-      _kHourSlotHeight * 0.3,
+      _kMinTimedBlockHeight,
     );
     final compact = blockHeight < 46;
-    // Week columns are ~50dp wide: drop the colour bar there and let the tint
-    // alone carry the calendar, like TickTick does.
+    // Week columns are ~48dp wide: drop the colour dot there and let the tint
+    // alone carry the calendar.
     final slim = width < 62;
     final tint = Color.alphaBlend(
       entry.color.withValues(alpha: 0.22),
       scheme.surface,
     );
+    if (width < 30) {
+      // Too narrow for any glyph: a deeper bar still reads as "this slot is
+      // taken" and stays tappable.
+      return Material(
+        color: Color.alphaBlend(
+          (entry.completed
+                  ? scheme.onSurfaceVariant
+                  : entry.color)
+              .withValues(alpha: 0.55),
+          scheme.surface,
+        ),
+        borderRadius: BorderRadius.circular(6),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => task != null ? onOpenTask(task) : onOpenEvent(event!),
+        ),
+      );
+    }
+    final verticalPad = compact
+        ? math.max(1.0, (blockHeight - 13) / 2)
+        : 6.0;
     final timeText =
         '${(startMinutes ~/ 60).toString().padLeft(2, '0')}:${(startMinutes % 60).round().toString().padLeft(2, '0')}'
         ' - '
@@ -1787,39 +1880,36 @@ class _TimedBlock extends StatelessWidget {
         child: Padding(
           padding: EdgeInsets.fromLTRB(
             slim ? 4 : (compact ? 5 : 8),
-            compact ? 1 : 6,
+            verticalPad,
             slim ? 4 : (compact ? 5 : 8),
-            compact ? 1 : 6,
+            verticalPad,
           ),
-          child: Row(
-            crossAxisAlignment: compact
-                ? CrossAxisAlignment.center
-                : CrossAxisAlignment.start,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!slim) ...[
-                Container(
-                  width: 3,
-                  height: compact ? 12 : double.infinity,
-                  decoration: BoxDecoration(
-                    color: entry.completed
-                        ? scheme.onSurfaceVariant.withValues(alpha: 0.4)
-                        : entry.color,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(width: 5),
-              ],
-              Expanded(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              Row(
+                children: [
+                  if (!slim) ...[
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: entry.completed
+                            ? scheme.onSurfaceVariant.withValues(alpha: 0.4)
+                            : entry.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                  ],
+                  Expanded(
+                    child: Text(
                       entry.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelMedium?.copyWith(
-                        fontSize: compact ? 10 : 11.5,
+                        fontSize: compact ? 11 : 12,
                         height: 1.2,
                         color: scheme.onSurface,
                         fontWeight: FontWeight.w700,
@@ -1828,22 +1918,25 @@ class _TimedBlock extends StatelessWidget {
                             : null,
                       ),
                     ),
-                    if (!compact) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        timeText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontSize: 9.5,
-                          height: 1.2,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
+              if (!compact) ...[
+                const SizedBox(height: 2),
+                Padding(
+                  padding: EdgeInsets.only(left: slim ? 0 : 13),
+                  child: Text(
+                    timeText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 10.5,
+                      height: 1.2,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

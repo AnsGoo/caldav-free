@@ -21,8 +21,10 @@ pushes it in the background.
   holiday events, task occurrences and task completion from the calendar.
 - Create/edit/delete calendar events from the mobile app, with “this occurrence
   / entire series” handling for recurring events, and manage iCal subscriptions.
-- Bottom navigation with Tasks / Calendar / Habits; habits support today
-  check-in, create/edit/delete, streaks and a 30-day heatmap.
+- Bottom navigation with Tasks / Calendar / Habits / Focus; habits support
+  today check-in, create/edit/delete, streaks and a 30-day heatmap.
+- Focus/Pomodoro timer with 25/45/60-minute sessions, pause/reset, today and
+  total stats, and recent session records.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../calendar/calendar_page.dart';
+import '../focus/focus_page.dart';
 import '../habits/habits_page.dart';
 import '../tasks/tasks_page.dart';
 
@@ -19,7 +20,12 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [TasksPage(), CalendarPage(), HabitsPage()],
+        children: const [
+          TasksPage(),
+          CalendarPage(),
+          HabitsPage(),
+          FocusPage(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
@@ -39,6 +45,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.loop_rounded),
             selectedIcon: Icon(Icons.loop_rounded),
             label: '习惯',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.timer_outlined),
+            selectedIcon: Icon(Icons.timer_rounded),
+            label: '专注',
           ),
         ],
       ),

@@ -32,7 +32,8 @@ pushes it in the background.
   1.3x font-scale support. A second pass adds eight persisted accent colors,
   a calendar view menu, 3-day and year views, holiday labels, and per-day
   lunar/solar-term/festival labels. Habits now have a week strip, per-day
-  check-in history and section grouping. See `docs/客户端UI设计.md`.
+  check-in history and section grouping. Board, matrix and timeline views were
+  rebuilt with compact, borderless cards. See `docs/客户端UI设计.md`.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.

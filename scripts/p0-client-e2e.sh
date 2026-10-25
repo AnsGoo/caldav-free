@@ -66,7 +66,7 @@ echo "==> running mobile integration test"
   CALDAV_SYNC_BASE="$BASE" \
     CALDAV_SYNC_USER=admin \
     CALDAV_SYNC_PASS="$PASSWORD" \
-    "$FLUTTER" test test/integration/real_server_test.dart
+    "$FLUTTER" test --no-pub test/integration/real_server_test.dart
 )
 
 echo "==> P0 server/client e2e passed"

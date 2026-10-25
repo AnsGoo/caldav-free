@@ -30,8 +30,8 @@ pushes it in the background.
 - 2026-10 UI passes: paper-layer design tokens, icon-only five-tab navigation,
   borderless cards, underline view tabs, large focus ring, dark mode and
   1.3x font-scale support. A second pass adds eight persisted accent colors,
-  a calendar view menu, 3-day and year views, and holiday labels. See
-  `docs/客户端UI设计.md`.
+  a calendar view menu, 3-day and year views, holiday labels, and per-day
+  lunar/solar-term/festival labels. See `docs/客户端UI设计.md`.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.

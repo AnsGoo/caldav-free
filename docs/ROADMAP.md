@@ -149,6 +149,8 @@
 | 143 | Android UI 重构第一批：滴答清单参考审计、字体缩放与深色模式验证 | `9260a72` |
 | 144 | Android UI 重构第二批：8 色主题系列、持久化与深色变体 | `445ffe9` |
 | 145 | Android UI 重构第二批：日历视图菜单、3 日/年视图、节假日标注 | `445ffe9` |
+| 146 | Android UI 重构第三批：Basic Auth 农历/节气接口 | — |
+| 147 | Android UI 重构第三批：月视图农历日、农历月份、节气与传统节日标签 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -156,7 +158,7 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现，并完成两轮 UI 重构（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现，并完成三轮 UI 重构（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）

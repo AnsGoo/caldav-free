@@ -1163,7 +1163,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
   }
 
   void _addTag() {
-    final value = _tagInput.text.trim();
+    final value = _tagInput.text.replaceAll(',', '').trim();
     if (value.isEmpty) return;
     if (!_tags.contains(value) && _tags.length < 20) {
       setState(() => _tags = [..._tags, value]);

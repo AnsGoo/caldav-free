@@ -470,7 +470,7 @@ class TaskRepository {
     final seen = <String>{};
     final out = <String>[];
     for (final raw in tags) {
-      final value = raw.trim();
+      final value = raw.replaceAll(',', '').trim();
       if (value.isEmpty || !seen.add(value)) continue;
       out.add(value);
       if (out.length >= 20) break;

@@ -205,12 +205,25 @@ class FakeSyncServer {
           current['deleted'] = true;
           current['deletedAt'] = _now();
           _touch('task', op.entityId);
-        } else {
-          lists.remove(op.entityId);
-          _log('list', op.entityId);
+          appliedOps++;
+          return _ok(op, entity, current);
         }
+        // Deleting a list moves its tasks to the inbox, like the Go server.
+        for (final entry in tasks.entries) {
+          if (entry.value['listId'] == op.entityId) {
+            entry.value['listId'] = inboxId;
+            _touch('task', entry.key);
+          }
+        }
+        lists.remove(op.entityId);
+        _log('list', op.entityId);
         appliedOps++;
-        return _ok(op, entity, current);
+        return PushResult(
+          opId: op.opId,
+          entity: 'list',
+          entityId: op.entityId,
+          status: 'ok',
+        );
 
       default:
         return _error(op, entity, 'invalid_operation', 'unknown action');

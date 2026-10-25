@@ -22,6 +22,83 @@ void main() {
     return;
   }
 
+  test('real server: list create, task move and list delete', () async {
+    final api = HttpSyncApi(baseUrl: base, username: user, password: password);
+    addTearDown(api.close);
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    final listId = newSyncId();
+    final taskId = newSyncId();
+
+    final initial = await api.pull(since: '0');
+    final inboxId = initial.lists
+        .firstWhere((list) => list['isInbox'] == true)['id'] as String;
+
+    final createdList = (await api.push(
+      ops: [
+        OutboxOp(
+          opId: newSyncId(),
+          entity: 'list',
+          entityId: listId,
+          action: 'create',
+          patch: {'name': 'P1 列表 $stamp', 'color': '#22c55e'},
+        ),
+      ],
+      deviceId: 'p0-e2e',
+    ))
+        .single;
+    expect(createdList.status, 'ok', reason: createdList.errorMessage);
+    final listEtag = createdList.etag;
+
+    final createdTask = (await api.push(
+      ops: [
+        OutboxOp(
+          opId: newSyncId(),
+          entity: 'task',
+          entityId: taskId,
+          action: 'create',
+          patch: {'title': '列表任务 $stamp', 'listId': listId},
+        ),
+      ],
+      deviceId: 'p0-e2e',
+    ))
+        .single;
+    expect(createdTask.status, 'ok', reason: createdTask.errorMessage);
+
+    final page = await api.pull(since: '0');
+    final list = page.lists.firstWhere((json) => json['id'] == listId);
+    expect(list['name'], 'P1 列表 $stamp');
+    final task = TaskItem.fromWireJson(
+      page.tasks.firstWhere((json) => json['id'] == taskId),
+    );
+    expect(task.listId, listId);
+
+    final deleted = (await api.push(
+      ops: [
+        OutboxOp(
+          opId: newSyncId(),
+          entity: 'list',
+          entityId: listId,
+          action: 'delete',
+          baseEtag: listEtag,
+          patch: const {},
+        ),
+      ],
+      deviceId: 'p0-e2e',
+    ))
+        .single;
+    expect(deleted.status, 'ok');
+
+    final after = await api.pull(since: '0');
+    final moved = TaskItem.fromWireJson(
+      after.tasks.firstWhere((json) => json['id'] == taskId),
+    );
+    expect(moved.listId, inboxId);
+    final tombstone = after.tombstones.any(
+      (item) => item.entity == 'list' && item.id == listId,
+    );
+    expect(tombstone, true);
+  });
+
   test('real server: create, conflict, idempotency, CalDAV import, delete',
       () async {
     final api = HttpSyncApi(baseUrl: base, username: user, password: password);
@@ -42,8 +119,13 @@ void main() {
         'listId': inboxId,
         'title': 'P0 E2E $stamp',
         'notes': 'v1',
+        'due': '2026-11-01T09:00:00Z',
+        'allDay': false,
         'priority': 2,
         'tags': ['p0', 'e2e'],
+        'checklist': [
+          {'id': 'step-1', 'title': '第一步', 'done': false},
+        ],
       },
     );
     final created = (await api.push(ops: [createOp], deviceId: 'p0-e2e'))
@@ -56,7 +138,11 @@ void main() {
     final parsed = TaskItem.fromWireJson(remote);
     expect(parsed.title, 'P0 E2E $stamp');
     expect(parsed.priority, 2);
+    expect(parsed.dueAt, DateTime.utc(2026, 11, 1, 9));
+    expect(parsed.allDay, false);
     expect(parsed.tags, containsAll(['p0', 'e2e']));
+    expect(parsed.checklist.single.title, '第一步');
+    expect(parsed.checklist.single.done, false);
     expect(parsed.etag, etag1);
 
     final updateOp = OutboxOp(

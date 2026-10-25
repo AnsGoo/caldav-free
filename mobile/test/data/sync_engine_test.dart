@@ -1,3 +1,4 @@
+import 'package:caldav_free/core/models.dart';
 import 'package:caldav_free/data/db/local_store.dart';
 import 'package:caldav_free/data/engine/sync_engine.dart';
 import 'package:caldav_free/data/remote/sync_api.dart';
@@ -80,6 +81,100 @@ void main() {
     await deviceB.engine.sync();
     expect(deviceB.store.task(task.id)?.title, 'A 改的标题');
     expect(deviceB.store.task(task.id)?.notes, 'B 改的备注');
+  });
+
+  test('due, priority, tags and subtasks round-trip through the protocol',
+      () async {
+    await deviceA.engine.sync(full: true);
+    final task = await deviceA.repo.createTask(
+      title: '字段同步',
+      listId: deviceA.store.inbox()!.id,
+    );
+    await deviceA.engine.sync();
+
+    final baseline = deviceA.store.task(task.id)!;
+    await deviceA.repo.saveEdits(
+      task.id,
+      baseline: baseline,
+      title: baseline.title,
+      notes: '带字段的备注',
+      dueAt: DateTime.utc(2026, 11, 1, 9),
+      allDay: false,
+      priority: 3,
+      tags: const ['工作', 'P1'],
+      checklist: const [
+        ChecklistItem(id: 'step-1', title: '第一步'),
+      ],
+    );
+    await deviceA.engine.sync();
+    expect(deviceA.store.pendingCount, 0);
+
+    await deviceB.engine.sync(full: true);
+    final remote = deviceB.store.task(task.id)!;
+    expect(remote.notes, '带字段的备注');
+    expect(remote.dueAt, DateTime.utc(2026, 11, 1, 9));
+    expect(remote.allDay, false);
+    expect(remote.priority, 3);
+    expect(remote.tags, ['工作', 'P1']);
+    expect(remote.checklist.single.title, '第一步');
+
+    await deviceB.repo.toggleChecklistItem(task.id, 'step-1');
+    await deviceB.engine.sync();
+    await deviceA.engine.sync();
+    expect(deviceA.store.task(task.id)!.checklist.single.done, true);
+  });
+
+  test('offline list + task, rename, move and delete converge', () async {
+    await deviceA.engine.sync(full: true);
+    final list = await deviceA.repo.createList(name: '项目');
+    final task = await deviceA.repo.createTask(
+      title: '清单里的任务',
+      listId: list.id,
+    );
+    // The list create must be pushed before the task that references it.
+    await deviceA.engine.sync();
+    expect(server.lists[list.id]?['name'], '项目');
+    expect(server.tasks[task.id]?['listId'], list.id);
+    expect(deviceA.store.pendingCount, 0);
+
+    await deviceB.engine.sync(full: true);
+    expect(deviceB.store.list(list.id)?.name, '项目');
+    expect(deviceB.store.task(task.id)?.listId, list.id);
+
+    await deviceA.repo.updateList(list.id, name: '项目 2');
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(deviceB.store.list(list.id)?.name, '项目 2');
+
+    final archive = await deviceA.repo.createList(name: '归档');
+    await deviceA.engine.sync();
+    final baseline = deviceA.store.task(task.id)!;
+    await deviceA.repo.saveEdits(
+      task.id,
+      baseline: baseline,
+      title: baseline.title,
+      notes: baseline.notes,
+      dueAt: baseline.dueAt,
+      allDay: baseline.allDay,
+      priority: baseline.priority,
+      tags: baseline.tags,
+      checklist: baseline.checklist,
+      listId: archive.id,
+    );
+    await deviceA.engine.sync();
+    expect(server.tasks[task.id]?['listId'], archive.id);
+    await deviceB.engine.sync();
+    expect(deviceB.store.task(task.id)?.listId, archive.id);
+
+    await deviceA.repo.deleteList(archive.id);
+    await deviceA.engine.sync();
+    expect(server.lists.containsKey(archive.id), false);
+    expect(server.tasks[task.id]?['listId'], server.inboxId);
+
+    await deviceB.engine.sync();
+    expect(deviceB.store.list(archive.id), isNull);
+    expect(deviceB.store.task(task.id)?.listId, deviceB.store.inbox()!.id);
+    expect(deviceB.store.task(task.id)?.deleted, false);
   });
 
   test('network failure keeps the same opId and retries idempotently', () async {

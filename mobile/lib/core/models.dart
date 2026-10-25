@@ -281,6 +281,32 @@ class TaskListItem {
         'version': version,
         'modifiedAt': updatedAt.toUtc().toIso8601String(),
       };
+
+  TaskListItem copyWith({
+    String? folderId,
+    bool clearFolder = false,
+    String? name,
+    String? color,
+    bool? pinned,
+    int? sortOrder,
+    String? etag,
+    int? version,
+    DateTime? updatedAt,
+  }) {
+    return TaskListItem(
+      id: id,
+      folderId: clearFolder ? null : (folderId ?? this.folderId),
+      name: name ?? this.name,
+      color: color ?? this.color,
+      kind: kind,
+      sortOrder: sortOrder ?? this.sortOrder,
+      pinned: pinned ?? this.pinned,
+      isInbox: isInbox,
+      etag: etag ?? this.etag,
+      version: version ?? this.version,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 }
 
 String? _nullableString(Object? value) {

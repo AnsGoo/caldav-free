@@ -238,6 +238,16 @@ class SyncEngine {
   Future<_PushStats> _pushRound() async {
     final ops = store.dueOps();
     if (ops.isEmpty) return const _PushStats();
+    // A task created offline may reference a list created in the same batch.
+    // Push lists first so the server can resolve the reference.
+    ops.sort((a, b) {
+      final rankA = a.entity == 'list' ? 0 : 1;
+      final rankB = b.entity == 'list' ? 0 : 1;
+      if (rankA != rankB) return rankA - rankB;
+      final byTime = a.createdAt.compareTo(b.createdAt);
+      if (byTime != 0) return byTime;
+      return a.opId.compareTo(b.opId);
+    });
 
     List<PushResult> results;
     try {

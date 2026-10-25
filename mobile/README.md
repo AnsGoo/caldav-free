@@ -8,10 +8,14 @@ pushes it in the background.
 
 - Login with the CalDAV username/password against `/api/sync/pull`.
 - Offline task create, rename, complete/uncomplete, edit notes, delete.
+- Due date/time + all-day, priority, tags, subtasks, local search.
+- List create/rename/delete and moving a task between lists.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
 - Local write debounce, 15 s foreground polling, pull-to-refresh, manual and
   full sync.
 - CalDAV-origin VTODO changes appear on the next pull (`refresh` on full sync).
+- Field-level patches: the editor sends only fields changed from its opening
+  snapshot, so a concurrent server edit to an untouched field survives.
 - Sync diagnostics: cursor, pending/failed/conflict counts, last error.
 - Logout wipes local data and credentials.
 

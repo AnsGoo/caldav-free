@@ -17,9 +17,11 @@ pushes it in the background.
   complete/skip the current occurrence.
 - Trash: restore a deleted task or purge it permanently.
 - Global search across all open lists; pinned tasks sort first.
-- P2 views: Kanban board with custom synced columns and drag-between-columns,
-  Eisenhower matrix, and a 14-day timeline with drag-to-reschedule.
-- Multi-select in the list view for batch complete, move and delete.
+- P2 views: Kanban board with custom synced columns, column ordering and
+  drag-between-columns; Eisenhower matrix; day/week/month timeline with
+  drag-to-reschedule.
+- Multi-select in the list view for batch complete, move, delete, priority,
+  due date and tags.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
 - Local write debounce, 15 s foreground polling, pull-to-refresh, manual and
   full sync.
@@ -31,8 +33,9 @@ pushes it in the background.
 
 P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.
-The P2 first slice adds the board, matrix, timeline and batch actions described
-above; column/list reordering, batch field edits and timeline zoom are next.
+The P2 slices add the board, matrix and day/week/month timeline with column
+ordering and batch field edits; task/list reordering within a column and
+custom timeline ranges are next.
 
 ## Run
 

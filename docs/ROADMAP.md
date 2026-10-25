@@ -143,8 +143,8 @@
 | 137 | Android P4 第一批：Basic Auth 习惯接口、Habit API 解析与打卡/创建测试 | `b6ebc7f` / `3fb511b` |
 | 138 | Android P4 第二批：专注/番茄 Tab、25/45/60 分钟计时、今日/累计统计、最近记录 | `58d94ea` |
 | 139 | Android P4 第二批：Basic Auth 专注 dashboard/session 接口、Focus API 测试 | `e5901cf` / `58d94ea` |
-| 140 | Android P4 第三批：倒数日 Tab、列表卡片、新建/编辑/删除、置顶、类型、每年重复 | — |
-| 141 | Android P4 第三批：Basic Auth 倒数接口、Countdown API 测试 | — |
+| 140 | Android P4 第三批：倒数日 Tab、列表卡片、新建/编辑/删除、置顶、类型、每年重复 | `da71b9f` |
+| 141 | Android P4 第三批：Basic Auth 倒数接口、Countdown API 测试 | `8ae2592` / `da71b9f` |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 

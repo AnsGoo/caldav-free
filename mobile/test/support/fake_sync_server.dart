@@ -230,8 +230,49 @@ class FakeSyncServer {
         if (_baseMismatch(op, current)) {
           return _conflict(op, entity, current);
         }
+        final advanceRecurrence = entity == 'task' &&
+            op.patch['completed'] == true &&
+            (current['recurrence'] as String? ?? '').isNotEmpty &&
+            current['due'] != null;
         _applyPatch(current, op.patch);
+        if (advanceRecurrence) {
+          final due = DateTime.tryParse(current['due'].toString());
+          if (due != null) {
+            current['due'] = due
+                .toUtc()
+                .add(const Duration(days: 1))
+                .toIso8601String();
+          }
+          current['completed'] = false;
+          current.remove('completedAt');
+        }
         _touch(entity, op.entityId);
+        appliedOps++;
+        return _ok(op, entity, current);
+
+      case 'skip':
+        if (current == null) return _gone(op, entity);
+        if (entity != 'task') {
+          return _error(op, entity, 'invalid_operation', 'skip not supported');
+        }
+        if (current['deleted'] == true) {
+          return _gone(op, entity);
+        }
+        if ((current['recurrence'] as String? ?? '').isEmpty ||
+            current['due'] == null) {
+          return _error(op, entity, 'invalid_operation', 'task is not recurring');
+        }
+        if (_baseMismatch(op, current)) {
+          return _conflict(op, entity, current);
+        }
+        final due = DateTime.tryParse(current['due'].toString());
+        if (due != null) {
+          current['due'] =
+              due.toUtc().add(const Duration(days: 1)).toIso8601String();
+        }
+        current['completed'] = false;
+        current.remove('completedAt');
+        _touch('task', op.entityId);
         appliedOps++;
         return _ok(op, entity, current);
 
@@ -277,6 +318,40 @@ class FakeSyncServer {
         return PushResult(
           opId: op.opId,
           entity: 'list',
+          entityId: op.entityId,
+          status: 'ok',
+        );
+
+      case 'restore':
+        if (current == null) return _gone(op, entity);
+        if (entity != 'task') {
+          return _error(op, entity, 'invalid_operation', 'restore not supported');
+        }
+        if (_baseMismatch(op, current)) {
+          return _conflict(op, entity, current);
+        }
+        current['deleted'] = false;
+        current.remove('deletedAt');
+        current['completed'] = false;
+        current.remove('completedAt');
+        _touch('task', op.entityId);
+        appliedOps++;
+        return _ok(op, entity, current);
+
+      case 'purge':
+        if (current == null) return _gone(op, entity);
+        if (entity != 'task') {
+          return _error(op, entity, 'invalid_operation', 'purge not supported');
+        }
+        if (_baseMismatch(op, current)) {
+          return _conflict(op, entity, current);
+        }
+        tasks.remove(op.entityId);
+        _log('task', op.entityId);
+        appliedOps++;
+        return PushResult(
+          opId: op.opId,
+          entity: 'task',
           entityId: op.entityId,
           status: 'ok',
         );

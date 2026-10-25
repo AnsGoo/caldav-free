@@ -357,6 +357,10 @@ class SyncEngine {
     if (newer != null) return;
 
     if (op.entity == 'task') {
+      if (op.action == 'purge') {
+        await store.hardDeleteTask(op.entityId);
+        return;
+      }
       if (result.entityJson != null) {
         final remote = TaskItem.fromWireJson(result.entityJson!).copyWith(
           etag: result.etag ?? '',
@@ -412,6 +416,23 @@ class SyncEngine {
       final replacement = op.copyWith(
         opId: newSyncId(),
         action: 'delete',
+        patch: const {},
+        baseEtag: result.etag ?? '',
+        attempts: 0,
+        nextTryAt: now,
+      );
+      await store.replaceOp(oldOpId: op.opId, replacement: replacement);
+      return;
+    }
+
+    if (op.entity == 'task' &&
+        (op.action == 'restore' ||
+            op.action == 'purge' ||
+            op.action == 'skip')) {
+      // The task moved on (or a pending delete raced us). Retry against the
+      // new revision; these actions are idempotent server-side.
+      final replacement = op.copyWith(
+        opId: newSyncId(),
         patch: const {},
         baseEtag: result.etag ?? '',
         attempts: 0,

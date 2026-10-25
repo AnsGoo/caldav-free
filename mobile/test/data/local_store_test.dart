@@ -69,9 +69,13 @@ void main() {
       baseline: baseline,
       title: '新标题',
       notes: baseline.notes,
+      startAt: baseline.startAt,
       dueAt: DateTime.utc(2026, 10, 30),
       allDay: true,
       priority: 3,
+      reminderOffsets: baseline.reminderOffsets,
+      pinned: baseline.pinned,
+      recurrence: baseline.recurrence,
       tags: const ['p1', '工作'],
       checklist: const [
         ChecklistItem(id: 'sub-1', title: '第一步'),
@@ -105,15 +109,58 @@ void main() {
       baseline: baseline,
       title: '再改标题',
       notes: baseline.notes,
+      startAt: baseline.startAt,
       dueAt: DateTime.utc(2026, 10, 30),
       allDay: true,
       priority: 3,
+      reminderOffsets: baseline.reminderOffsets,
+      pinned: baseline.pinned,
+      recurrence: baseline.recurrence,
       tags: const ['p1', '工作'],
       checklist: const [
         ChecklistItem(id: 'sub-1', title: '第一步'),
       ],
     );
     expect(store.task(task.id)!.notes, '远端备注');
+    await store.dispose();
+  });
+
+  test('saveEdits patches start time, reminders and pin state', () async {
+    final store = LocalStore.memory();
+    final repo = TaskRepository(store);
+    final task = await repo.createTask(title: '提醒任务', listId: 'list-1');
+    final createOp = store.pendingOp('task', task.id)!;
+    await store.removeOp(createOp.opId);
+    final baseline = store.task(task.id)!;
+
+    final start = DateTime.utc(2026, 10, 26, 8);
+    final due = DateTime.utc(2026, 10, 26, 18);
+    await repo.saveEdits(
+      task.id,
+      baseline: baseline,
+      title: baseline.title,
+      notes: baseline.notes,
+      startAt: start,
+      dueAt: due,
+      allDay: false,
+      priority: 0,
+      reminderOffsets: const [60, 5, 5, 20000],
+      pinned: true,
+      recurrence: 'FREQ=DAILY',
+      tags: const [],
+      checklist: const [],
+    );
+
+    final op = store.pendingOp('task', task.id)!;
+    expect(op.patch['start'], '2026-10-26T08:00:00.000Z');
+    expect(op.patch['reminderOffsets'], [5, 60]);
+    expect(op.patch['pinned'], true);
+    expect(op.patch['recurrence'], 'FREQ=DAILY');
+    final local = store.task(task.id)!;
+    expect(local.startAt, start);
+    expect(local.reminderOffsets, [5, 60]);
+    expect(local.pinned, true);
+    expect(local.recurrence, 'FREQ=DAILY');
     await store.dispose();
   });
 
@@ -126,9 +173,13 @@ void main() {
       baseline: task,
       title: task.title,
       notes: '',
+      startAt: task.startAt,
       dueAt: null,
       allDay: false,
       priority: 0,
+      reminderOffsets: task.reminderOffsets,
+      pinned: task.pinned,
+      recurrence: task.recurrence,
       tags: const [],
       checklist: const [
         ChecklistItem(id: 'a', title: 'A'),

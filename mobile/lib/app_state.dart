@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'data/db/local_store.dart';
 import 'data/engine/sync_controller.dart';
 import 'data/engine/sync_engine.dart';
+import 'data/reminders/reminder_scheduler.dart';
 import 'data/remote/sync_api.dart';
 import 'data/session/credentials.dart';
 import 'data/tasks_repository.dart';
@@ -24,6 +25,7 @@ class AppState extends ChangeNotifier {
 
   Session? session;
   SyncController? syncController;
+  ReminderScheduler? reminders;
   bool busy = false;
   String? error;
 
@@ -34,7 +36,7 @@ class AppState extends ChangeNotifier {
   Future<void> restore() async {
     session = await credentials.load();
     if (session != null) {
-      _wireSync();
+      await _wireSync();
     }
     notifyListeners();
   }
@@ -87,7 +89,7 @@ class AppState extends ChangeNotifier {
       );
       await credentials.save(next);
       session = next;
-      _wireSync();
+      await _wireSync();
     } finally {
       busy = false;
       notifyListeners();
@@ -98,6 +100,8 @@ class AppState extends ChangeNotifier {
     _detachSync();
     syncController?.dispose();
     syncController = null;
+    await reminders?.stop(cancelAll: true);
+    reminders = null;
     repository.onLocalChange = null;
     await store.clearAll();
     await credentials.clear();
@@ -110,9 +114,14 @@ class AppState extends ChangeNotifier {
     await syncController?.sync(full: full);
   }
 
-  void _wireSync() {
+  Future<void> _wireSync() async {
     _detachSync();
     syncController?.dispose();
+    final previousReminders = reminders;
+    reminders = null;
+    if (previousReminders != null) {
+      await previousReminders.stop(cancelAll: true);
+    }
     final current = session!;
     final engine = SyncEngine(
       store: store,
@@ -129,6 +138,10 @@ class AppState extends ChangeNotifier {
     _syncListener = notifyListeners;
     controller.addListener(_syncListener!);
     unawaited(controller.start());
+
+    final scheduler = ReminderScheduler(store: store);
+    reminders = scheduler;
+    unawaited(scheduler.start());
   }
 
   void _detachSync() {
@@ -143,6 +156,7 @@ class AppState extends ChangeNotifier {
   void dispose() {
     _detachSync();
     syncController?.dispose();
+    unawaited(reminders?.stop());
     super.dispose();
   }
 }

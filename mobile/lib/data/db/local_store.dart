@@ -219,6 +219,36 @@ class LocalStore {
     }
   }
 
+  /// All tasks including completed and soft-deleted rows. Used by the reminder
+  /// planner, which must also cancel reminders for completed/deleted tasks.
+  List<TaskItem> allTasks() => _tasks.values.toList(growable: false);
+
+  Stream<List<TaskItem>> watchAllTasks() async* {
+    yield allTasks();
+    await for (final _ in _changes.stream) {
+      yield allTasks();
+    }
+  }
+
+  List<TaskItem> trashSnapshot() {
+    final items = _tasks.values
+        .where((task) => task.kind == TaskKind.task && task.deleted)
+        .toList();
+    items.sort((a, b) {
+      final aAt = a.deletedAt ?? a.updatedAt;
+      final bAt = b.deletedAt ?? b.updatedAt;
+      return bAt.compareTo(aAt);
+    });
+    return items;
+  }
+
+  Stream<List<TaskItem>> watchTrash() async* {
+    yield trashSnapshot();
+    await for (final _ in _changes.stream) {
+      yield trashSnapshot();
+    }
+  }
+
   DateTime _todayStartUtc() {
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day).toUtc();
@@ -594,6 +624,7 @@ DateTime? _date(Object? value) {
 }
 
 int _compareOpen(TaskItem a, TaskItem b) {
+  if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
   final aDue = a.dueAt;
   final bDue = b.dueAt;
   if (aDue == null && bDue != null) return 1;

@@ -7,9 +7,11 @@ import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
 import '../../data/engine/sync_controller.dart';
+import '../../data/reminders/reminder_plan.dart';
 import '../../design/format.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
+import 'trash_page.dart';
 
 class TasksPage extends StatefulWidget {
   const TasksPage({super.key});
@@ -220,7 +222,12 @@ class _TasksPageState extends State<TasksPage> {
           IconButton(
             tooltip: '搜索',
             onPressed: () {
-              setState(() => _searching = true);
+              setState(() {
+                _searching = true;
+                _selectedListId = null;
+                _view = 'all';
+              });
+              _subscribeTasks();
               _searchFocus.requestFocus();
             },
             icon: const Icon(Icons.search_rounded),
@@ -242,6 +249,11 @@ class _TasksPageState extends State<TasksPage> {
                 case 'lists':
                   _openLists();
                   break;
+                case 'trash':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const TrashPage()),
+                  );
+                  break;
                 case 'logout':
                   _confirmLogout();
                   break;
@@ -259,6 +271,10 @@ class _TasksPageState extends State<TasksPage> {
               PopupMenuItem(
                 value: 'lists',
                 child: Text('清单管理'),
+              ),
+              PopupMenuItem(
+                value: 'trash',
+                child: Text('回收站'),
               ),
               PopupMenuDivider(),
               PopupMenuItem(
@@ -773,19 +789,40 @@ class _TaskTile extends StatelessWidget {
                       if (due != null ||
                           (showListName && list != null) ||
                           task.checklist.isNotEmpty ||
-                          task.tags.isNotEmpty) ...[
+                          task.tags.isNotEmpty ||
+                          task.pinned ||
+                          task.reminderOffsets.isNotEmpty ||
+                          task.recurrence.isNotEmpty) ...[
                         const SizedBox(height: 7),
                         Wrap(
                           spacing: 8,
                           runSpacing: 4,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
+                            if (task.pinned)
+                              _MetaBadge(
+                                icon: Icons.push_pin_rounded,
+                                text: '',
+                                color: scheme.primary,
+                              ),
                             if (due != null)
                               _MetaBadge(
                                 icon: Icons.schedule_rounded,
                                 text: formatDue(due, allDay: task.allDay),
                                 color: dueColor,
                                 bold: overdue,
+                              ),
+                            if (task.reminderOffsets.isNotEmpty)
+                              _MetaBadge(
+                                icon: Icons.notifications_active_outlined,
+                                text: '',
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            if (task.recurrence.isNotEmpty)
+                              _MetaBadge(
+                                icon: Icons.repeat_rounded,
+                                text: '',
+                                color: scheme.onSurfaceVariant,
                               ),
                             if (showListName && list != null)
                               _MetaBadge(
@@ -860,14 +897,16 @@ class _MetaBadge extends StatelessWidget {
             height: 6,
             decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
-        const SizedBox(width: 4),
-        Text(
-          text,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: color,
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-              ),
-        ),
+        if (text.isNotEmpty) ...[
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+                ),
+          ),
+        ],
       ],
     );
   }
@@ -1090,14 +1129,26 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
   late final TextEditingController _tagInput;
   late final TextEditingController _subtaskInput;
   late String _listId;
+  DateTime? _startAt;
   DateTime? _dueAt;
   bool _allDay = false;
   int _priority = 0;
+  List<int> _reminders = const [];
+  bool _pinned = false;
+  String _recurrence = '';
   List<String> _tags = const [];
   List<ChecklistItem> _checklist = const [];
   bool _saving = false;
 
   static const _priorityLabels = ['无', '低', '中', '高'];
+  static const _recurrencePresets = <(String, String)>[
+    ('不重复', ''),
+    ('每天', 'FREQ=DAILY'),
+    ('工作日', 'FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR'),
+    ('每周', 'FREQ=WEEKLY'),
+    ('每月', 'FREQ=MONTHLY'),
+    ('每年', 'FREQ=YEARLY'),
+  ];
 
   @override
   void initState() {
@@ -1109,9 +1160,13 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
     _tagInput = TextEditingController();
     _subtaskInput = TextEditingController();
     _listId = task.listId;
+    _startAt = task.startAt;
     _dueAt = task.dueAt;
     _allDay = task.allDay;
     _priority = task.priority;
+    _reminders = List<int>.of(task.reminderOffsets);
+    _pinned = task.pinned;
+    _recurrence = task.recurrence;
     _tags = List<String>.of(task.tags);
     _checklist = List<ChecklistItem>.of(task.checklist);
   }
@@ -1197,15 +1252,241 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
     });
   }
 
+  Future<void> _pickStart() async {
+    final initial = (_startAt ?? DateTime.now()).toLocal();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime(initial.year, initial.month, initial.day),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (date == null || !mounted) return;
+    if (_allDay) {
+      setState(() {
+        _startAt = DateTime(date.year, date.month, date.day).toUtc();
+      });
+      return;
+    }
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    setState(() {
+      _startAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        time.hour,
+        time.minute,
+      ).toUtc();
+    });
+  }
+
+  Future<void> _addReminder() async {
+    const presets = [0, 5, 15, 60, 1440, 10080];
+    final picked = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text(
+                '添加提醒',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            for (final minutes in presets)
+              ListTile(
+                leading: const Icon(Icons.notifications_none_rounded),
+                title: Text(reminderLabel(minutes)),
+                trailing: _reminders.contains(minutes)
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(context, minutes),
+              ),
+            ListTile(
+              leading: const Icon(Icons.edit_calendar_rounded),
+              title: const Text('自定义…'),
+              onTap: () => Navigator.pop(context, -1),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (picked == null || !mounted) return;
+    var minutes = picked;
+    if (picked < 0) {
+      final custom = await _customReminderMinutes();
+      if (custom == null || !mounted) return;
+      minutes = custom;
+    }
+    if (_reminders.contains(minutes)) {
+      _editorSnack('该提醒已存在');
+      return;
+    }
+    if (_reminders.length >= 10) {
+      _editorSnack('最多设置 10 个提醒');
+      return;
+    }
+    setState(() {
+      _reminders = [..._reminders, minutes]..sort();
+    });
+    final scheduler = context.read<AppState>().reminders;
+    if (scheduler != null) {
+      final exact = await scheduler.exactAlarmsAllowed();
+      if (!exact) {
+        final granted = await scheduler.ensureExactAlarms();
+        if (!granted && mounted) {
+          _editorSnack('未开启精确提醒，系统可能延迟通知');
+        }
+      }
+    }
+  }
+
+  Future<int?> _customReminderMinutes() async {
+    final controller = TextEditingController();
+    String? error;
+    final result = await showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('自定义提醒'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: '提前分钟数',
+              helperText: '0 = 准时，最大 10080（7 天）',
+              errorText: error,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = int.tryParse(controller.text.trim());
+                if (value == null || value < 0 || value > 10080) {
+                  setDialogState(() => error = '请输入 0–10080 的整数');
+                  return;
+                }
+                Navigator.pop(context, value);
+              },
+              child: const Text('添加'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
+  void _editorSnack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _editRecurrence() async {
+    final controller = TextEditingController(text: _recurrence);
+    String? error;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('自定义重复规则'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: 'RRULE',
+              hintText: 'FREQ=WEEKLY;BYDAY=MO,WE',
+              helperText: '留空表示不重复',
+              errorText: error,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = controller.text.trim();
+                if (value.isNotEmpty &&
+                    !value.toUpperCase().replaceFirst(
+                          RegExp(r'^RRULE:'),
+                          '',
+                        ).startsWith('FREQ=')) {
+                  setDialogState(() => error = '规则需要以 FREQ= 开头');
+                  return;
+                }
+                Navigator.pop(context, value);
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+    if (result != null && mounted) {
+      setState(() => _recurrence = result);
+    }
+  }
+
+  Future<void> _skipOccurrence() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('跳过本次？'),
+        content: const Text('截止日期会推进到下一次，未保存的编辑不会提交。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('跳过'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<AppState>().repository.skipOccurrence(widget.task.id);
+      if (mounted) Navigator.pop(context);
+    } catch (error) {
+      if (mounted) _editorSnack('跳过失败：$error');
+    }
+  }
+
   void _toggleAllDay(bool value) {
     setState(() {
       _allDay = value;
       final due = _dueAt;
-      if (due == null) return;
-      final local = due.toLocal();
-      _dueAt = value
-          ? DateTime(local.year, local.month, local.day).toUtc()
-          : DateTime(local.year, local.month, local.day, 9).toUtc();
+      if (due != null) {
+        final local = due.toLocal();
+        _dueAt = value
+            ? DateTime(local.year, local.month, local.day).toUtc()
+            : DateTime(local.year, local.month, local.day, 9).toUtc();
+      }
+      final start = _startAt;
+      if (start != null) {
+        final local = start.toLocal();
+        _startAt = value
+            ? DateTime(local.year, local.month, local.day).toUtc()
+            : DateTime(local.year, local.month, local.day, 9).toUtc();
+      }
     });
   }
 
@@ -1259,9 +1540,13 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
             baseline: _baseline,
             title: title,
             notes: _notes.text,
+            startAt: _startAt,
             dueAt: _dueAt,
             allDay: _allDay,
             priority: _priority,
+            reminderOffsets: _reminders,
+            pinned: _pinned,
+            recurrence: _recurrence,
             tags: _tags,
             checklist: _checklist,
             listId: _listId,
@@ -1331,6 +1616,18 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                   ),
                 ],
                 const Spacer(),
+                IconButton(
+                  tooltip: _pinned ? '取消置顶' : '置顶',
+                  onPressed:
+                      _saving ? null : () => setState(() => _pinned = !_pinned),
+                  icon: Icon(
+                    _pinned
+                        ? Icons.push_pin_rounded
+                        : Icons.push_pin_outlined,
+                    size: 20,
+                    color: _pinned ? scheme.primary : scheme.onSurfaceVariant,
+                  ),
+                ),
                 if (task.completed)
                   Text(
                     '已完成',
@@ -1403,6 +1700,39 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               ),
             ),
             const SizedBox(height: 16),
+            _sheetLabel(context, '开始时间'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _saving ? null : _pickStart,
+                    icon: const Icon(Icons.schedule_rounded, size: 18),
+                    label: Text(
+                      _startAt == null
+                          ? '设置开始时间'
+                          : formatDue(_startAt!, allDay: _allDay),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                if (_startAt != null)
+                  IconButton(
+                    tooltip: '清除开始时间',
+                    onPressed: _saving
+                        ? null
+                        : () => setState(() => _startAt = null),
+                    icon: const Icon(Icons.close_rounded, size: 18),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
             _sheetLabel(context, '截止日期'),
             const SizedBox(height: 8),
             Row(
@@ -1446,6 +1776,85 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                 const Spacer(),
               ],
             ),
+            const SizedBox(height: 8),
+            _sheetLabel(context, '提醒'),
+            const SizedBox(height: 8),
+            if (_reminders.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final minutes in _reminders)
+                    InputChip(
+                      avatar: const Icon(
+                        Icons.notifications_active_outlined,
+                        size: 16,
+                      ),
+                      label: Text(reminderLabel(minutes)),
+                      onDeleted: _saving
+                          ? null
+                          : () => setState(
+                                () => _reminders = _reminders
+                                    .where((item) => item != minutes)
+                                    .toList(),
+                              ),
+                    ),
+                ],
+              ),
+            const SizedBox(height: 8),
+            ActionChip(
+              avatar: const Icon(Icons.add_alarm_rounded, size: 18),
+              label: const Text('添加提醒'),
+              onPressed: _saving ? null : _addReminder,
+            ),
+            if (_dueAt == null && _reminders.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '设置截止日期后提醒才会生效',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 8),
+            _sheetLabel(context, '重复'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                for (final preset in _recurrencePresets)
+                  ChoiceChip(
+                    label: Text(preset.$1),
+                    selected: _recurrence == preset.$2,
+                    onSelected: _saving
+                        ? null
+                        : (_) => setState(() => _recurrence = preset.$2),
+                  ),
+                ActionChip(
+                  avatar: const Icon(Icons.edit_calendar_rounded, size: 18),
+                  label: Text(
+                    _recurrence.isEmpty ||
+                            _recurrencePresets
+                                .any((preset) => preset.$2 == _recurrence)
+                        ? '自定义…'
+                        : '自定义规则',
+                  ),
+                  onPressed: _saving ? null : _editRecurrence,
+                ),
+              ],
+            ),
+            if (_dueAt == null && _recurrence.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '设置截止日期后重复任务才会推进',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
             _sheetLabel(context, '优先级'),
             const SizedBox(height: 8),
@@ -1554,6 +1963,15 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               ),
             ),
             const SizedBox(height: 20),
+            if (widget.task.recurrence.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _saving ? null : _skipOccurrence,
+                  icon: const Icon(Icons.skip_next_rounded, size: 18),
+                  label: const Text('跳过本次'),
+                ),
+              ),
             Row(
               children: [
                 TextButton.icon(

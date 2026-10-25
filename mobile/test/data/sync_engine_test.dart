@@ -98,9 +98,13 @@ void main() {
       baseline: baseline,
       title: baseline.title,
       notes: '带字段的备注',
+      startAt: baseline.startAt,
       dueAt: DateTime.utc(2026, 11, 1, 9),
       allDay: false,
       priority: 3,
+      reminderOffsets: baseline.reminderOffsets,
+      pinned: baseline.pinned,
+      recurrence: baseline.recurrence,
       tags: const ['工作', 'P1'],
       checklist: const [
         ChecklistItem(id: 'step-1', title: '第一步'),
@@ -122,6 +126,83 @@ void main() {
     await deviceB.engine.sync();
     await deviceA.engine.sync();
     expect(deviceA.store.task(task.id)!.checklist.single.done, true);
+  });
+
+  test('trash delete, restore and purge converge', () async {
+    await deviceA.engine.sync(full: true);
+    final task = await deviceA.repo.createTask(
+      title: '回收站往返',
+      listId: deviceA.store.inbox()!.id,
+    );
+    await deviceA.engine.sync();
+    await deviceB.engine.sync(full: true);
+    expect(deviceB.store.task(task.id)?.deleted, false);
+
+    await deviceA.repo.deleteTask(task.id);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(deviceB.store.task(task.id)?.deleted, true);
+    expect(deviceB.store.trashSnapshot().map((item) => item.id), [task.id]);
+
+    await deviceB.repo.restoreTask(task.id);
+    await deviceB.engine.sync();
+    await deviceA.engine.sync();
+    expect(deviceA.store.task(task.id)?.deleted, false);
+    expect(deviceB.store.task(task.id)?.deleted, false);
+
+    await deviceA.repo.deleteTask(task.id);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(deviceB.store.task(task.id)?.deleted, true);
+
+    await deviceB.repo.purgeTask(task.id);
+    await deviceB.engine.sync();
+    await deviceA.engine.sync();
+    expect(deviceA.store.task(task.id), isNull);
+    expect(deviceB.store.task(task.id), isNull);
+    expect(server.tasks.containsKey(task.id), false);
+  });
+
+  test('recurring task completion and skip advance the due date', () async {
+    await deviceA.engine.sync(full: true);
+    final task = await deviceA.repo.createTask(
+      title: '每日回顾',
+      listId: deviceA.store.inbox()!.id,
+    );
+    await deviceA.engine.sync();
+    final baseline = deviceA.store.task(task.id)!;
+    await deviceA.repo.saveEdits(
+      task.id,
+      baseline: baseline,
+      title: baseline.title,
+      notes: baseline.notes,
+      startAt: baseline.startAt,
+      dueAt: DateTime.utc(2026, 11, 1, 9),
+      allDay: false,
+      priority: baseline.priority,
+      reminderOffsets: baseline.reminderOffsets,
+      pinned: baseline.pinned,
+      recurrence: 'FREQ=DAILY',
+      tags: baseline.tags,
+      checklist: baseline.checklist,
+    );
+    await deviceA.engine.sync();
+    await deviceB.engine.sync(full: true);
+    expect(deviceB.store.task(task.id)?.recurrence, 'FREQ=DAILY');
+
+    await deviceA.repo.toggleCompleted(task.id);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    final afterComplete = deviceB.store.task(task.id)!;
+    expect(afterComplete.completed, false);
+    expect(afterComplete.dueAt, DateTime.utc(2026, 11, 2, 9));
+
+    await deviceB.repo.skipOccurrence(task.id);
+    await deviceB.engine.sync();
+    await deviceA.engine.sync();
+    final afterSkip = deviceA.store.task(task.id)!;
+    expect(afterSkip.completed, false);
+    expect(afterSkip.dueAt, DateTime.utc(2026, 11, 3, 9));
   });
 
   test('offline list + task, rename, move and delete converge', () async {
@@ -154,9 +235,13 @@ void main() {
       baseline: baseline,
       title: baseline.title,
       notes: baseline.notes,
+      startAt: baseline.startAt,
       dueAt: baseline.dueAt,
       allDay: baseline.allDay,
       priority: baseline.priority,
+      reminderOffsets: baseline.reminderOffsets,
+      pinned: baseline.pinned,
+      recurrence: baseline.recurrence,
       tags: baseline.tags,
       checklist: baseline.checklist,
       listId: archive.id,

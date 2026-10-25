@@ -37,7 +37,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 时间线视图：按清单分组的横向时间轴，支持日 / 周 / 月缩放、按清单 / 标签 / 优先级着色、点击空白新建、拖动任务条改期、上一段 / 今天 / 下一段
 - CalDAV 近实时同步：工作台打开时每 15 秒增量同步 VTODO，变化通过 SSE 自动刷新列表；其他标签页和 CalDAV 客户端修改会同步到当前页面
 - 客户端同步协议：`/api/sync/pull` + `/api/sync/push`，用户级增量游标、`etag/version` 乐观并发、`opId` 幂等、回收站与 tombstone 传播；工作台、AI、CalDAV 写入共用同一份变更日志
-- Android 客户端（`mobile/`，Flutter）：P0 登录、离线任务列表、outbox、增量 pull/push、ETag 冲突重试、CalDAV 同源变更、同步诊断；P1 第一批已支持截止日期/全天、优先级、标签、子任务、本地搜索、今天/最近 7 天智能视图、清单与文件夹管理、任务移动；debug APK 已构建，模拟器端到端联调通过，真机待验
+- Android 客户端（`mobile/`，Flutter）：P0 登录、离线任务列表、outbox、增量 pull/push、ETag 冲突重试、CalDAV 同源变更、同步诊断；P1 已支持截止日期/全天、开始时间、优先级、标签、子任务、本地搜索、今天/最近 7 天智能视图、清单与文件夹管理、任务移动、提醒/本地通知、回收站恢复与永久删除、重复任务完成/跳过、全局搜索、置顶；debug APK 已构建，模拟器端到端联调通过，真机待验
 - 并列显示：任务列表 / 看板 / 时间线可与日历左右并列，拖动分隔条调整宽度，点击任务时自动收起日历面板
 - 工作台内日期、时间选择器统一使用 Arco DatePicker / TimePicker，不使用浏览器原生日期控件
 - 日历支持月、周、2 周、3 日、日、日程、年七种视图；支持外部 ICS 日历订阅和内置节假日日历；订阅与节假日事件只读，但可点击查看详情；移动端月视图用紧凑圆点展示事件密度，并使用满宽满高工作区；月视图日期格自动均分剩余高度，周/日为填满剩余空间的时间网格，日程为未来 30 天满宽清单
@@ -101,7 +101,7 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - [习惯模块复刻记录](docs/习惯模块.md)：REA 证据、打卡、提醒、统计、导入导出与未对齐项
 - [Admin JSON API](docs/API.md)：任务/清单/文件夹/过滤器/标签/日历/统计/AI 接口与示例
 - [客户端同步协议](docs/同步协议.md)：`/api/sync/pull` + `/api/sync/push` 的游标、ETag、幂等与冲突处理
-- [客户端 P0](docs/客户端P0.md)：Flutter Android 骨架、本地库、同步内核、测试与真机待办
+- [客户端 P0/P1](docs/客户端P0.md)：Flutter Android 骨架、本地库、同步内核、提醒/回收站/重复任务、测试与真机待办
 - [架构与同步设计](docs/ARCHITECTURE.md)：数据表、VTODO 对账、事件展开、统计聚合、AI 工具循环
 - [实现进度与路线图](docs/ROADMAP.md)：已完成批次、提交记录、未实现能力与优先级
 
@@ -348,7 +348,7 @@ internal/tasks         任务快速添加的自然语言解析（日期、时间
 internal/tasksync      任务与 CalDAV VTODO 集合的双向同步、冲突处理与对象恢复
 internal/syncapi       客户端 pull/push 协议、同步 DTO、ETag 冲突与幂等
 internal/web           管理后台（模板、会话、CSRF、静态资源 embed）
-mobile/                Android Flutter 客户端（P0：登录、本地库、同步内核、任务页）
+mobile/                Android Flutter 客户端（P0/P1：登录、本地库、同步内核、任务页、提醒/回收站/重复任务）
 ```
 
 数据表：
@@ -571,7 +571,7 @@ go vet ./...
 - 任务工作台通过自动创建的 `caldav-tasks` 日历同步 `VTODO`；任务日历被客户端删除后，下次打开工作台会自动重建并恢复任务对象。
 - 工作台与 CalDAV 客户端同时修改同一任务时采用“工作台优先”的最后写入策略，不做字段级合并；客户端同步协议（pull/push）则用 `baseEtag` 检测冲突并返回服务端快照，由客户端合并后重试。
 - 客户端同步协议已覆盖任务、清单、看板列、文件夹和筛选器；习惯、专注、倒数日、笔记评论/附件、清单共享暂未纳入。
-- Android P0 客户端已实现离线任务与同步内核；APK 构建需要本机 Android SDK/JDK，当前环境未安装。P0 使用应用私有目录中的原子 JSON 本地库与明文凭据，drift/SQLite、Keystore/Keychain 和后台同步列在 P1。
+- Android Flutter 客户端已实现 P0/P1 功能（离线任务、同步内核、提醒、回收站、重复任务）；APK 构建需要本机 Android SDK/JDK。仍使用应用私有目录中的原子 JSON 本地库与明文凭据，drift/SQLite、Keystore/Keychain 和后台同步仍未迁移。
 - 通过 push 把重复任务标记完成不会推进到下一次，也不会写入 `RECURRENCE-ID` 实例历史；重复实例操作暂用工作台接口。
 - `sync_logs` 保留 90 天、`sync_ops` 保留 7 天；离线超过 90 天的客户端需要 `since=0` 全量同步。
 - 重复任务在完成时会把当前 VTODO 的 `DTSTART` / `DUE` 推进到下一次，不保留每次完成的历史实例；带 `COUNT` / `UNTIL` 的复杂规则会以当前到期时间重新锚定。

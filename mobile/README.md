@@ -1,4 +1,4 @@
-# caldav-free mobile (P0)
+# caldav-free mobile (P0/P1)
 
 Android-first Flutter client for the `caldav-free` sync protocol. The UI reads
 only the local store; every write goes to a local outbox and the sync engine
@@ -8,9 +8,15 @@ pushes it in the background.
 
 - Login with the CalDAV username/password against `/api/sync/pull`.
 - Offline task create, rename, complete/uncomplete, edit notes, delete.
-- Due date/time + all-day, priority, tags, subtasks, local search.
+- Start time, due date/time + all-day, priority, tags, subtasks, local search.
 - Smart views: all, today (including overdue), next 7 days.
 - List create/rename/delete, folders, moving lists into folders, and moving a task between lists.
+- Reminders: presets and custom minutes, Android local notifications with exact
+  alarms when permitted, channel `任务提醒`.
+- Recurring tasks: daily/weekdays/weekly/monthly/yearly presets, custom RRULE,
+  complete/skip the current occurrence.
+- Trash: restore a deleted task or purge it permanently.
+- Global search across all open lists; pinned tasks sort first.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
 - Local write debounce, 15 s foreground polling, pull-to-refresh, manual and
   full sync.
@@ -18,11 +24,11 @@ pushes it in the background.
 - Field-level patches: the editor sends only fields changed from its opening
   snapshot, so a concurrent server edit to an untouched field survives.
 - Sync diagnostics: cursor, pending/failed/conflict counts, last error.
-- Logout wipes local data and credentials.
+- Logout wipes local data, cancels pending reminders, and clears credentials.
 
-P0 intentionally does **not** include boards, timeline, matrix, habits, focus,
-countdowns, attachments, comments, sharing, SSE, background sync, or local
-notifications.
+P0/P1 intentionally do **not** include boards, timeline, matrix, habits, focus,
+countdowns, attachments, comments, sharing, SSE, background sync, or a
+drift/secure-storage migration.
 
 ## Run
 
@@ -40,7 +46,9 @@ Android toolchain used locally: JDK 17 at `~/development/jdk17`, SDK 36 at
 export JAVA_HOME="$HOME/development/jdk17/Contents/Home"
 export ANDROID_HOME="$HOME/development/android-sdk"
 flutter build apk --debug
-# -> build/app/outputs/flutter-apk/app-debug.apk (~159 MB)
+# -> build/app/outputs/flutter-apk/app-debug.apk (~160 MB)
+flutter build apk --release
+# -> build/app/outputs/flutter-apk/app-release.apk (~55 MB, debug signing for now)
 ```
 
 Use the **arm64** Flutter SDK on Apple Silicon (the x64 zip runs under Rosetta
@@ -117,6 +125,22 @@ Android emulator → host machine: use `http://10.0.2.2:5232`.
 Physical device: use the LAN address, e.g. `http://192.168.1.10:5232`.
 Public deployments must use HTTPS.
 
+## Reminders and Android permissions
+
+Reminders are scheduled with `flutter_local_notifications`. The app declares:
+
+- `POST_NOTIFICATIONS` (requested on Android 13+ at runtime);
+- `SCHEDULE_EXACT_ALARM` (requested when adding a reminder on Android 12+; if
+  denied, scheduling falls back to inexact alarms);
+- `RECEIVE_BOOT_COMPLETED` plus the plugin's boot/update receiver so pending
+  notifications survive a reboot.
+
+`android/app/build.gradle.kts` enables core-library desugaring for the plugin.
+The notification small icon is `res/drawable/ic_notification.xml`. Reminder
+offsets are synced as "minutes before due"; the scheduler rebuilds the pending
+set only when reminder-relevant task fields change, so 15 s polling does not
+cancel and recreate alarms continuously.
+
 ## End-to-end check
 
 From the repository root:
@@ -142,17 +166,18 @@ lib/features/             login, tasks, diagnostics
 lib/app_state.dart        session + sync wiring
 ```
 
-## P0 environment deviations
+## P0/P1 environment deviations
 
-This machine could not reach `pub.dev` (the Clash node was down) and has no
-Android SDK/JDK/Xcode. To keep P0 runnable and testable, the implementation
-uses only packages already present in the local pub cache:
+This machine initially could not reach `pub.dev`; several P0 decisions were made
+to keep the app runnable. `pub.dev` is reachable again, and P1 added
+`flutter_local_notifications` + `timezone`, but the foundational migrations are
+still open:
 
-| Planned | P0 shipped | Migration |
+| Planned | Shipped | Migration |
 | --- | --- | --- |
 | drift + SQLite | `LocalStore` over an atomic JSON file | replace `lib/data/db/local_store.dart`; engine API unchanged |
 | Riverpod | `provider` + `ChangeNotifier` | move `AppState`/`SyncController` to providers |
-| flutter_secure_storage | app-private `credentials.json` (plaintext) | first item of the P1 security pass |
+| flutter_secure_storage | app-private `credentials.json` (plaintext) | first item of the security pass |
 | go_router | session-based `home` switch | add routes when the page count grows |
 
 `android/app/src/main/kotlin/.../MainActivity.kt` exposes the app `filesDir` on
@@ -162,8 +187,8 @@ build hook required Xcode and blocked `flutter test`).
 ## Security notes
 
 - P0 stores the account password in plaintext inside the app-private support
-  directory. Use a dedicated account and HTTPS; migrate to Keystore/Keychain in
-  P1.
+  directory. Use a dedicated account and HTTPS; Keystore/Keychain migration is
+  still required before a public release.
 - `android:usesCleartextTraffic="true"` is enabled for local development. Turn
   it off (or restrict it with a network security config) for production.
 - Logout clears the local task database, outbox, and credentials.

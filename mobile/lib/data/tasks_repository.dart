@@ -77,9 +77,13 @@ class TaskRepository {
     required TaskItem baseline,
     required String title,
     required String notes,
+    required DateTime? startAt,
     required DateTime? dueAt,
     required bool allDay,
     required int priority,
+    required List<int> reminderOffsets,
+    required bool pinned,
+    required String recurrence,
     required List<String> tags,
     required List<ChecklistItem> checklist,
     String? listId,
@@ -104,6 +108,13 @@ class TaskRepository {
       patch['notes'] = notes;
       updated = updated.copyWith(notes: notes);
     }
+    if (!_sameInstant(baseline.startAt, startAt)) {
+      patch['start'] = startAt?.toUtc().toIso8601String();
+      updated = updated.copyWith(
+        startAt: startAt,
+        clearStart: startAt == null,
+      );
+    }
     final dueChanged = !_sameInstant(baseline.dueAt, dueAt);
     if (dueChanged || baseline.allDay != allDay) {
       patch['due'] = dueAt?.toUtc().toIso8601String();
@@ -117,6 +128,20 @@ class TaskRepository {
     if (baseline.priority != priority) {
       patch['priority'] = priority;
       updated = updated.copyWith(priority: priority);
+    }
+    final normalizedReminders = _normalizeReminders(reminderOffsets);
+    if (!_sameInts(baseline.reminderOffsets, normalizedReminders)) {
+      patch['reminderOffsets'] = normalizedReminders;
+      updated = updated.copyWith(reminderOffsets: normalizedReminders);
+    }
+    if (baseline.pinned != pinned) {
+      patch['pinned'] = pinned;
+      updated = updated.copyWith(pinned: pinned);
+    }
+    final normalizedRecurrence = recurrence.trim();
+    if (baseline.recurrence != normalizedRecurrence) {
+      patch['recurrence'] = normalizedRecurrence;
+      updated = updated.copyWith(recurrence: normalizedRecurrence);
     }
     if (listId != null && baseline.listId != listId) {
       final target = store.list(listId);
@@ -476,6 +501,97 @@ class TaskRepository {
       if (out.length >= 20) break;
     }
     return out;
+  }
+
+  Future<void> restoreTask(String id) async {
+    final task = store.task(id);
+    if (task == null || !task.deleted) return;
+    final existing = store.pendingOp('task', id);
+    final baseEtag = existing?.baseEtag ?? task.etag;
+    await store.batch(() async {
+      await store.saveTask(
+        task.copyWith(
+          deleted: false,
+          clearDeletedAt: true,
+          clearCompleted: true,
+        ),
+        dirty: true,
+      );
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'task',
+        entityId: id,
+        action: 'restore',
+        patch: const {},
+        baseEtag: baseEtag,
+      );
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> purgeTask(String id) async {
+    final task = store.task(id);
+    if (task == null || !task.deleted) return;
+    final existing = store.pendingOp('task', id);
+    final baseEtag = existing?.baseEtag ?? task.etag;
+    await store.batch(() async {
+      await store.hardDeleteTask(id);
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'task',
+        entityId: id,
+        action: 'purge',
+        patch: const {},
+        baseEtag: baseEtag,
+      );
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> skipOccurrence(String id) async {
+    final task = store.task(id);
+    if (task == null || task.recurrence.isEmpty) return;
+    final existing = store.pendingOp('task', id);
+    final baseEtag = existing?.baseEtag ?? task.etag;
+    await store.batch(() async {
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'task',
+        entityId: id,
+        action: 'skip',
+        patch: const {},
+        baseEtag: baseEtag,
+      );
+    });
+    onLocalChange?.call();
+  }
+
+  List<int> _normalizeReminders(List<int> offsets) {
+    final out = <int>[];
+    for (final raw in offsets) {
+      if (raw < 0 || raw > 10080 || out.contains(raw)) continue;
+      out.add(raw);
+      if (out.length >= 10) break;
+    }
+    out.sort();
+    return out;
+  }
+
+  bool _sameInts(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   bool _sameInstant(DateTime? a, DateTime? b) {

@@ -14,6 +14,7 @@ class FakeSyncServer {
 
   final Map<String, Map<String, dynamic>> tasks = {};
   final Map<String, Map<String, dynamic>> lists = {};
+  final Map<String, Map<String, dynamic>> sections = {};
   final Map<String, Map<String, dynamic>> folders = {};
   final List<_Change> _changes = [];
   final Map<String, PushResult> _opResults = {};
@@ -23,7 +24,9 @@ class FakeSyncServer {
   int pullCalls = 0;
   int appliedOps = 0;
 
-  String get inboxId => lists.values.firstWhere((list) => list['isInbox'] == true)['id'] as String;
+  String get inboxId =>
+      lists.values.firstWhere((list) => list['isInbox'] == true)['id']
+          as String;
 
   void _ensureInbox() {
     if (lists.values.any((list) => list['isInbox'] == true)) return;
@@ -63,41 +66,45 @@ class FakeSyncServer {
 
     final taskJson = <Map<String, dynamic>>[];
     final listJson = <Map<String, dynamic>>[];
+    final sectionJson = <Map<String, dynamic>>[];
     final folderJson = <Map<String, dynamic>>[];
     final tombstones = <Tombstone>[];
     for (final change in page) {
       if (change.entity == 'task') {
         final json = tasks[change.id];
         if (json == null) {
-          tombstones.add(Tombstone(
-            entity: 'task',
-            id: change.id,
-            deletedAt: _now(),
-          ));
+          tombstones.add(
+            Tombstone(entity: 'task', id: change.id, deletedAt: _now()),
+          );
         } else {
           taskJson.add(Map<String, dynamic>.from(json));
         }
       } else if (change.entity == 'list') {
         final json = lists[change.id];
         if (json == null) {
-          tombstones.add(Tombstone(
-            entity: 'list',
-            id: change.id,
-            deletedAt: _now(),
-          ));
+          tombstones.add(
+            Tombstone(entity: 'list', id: change.id, deletedAt: _now()),
+          );
         } else {
           listJson.add(Map<String, dynamic>.from(json));
         }
       } else if (change.entity == 'folder') {
         final json = folders[change.id];
         if (json == null) {
-          tombstones.add(Tombstone(
-            entity: 'folder',
-            id: change.id,
-            deletedAt: _now(),
-          ));
+          tombstones.add(
+            Tombstone(entity: 'folder', id: change.id, deletedAt: _now()),
+          );
         } else {
           folderJson.add(Map<String, dynamic>.from(json));
+        }
+      } else if (change.entity == 'section') {
+        final json = sections[change.id];
+        if (json == null) {
+          tombstones.add(
+            Tombstone(entity: 'section', id: change.id, deletedAt: _now()),
+          );
+        } else {
+          sectionJson.add(Map<String, dynamic>.from(json));
         }
       }
     }
@@ -107,6 +114,7 @@ class FakeSyncServer {
       hasMore: hasMore,
       tasks: taskJson,
       lists: listJson,
+      sections: sectionJson,
       folders: folderJson,
       tombstones: tombstones,
     );
@@ -132,14 +140,16 @@ class FakeSyncServer {
   }
 
   PushResult _apply(OutboxOp op) {
-    final entity = op.entity == 'list'
-        ? 'list'
-        : op.entity == 'folder'
-            ? 'folder'
-            : 'task';
+    final entity = switch (op.entity) {
+      'list' => 'list',
+      'folder' => 'folder',
+      'section' => 'section',
+      _ => 'task',
+    };
     final current = switch (entity) {
       'task' => tasks[op.entityId],
       'list' => lists[op.entityId],
+      'section' => sections[op.entityId],
       _ => folders[op.entityId],
     };
 
@@ -162,6 +172,29 @@ class FakeSyncServer {
           _applyPatch(json, op.patch);
           folders[op.entityId] = json;
           _touch('folder', op.entityId);
+          appliedOps++;
+          return _ok(op, entity, json);
+        }
+        if (entity == 'section') {
+          final name = (op.patch['name'] ?? '').toString().trim();
+          if (name.isEmpty) {
+            return _error(op, entity, 'invalid_patch', 'name is required');
+          }
+          final listId = (op.patch['listId'] ?? '').toString();
+          if (!lists.containsKey(listId)) {
+            return _error(op, entity, 'invalid_patch', 'list not found');
+          }
+          final json = <String, dynamic>{
+            'id': op.entityId,
+            'listId': listId,
+            'name': name,
+            'order': 0,
+            'createdAt': _now(),
+            'modifiedAt': _now(),
+          };
+          _applyPatch(json, op.patch);
+          sections[op.entityId] = json;
+          _touch('section', op.entityId);
           appliedOps++;
           return _ok(op, entity, json);
         }
@@ -230,7 +263,8 @@ class FakeSyncServer {
         if (_baseMismatch(op, current)) {
           return _conflict(op, entity, current);
         }
-        final advanceRecurrence = entity == 'task' &&
+        final advanceRecurrence =
+            entity == 'task' &&
             op.patch['completed'] == true &&
             (current['recurrence'] as String? ?? '').isNotEmpty &&
             current['due'] != null;
@@ -260,15 +294,22 @@ class FakeSyncServer {
         }
         if ((current['recurrence'] as String? ?? '').isEmpty ||
             current['due'] == null) {
-          return _error(op, entity, 'invalid_operation', 'task is not recurring');
+          return _error(
+            op,
+            entity,
+            'invalid_operation',
+            'task is not recurring',
+          );
         }
         if (_baseMismatch(op, current)) {
           return _conflict(op, entity, current);
         }
         final due = DateTime.tryParse(current['due'].toString());
         if (due != null) {
-          current['due'] =
-              due.toUtc().add(const Duration(days: 1)).toIso8601String();
+          current['due'] = due
+              .toUtc()
+              .add(const Duration(days: 1))
+              .toIso8601String();
         }
         current['completed'] = false;
         current.remove('completedAt');
@@ -287,6 +328,23 @@ class FakeSyncServer {
           _touch('task', op.entityId);
           appliedOps++;
           return _ok(op, entity, current);
+        }
+        if (entity == 'section') {
+          for (final entry in tasks.entries) {
+            if (entry.value['sectionId'] == op.entityId) {
+              entry.value['sectionId'] = null;
+              _touch('task', entry.key);
+            }
+          }
+          sections.remove(op.entityId);
+          _log('section', op.entityId);
+          appliedOps++;
+          return PushResult(
+            opId: op.opId,
+            entity: 'section',
+            entityId: op.entityId,
+            status: 'ok',
+          );
         }
         if (entity == 'folder') {
           for (final entry in lists.entries) {
@@ -325,7 +383,12 @@ class FakeSyncServer {
       case 'restore':
         if (current == null) return _gone(op, entity);
         if (entity != 'task') {
-          return _error(op, entity, 'invalid_operation', 'restore not supported');
+          return _error(
+            op,
+            entity,
+            'invalid_operation',
+            'restore not supported',
+          );
         }
         if (_baseMismatch(op, current)) {
           return _conflict(op, entity, current);
@@ -418,18 +481,13 @@ class FakeSyncServer {
   }
 
   PushResult _gone(OutboxOp op, String entity) => PushResult(
-        opId: op.opId,
-        entity: entity,
-        entityId: op.entityId,
-        status: 'gone',
-      );
+    opId: op.opId,
+    entity: entity,
+    entityId: op.entityId,
+    status: 'gone',
+  );
 
-  PushResult _error(
-    OutboxOp op,
-    String entity,
-    String code,
-    String message,
-  ) =>
+  PushResult _error(OutboxOp op, String entity, String code, String message) =>
       PushResult(
         opId: op.opId,
         entity: entity,
@@ -443,6 +501,7 @@ class FakeSyncServer {
     final json = switch (entity) {
       'task' => tasks[id],
       'list' => lists[id],
+      'section' => sections[id],
       _ => folders[id],
     };
     if (json == null) return;

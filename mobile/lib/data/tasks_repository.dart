@@ -110,10 +110,7 @@ class TaskRepository {
     }
     if (!_sameInstant(baseline.startAt, startAt)) {
       patch['start'] = startAt?.toUtc().toIso8601String();
-      updated = updated.copyWith(
-        startAt: startAt,
-        clearStart: startAt == null,
-      );
+      updated = updated.copyWith(startAt: startAt, clearStart: startAt == null);
     }
     final dueChanged = !_sameInstant(baseline.dueAt, dueAt);
     if (dueChanged || baseline.allDay != allDay) {
@@ -163,14 +160,178 @@ class TaskRepository {
     await _patch(current, patch, updated);
   }
 
+  Future<TaskSection> createSection({
+    required String listId,
+    required String name,
+  }) async {
+    final list = store.list(listId);
+    if (list == null) {
+      throw const FormatException('清单不存在');
+    }
+    final value = name.trim();
+    if (value.isEmpty) {
+      throw const FormatException('列名称不能为空');
+    }
+    if (store
+        .sectionsSnapshot(listId: listId)
+        .any((section) => section.name.toLowerCase() == value.toLowerCase())) {
+      throw const FormatException('同名列已存在');
+    }
+    var order = 0;
+    for (final section in store.sectionsSnapshot(listId: listId)) {
+      if (section.sortOrder > order) order = section.sortOrder;
+    }
+    order += 1;
+    final now = DateTime.now().toUtc();
+    final section = TaskSection(
+      id: newSyncId(),
+      listId: listId,
+      name: value,
+      sortOrder: order,
+      updatedAt: now,
+    );
+    await store.batch(() async {
+      await store.saveSection(section);
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'section',
+        entityId: section.id,
+        action: 'create',
+        patch: {'listId': listId, 'name': value, 'order': order},
+      );
+    });
+    onLocalChange?.call();
+    return section;
+  }
+
+  Future<void> renameSection(String id, String name) async {
+    final section = store.section(id);
+    if (section == null) return;
+    final value = name.trim();
+    if (value.isEmpty || value == section.name) return;
+    final existing = store.pendingOp('section', id);
+    final baseEtag = existing?.baseEtag ?? section.etag;
+    final updated = section.copyWith(
+      name: value,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    await store.batch(() async {
+      await store.saveSection(updated);
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'section',
+        entityId: id,
+        action: existing?.action == 'create' ? 'create' : 'update',
+        patch: {...?existing?.patch, 'name': value},
+        baseEtag: baseEtag,
+      );
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> deleteSection(String id) async {
+    final section = store.section(id);
+    if (section == null) return;
+    final existing = store.pendingOp('section', id);
+    if (existing?.action == 'create') {
+      await store.batch(() async {
+        await store.removeOp(existing!.opId);
+        await store.hardDeleteSection(id);
+        await _detachSectionFromTasks(id);
+      });
+      onLocalChange?.call();
+      return;
+    }
+    await store.batch(() async {
+      await _detachSectionFromTasks(id);
+      await store.hardDeleteSection(id);
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'section',
+        entityId: id,
+        action: 'delete',
+        patch: const {'strategy': 'move'},
+        baseEtag: existing?.baseEtag ?? section.etag,
+      );
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> _detachSectionFromTasks(String sectionId) async {
+    for (final task in store.allTasks()) {
+      if (task.sectionId != sectionId) continue;
+      await store.saveTask(task.copyWith(clearSection: true), dirty: false);
+      final op = store.pendingOp('task', task.id);
+      if (op != null && op.patch.containsKey('sectionId')) {
+        final patch = Map<String, dynamic>.of(op.patch)..remove('sectionId');
+        await store.removeOp(op.opId);
+        await store.saveOp(
+          opId: newSyncId(),
+          entity: 'task',
+          entityId: task.id,
+          action: op.action,
+          patch: patch,
+          baseEtag: op.baseEtag,
+          attempts: op.attempts,
+          nextTryAt: op.nextTryAt,
+          createdAt: op.createdAt,
+        );
+      }
+    }
+  }
+
+  Future<void> moveTaskToList(String taskId, String listId) async {
+    final task = store.task(taskId);
+    if (task == null || task.listId == listId) return;
+    final target = store.list(listId);
+    if (target == null) {
+      throw const FormatException('目标清单不存在');
+    }
+    await _patch(task, {
+      'listId': listId,
+      'sectionId': null,
+    }, task.copyWith(listId: listId, clearSection: true));
+  }
+
+  Future<void> moveTaskToSection(String taskId, String? sectionId) async {
+    final task = store.task(taskId);
+    if (task == null) return;
+    if (task.sectionId == sectionId) return;
+    if (sectionId != null) {
+      final section = store.section(sectionId);
+      if (section == null || section.listId != task.listId) {
+        throw const FormatException('列不属于当前清单');
+      }
+    }
+    await _patch(task, {
+      'sectionId': sectionId,
+    }, task.copyWith(sectionId: sectionId, clearSection: sectionId == null));
+  }
+
+  Future<void> rescheduleTask(String id, DateTime? due) async {
+    final task = store.task(id);
+    if (task == null) return;
+    final utc = due?.toUtc();
+    if (_sameInstant(task.dueAt, utc)) return;
+    await _patch(task, {
+      'due': utc?.toIso8601String(),
+    }, task.copyWith(dueAt: utc, clearDue: utc == null));
+  }
+
   Future<FolderItem> createFolder(String name) async {
     final value = name.trim();
     if (value.isEmpty) {
       throw const FormatException('文件夹名称不能为空');
     }
     if (store.foldersSnapshot().any(
-          (folder) => folder.name.toLowerCase() == value.toLowerCase(),
-        )) {
+      (folder) => folder.name.toLowerCase() == value.toLowerCase(),
+    )) {
       throw const FormatException('同名文件夹已存在');
     }
     var order = 0;
@@ -207,10 +368,9 @@ class TaskRepository {
     if (value == folder.name) return;
     final existing = store.pendingOp('folder', id);
     await store.batch(() async {
-      await store.saveFolder(folder.copyWith(
-        name: value,
-        updatedAt: DateTime.now().toUtc(),
-      ));
+      await store.saveFolder(
+        folder.copyWith(name: value, updatedAt: DateTime.now().toUtc()),
+      );
       if (existing != null) {
         await store.removeOp(existing.opId);
       }
@@ -219,10 +379,7 @@ class TaskRepository {
         entity: 'folder',
         entityId: id,
         action: existing?.action == 'create' ? 'create' : 'update',
-        patch: {
-          ...?existing?.patch,
-          'name': value,
-        },
+        patch: {...?existing?.patch, 'name': value},
         baseEtag: existing?.baseEtag ?? folder.etag,
       );
     });
@@ -262,11 +419,9 @@ class TaskRepository {
     if (folderId != null && store.folder(folderId) == null) {
       throw const FormatException('文件夹不存在');
     }
-    await _patchList(
-      list,
-      {'folderId': folderId},
-      list.copyWith(folderId: folderId, clearFolder: folderId == null),
-    );
+    await _patchList(list, {
+      'folderId': folderId,
+    }, list.copyWith(folderId: folderId, clearFolder: folderId == null));
   }
 
   Future<TaskListItem> createList({
@@ -279,8 +434,8 @@ class TaskRepository {
       throw const FormatException('清单名称不能为空');
     }
     if (store.listsSnapshot().any(
-          (list) => list.name.toLowerCase() == value.toLowerCase(),
-        )) {
+      (list) => list.name.toLowerCase() == value.toLowerCase(),
+    )) {
       throw const FormatException('同名清单已存在');
     }
     var order = 0;
@@ -360,9 +515,8 @@ class TaskRepository {
     if (list == null || list.isInbox) return;
     final existing = store.pendingOp('list', id);
     if (existing?.action == 'create') {
-      final hasTasks = store
-              .tasksSnapshot(listId: id, completed: false)
-              .isNotEmpty ||
+      final hasTasks =
+          store.tasksSnapshot(listId: id, completed: false).isNotEmpty ||
           store.tasksSnapshot(listId: id, completed: true).isNotEmpty;
       if (hasTasks) {
         throw StateError('清单尚未同步，请先同步或移走任务');
@@ -397,10 +551,7 @@ class TaskRepository {
   ) async {
     final now = DateTime.now().toUtc();
     final existing = store.pendingOp('list', list.id);
-    final mergedPatch = <String, dynamic>{
-      ...?existing?.patch,
-      ...patch,
-    };
+    final mergedPatch = <String, dynamic>{...?existing?.patch, ...patch};
     final action = existing?.action == 'create' ? 'create' : 'update';
     await store.batch(() async {
       await store.saveList(updated.copyWith(updatedAt: now), dirty: true);
@@ -423,16 +574,13 @@ class TaskRepository {
     final task = store.task(id);
     if (task == null) return;
     final items = task.checklist
-        .map((item) =>
-            item.id == itemId ? item.copyWith(done: !item.done) : item)
+        .map(
+          (item) => item.id == itemId ? item.copyWith(done: !item.done) : item,
+        )
         .toList(growable: false);
-    await _patch(
-      task,
-      {
-        'checklist': items.map((item) => item.toJson()).toList(),
-      },
-      task.copyWith(checklist: items),
-    );
+    await _patch(task, {
+      'checklist': items.map((item) => item.toJson()).toList(),
+    }, task.copyWith(checklist: items));
   }
 
   Future<void> toggleCompleted(String id) async {
@@ -442,8 +590,9 @@ class TaskRepository {
     final completedAt = task.completed ? null : now;
     final patch = <String, dynamic>{
       'completed': completedAt != null,
-      'completedAt':
-          completedAt?.toUtc().toIso8601String(), // explicit null clears
+      'completedAt': completedAt
+          ?.toUtc()
+          .toIso8601String(), // explicit null clears
     };
     await _patch(
       task,
@@ -627,10 +776,7 @@ class TaskRepository {
   ) async {
     final now = DateTime.now().toUtc();
     final existing = store.pendingOp('task', task.id);
-    final mergedPatch = <String, dynamic>{
-      ...?existing?.patch,
-      ...patch,
-    };
+    final mergedPatch = <String, dynamic>{...?existing?.patch, ...patch};
     final action = existing?.action == 'create' ? 'create' : 'update';
     await store.batch(() async {
       await store.saveTask(updated.copyWith(updatedAt: now), dirty: true);

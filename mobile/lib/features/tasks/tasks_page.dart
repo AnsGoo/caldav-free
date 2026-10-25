@@ -11,7 +11,12 @@ import '../../data/reminders/reminder_plan.dart';
 import '../../design/format.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
+import 'board_view.dart';
+import 'matrix_view.dart';
+import 'timeline_view.dart';
 import 'trash_page.dart';
+
+enum _TaskLayout { list, board, matrix, timeline }
 
 class TasksPage extends StatefulWidget {
   const TasksPage({super.key});
@@ -35,6 +40,9 @@ class _TasksPageState extends State<TasksPage> {
   bool _searching = false;
   String _query = '';
   String _view = 'all';
+  _TaskLayout _layout = _TaskLayout.list;
+  bool _selecting = false;
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -60,8 +68,9 @@ class _TasksPageState extends State<TasksPage> {
     _listsSub = store.watchLists().listen((allLists) {
       if (!mounted) return;
       // P0 renders tasks only; note lists are synced but not editable here.
-      final lists =
-          allLists.where((list) => list.kind == TaskKind.task).toList();
+      final lists = allLists
+          .where((list) => list.kind == TaskKind.task)
+          .toList();
       var reset = false;
       if (_selectedListId != null &&
           !lists.any((list) => list.id == _selectedListId)) {
@@ -77,14 +86,10 @@ class _TasksPageState extends State<TasksPage> {
     _tasksSub?.cancel();
     final store = context.read<AppState>().store;
     _tasksSub = store
-        .watchTasks(
-          listId: _selectedListId,
-          completed: _completed,
-          view: _view,
-        )
+        .watchTasks(listId: _selectedListId, completed: _completed, view: _view)
         .listen((tasks) {
-      if (mounted) setState(() => _tasks = tasks);
-    });
+          if (mounted) setState(() => _tasks = tasks);
+        });
   }
 
   TaskListItem? get _inbox {
@@ -105,6 +110,152 @@ class _TasksPageState extends State<TasksPage> {
     return null;
   }
 
+  TaskListItem? get _boardList =>
+      _selectedList ?? _inbox ?? (_lists.isNotEmpty ? _lists.first : null);
+
+  void _setLayout(_TaskLayout layout) {
+    setState(() {
+      _layout = layout;
+      _completed = false;
+      _selecting = false;
+      _selectedIds.clear();
+      if (layout != _TaskLayout.list) {
+        _view = 'all';
+        if (layout == _TaskLayout.board && _selectedListId == null) {
+          _selectedListId = _boardList?.id;
+        }
+      }
+    });
+    _subscribeTasks();
+  }
+
+  void _setScope(String? listId) {
+    setState(() => _selectedListId = listId);
+    _subscribeTasks();
+  }
+
+  Future<void> _reschedule(TaskItem task, DateTime? due) async {
+    try {
+      await context.read<AppState>().repository.rescheduleTask(task.id, due);
+    } catch (error) {
+      _snack('改期失败：$error');
+    }
+  }
+
+  void _toggleSelection(TaskItem task) {
+    setState(() {
+      _selecting = true;
+      if (!_selectedIds.add(task.id)) {
+        _selectedIds.remove(task.id);
+      }
+      if (_selectedIds.isEmpty) _selecting = false;
+    });
+  }
+
+  void _clearSelection() {
+    if (!_selecting && _selectedIds.isEmpty) return;
+    setState(() {
+      _selecting = false;
+      _selectedIds.clear();
+    });
+  }
+
+  Future<void> _batchComplete() async {
+    if (_selectedIds.isEmpty) return;
+    final app = context.read<AppState>();
+    final repository = app.repository;
+    final store = app.store;
+    setState(() => _selecting = false);
+    try {
+      for (final id in _selectedIds.toList()) {
+        final task = store.task(id);
+        if (task != null && !task.completed) {
+          await repository.toggleCompleted(id);
+        }
+      }
+    } catch (error) {
+      _snack('批量完成失败：$error');
+    }
+    if (mounted) setState(() => _selectedIds.clear());
+  }
+
+  Future<void> _batchDelete() async {
+    if (_selectedIds.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除 ${_selectedIds.length} 个任务？'),
+        content: const Text('任务会移到回收站，可随时恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final repository = context.read<AppState>().repository;
+    final ids = _selectedIds.toList();
+    setState(() => _selecting = false);
+    try {
+      for (final id in ids) {
+        await repository.deleteTask(id);
+      }
+    } catch (error) {
+      _snack('批量删除失败：$error');
+    }
+    if (mounted) setState(() => _selectedIds.clear());
+  }
+
+  Future<void> _batchMove() async {
+    if (_selectedIds.isEmpty) return;
+    final targetId = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('移动到清单'),
+            ),
+            for (final list in _lists)
+              ListTile(
+                leading: Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: colorFromHex(list.color),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                title: Text(list.name),
+                onTap: () => Navigator.pop(context, list.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (targetId == null || !mounted) return;
+    final repository = context.read<AppState>().repository;
+    final ids = _selectedIds.toList();
+    setState(() => _selecting = false);
+    try {
+      for (final id in ids) {
+        await repository.moveTaskToList(id, targetId);
+      }
+    } catch (error) {
+      _snack('批量移动失败：$error');
+    }
+    if (mounted) setState(() => _selectedIds.clear());
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -115,11 +266,11 @@ class _TasksPageState extends State<TasksPage> {
     final title = _completed
         ? '已完成'
         : (selected?.name ??
-            (_view == 'today'
-                ? '今天'
-                : _view == 'next7'
-                    ? '最近 7 天'
-                    : '任务'));
+              (_view == 'today'
+                  ? '今天'
+                  : _view == 'next7'
+                  ? '最近 7 天'
+                  : '任务'));
     final listsById = {for (final list in _lists) list.id: list};
     final visible = _filteredTasks;
 
@@ -130,7 +281,14 @@ class _TasksPageState extends State<TasksPage> {
         backgroundColor: Colors.transparent,
         toolbarHeight: 72,
         titleSpacing: 20,
-        title: _searching
+        title: _selecting
+            ? Text(
+                '已选 ${_selectedIds.length} 项',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+            : _searching
             ? TextField(
                 controller: _search,
                 focusNode: _searchFocus,
@@ -181,7 +339,16 @@ class _TasksPageState extends State<TasksPage> {
                   ),
                 ],
               ),
-        actions: _searching
+        actions: _selecting
+            ? [
+                IconButton(
+                  tooltip: '取消选择',
+                  onPressed: _clearSelection,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+                const SizedBox(width: 4),
+              ]
+            : _searching
             ? [
                 IconButton(
                   tooltip: '关闭搜索',
@@ -191,193 +358,265 @@ class _TasksPageState extends State<TasksPage> {
                 const SizedBox(width: 4),
               ]
             : [
-          if (sync?.phase == SyncPhase.syncing)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 14),
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            IconButton(
-              tooltip: '立即同步',
-              onPressed: () => app.syncNow(),
-              icon: const Icon(Icons.sync_rounded),
-            ),
-          IconButton(
-            tooltip: _completed ? '查看未完成' : '查看已完成',
-            onPressed: () {
-              setState(() => _completed = !_completed);
-              _subscribeTasks();
-            },
-            icon: Icon(
-              _completed
-                  ? Icons.check_circle_rounded
-                  : Icons.check_circle_outline_rounded,
-              color: _completed ? scheme.primary : null,
-            ),
-          ),
-          IconButton(
-            tooltip: '搜索',
-            onPressed: () {
-              setState(() {
-                _searching = true;
-                _selectedListId = null;
-                _view = 'all';
-              });
-              _subscribeTasks();
-              _searchFocus.requestFocus();
-            },
-            icon: const Icon(Icons.search_rounded),
-          ),
-          PopupMenuButton<String>(
-            tooltip: '更多',
-            onSelected: (value) {
-              switch (value) {
-                case 'diagnostics':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const SyncDiagnosticsPage(),
+                if (sync?.phase == SyncPhase.syncing)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                  );
-                  break;
-                case 'full':
-                  app.syncNow(full: true);
-                  break;
-                case 'lists':
-                  _openLists();
-                  break;
-                case 'trash':
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TrashPage()),
-                  );
-                  break;
-                case 'logout':
-                  _confirmLogout();
-                  break;
-              }
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'diagnostics',
-                child: Text('同步诊断'),
-              ),
-              PopupMenuItem(
-                value: 'full',
-                child: Text('全量同步'),
-              ),
-              PopupMenuItem(
-                value: 'lists',
-                child: Text('清单管理'),
-              ),
-              PopupMenuItem(
-                value: 'trash',
-                child: Text('回收站'),
-              ),
-              PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'logout',
-                child: Text('退出登录'),
-              ),
-            ],
-          ),
-          const SizedBox(width: 4),
-        ],
+                  )
+                else
+                  IconButton(
+                    tooltip: '立即同步',
+                    onPressed: () => app.syncNow(),
+                    icon: const Icon(Icons.sync_rounded),
+                  ),
+                if (_layout == _TaskLayout.list)
+                  IconButton(
+                    tooltip: _completed ? '查看未完成' : '查看已完成',
+                    onPressed: () {
+                      setState(() => _completed = !_completed);
+                      _subscribeTasks();
+                    },
+                    icon: Icon(
+                      _completed
+                          ? Icons.check_circle_rounded
+                          : Icons.check_circle_outline_rounded,
+                      color: _completed ? scheme.primary : null,
+                    ),
+                  ),
+                IconButton(
+                  tooltip: '搜索',
+                  onPressed: () {
+                    setState(() {
+                      _layout = _TaskLayout.list;
+                      _searching = true;
+                      _selectedListId = null;
+                      _view = 'all';
+                      _completed = false;
+                    });
+                    _subscribeTasks();
+                    _searchFocus.requestFocus();
+                  },
+                  icon: const Icon(Icons.search_rounded),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: '更多',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'diagnostics':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const SyncDiagnosticsPage(),
+                          ),
+                        );
+                        break;
+                      case 'full':
+                        app.syncNow(full: true);
+                        break;
+                      case 'lists':
+                        _openLists();
+                        break;
+                      case 'trash':
+                        Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const TrashPage()),
+                        );
+                        break;
+                      case 'logout':
+                        _confirmLogout();
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'diagnostics', child: Text('同步诊断')),
+                    PopupMenuItem(value: 'full', child: Text('全量同步')),
+                    PopupMenuItem(value: 'lists', child: Text('清单管理')),
+                    PopupMenuItem(value: 'trash', child: Text('回收站')),
+                    PopupMenuDivider(),
+                    PopupMenuItem(value: 'logout', child: Text('退出登录')),
+                  ],
+                ),
+                const SizedBox(width: 4),
+              ],
       ),
       body: Column(
         children: [
           if (sync?.error != null)
-            _SyncBanner(
-              message: sync!.error!,
-              onRetry: () => app.syncNow(),
+            _SyncBanner(message: sync!.error!, onRetry: () => app.syncNow()),
+          if (!_searching && !_selecting)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: _LayoutSwitcher(layout: _layout, onChanged: _setLayout),
             ),
-          _ListSelector(
-            lists: _lists,
-            selectedId: _selectedListId,
-            selectedView: _view,
-            onSelected: (id) {
-              setState(() {
-                _view = 'all';
-                _selectedListId = id;
-              });
-              _subscribeTasks();
-            },
-            onViewSelected: (view) {
-              setState(() {
-                _selectedListId = null;
-                _view = view;
-              });
-              _subscribeTasks();
-            },
-            onManage: _openLists,
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: () => app.syncNow(),
-              child: visible.isEmpty
-                  ? ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.sizeOf(context).height * 0.35,
-                        ),
-                        _EmptyState(
-                          completed: _completed,
-                          hasLists: _lists.isNotEmpty,
-                          searching: _searching && _query.isNotEmpty,
-                          onSync: () => app.syncNow(),
-                        ),
-                      ],
-                    )
-                  : ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                      itemCount: visible.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final task = visible[index];
-                        final list = listsById[task.listId];
-                        return _TaskTile(
-                          key: ValueKey(task.id),
-                          task: task,
-                          list: list,
-                          showListName: _selectedListId == null,
-                          onToggle: () => _toggle(task),
-                          onDelete: () => _delete(task),
-                          onTap: () => _openEditor(task, list),
-                        );
-                      },
-                    ),
+          if (_selecting && _layout == _TaskLayout.list)
+            _BatchBar(
+              count: _selectedIds.length,
+              onComplete: _batchComplete,
+              onMove: _batchMove,
+              onDelete: _batchDelete,
             ),
-          ),
+          if (_layout == _TaskLayout.list) ...[
+            _ListSelector(
+              lists: _lists,
+              selectedId: _selectedListId,
+              selectedView: _view,
+              onSelected: (id) {
+                setState(() {
+                  _view = 'all';
+                  _selectedListId = id;
+                });
+                _subscribeTasks();
+              },
+              onViewSelected: (view) {
+                setState(() {
+                  _selectedListId = null;
+                  _view = view;
+                });
+                _subscribeTasks();
+              },
+              onManage: _openLists,
+            ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () => app.syncNow(),
+                child: visible.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.sizeOf(context).height * 0.35,
+                          ),
+                          _EmptyState(
+                            completed: _completed,
+                            hasLists: _lists.isNotEmpty,
+                            searching: _searching && _query.isNotEmpty,
+                            onSync: () => app.syncNow(),
+                          ),
+                        ],
+                      )
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                        itemCount: visible.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final task = visible[index];
+                          final list = listsById[task.listId];
+                          return _TaskTile(
+                            key: ValueKey(task.id),
+                            task: task,
+                            list: list,
+                            showListName: _selectedListId == null,
+                            selected: _selectedIds.contains(task.id),
+                            onToggle: () => _toggle(task),
+                            onDelete: () => _delete(task),
+                            onLongPress: () => _toggleSelection(task),
+                            onTap: _selecting
+                                ? () => _toggleSelection(task)
+                                : () => _openEditor(task, list),
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ] else if (_layout == _TaskLayout.board) ...[
+            _ViewScopeBar(
+              lists: _lists,
+              selectedId: _boardList?.id,
+              includeAll: false,
+              onChanged: _setScope,
+            ),
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: _boardList == null
+                    ? Center(
+                        child: Text(
+                          _lists.isEmpty ? '先创建一个清单' : '暂无可展示的清单',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : BoardView(
+                        list: _boardList!,
+                        tasks: _tasks,
+                        onOpenTask: (task) =>
+                            _openEditor(task, listsById[task.listId]),
+                        onToggleTask: _toggle,
+                      ),
+              ),
+            ),
+          ] else if (_layout == _TaskLayout.matrix) ...[
+            _ViewScopeBar(
+              lists: _lists,
+              selectedId: _selectedListId,
+              includeAll: true,
+              onChanged: _setScope,
+            ),
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: MatrixView(
+                  tasks: _tasks,
+                  onOpenTask: (task) =>
+                      _openEditor(task, listsById[task.listId]),
+                  onToggleTask: _toggle,
+                ),
+              ),
+            ),
+          ] else ...[
+            _ViewScopeBar(
+              lists: _lists,
+              selectedId: _selectedListId,
+              includeAll: true,
+              onChanged: _setScope,
+            ),
+            Expanded(
+              child: SafeArea(
+                top: false,
+                child: TimelineView(
+                  tasks: _tasks,
+                  onOpenTask: (task) =>
+                      _openEditor(task, listsById[task.listId]),
+                  onToggleTask: _toggle,
+                  onReschedule: _reschedule,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
-      bottomNavigationBar: _completed
-          ? null
-          : _QuickAddBar(
+      bottomNavigationBar:
+          _layout == _TaskLayout.list && !_completed && !_selecting
+          ? _QuickAddBar(
               controller: _quickAdd,
               focusNode: _quickAddFocus,
               enabled: _targetListId != null && !_adding,
               listName: _selectedList?.name ?? _inbox?.name ?? '收集箱',
               onAdd: _addTask,
-            ),
+            )
+          : null,
     );
   }
 
   List<TaskItem> get _filteredTasks {
     final query = _query;
     if (query.isEmpty) return _tasks;
-    return _tasks.where((task) {
-      if (task.title.toLowerCase().contains(query)) return true;
-      if (task.notes.toLowerCase().contains(query)) return true;
-      if (task.tags.any((tag) => tag.toLowerCase().contains(query))) {
-        return true;
-      }
-      return task.checklist
-          .any((item) => item.title.toLowerCase().contains(query));
-    }).toList(growable: false);
+    return _tasks
+        .where((task) {
+          if (task.title.toLowerCase().contains(query)) return true;
+          if (task.notes.toLowerCase().contains(query)) return true;
+          if (task.tags.any((tag) => tag.toLowerCase().contains(query))) {
+            return true;
+          }
+          return task.checklist.any(
+            (item) => item.title.toLowerCase().contains(query),
+          );
+        })
+        .toList(growable: false);
   }
 
   void _closeSearch() {
@@ -416,9 +655,9 @@ class _TasksPageState extends State<TasksPage> {
     setState(() => _adding = true);
     try {
       await context.read<AppState>().repository.createTask(
-            title: title,
-            listId: listId,
-          );
+        title: title,
+        listId: listId,
+      );
       _quickAdd.clear();
       _quickAddFocus.requestFocus();
     } catch (error) {
@@ -446,9 +685,8 @@ class _TasksPageState extends State<TasksPage> {
   }
 
   void _openLists() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ListsPage()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const ListsPage()));
   }
 
   void _openEditor(TaskItem task, TaskListItem? list) {
@@ -509,21 +747,188 @@ class _SyncBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.cloud_off_rounded, size: 18, color: scheme.onErrorContainer),
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 18,
+            color: scheme.onErrorContainer,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onErrorContainer,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.onErrorContainer),
             ),
           ),
-          TextButton(
-            onPressed: onRetry,
-            child: const Text('重试'),
+          TextButton(onPressed: onRetry, child: const Text('重试')),
+        ],
+      ),
+    );
+  }
+}
+
+class _LayoutSwitcher extends StatelessWidget {
+  const _LayoutSwitcher({required this.layout, required this.onChanged});
+
+  final _TaskLayout layout;
+  final ValueChanged<_TaskLayout> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: SegmentedButton<_TaskLayout>(
+        showSelectedIcon: false,
+        segments: const [
+          ButtonSegment(
+            value: _TaskLayout.list,
+            icon: Icon(Icons.view_list_rounded, size: 17),
+            label: Text('列表'),
+          ),
+          ButtonSegment(
+            value: _TaskLayout.board,
+            icon: Icon(Icons.view_kanban_outlined, size: 17),
+            label: Text('看板'),
+          ),
+          ButtonSegment(
+            value: _TaskLayout.matrix,
+            icon: Icon(Icons.grid_view_rounded, size: 17),
+            label: Text('矩阵'),
+          ),
+          ButtonSegment(
+            value: _TaskLayout.timeline,
+            icon: Icon(Icons.view_timeline_outlined, size: 17),
+            label: Text('时间线'),
+          ),
+        ],
+        selected: {layout},
+        onSelectionChanged: (values) => onChanged(values.first),
+        style: const ButtonStyle(
+          visualDensity: VisualDensity.compact,
+          padding: WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          ),
+          textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+        ),
+      ),
+    );
+  }
+}
+
+class _BatchBar extends StatelessWidget {
+  const _BatchBar({
+    required this.count,
+    required this.onComplete,
+    required this.onMove,
+    required this.onDelete,
+  });
+
+  final int count;
+  final VoidCallback onComplete;
+  final VoidCallback onMove;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '$count 项',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: scheme.onPrimaryContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: onComplete,
+            icon: const Icon(Icons.done_all_rounded, size: 18),
+            label: const Text('完成'),
+          ),
+          TextButton.icon(
+            onPressed: onMove,
+            icon: const Icon(Icons.drive_file_move_outline, size: 18),
+            label: const Text('移动'),
+          ),
+          TextButton.icon(
+            onPressed: onDelete,
+            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+            label: const Text('删除'),
+            style: TextButton.styleFrom(foregroundColor: scheme.error),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewScopeBar extends StatelessWidget {
+  const _ViewScopeBar({
+    required this.lists,
+    required this.selectedId,
+    required this.includeAll,
+    required this.onChanged,
+  });
+
+  final List<TaskListItem> lists;
+  final String? selectedId;
+  final bool includeAll;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (lists.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final valid = lists.any((list) => list.id == selectedId);
+    final value = valid ? selectedId : (includeAll ? null : lists.first.id);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.filter_alt_outlined,
+            size: 16,
+            color: scheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '范围',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String?>(
+                value: value,
+                isDense: true,
+                items: [
+                  if (includeAll)
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('全部清单'),
+                    ),
+                  for (final list in lists)
+                    DropdownMenuItem<String?>(
+                      value: list.id,
+                      child: Text(list.name),
+                    ),
+                ],
+                onChanged: onChanged,
+              ),
+            ),
           ),
         ],
       ),
@@ -657,9 +1062,9 @@ class _SelectorChip extends StatelessWidget {
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: selected ? color : scheme.onSurfaceVariant,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                    ),
+                  color: selected ? color : scheme.onSurfaceVariant,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -678,6 +1083,8 @@ class _TaskTile extends StatelessWidget {
     required this.onToggle,
     required this.onDelete,
     required this.onTap,
+    required this.onLongPress,
+    this.selected = false,
   });
 
   final TaskItem task;
@@ -686,6 +1093,8 @@ class _TaskTile extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onDelete;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -711,7 +1120,11 @@ class _TaskTile extends StatelessWidget {
               context: context,
               builder: (context) => AlertDialog(
                 title: const Text('删除任务？'),
-                content: Text(task.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+                content: Text(
+                  task.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -734,29 +1147,35 @@ class _TaskTile extends StatelessWidget {
           color: scheme.errorContainer,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: Icon(Icons.delete_outline_rounded, color: scheme.onErrorContainer),
+        child: Icon(
+          Icons.delete_outline_rounded,
+          color: scheme.onErrorContainer,
+        ),
       ),
       child: Material(
-        color: scheme.surface,
+        color: selected
+            ? scheme.primary.withValues(alpha: 0.08)
+            : scheme.surface,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
+          onLongPress: onLongPress,
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: scheme.outlineVariant.withValues(alpha: 0.5),
+                color: selected
+                    ? scheme.primary
+                    : scheme.outlineVariant.withValues(alpha: 0.5),
+                width: selected ? 1.6 : 1,
               ),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _CheckCircle(
-                  completed: task.completed,
-                  onTap: onToggle,
-                ),
+                _CheckCircle(completed: task.completed, onTap: onToggle),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -848,6 +1267,14 @@ class _TaskTile extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (selected) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 20,
+                    color: scheme.primary,
+                  ),
+                ],
                 if (priorityColor != null) ...[
                   const SizedBox(width: 10),
                   Container(
@@ -902,9 +1329,9 @@ class _MetaBadge extends StatelessWidget {
           Text(
             text,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                ),
+              color: color,
+              fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
+            ),
           ),
         ],
       ],
@@ -928,10 +1355,8 @@ class _TagBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: scheme.primary,
-              fontWeight: FontWeight.w500,
-            ),
+        style: Theme.of(context).textTheme.labelSmall
+            ?.copyWith(color: scheme.primary, fontWeight: FontWeight.w500),
       ),
     );
   }
@@ -955,19 +1380,19 @@ class _CheckCircle extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.only(top: 1, right: 2, bottom: 6),
           child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: completed ? scheme.primary : Colors.transparent,
-            border: Border.all(
-              color: completed
-                  ? scheme.primary
-                  : scheme.outline.withValues(alpha: 0.65),
-              width: 1.6,
+            duration: const Duration(milliseconds: 160),
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: completed ? scheme.primary : Colors.transparent,
+              border: Border.all(
+                color: completed
+                    ? scheme.primary
+                    : scheme.outline.withValues(alpha: 0.65),
+                width: 1.6,
+              ),
             ),
-          ),
             child: completed
                 ? Icon(Icons.check_rounded, size: 15, color: scheme.onPrimary)
                 : null,
@@ -1013,12 +1438,8 @@ class _EmptyState extends StatelessWidget {
         Text(
           searching
               ? '没有匹配的任务'
-              : (completed
-                  ? '还没有已完成任务'
-                  : (hasLists ? '这里还没有任务' : '正在获取清单…')),
-          style: Theme.of(context)
-              .textTheme
-              .titleSmall
+              : (completed ? '还没有已完成任务' : (hasLists ? '这里还没有任务' : '正在获取清单…')),
+          style: Theme.of(context).textTheme.titleSmall
               ?.copyWith(fontWeight: FontWeight.w600),
         ),
         const SizedBox(height: 6),
@@ -1026,9 +1447,7 @@ class _EmptyState extends StatelessWidget {
           searching
               ? '试试标题、备注、标签或子任务里的关键词'
               : (completed ? '完成的任务会出现在这里' : '在下方输入框添加第一条任务，离线也能记录'),
-          style: Theme.of(context)
-              .textTheme
-              .bodySmall
+          style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: scheme.onSurfaceVariant),
         ),
         if (!hasLists) ...[
@@ -1088,10 +1507,13 @@ class _QuickAddBar extends StatelessWidget {
                   hintText: enabled ? '添加到「$listName」' : '等待清单同步…',
                   prefixIcon: const Icon(Icons.add_rounded, size: 20),
                   filled: true,
-                  fillColor: scheme.surfaceContainerHighest
-                      .withValues(alpha: 0.55),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  fillColor: scheme.surfaceContainerHighest.withValues(
+                    alpha: 0.55,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide.none,
@@ -1422,10 +1844,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               onPressed: () {
                 final value = controller.text.trim();
                 if (value.isNotEmpty &&
-                    !value.toUpperCase().replaceFirst(
-                          RegExp(r'^RRULE:'),
-                          '',
-                        ).startsWith('FREQ=')) {
+                    !value
+                        .toUpperCase()
+                        .replaceFirst(RegExp(r'^RRULE:'), '')
+                        .startsWith('FREQ=')) {
                   setDialogState(() => error = '规则需要以 FREQ= 开头');
                   return;
                 }
@@ -1518,8 +1940,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
   void _toggleSubtask(String id) {
     setState(() {
       _checklist = _checklist
-          .map((item) =>
-              item.id == id ? item.copyWith(done: !item.done) : item)
+          .map((item) => item.id == id ? item.copyWith(done: !item.done) : item)
           .toList();
     });
   }
@@ -1536,21 +1957,21 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
     setState(() => _saving = true);
     try {
       await context.read<AppState>().repository.saveEdits(
-            widget.task.id,
-            baseline: _baseline,
-            title: title,
-            notes: _notes.text,
-            startAt: _startAt,
-            dueAt: _dueAt,
-            allDay: _allDay,
-            priority: _priority,
-            reminderOffsets: _reminders,
-            pinned: _pinned,
-            recurrence: _recurrence,
-            tags: _tags,
-            checklist: _checklist,
-            listId: _listId,
-          );
+        widget.task.id,
+        baseline: _baseline,
+        title: title,
+        notes: _notes.text,
+        startAt: _startAt,
+        dueAt: _dueAt,
+        allDay: _allDay,
+        priority: _priority,
+        reminderOffsets: _reminders,
+        pinned: _pinned,
+        recurrence: _recurrence,
+        tags: _tags,
+        checklist: _checklist,
+        listId: _listId,
+      );
       if (mounted) Navigator.pop(context);
     } catch (error) {
       if (mounted) {
@@ -1587,7 +2008,8 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
       padding: EdgeInsets.only(
         left: 20,
         right: 20,
-        bottom: MediaQuery.viewInsetsOf(context).bottom +
+        bottom:
+            MediaQuery.viewInsetsOf(context).bottom +
             MediaQuery.paddingOf(context).bottom +
             20,
       ),
@@ -1618,12 +2040,11 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                 const Spacer(),
                 IconButton(
                   tooltip: _pinned ? '取消置顶' : '置顶',
-                  onPressed:
-                      _saving ? null : () => setState(() => _pinned = !_pinned),
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() => _pinned = !_pinned),
                   icon: Icon(
-                    _pinned
-                        ? Icons.push_pin_rounded
-                        : Icons.push_pin_outlined,
+                    _pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
                     size: 20,
                     color: _pinned ? scheme.primary : scheme.onSurfaceVariant,
                   ),
@@ -1662,8 +2083,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               decoration: InputDecoration(
                 hintText: '备注',
                 filled: true,
-                fillColor:
-                    scheme.surfaceContainerHighest.withValues(alpha: 0.45),
+                fillColor: scheme.surfaceContainerHighest.withValues(
+                  alpha: 0.45,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
@@ -1680,12 +2102,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                 height: 8,
                 decoration: BoxDecoration(
                   color: colorFromHex(
-                    context
-                            .read<AppState>()
-                            .store
-                            .list(_listId)
-                            ?.color ??
-                        '',
+                    context.read<AppState>().store.list(_listId)?.color ?? '',
                   ),
                   shape: BoxShape.circle,
                 ),
@@ -1695,8 +2112,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
               ),
               style: OutlinedButton.styleFrom(
                 alignment: Alignment.centerLeft,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -1742,9 +2161,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                     onPressed: _saving ? null : _pickDue,
                     icon: const Icon(Icons.event_rounded, size: 18),
                     label: Text(
-                      due == null
-                          ? '设置日期'
-                          : formatDue(due, allDay: _allDay),
+                      due == null ? '设置日期' : formatDue(due, allDay: _allDay),
                     ),
                     style: OutlinedButton.styleFrom(
                       alignment: Alignment.centerLeft,
@@ -1794,10 +2211,10 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                       onDeleted: _saving
                           ? null
                           : () => setState(
-                                () => _reminders = _reminders
-                                    .where((item) => item != minutes)
-                                    .toList(),
-                              ),
+                              () => _reminders = _reminders
+                                  .where((item) => item != minutes)
+                                  .toList(),
+                            ),
                     ),
                 ],
               ),
@@ -1836,8 +2253,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                   avatar: const Icon(Icons.edit_calendar_rounded, size: 18),
                   label: Text(
                     _recurrence.isEmpty ||
-                            _recurrencePresets
-                                .any((preset) => preset.$2 == _recurrence)
+                            _recurrencePresets.any(
+                              (preset) => preset.$2 == _recurrence,
+                            )
                         ? '自定义…'
                         : '自定义规则',
                   ),
@@ -1919,8 +2337,9 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                     child: Checkbox(
                       value: item.done,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      onChanged:
-                          _saving ? null : (_) => _toggleSubtask(item.id),
+                      onChanged: _saving
+                          ? null
+                          : (_) => _toggleSubtask(item.id),
                     ),
                   ),
                   Expanded(

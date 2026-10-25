@@ -83,50 +83,50 @@ void main() {
     expect(deviceB.store.task(task.id)?.notes, 'B 改的备注');
   });
 
-  test('due, priority, tags and subtasks round-trip through the protocol',
-      () async {
-    await deviceA.engine.sync(full: true);
-    final task = await deviceA.repo.createTask(
-      title: '字段同步',
-      listId: deviceA.store.inbox()!.id,
-    );
-    await deviceA.engine.sync();
+  test(
+    'due, priority, tags and subtasks round-trip through the protocol',
+    () async {
+      await deviceA.engine.sync(full: true);
+      final task = await deviceA.repo.createTask(
+        title: '字段同步',
+        listId: deviceA.store.inbox()!.id,
+      );
+      await deviceA.engine.sync();
 
-    final baseline = deviceA.store.task(task.id)!;
-    await deviceA.repo.saveEdits(
-      task.id,
-      baseline: baseline,
-      title: baseline.title,
-      notes: '带字段的备注',
-      startAt: baseline.startAt,
-      dueAt: DateTime.utc(2026, 11, 1, 9),
-      allDay: false,
-      priority: 3,
-      reminderOffsets: baseline.reminderOffsets,
-      pinned: baseline.pinned,
-      recurrence: baseline.recurrence,
-      tags: const ['工作', 'P1'],
-      checklist: const [
-        ChecklistItem(id: 'step-1', title: '第一步'),
-      ],
-    );
-    await deviceA.engine.sync();
-    expect(deviceA.store.pendingCount, 0);
+      final baseline = deviceA.store.task(task.id)!;
+      await deviceA.repo.saveEdits(
+        task.id,
+        baseline: baseline,
+        title: baseline.title,
+        notes: '带字段的备注',
+        startAt: baseline.startAt,
+        dueAt: DateTime.utc(2026, 11, 1, 9),
+        allDay: false,
+        priority: 3,
+        reminderOffsets: baseline.reminderOffsets,
+        pinned: baseline.pinned,
+        recurrence: baseline.recurrence,
+        tags: const ['工作', 'P1'],
+        checklist: const [ChecklistItem(id: 'step-1', title: '第一步')],
+      );
+      await deviceA.engine.sync();
+      expect(deviceA.store.pendingCount, 0);
 
-    await deviceB.engine.sync(full: true);
-    final remote = deviceB.store.task(task.id)!;
-    expect(remote.notes, '带字段的备注');
-    expect(remote.dueAt, DateTime.utc(2026, 11, 1, 9));
-    expect(remote.allDay, false);
-    expect(remote.priority, 3);
-    expect(remote.tags, ['工作', 'P1']);
-    expect(remote.checklist.single.title, '第一步');
+      await deviceB.engine.sync(full: true);
+      final remote = deviceB.store.task(task.id)!;
+      expect(remote.notes, '带字段的备注');
+      expect(remote.dueAt, DateTime.utc(2026, 11, 1, 9));
+      expect(remote.allDay, false);
+      expect(remote.priority, 3);
+      expect(remote.tags, ['工作', 'P1']);
+      expect(remote.checklist.single.title, '第一步');
 
-    await deviceB.repo.toggleChecklistItem(task.id, 'step-1');
-    await deviceB.engine.sync();
-    await deviceA.engine.sync();
-    expect(deviceA.store.task(task.id)!.checklist.single.done, true);
-  });
+      await deviceB.repo.toggleChecklistItem(task.id, 'step-1');
+      await deviceB.engine.sync();
+      await deviceA.engine.sync();
+      expect(deviceA.store.task(task.id)!.checklist.single.done, true);
+    },
+  );
 
   test('trash delete, restore and purge converge', () async {
     await deviceA.engine.sync(full: true);
@@ -161,6 +161,39 @@ void main() {
     expect(deviceA.store.task(task.id), isNull);
     expect(deviceB.store.task(task.id), isNull);
     expect(server.tasks.containsKey(task.id), false);
+  });
+
+  test('custom sections sync and tasks move between columns', () async {
+    await deviceA.engine.sync(full: true);
+    final inbox = deviceA.store.inbox()!;
+    final section = await deviceA.repo.createSection(
+      listId: inbox.id,
+      name: '进行中',
+    );
+    final task = await deviceA.repo.createTask(title: '看板任务', listId: inbox.id);
+    await deviceA.repo.moveTaskToSection(task.id, section.id);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync(full: true);
+
+    expect(deviceB.store.section(section.id)?.name, '进行中');
+    expect(deviceB.store.task(task.id)?.sectionId, section.id);
+    expect(server.sections[section.id]?['name'], '进行中');
+
+    await deviceB.repo.renameSection(section.id, '待办');
+    await deviceB.engine.sync();
+    await deviceA.engine.sync();
+    expect(deviceA.store.section(section.id)?.name, '待办');
+
+    await deviceA.repo.moveTaskToSection(task.id, null);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(deviceB.store.task(task.id)?.sectionId, isNull);
+
+    await deviceA.repo.deleteSection(section.id);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(deviceB.store.section(section.id), isNull);
+    expect(server.sections.containsKey(section.id), false);
   });
 
   test('recurring task completion and skip advance the due date', () async {
@@ -265,10 +298,7 @@ void main() {
   test('folders group lists and deleting a folder ungroups them', () async {
     await deviceA.engine.sync(full: true);
     final folder = await deviceA.repo.createFolder('工作');
-    final list = await deviceA.repo.createList(
-      name: '项目',
-      folderId: folder.id,
-    );
+    final list = await deviceA.repo.createList(name: '项目', folderId: folder.id);
     await deviceA.engine.sync();
     expect(server.folders[folder.id]?['name'], '工作');
     expect(server.lists[list.id]?['folderId'], folder.id);
@@ -298,31 +328,34 @@ void main() {
     expect(deviceB.store.list(list.id)?.folderId, isNull);
   });
 
-  test('network failure keeps the same opId and retries idempotently', () async {
-    await deviceA.engine.sync(full: true);
-    final task = await deviceA.repo.createTask(
-      title: '离线任务',
-      listId: deviceA.store.inbox()!.id,
-    );
-    await deviceA.engine.sync();
+  test(
+    'network failure keeps the same opId and retries idempotently',
+    () async {
+      await deviceA.engine.sync(full: true);
+      final task = await deviceA.repo.createTask(
+        title: '离线任务',
+        listId: deviceA.store.inbox()!.id,
+      );
+      await deviceA.engine.sync();
 
-    deviceA.api.failNextPush = true;
-    await deviceA.repo.updateTitle(task.id, '离线标题');
-    final before = deviceA.store.pendingOp('task', task.id)!;
+      deviceA.api.failNextPush = true;
+      await deviceA.repo.updateTitle(task.id, '离线标题');
+      final before = deviceA.store.pendingOp('task', task.id)!;
 
-    await expectLater(
-      deviceA.engine.sync(),
-      throwsA(isA<SyncApiException>()),
-    );
-    final after = deviceA.store.pendingOp('task', task.id)!;
-    expect(after.opId, before.opId);
-    expect(after.attempts, 1);
-    expect(deviceA.store.task(task.id)?.title, '离线标题');
+      await expectLater(
+        deviceA.engine.sync(),
+        throwsA(isA<SyncApiException>()),
+      );
+      final after = deviceA.store.pendingOp('task', task.id)!;
+      expect(after.opId, before.opId);
+      expect(after.attempts, 1);
+      expect(deviceA.store.task(task.id)?.title, '离线标题');
 
-    await deviceA.engine.sync();
-    expect(deviceA.store.pendingCount, 0);
-    expect(server.tasks[task.id]?['title'], '离线标题');
-  });
+      await deviceA.engine.sync();
+      expect(deviceA.store.pendingCount, 0);
+      expect(server.tasks[task.id]?['title'], '离线标题');
+    },
+  );
 
   test('delete conflicts are retried and deletion wins', () async {
     await deviceA.engine.sync(full: true);
@@ -346,19 +379,21 @@ void main() {
     expect(deviceB.store.task(task.id)?.deleted, true);
   });
 
-  test('creating and deleting before sync touches neither server nor outbox',
-      () async {
-    await deviceB.engine.sync(full: true);
-    final temp = await deviceB.repo.createTask(
-      title: '临时',
-      listId: deviceB.store.inbox()!.id,
-    );
-    expect(deviceB.store.pendingCount, 1);
-    await deviceB.repo.deleteTask(temp.id);
-    expect(deviceB.store.task(temp.id), isNull);
-    expect(deviceB.store.pendingCount, 0);
-    expect(server.tasks[temp.id], isNull);
-  });
+  test(
+    'creating and deleting before sync touches neither server nor outbox',
+    () async {
+      await deviceB.engine.sync(full: true);
+      final temp = await deviceB.repo.createTask(
+        title: '临时',
+        listId: deviceB.store.inbox()!.id,
+      );
+      expect(deviceB.store.pendingCount, 1);
+      await deviceB.repo.deleteTask(temp.id);
+      expect(deviceB.store.task(temp.id), isNull);
+      expect(deviceB.store.pendingCount, 0);
+      expect(server.tasks[temp.id], isNull);
+    },
+  );
 
   test('opId replay is idempotent on the server contract', () async {
     final before = server.appliedOps;
@@ -392,10 +427,7 @@ void main() {
     expect(firstPage.hasMore, true);
     expect(firstPage.tasks.length + firstPage.lists.length, 2);
 
-    final secondPage = await server.pull(
-      since: firstPage.cursor,
-      limit: 2,
-    );
+    final secondPage = await server.pull(since: firstPage.cursor, limit: 2);
     expect(secondPage.cursor, isNot(firstPage.cursor));
     expect(secondPage.tasks.length + secondPage.lists.length, greaterThan(0));
   });

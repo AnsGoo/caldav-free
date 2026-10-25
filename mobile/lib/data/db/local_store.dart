@@ -34,14 +34,14 @@ class OutboxRecord {
   final DateTime createdAt;
 
   OutboxOp toApiOp() => OutboxOp(
-        opId: opId,
-        entity: entity,
-        entityId: entityId,
-        action: action,
-        patch: patch,
-        baseEtag: baseEtag,
-        attempts: attempts,
-      );
+    opId: opId,
+    entity: entity,
+    entityId: entityId,
+    action: action,
+    patch: patch,
+    baseEtag: baseEtag,
+    attempts: attempts,
+  );
 
   OutboxRecord copyWith({
     String? opId,
@@ -66,30 +66,30 @@ class OutboxRecord {
   }
 
   Map<String, dynamic> toJson() => {
-        'opId': opId,
-        'entity': entity,
-        'entityId': entityId,
-        'action': action,
-        'patch': patch,
-        if (baseEtag != null) 'baseEtag': baseEtag,
-        'attempts': attempts,
-        'nextTryAt': nextTryAt.toUtc().toIso8601String(),
-        'createdAt': createdAt.toUtc().toIso8601String(),
-      };
+    'opId': opId,
+    'entity': entity,
+    'entityId': entityId,
+    'action': action,
+    'patch': patch,
+    if (baseEtag != null) 'baseEtag': baseEtag,
+    'attempts': attempts,
+    'nextTryAt': nextTryAt.toUtc().toIso8601String(),
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
 
   factory OutboxRecord.fromJson(Map<String, dynamic> json) => OutboxRecord(
-        opId: (json['opId'] ?? '').toString(),
-        entity: (json['entity'] ?? '').toString(),
-        entityId: (json['entityId'] ?? '').toString(),
-        action: (json['action'] ?? '').toString(),
-        patch: json['patch'] is Map<String, dynamic>
-            ? json['patch'] as Map<String, dynamic>
-            : const {},
-        baseEtag: json['baseEtag']?.toString(),
-        attempts: (json['attempts'] as num?)?.toInt() ?? 0,
-        nextTryAt: _date(json['nextTryAt']) ?? DateTime.now().toUtc(),
-        createdAt: _date(json['createdAt']) ?? DateTime.now().toUtc(),
-      );
+    opId: (json['opId'] ?? '').toString(),
+    entity: (json['entity'] ?? '').toString(),
+    entityId: (json['entityId'] ?? '').toString(),
+    action: (json['action'] ?? '').toString(),
+    patch: json['patch'] is Map<String, dynamic>
+        ? json['patch'] as Map<String, dynamic>
+        : const {},
+    baseEtag: json['baseEtag']?.toString(),
+    attempts: (json['attempts'] as num?)?.toInt() ?? 0,
+    nextTryAt: _date(json['nextTryAt']) ?? DateTime.now().toUtc(),
+    createdAt: _date(json['createdAt']) ?? DateTime.now().toUtc(),
+  );
 }
 
 class ConflictRecord {
@@ -108,24 +108,24 @@ class ConflictRecord {
   final DateTime createdAt;
 
   Map<String, dynamic> toJson() => {
-        'entity': entity,
-        'entityId': entityId,
-        'localPatch': localPatch,
-        'remote': remote,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-      };
+    'entity': entity,
+    'entityId': entityId,
+    'localPatch': localPatch,
+    'remote': remote,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
 
   factory ConflictRecord.fromJson(Map<String, dynamic> json) => ConflictRecord(
-        entity: (json['entity'] ?? '').toString(),
-        entityId: (json['entityId'] ?? '').toString(),
-        localPatch: json['localPatch'] is Map<String, dynamic>
-            ? json['localPatch'] as Map<String, dynamic>
-            : const {},
-        remote: json['remote'] is Map<String, dynamic>
-            ? json['remote'] as Map<String, dynamic>
-            : const {},
-        createdAt: _date(json['createdAt']) ?? DateTime.now().toUtc(),
-      );
+    entity: (json['entity'] ?? '').toString(),
+    entityId: (json['entityId'] ?? '').toString(),
+    localPatch: json['localPatch'] is Map<String, dynamic>
+        ? json['localPatch'] as Map<String, dynamic>
+        : const {},
+    remote: json['remote'] is Map<String, dynamic>
+        ? json['remote'] as Map<String, dynamic>
+        : const {},
+    createdAt: _date(json['createdAt']) ?? DateTime.now().toUtc(),
+  );
 }
 
 /// Local-first store for P0.
@@ -152,6 +152,7 @@ class LocalStore {
   final Map<String, TaskItem> _tasks = {};
   final Set<String> _dirtyTasks = {};
   final Map<String, TaskListItem> _lists = {};
+  final Map<String, TaskSection> _sections = {};
   final Map<String, FolderItem> _folders = {};
   final Map<String, OutboxRecord> _outbox = {};
   final Map<String, ConflictRecord> _conflicts = {};
@@ -165,8 +166,7 @@ class LocalStore {
   String get cursor => _cursor;
   DateTime? get syncedAt => _syncedAt;
   int get pendingCount => _outbox.length;
-  int get failedCount =>
-      _outbox.values.where((op) => op.attempts >= 99).length;
+  int get failedCount => _outbox.values.where((op) => op.attempts >= 99).length;
   int get conflictCount => _conflicts.length;
   bool get isDirty => _dirtyTasks.isNotEmpty;
 
@@ -182,28 +182,24 @@ class LocalStore {
     final start = _todayStartUtc();
     final dayEnd = start.add(const Duration(days: 1));
     final weekEnd = start.add(const Duration(days: 7));
-    final items = _tasks.values
-        .where((task) {
-          if (task.kind != TaskKind.task ||
-              task.deleted ||
-              task.completed != completed) {
-            return false;
-          }
-          if (listId != null && task.listId != listId) return false;
-          if (completed) return true;
-          final due = task.dueAt?.toUtc();
-          switch (view) {
-            case 'today':
-              return due != null && due.isBefore(dayEnd);
-            case 'next7':
-              return due != null &&
-                  !due.isBefore(start) &&
-                  due.isBefore(weekEnd);
-            default:
-              return true;
-          }
-        })
-        .toList();
+    final items = _tasks.values.where((task) {
+      if (task.kind != TaskKind.task ||
+          task.deleted ||
+          task.completed != completed) {
+        return false;
+      }
+      if (listId != null && task.listId != listId) return false;
+      if (completed) return true;
+      final due = task.dueAt?.toUtc();
+      switch (view) {
+        case 'today':
+          return due != null && due.isBefore(dayEnd);
+        case 'next7':
+          return due != null && !due.isBefore(start) && due.isBefore(weekEnd);
+        default:
+          return true;
+      }
+    }).toList();
     items.sort(completed ? _compareCompleted : _compareOpen);
     return items;
   }
@@ -284,6 +280,27 @@ class LocalStore {
 
   FolderItem? folder(String id) => _folders[id];
 
+  TaskSection? section(String id) => _sections[id];
+
+  List<TaskSection> sectionsSnapshot({String? listId}) {
+    final items = _sections.values
+        .where((section) => listId == null || section.listId == listId)
+        .toList();
+    items.sort((a, b) {
+      final order = a.sortOrder.compareTo(b.sortOrder);
+      if (order != 0) return order;
+      return a.name.compareTo(b.name);
+    });
+    return items;
+  }
+
+  Stream<List<TaskSection>> watchSections({String? listId}) async* {
+    yield sectionsSnapshot(listId: listId);
+    await for (final _ in _changes.stream) {
+      yield sectionsSnapshot(listId: listId);
+    }
+  }
+
   List<FolderItem> foldersSnapshot() {
     final items = _folders.values.toList();
     items.sort((a, b) {
@@ -310,10 +327,9 @@ class LocalStore {
 
   List<OutboxRecord> dueOps({int limit = 100}) {
     final now = DateTime.now().toUtc();
-    final ops = _outbox.values
-        .where((op) => !op.nextTryAt.isAfter(now))
-        .toList()
-      ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    final ops =
+        _outbox.values.where((op) => !op.nextTryAt.isAfter(now)).toList()
+          ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     return ops.take(limit).toList(growable: false);
   }
 
@@ -355,6 +371,18 @@ class LocalStore {
   Future<void> saveFolder(FolderItem folder) {
     return _mutate(() {
       _folders[folder.id] = folder;
+    });
+  }
+
+  Future<void> saveSection(TaskSection section) {
+    return _mutate(() {
+      _sections[section.id] = section;
+    });
+  }
+
+  Future<void> hardDeleteSection(String id) {
+    return _mutate(() {
+      _sections.remove(id);
     });
   }
 
@@ -420,8 +448,7 @@ class LocalStore {
     return _mutate(() {
       final op = _outbox[opId];
       if (op == null) return;
-      _outbox[opId] =
-          op.copyWith(attempts: attempts, nextTryAt: nextTryAt);
+      _outbox[opId] = op.copyWith(attempts: attempts, nextTryAt: nextTryAt);
     });
   }
 
@@ -463,6 +490,7 @@ class LocalStore {
       _tasks.clear();
       _dirtyTasks.clear();
       _lists.clear();
+      _sections.clear();
       _folders.clear();
       _outbox.clear();
       _conflicts.clear();
@@ -502,6 +530,15 @@ class LocalStore {
           final value = entry.value;
           if (value is Map<String, dynamic>) {
             _lists[entry.key] = TaskListItem.fromWireJson(value);
+          }
+        }
+      }
+      final sections = decoded['sections'];
+      if (sections is Map<String, dynamic>) {
+        for (final entry in sections.entries) {
+          final value = entry.value;
+          if (value is Map<String, dynamic>) {
+            _sections[entry.key] = TaskSection.fromWireJson(value);
           }
         }
       }
@@ -545,25 +582,25 @@ class LocalStore {
   }
 
   Map<String, dynamic> _toJson() => {
-        'schema': 1,
-        'cursor': _cursor,
-        if (_syncedAt != null)
-          'syncedAt': _syncedAt!.toUtc().toIso8601String(),
-        'tasks': _tasks.map(
-          (id, task) => MapEntry(id, {
-            'dirty': _dirtyTasks.contains(id),
-            'data': task.toWireJson(),
-          }),
-        ),
-        'lists': _lists.map((id, list) => MapEntry(id, list.toWireJson())),
-        'folders':
-            _folders.map((id, folder) => MapEntry(id, folder.toWireJson())),
-        'outbox':
-            _outbox.map((id, op) => MapEntry(id, op.toJson())),
-        'conflicts': _conflicts.map(
-          (id, conflict) => MapEntry(id, conflict.toJson()),
-        ),
-      };
+    'schema': 1,
+    'cursor': _cursor,
+    if (_syncedAt != null) 'syncedAt': _syncedAt!.toUtc().toIso8601String(),
+    'tasks': _tasks.map(
+      (id, task) => MapEntry(id, {
+        'dirty': _dirtyTasks.contains(id),
+        'data': task.toWireJson(),
+      }),
+    ),
+    'lists': _lists.map((id, list) => MapEntry(id, list.toWireJson())),
+    'sections': _sections.map(
+      (id, section) => MapEntry(id, section.toWireJson()),
+    ),
+    'folders': _folders.map((id, folder) => MapEntry(id, folder.toWireJson())),
+    'outbox': _outbox.map((id, op) => MapEntry(id, op.toJson())),
+    'conflicts': _conflicts.map(
+      (id, conflict) => MapEntry(id, conflict.toJson()),
+    ),
+  };
 
   Future<T> _mutate<T>(FutureOr<T> Function() action) {
     if (_batching) {

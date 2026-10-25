@@ -122,6 +122,10 @@ class SyncEngine {
         await _mergeRemoteList(json);
         pulled++;
       }
+      for (final json in page.sections) {
+        await _mergeRemoteSection(json);
+        pulled++;
+      }
       for (final json in page.folders) {
         await _mergeRemoteFolder(json);
         pulled++;
@@ -165,11 +169,9 @@ class SyncEngine {
     }
 
     if (op.action == 'delete') {
-      final current = local ??
-          remote.copyWith(
-            deleted: true,
-            deletedAt: DateTime.now().toUtc(),
-          );
+      final current =
+          local ??
+          remote.copyWith(deleted: true, deletedAt: DateTime.now().toUtc());
       await store.saveTask(
         current.copyWith(
           deleted: true,
@@ -236,6 +238,23 @@ class SyncEngine {
     await store.saveList(TaskListItem.fromWireJson(merged));
   }
 
+  Future<void> _mergeRemoteSection(Map<String, dynamic> json) async {
+    final remote = TaskSection.fromWireJson(json);
+    if (remote.id.isEmpty) return;
+    final local = store.section(remote.id);
+    final op = store.pendingOp('section', remote.id);
+    if (local == null || op == null) {
+      await store.saveSection(remote);
+      return;
+    }
+    final merged = mergeListMaps(
+      local: local.toWireJson(),
+      remote: remote.toWireJson(),
+      localFields: op.patch.keys.toSet(),
+    );
+    await store.saveSection(TaskSection.fromWireJson(merged));
+  }
+
   Future<void> _applyTombstone(Tombstone tombstone) async {
     switch (tombstone.entity) {
       case 'task':
@@ -248,13 +267,18 @@ class SyncEngine {
         await store.clearConflict('list', tombstone.id);
         await store.hardDeleteList(tombstone.id);
         break;
+      case 'section':
+        await store.removeOpsForEntity('section', tombstone.id);
+        await store.clearConflict('section', tombstone.id);
+        await store.hardDeleteSection(tombstone.id);
+        break;
       case 'folder':
         await store.removeOpsForEntity('folder', tombstone.id);
         await store.clearConflict('folder', tombstone.id);
         await store.hardDeleteFolder(tombstone.id);
         break;
       default:
-        // Sections/folders/filters are not editable in P0.
+        // Filters are not editable in the mobile client yet.
         break;
     }
   }
@@ -265,13 +289,14 @@ class SyncEngine {
     final ops = store.dueOps();
     if (ops.isEmpty) return const _PushStats();
     // A task created offline may reference a list created in the same batch.
-    // Push lists first so the server can resolve the reference.
+    // Push folders/lists/sections first so the server can resolve references.
     ops.sort((a, b) {
       int rank(OutboxRecord op) => switch (op.entity) {
-            'folder' => 0,
-            'list' => 1,
-            _ => 2,
-          };
+        'folder' => 0,
+        'list' => 1,
+        'section' => 2,
+        _ => 3,
+      };
       final rankA = rank(a);
       final rankB = rank(b);
       if (rankA != rankB) return rankA - rankB;
@@ -329,13 +354,15 @@ class SyncEngine {
             await store.hardDeleteTask(op.entityId);
           } else if (op.entity == 'list') {
             await store.hardDeleteList(op.entityId);
+          } else if (op.entity == 'section') {
+            await store.hardDeleteSection(op.entityId);
+          } else if (op.entity == 'folder') {
+            await store.hardDeleteFolder(op.entityId);
           }
           break;
         default:
           failed++;
-          final message = result.errorMessage ??
-              result.errorCode ??
-              '同步操作失败';
+          final message = result.errorMessage ?? result.errorCode ?? '同步操作失败';
           errors.add('${op.entity} ${op.entityId}: $message');
           await _applyError(op, result);
       }
@@ -362,10 +389,8 @@ class SyncEngine {
         return;
       }
       if (result.entityJson != null) {
-        final remote = TaskItem.fromWireJson(result.entityJson!).copyWith(
-          etag: result.etag ?? '',
-          version: result.version,
-        );
+        final remote = TaskItem.fromWireJson(result.entityJson!)
+            .copyWith(etag: result.etag ?? '', version: result.version);
         await store.saveTask(remote, dirty: false);
         return;
       }
@@ -387,6 +412,14 @@ class SyncEngine {
         await store.hardDeleteList(op.entityId);
       } else if (result.entityJson != null) {
         await store.saveList(TaskListItem.fromWireJson(result.entityJson!));
+      }
+      return;
+    }
+    if (op.entity == 'section') {
+      if (op.action == 'delete') {
+        await store.hardDeleteSection(op.entityId);
+      } else if (result.entityJson != null) {
+        await store.saveSection(TaskSection.fromWireJson(result.entityJson!));
       }
       return;
     }
@@ -442,6 +475,29 @@ class SyncEngine {
       return;
     }
 
+    if (op.entity == 'section') {
+      final local = store.section(op.entityId);
+      if (local == null) {
+        await store.removeOp(op.opId);
+        return;
+      }
+      final merged = mergeListMaps(
+        local: local.toWireJson(),
+        remote: remoteJson,
+        localFields: op.patch.keys.toSet(),
+      );
+      await store.saveSection(TaskSection.fromWireJson(merged));
+      final replacement = op.copyWith(
+        opId: newSyncId(),
+        action: op.action == 'create' ? 'update' : op.action,
+        baseEtag: result.etag ?? '',
+        attempts: 0,
+        nextTryAt: now,
+      );
+      await store.replaceOp(oldOpId: op.opId, replacement: replacement);
+      return;
+    }
+
     if (op.entity == 'task') {
       final local = store.task(op.entityId);
       if (local == null) {
@@ -483,9 +539,7 @@ class SyncEngine {
             if (wire[key] != null) key: wire[key],
         };
       } else {
-        retryPatch = {
-          for (final key in op.patch.keys) key: wire[key],
-        };
+        retryPatch = {for (final key in op.patch.keys) key: wire[key]};
       }
       final replacement = op.copyWith(
         opId: newSyncId(),
@@ -515,9 +569,7 @@ class SyncEngine {
       final replacement = op.copyWith(
         opId: newSyncId(),
         action: 'update',
-        patch: {
-          for (final key in op.patch.keys) key: item.toWireJson()[key],
-        },
+        patch: {for (final key in op.patch.keys) key: item.toWireJson()[key]},
         baseEtag: result.etag ?? '',
         attempts: 0,
         nextTryAt: now,
@@ -542,9 +594,7 @@ class SyncEngine {
       final replacement = op.copyWith(
         opId: newSyncId(),
         action: 'update',
-        patch: {
-          for (final key in op.patch.keys) key: item.toWireJson()[key],
-        },
+        patch: {for (final key in op.patch.keys) key: item.toWireJson()[key]},
         baseEtag: result.etag ?? '',
         attempts: 0,
         nextTryAt: now,
@@ -553,10 +603,7 @@ class SyncEngine {
     }
   }
 
-  Future<void> _applyError(
-    OutboxRecord op,
-    PushResult result,
-  ) async {
+  Future<void> _applyError(OutboxRecord op, PushResult result) async {
     final now = DateTime.now().toUtc();
     final code = result.errorCode ?? '';
     const permanent = {

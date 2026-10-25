@@ -3,8 +3,7 @@ enum TaskKind { task, note }
 TaskKind taskKindFromWire(Object? raw) =>
     raw == 'NOTE' ? TaskKind.note : TaskKind.task;
 
-String taskKindToWire(TaskKind kind) =>
-    kind == TaskKind.note ? 'NOTE' : 'TASK';
+String taskKindToWire(TaskKind kind) => kind == TaskKind.note ? 'NOTE' : 'TASK';
 
 class ChecklistItem {
   const ChecklistItem({
@@ -18,10 +17,10 @@ class ChecklistItem {
   final bool done;
 
   factory ChecklistItem.fromJson(Map<String, dynamic> json) => ChecklistItem(
-        id: (json['id'] ?? '').toString(),
-        title: (json['title'] ?? '').toString(),
-        done: json['done'] == true,
-      );
+    id: (json['id'] ?? '').toString(),
+    title: (json['title'] ?? '').toString(),
+    done: json['done'] == true,
+  );
 
   Map<String, dynamic> toJson() => {'id': id, 'title': title, 'done': done};
 
@@ -132,37 +131,35 @@ class TaskItem {
 
   /// Full wire representation used for merging and for create patches.
   Map<String, dynamic> toWireJson() => {
-        'id': id,
-        'listId': listId,
-        if (parentId != null) 'parentId': parentId,
-        if (sectionId != null) 'sectionId': sectionId,
-        'title': title,
-        'notes': notes,
-        'notesFormat': notesFormat,
-        'kind': taskKindToWire(kind),
-        'priority': priority,
-        if (startAt != null) 'start': startAt!.toUtc().toIso8601String(),
-        if (dueAt != null) 'due': dueAt!.toUtc().toIso8601String(),
-        'allDay': allDay,
-        'recurrence': recurrence,
-        'reminderOffsets': reminderOffsets,
-        'tags': tags,
-        'checklist': checklist.map((item) => item.toJson()).toList(),
-        'assignee': assignee,
-        'completed': completed,
-        if (completedAt != null)
-          'completedAt': completedAt!.toUtc().toIso8601String(),
-        'pinned': pinned,
-        'order': sortOrder,
-        'deleted': deleted,
-        if (deletedAt != null)
-          'deletedAt': deletedAt!.toUtc().toIso8601String(),
-        'etag': etag,
-        'version': version,
-        if (createdAt != null)
-          'createdAt': createdAt!.toUtc().toIso8601String(),
-        'modifiedAt': updatedAt.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'listId': listId,
+    if (parentId != null) 'parentId': parentId,
+    if (sectionId != null) 'sectionId': sectionId,
+    'title': title,
+    'notes': notes,
+    'notesFormat': notesFormat,
+    'kind': taskKindToWire(kind),
+    'priority': priority,
+    if (startAt != null) 'start': startAt!.toUtc().toIso8601String(),
+    if (dueAt != null) 'due': dueAt!.toUtc().toIso8601String(),
+    'allDay': allDay,
+    'recurrence': recurrence,
+    'reminderOffsets': reminderOffsets,
+    'tags': tags,
+    'checklist': checklist.map((item) => item.toJson()).toList(),
+    'assignee': assignee,
+    'completed': completed,
+    if (completedAt != null)
+      'completedAt': completedAt!.toUtc().toIso8601String(),
+    'pinned': pinned,
+    'order': sortOrder,
+    'deleted': deleted,
+    if (deletedAt != null) 'deletedAt': deletedAt!.toUtc().toIso8601String(),
+    'etag': etag,
+    'version': version,
+    if (createdAt != null) 'createdAt': createdAt!.toUtc().toIso8601String(),
+    'modifiedAt': updatedAt.toUtc().toIso8601String(),
+  };
 
   TaskItem copyWith({
     String? listId,
@@ -227,6 +224,65 @@ class TaskItem {
   }
 }
 
+class TaskSection {
+  const TaskSection({
+    required this.id,
+    required this.listId,
+    required this.name,
+    this.sortOrder = 0,
+    this.etag = '',
+    this.version = 0,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String listId;
+  final String name;
+  final int sortOrder;
+  final String etag;
+  final int version;
+  final DateTime updatedAt;
+
+  factory TaskSection.fromWireJson(Map<String, dynamic> json) => TaskSection(
+    id: (json['id'] ?? '').toString(),
+    listId: (json['listId'] ?? '').toString(),
+    name: (json['name'] ?? '').toString(),
+    sortOrder: _intValue(json['order']),
+    etag: (json['etag'] ?? '').toString(),
+    version: _intValue(json['version']),
+    updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
+  );
+
+  Map<String, dynamic> toWireJson() => {
+    'id': id,
+    'listId': listId,
+    'name': name,
+    'order': sortOrder,
+    'etag': etag,
+    'version': version,
+    'modifiedAt': updatedAt.toUtc().toIso8601String(),
+  };
+
+  TaskSection copyWith({
+    String? listId,
+    String? name,
+    int? sortOrder,
+    String? etag,
+    int? version,
+    DateTime? updatedAt,
+  }) {
+    return TaskSection(
+      id: id,
+      listId: listId ?? this.listId,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      etag: etag ?? this.etag,
+      version: version ?? this.version,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
 class FolderItem {
   const FolderItem({
     required this.id,
@@ -245,22 +301,22 @@ class FolderItem {
   final DateTime updatedAt;
 
   factory FolderItem.fromWireJson(Map<String, dynamic> json) => FolderItem(
-        id: (json['id'] ?? '').toString(),
-        name: (json['name'] ?? '').toString(),
-        sortOrder: _intValue(json['order']),
-        etag: (json['etag'] ?? '').toString(),
-        version: _intValue(json['version']),
-        updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
-      );
+    id: (json['id'] ?? '').toString(),
+    name: (json['name'] ?? '').toString(),
+    sortOrder: _intValue(json['order']),
+    etag: (json['etag'] ?? '').toString(),
+    version: _intValue(json['version']),
+    updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
+  );
 
   Map<String, dynamic> toWireJson() => {
-        'id': id,
-        'name': name,
-        'order': sortOrder,
-        'etag': etag,
-        'version': version,
-        'modifiedAt': updatedAt.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'name': name,
+    'order': sortOrder,
+    'etag': etag,
+    'version': version,
+    'modifiedAt': updatedAt.toUtc().toIso8601String(),
+  };
 
   FolderItem copyWith({
     String? name,
@@ -308,32 +364,32 @@ class TaskListItem {
   final DateTime updatedAt;
 
   factory TaskListItem.fromWireJson(Map<String, dynamic> json) => TaskListItem(
-        id: (json['id'] ?? '').toString(),
-        folderId: _nullableString(json['folderId']),
-        name: (json['name'] ?? '').toString(),
-        color: (json['color'] ?? '').toString(),
-        kind: taskKindFromWire(json['kind']),
-        sortOrder: _intValue(json['order']),
-        pinned: json['pinned'] == true,
-        isInbox: json['isInbox'] == true,
-        etag: (json['etag'] ?? '').toString(),
-        version: _intValue(json['version']),
-        updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
-      );
+    id: (json['id'] ?? '').toString(),
+    folderId: _nullableString(json['folderId']),
+    name: (json['name'] ?? '').toString(),
+    color: (json['color'] ?? '').toString(),
+    kind: taskKindFromWire(json['kind']),
+    sortOrder: _intValue(json['order']),
+    pinned: json['pinned'] == true,
+    isInbox: json['isInbox'] == true,
+    etag: (json['etag'] ?? '').toString(),
+    version: _intValue(json['version']),
+    updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
+  );
 
   Map<String, dynamic> toWireJson() => {
-        'id': id,
-        if (folderId != null) 'folderId': folderId,
-        'name': name,
-        'color': color,
-        'kind': taskKindToWire(kind),
-        'order': sortOrder,
-        'pinned': pinned,
-        'isInbox': isInbox,
-        'etag': etag,
-        'version': version,
-        'modifiedAt': updatedAt.toUtc().toIso8601String(),
-      };
+    'id': id,
+    if (folderId != null) 'folderId': folderId,
+    'name': name,
+    'color': color,
+    'kind': taskKindToWire(kind),
+    'order': sortOrder,
+    'pinned': pinned,
+    'isInbox': isInbox,
+    'etag': etag,
+    'version': version,
+    'modifiedAt': updatedAt.toUtc().toIso8601String(),
+  };
 
   TaskListItem copyWith({
     String? folderId,

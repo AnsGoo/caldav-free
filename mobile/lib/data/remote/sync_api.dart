@@ -10,6 +10,7 @@ class PullPage {
     required this.hasMore,
     required this.tasks,
     required this.lists,
+    required this.sections,
     required this.folders,
     required this.tombstones,
   });
@@ -18,6 +19,7 @@ class PullPage {
   final bool hasMore;
   final List<Map<String, dynamic>> tasks;
   final List<Map<String, dynamic>> lists;
+  final List<Map<String, dynamic>> sections;
   final List<Map<String, dynamic>> folders;
   final List<Tombstone> tombstones;
 }
@@ -51,13 +53,13 @@ class OutboxOp {
   final int attempts;
 
   Map<String, dynamic> toJson() => {
-        'opId': opId,
-        'entity': entity,
-        'entityId': entityId,
-        'action': action,
-        if (baseEtag != null && baseEtag!.isNotEmpty) 'baseEtag': baseEtag,
-        'patch': patch,
-      };
+    'opId': opId,
+    'entity': entity,
+    'entityId': entityId,
+    'action': action,
+    if (baseEtag != null && baseEtag!.isNotEmpty) 'baseEtag': baseEtag,
+    'patch': patch,
+  };
 }
 
 /// One per-operation result from `/api/sync/push`.
@@ -89,19 +91,19 @@ class PushResult {
   bool get gone => status == 'gone';
 
   factory PushResult.fromJson(Map<String, dynamic> json) => PushResult(
-        opId: (json['opId'] ?? '').toString(),
-        entity: (json['entityType'] ?? '').toString(),
-        entityId: (json['entityId'] ?? '').toString(),
-        status: (json['status'] ?? 'error').toString(),
-        etag: json['etag']?.toString(),
-        version: (json['version'] as num?)?.toInt() ?? 0,
-        entityJson: json['entity'] is Map<String, dynamic>
-            ? json['entity'] as Map<String, dynamic>
-            : null,
-        errorCode: (json['error'] as Map<String, dynamic>?)?['code']?.toString(),
-        errorMessage:
-            (json['error'] as Map<String, dynamic>?)?['message']?.toString(),
-      );
+    opId: (json['opId'] ?? '').toString(),
+    entity: (json['entityType'] ?? '').toString(),
+    entityId: (json['entityId'] ?? '').toString(),
+    status: (json['status'] ?? 'error').toString(),
+    etag: json['etag']?.toString(),
+    version: (json['version'] as num?)?.toInt() ?? 0,
+    entityJson: json['entity'] is Map<String, dynamic>
+        ? json['entity'] as Map<String, dynamic>
+        : null,
+    errorCode: (json['error'] as Map<String, dynamic>?)?['code']?.toString(),
+    errorMessage: (json['error'] as Map<String, dynamic>?)?['message']
+        ?.toString(),
+  );
 }
 
 class SyncApiException implements Exception {
@@ -139,8 +141,8 @@ class HttpSyncApi implements SyncApi {
     required this.username,
     required this.password,
     http.Client? client,
-  })  : baseUrl = normalizeBaseUrl(baseUrl),
-        _client = client ?? http.Client();
+  }) : baseUrl = normalizeBaseUrl(baseUrl),
+       _client = client ?? http.Client();
 
   final String baseUrl;
   final String username;
@@ -156,10 +158,10 @@ class HttpSyncApi implements SyncApi {
   }
 
   Map<String, String> get _headers => {
-        'Authorization':
-            'Basic ${base64Encode(utf8.encode('$username:$password'))}',
-        'Accept': 'application/json',
-      };
+    'Authorization':
+        'Basic ${base64Encode(utf8.encode('$username:$password'))}',
+    'Accept': 'application/json',
+  };
 
   @override
   Future<PullPage> pull({
@@ -174,9 +176,9 @@ class HttpSyncApi implements SyncApi {
         if (refresh) 'refresh': '1',
       },
     );
-    final response = await _client.get(uri, headers: _headers).timeout(
-          const Duration(seconds: 30),
-        );
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 30));
     final body = _decodeBody(response);
     if (response.statusCode != 200) {
       throw SyncApiException(
@@ -186,20 +188,24 @@ class HttpSyncApi implements SyncApi {
     }
     final tasks = _mapList(body['tasks']);
     final lists = _mapList(body['lists']);
+    final sections = _mapList(body['sections']);
     final folders = _mapList(body['folders']);
     final tombstones = (body['tombstones'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
-        .map((item) => Tombstone(
-              entity: (item['entity'] ?? '').toString(),
-              id: (item['id'] ?? '').toString(),
-              deletedAt: item['deletedAt']?.toString(),
-            ))
+        .map(
+          (item) => Tombstone(
+            entity: (item['entity'] ?? '').toString(),
+            id: (item['id'] ?? '').toString(),
+            deletedAt: item['deletedAt']?.toString(),
+          ),
+        )
         .toList(growable: false);
     return PullPage(
       cursor: (body['cursor'] ?? since).toString(),
       hasMore: body['hasMore'] == true,
       tasks: tasks,
       lists: lists,
+      sections: sections,
       folders: folders,
       tombstones: tombstones,
     );

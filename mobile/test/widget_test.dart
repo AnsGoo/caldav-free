@@ -38,12 +38,9 @@ void main() {
   testWidgets('search filters title and notes locally', (tester) async {
     final store = LocalStore.memory();
     final now = DateTime.now().toUtc();
-    await store.saveList(TaskListItem(
-      id: 'inbox-1',
-      name: '收集箱',
-      isInbox: true,
-      updatedAt: now,
-    ));
+    await store.saveList(
+      TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
+    );
     for (final task in [
       TaskItem(
         id: 'task-milk',
@@ -62,16 +59,18 @@ void main() {
     ]) {
       await store.saveTask(task, dirty: false);
     }
-    final app = AppState(
-      store: store,
-      credentials: MemoryCredentialsStore(),
-      repository: TaskRepository(store),
-    )..session = Session(
-        baseUrl: 'http://example.test',
-        username: 'demo',
-        password: 'secret',
-        deviceId: 'device-test',
-      );
+    final app =
+        AppState(
+            store: store,
+            credentials: MemoryCredentialsStore(),
+            repository: TaskRepository(store),
+          )
+          ..session = Session(
+            baseUrl: 'http://example.test',
+            username: 'demo',
+            password: 'secret',
+            deviceId: 'device-test',
+          );
     addTearDown(() async {
       app.dispose();
       await store.dispose();
@@ -105,20 +104,101 @@ void main() {
     expect(find.text('写周报'), findsOneWidget);
   });
 
+  testWidgets('layout switcher renders board, matrix and timeline', (
+    tester,
+  ) async {
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
+    );
+    await store.saveSection(
+      TaskSection(
+        id: 'section-doing',
+        listId: 'inbox-1',
+        name: '进行中',
+        updatedAt: now,
+      ),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'task-board',
+        listId: 'inbox-1',
+        sectionId: 'section-doing',
+        title: '看板里的任务',
+        priority: 3,
+        dueAt: now.add(const Duration(hours: 4)),
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app =
+        AppState(
+            store: store,
+            credentials: MemoryCredentialsStore(),
+            repository: TaskRepository(store),
+          )
+          ..session = Session(
+            baseUrl: 'http://example.test',
+            username: 'demo',
+            password: 'secret',
+            deviceId: 'device-test',
+          );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.longPress(find.text('看板里的任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('已选 1 项'), findsOneWidget);
+    await tester.tap(find.byTooltip('取消选择'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('看板'));
+    await tester.pumpAndSettle();
+    expect(find.text('进行中'), findsOneWidget);
+    expect(find.text('未分列'), findsOneWidget);
+    expect(find.text('看板里的任务'), findsOneWidget);
+
+    await tester.tap(find.text('矩阵'));
+    await tester.pumpAndSettle();
+    expect(find.text('重要且紧急'), findsOneWidget);
+    expect(find.text('重要不紧急'), findsOneWidget);
+    expect(find.text('紧急不重要'), findsOneWidget);
+    expect(find.text('不重要不紧急'), findsOneWidget);
+    expect(find.text('看板里的任务'), findsOneWidget);
+
+    await tester.tap(find.text('时间线'));
+    await tester.pumpAndSettle();
+    expect(find.text('无日期'), findsOneWidget);
+    expect(find.text('今天'), findsOneWidget);
+    expect(find.text('看板里的任务'), findsOneWidget);
+  });
+
   testWidgets('smart views filter by due date', (tester) async {
     final store = LocalStore.memory();
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day);
-    await store.saveList(TaskListItem(
-      id: 'inbox-1',
-      name: '收集箱',
-      isInbox: true,
-      updatedAt: now.toUtc(),
-    ));
+    await store.saveList(
+      TaskListItem(
+        id: 'inbox-1',
+        name: '收集箱',
+        isInbox: true,
+        updatedAt: now.toUtc(),
+      ),
+    );
     for (final item in [
       ('today-task', '今天任务', start.add(const Duration(hours: 10))),
-      ('tomorrow-task', '明天任务',
-          start.add(const Duration(days: 1, hours: 10))),
+      ('tomorrow-task', '明天任务', start.add(const Duration(days: 1, hours: 10))),
       ('later-task', '以后任务', start.add(const Duration(days: 10))),
     ]) {
       await store.saveTask(
@@ -132,16 +212,18 @@ void main() {
         dirty: false,
       );
     }
-    final app = AppState(
-      store: store,
-      credentials: MemoryCredentialsStore(),
-      repository: TaskRepository(store),
-    )..session = Session(
-        baseUrl: 'http://example.test',
-        username: 'demo',
-        password: 'secret',
-        deviceId: 'device-test',
-      );
+    final app =
+        AppState(
+            store: store,
+            credentials: MemoryCredentialsStore(),
+            repository: TaskRepository(store),
+          )
+          ..session = Session(
+            baseUrl: 'http://example.test',
+            username: 'demo',
+            password: 'secret',
+            deviceId: 'device-test',
+          );
     addTearDown(() async {
       app.dispose();
       await store.dispose();
@@ -226,31 +308,25 @@ void main() {
   testWidgets('quick add writes through the repository', (tester) async {
     final store = LocalStore.memory();
     final now = DateTime.now().toUtc();
-    await store.saveList(TaskListItem(
-      id: 'inbox-1',
-      name: '收集箱',
-      isInbox: true,
-      updatedAt: now,
-    ));
+    await store.saveList(
+      TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
+    );
     await store.saveTask(
-      TaskItem(
-        id: 'task-1',
-        listId: 'inbox-1',
-        title: '已有任务',
-        updatedAt: now,
-      ),
+      TaskItem(id: 'task-1', listId: 'inbox-1', title: '已有任务', updatedAt: now),
       dirty: false,
     );
-    final app = AppState(
-      store: store,
-      credentials: MemoryCredentialsStore(),
-      repository: TaskRepository(store),
-    )..session = Session(
-        baseUrl: 'http://example.test',
-        username: 'demo',
-        password: 'secret',
-        deviceId: 'device-test',
-      );
+    final app =
+        AppState(
+            store: store,
+            credentials: MemoryCredentialsStore(),
+            repository: TaskRepository(store),
+          )
+          ..session = Session(
+            baseUrl: 'http://example.test',
+            username: 'demo',
+            password: 'secret',
+            deviceId: 'device-test',
+          );
     addTearDown(() async {
       app.dispose();
       await store.dispose();

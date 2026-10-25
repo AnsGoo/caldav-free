@@ -211,6 +211,26 @@ void main() {
     expect(server.sections.containsKey(section.id), false);
   });
 
+  test('manual task order syncs between clients', () async {
+    await deviceA.engine.sync(full: true);
+    final inbox = deviceA.store.inbox()!;
+    final first = await deviceA.repo.createTask(title: 'A', listId: inbox.id);
+    final second = await deviceA.repo.createTask(title: 'B', listId: inbox.id);
+    final third = await deviceA.repo.createTask(title: 'C', listId: inbox.id);
+    await deviceA.engine.sync();
+    await deviceA.repo.reorderTasks([third.id, first.id, second.id]);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync(full: true);
+
+    final ordered = deviceB.store
+        .tasksSnapshot(listId: inbox.id, completed: false, manualSort: true)
+        .map((task) => task.id)
+        .toList();
+    expect(ordered, [third.id, first.id, second.id]);
+    expect(server.tasks[third.id]?['order'], 0);
+    expect(server.tasks[second.id]?['order'], 2);
+  });
+
   test('recurring task completion and skip advance the due date', () async {
     await deviceA.engine.sync(full: true);
     final task = await deviceA.repo.createTask(

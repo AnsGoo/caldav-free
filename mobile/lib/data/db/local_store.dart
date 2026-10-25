@@ -178,6 +178,7 @@ class LocalStore {
     String? listId,
     required bool completed,
     String view = 'all',
+    bool manualSort = false,
   }) {
     final start = _todayStartUtc();
     final dayEnd = start.add(const Duration(days: 1));
@@ -200,7 +201,13 @@ class LocalStore {
           return true;
       }
     }).toList();
-    items.sort(completed ? _compareCompleted : _compareOpen);
+    items.sort(
+      completed
+          ? _compareCompleted
+          : manualSort
+          ? _compareManual
+          : _compareOpen,
+    );
     return items;
   }
 
@@ -208,10 +215,21 @@ class LocalStore {
     String? listId,
     required bool completed,
     String view = 'all',
+    bool manualSort = false,
   }) async* {
-    yield tasksSnapshot(listId: listId, completed: completed, view: view);
+    yield tasksSnapshot(
+      listId: listId,
+      completed: completed,
+      view: view,
+      manualSort: manualSort,
+    );
     await for (final _ in _changes.stream) {
-      yield tasksSnapshot(listId: listId, completed: completed, view: view);
+      yield tasksSnapshot(
+        listId: listId,
+        completed: completed,
+        view: view,
+        manualSort: manualSort,
+      );
     }
   }
 
@@ -658,6 +676,12 @@ DateTime? _date(Object? value) {
   final text = value.toString();
   if (text.isEmpty) return null;
   return DateTime.tryParse(text)?.toUtc();
+}
+
+int _compareManual(TaskItem a, TaskItem b) {
+  final order = a.sortOrder.compareTo(b.sortOrder);
+  if (order != 0) return order;
+  return a.id.compareTo(b.id);
 }
 
 int _compareOpen(TaskItem a, TaskItem b) {

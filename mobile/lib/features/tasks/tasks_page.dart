@@ -42,6 +42,7 @@ class _TasksPageState extends State<TasksPage> {
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
   TimelineScale _timelineScale = TimelineScale.day;
+  bool _manualSort = false;
   bool _selecting = false;
   final Set<String> _selectedIds = {};
 
@@ -87,7 +88,12 @@ class _TasksPageState extends State<TasksPage> {
     _tasksSub?.cancel();
     final store = context.read<AppState>().store;
     _tasksSub = store
-        .watchTasks(listId: _selectedListId, completed: _completed, view: _view)
+        .watchTasks(
+          listId: _selectedListId,
+          completed: _completed,
+          view: _view,
+          manualSort: _manualSort,
+        )
         .listen((tasks) {
           if (mounted) setState(() => _tasks = tasks);
         });
@@ -118,6 +124,7 @@ class _TasksPageState extends State<TasksPage> {
     setState(() {
       _layout = layout;
       _completed = false;
+      _manualSort = false;
       _selecting = false;
       _selectedIds.clear();
       if (layout != _TaskLayout.list) {
@@ -133,6 +140,50 @@ class _TasksPageState extends State<TasksPage> {
   void _setScope(String? listId) {
     setState(() => _selectedListId = listId);
     _subscribeTasks();
+  }
+
+  void _toggleManualSort() {
+    if (_manualSort) {
+      setState(() => _manualSort = false);
+      _subscribeTasks();
+      return;
+    }
+    final listId = _selectedListId ?? _boardList?.id;
+    if (listId == null) {
+      _snack('请先选择一个清单');
+      return;
+    }
+    final store = context.read<AppState>().store;
+    final ids = store
+        .tasksSnapshot(listId: listId, completed: false, view: 'all')
+        .map((task) => task.id)
+        .toList();
+    setState(() {
+      _manualSort = true;
+      _selectedListId = listId;
+      _view = 'all';
+      _completed = false;
+      _selecting = false;
+      _selectedIds.clear();
+    });
+    _subscribeTasks();
+    if (ids.isNotEmpty) {
+      unawaited(context.read<AppState>().repository.reorderTasks(ids));
+    }
+  }
+
+  Future<void> _reorderTasks(int oldIndex, int newIndex) async {
+    final tasks = _filteredTasks;
+    if (oldIndex < 0 || oldIndex >= tasks.length) return;
+    if (newIndex < 0 || newIndex >= tasks.length) return;
+    final ids = tasks.map((task) => task.id).toList();
+    final moved = ids.removeAt(oldIndex);
+    ids.insert(newIndex, moved);
+    try {
+      await context.read<AppState>().repository.reorderTasks(ids);
+    } catch (error) {
+      _snack('排序失败：$error');
+    }
   }
 
   Future<void> _reschedule(TaskItem task, DateTime? due) async {
@@ -524,11 +575,14 @@ class _TasksPageState extends State<TasksPage> {
                     onPressed: () => app.syncNow(),
                     icon: const Icon(Icons.sync_rounded),
                   ),
-                if (_layout == _TaskLayout.list)
+                if (_layout == _TaskLayout.list) ...[
                   IconButton(
                     tooltip: _completed ? '查看未完成' : '查看已完成',
                     onPressed: () {
-                      setState(() => _completed = !_completed);
+                      setState(() {
+                        _completed = !_completed;
+                        _manualSort = false;
+                      });
                       _subscribeTasks();
                     },
                     icon: Icon(
@@ -538,6 +592,18 @@ class _TasksPageState extends State<TasksPage> {
                       color: _completed ? scheme.primary : null,
                     ),
                   ),
+                  if (!_completed)
+                    IconButton(
+                      tooltip: _manualSort ? '按截止时间排序' : '手动排序',
+                      onPressed: _toggleManualSort,
+                      icon: Icon(
+                        _manualSort
+                            ? Icons.swap_vert_circle_rounded
+                            : Icons.swap_vert_rounded,
+                        color: _manualSort ? scheme.primary : null,
+                      ),
+                    ),
+                ],
                 IconButton(
                   tooltip: '搜索',
                   onPressed: () {
@@ -547,6 +613,7 @@ class _TasksPageState extends State<TasksPage> {
                       _selectedListId = null;
                       _view = 'all';
                       _completed = false;
+                      _manualSort = false;
                     });
                     _subscribeTasks();
                     _searchFocus.requestFocus();
@@ -620,6 +687,7 @@ class _TasksPageState extends State<TasksPage> {
                 setState(() {
                   _view = 'all';
                   _selectedListId = id;
+                  _manualSort = false;
                 });
                 _subscribeTasks();
               },
@@ -627,16 +695,17 @@ class _TasksPageState extends State<TasksPage> {
                 setState(() {
                   _selectedListId = null;
                   _view = view;
+                  _manualSort = false;
                 });
                 _subscribeTasks();
               },
               onManage: _openLists,
             ),
             Expanded(
-              child: RefreshIndicator(
-                onRefresh: () => app.syncNow(),
-                child: visible.isEmpty
-                    ? ListView(
+              child: visible.isEmpty
+                  ? RefreshIndicator(
+                      onRefresh: () => app.syncNow(),
+                      child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
                           SizedBox(
@@ -649,8 +718,52 @@ class _TasksPageState extends State<TasksPage> {
                             onSync: () => app.syncNow(),
                           ),
                         ],
-                      )
-                    : ListView.separated(
+                      ),
+                    )
+                  : _manualSort
+                  ? ReorderableListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                      itemCount: visible.length,
+                      buildDefaultDragHandles: false,
+                      onReorderItem: _reorderTasks,
+                      itemBuilder: (context, index) {
+                        final task = visible[index];
+                        final list = listsById[task.listId];
+                        return Padding(
+                          key: ValueKey('reorder-${task.id}'),
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: _TaskTile(
+                            task: task,
+                            list: list,
+                            showListName: _selectedListId == null,
+                            selected: _selectedIds.contains(task.id),
+                            dragHandle: ReorderableDragStartListener(
+                              index: index,
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 8,
+                                ),
+                                child: Icon(
+                                  Icons.drag_handle_rounded,
+                                  size: 20,
+                                ),
+                              ),
+                            ),
+                            onToggle: () => _toggle(task),
+                            onDelete: () => _delete(task),
+                            onLongPress: () => _toggleSelection(task),
+                            onTap: _selecting
+                                ? () => _toggleSelection(task)
+                                : () => _openEditor(task, list),
+                          ),
+                        );
+                      },
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () => app.syncNow(),
+                      child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                         itemCount: visible.length,
@@ -673,7 +786,7 @@ class _TasksPageState extends State<TasksPage> {
                           );
                         },
                       ),
-              ),
+                    ),
             ),
           ] else if (_layout == _TaskLayout.board) ...[
             _ViewScopeBar(
@@ -813,9 +926,18 @@ class _TasksPageState extends State<TasksPage> {
     if (title.isEmpty || listId == null) return;
     setState(() => _adding = true);
     try {
+      var order = 0;
+      if (_manualSort) {
+        for (final task in _tasks) {
+          if (task.listId == listId && task.sortOrder >= order) {
+            order = task.sortOrder + 1;
+          }
+        }
+      }
       await context.read<AppState>().repository.createTask(
         title: title,
         listId: listId,
+        sortOrder: order,
       );
       _quickAdd.clear();
       _quickAddFocus.requestFocus();
@@ -1317,6 +1439,7 @@ class _TaskTile extends StatelessWidget {
     required this.onTap,
     required this.onLongPress,
     this.selected = false,
+    this.dragHandle,
   });
 
   final TaskItem task;
@@ -1327,6 +1450,7 @@ class _TaskTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
   final bool selected;
+  final Widget? dragHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -1518,6 +1642,10 @@ class _TaskTile extends StatelessWidget {
                       borderRadius: BorderRadius.circular(99),
                     ),
                   ),
+                ],
+                if (dragHandle != null) ...[
+                  const SizedBox(width: 4),
+                  dragHandle!,
                 ],
               ],
             ),

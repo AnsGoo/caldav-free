@@ -14,6 +14,7 @@ class TaskRepository {
   Future<TaskItem> createTask({
     required String title,
     required String listId,
+    int sortOrder = 0,
   }) async {
     final now = DateTime.now().toUtc();
     final task = TaskItem(
@@ -24,6 +25,7 @@ class TaskRepository {
       kind: TaskKind.task,
       updatedAt: now,
       createdAt: now,
+      sortOrder: sortOrder,
     );
     final patch = <String, dynamic>{
       'listId': listId,
@@ -40,6 +42,7 @@ class TaskRepository {
       'assignee': '',
       'completed': false,
       'pinned': false,
+      'order': sortOrder,
     };
     await store.batch(() async {
       await store.saveTask(task, dirty: true);
@@ -310,6 +313,34 @@ class TaskRepository {
           action: existing?.action == 'create' ? 'create' : 'update',
           patch: {...?existing?.patch, 'order': index},
           baseEtag: existing?.baseEtag ?? section.etag,
+        );
+      }
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> reorderTasks(List<String> orderedIds) async {
+    if (orderedIds.isEmpty) return;
+    final now = DateTime.now().toUtc();
+    await store.batch(() async {
+      for (var index = 0; index < orderedIds.length; index++) {
+        final id = orderedIds[index];
+        final task = store.task(id);
+        if (task == null || task.deleted || task.completed) continue;
+        final existing = store.pendingOp('task', id);
+        if (existing == null && task.sortOrder == index) continue;
+        final updated = task.copyWith(sortOrder: index, updatedAt: now);
+        await store.saveTask(updated, dirty: true);
+        if (existing != null) {
+          await store.removeOp(existing.opId);
+        }
+        await store.saveOp(
+          opId: newSyncId(),
+          entity: 'task',
+          entityId: id,
+          action: existing?.action == 'create' ? 'create' : 'update',
+          patch: {...?existing?.patch, 'order': index},
+          baseEtag: existing?.baseEtag ?? task.etag,
         );
       }
     });

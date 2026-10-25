@@ -120,7 +120,7 @@
 | 114 | 重复实例双向同步、顺延、原始系列锚点、日历实例直接操作 | `d818b90` |
 | 115 | 客户端同步协议：`sync_logs` 触发器、`sync_id` 回填、pull/push、ETag 冲突、opId 幂等、CalDAV 同源变更流 | — |
 | 116 | Android Flutter P0：登录、原子 JSON 本地库、outbox、pull/merge/push/settle、冲突重试、任务页、诊断页、真实后端 E2E | `da006f7` |
-| 117 | Android P1 第一批：截止日期/全天、优先级、标签、子任务、本地搜索、清单新建/改名/删除、文件夹、任务移动、字段级 patch | — |
+| 117 | Android P1 第一批：截止日期/全天、优先级、标签、子任务、本地搜索、清单/文件夹管理、任务移动、字段级 patch；debug APK 构建 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -128,8 +128,8 @@
 
 ### 跨端客户端
 
-- Flutter Android P0 已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
-- Android SDK/JDK 安装、APK 构建、真机与模拟器回归
+- Flutter Android P0/P1 第一批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Android 真机/模拟器安装回归（debug APK 已构建）
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、本地通知、SSE 提示、账号切换

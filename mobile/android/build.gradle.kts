@@ -1,5 +1,8 @@
 allprojects {
     repositories {
+        // China-first mirrors; official repositories remain as fallbacks.
+        maven("https://maven.aliyun.com/repository/google")
+        maven("https://maven.aliyun.com/repository/central")
         google()
         mavenCentral()
     }

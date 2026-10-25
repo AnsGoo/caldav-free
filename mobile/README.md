@@ -9,7 +9,7 @@ pushes it in the background.
 - Login with the CalDAV username/password against `/api/sync/pull`.
 - Offline task create, rename, complete/uncomplete, edit notes, delete.
 - Due date/time + all-day, priority, tags, subtasks, local search.
-- List create/rename/delete and moving a task between lists.
+- List create/rename/delete, folders, moving lists into folders, and moving a task between lists.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
 - Local write debounce, 15 s foreground polling, pull-to-refresh, manual and
   full sync.
@@ -31,6 +31,42 @@ flutter pub get          # add --offline when pub.dev is unreachable
 flutter test
 flutter run              # requires an Android device/emulator + SDK
 ```
+
+Android toolchain used locally: JDK 17 at `~/development/jdk17`, SDK 36 at
+`~/development/android-sdk`.
+
+```bash
+export JAVA_HOME="$HOME/development/jdk17/Contents/Home"
+export ANDROID_HOME="$HOME/development/android-sdk"
+flutter build apk --debug
+# -> build/app/outputs/flutter-apk/app-debug.apk (144 MB)
+```
+
+Use the **arm64** Flutter SDK on Apple Silicon (the x64 zip runs under Rosetta
+and breaks `xcrun`). After switching SDKs or installing the NDK, stop stale
+Gradle daemons first:
+
+```bash
+(cd android && ./gradlew --stop)
+```
+
+This network cannot reach `services.gradle.org` (redirects to GitHub) or Maven
+Central directly, so:
+
+- `android/gradle/wrapper/gradle-wrapper.properties` uses the Tencent Gradle mirror.
+- `android/settings.gradle.kts` / `android/build.gradle.kts` list Aliyun Google
+  and Central mirrors before the official repositories.
+- The local Flutter SDK's included Gradle build
+  (`packages/flutter_tools/gradle/settings.gradle.kts` and
+  `resolve_dependencies.gradle.kts`) was patched the same way; a clean SDK may
+  need the same mirror lines or a Gradle init script.
+- NDK 28.2.13676358 is installed because Flutter's Gradle plugin provisions it
+  for the synthetic native build, even in a pure-Dart app. The NDK was fetched
+  from the Tencent Android SDK mirror because sdkmanager's Google download kept
+  truncating the archive.
+
+Both are China-first workarounds; remove them once the official endpoints are
+reachable. The app itself has no China-specific dependency.
 
 Android emulator → host machine: use `http://10.0.2.2:5232`.
 Physical device: use the LAN address, e.g. `http://192.168.1.10:5232`.

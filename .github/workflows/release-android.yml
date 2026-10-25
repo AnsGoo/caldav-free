@@ -40,9 +40,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          cd mobile/build/outputs
-          cp apk/release/app-release.apk "caldav-free-android-$TAG.apk"
-          cp appbundle/release/app-release.aab "caldav-free-android-$TAG.aab"
+          cd mobile/build/app/outputs
+          cp flutter-apk/app-release.apk "caldav-free-android-$TAG.apk"
+          cp bundle/release/app-release.aab "caldav-free-android-$TAG.aab"
           gh release upload "$TAG" \
             "caldav-free-android-$TAG.apk" \
             "caldav-free-android-$TAG.aab" \
@@ -53,5 +53,5 @@ jobs:
         with:
           name: android-release
           path: |
-            mobile/build/outputs/apk/release/app-release.apk
-            mobile/build/outputs/appbundle/release/app-release.aab
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/bundle/release/app-release.aab

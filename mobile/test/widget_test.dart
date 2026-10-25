@@ -132,6 +132,15 @@ void main() {
       ),
       dirty: false,
     );
+    await store.saveTask(
+      TaskItem(
+        id: 'task-drag',
+        listId: 'inbox-1',
+        title: '拖拽任务',
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
     final app =
         AppState(
             store: store,
@@ -169,6 +178,18 @@ void main() {
     expect(find.text('未分列'), findsOneWidget);
     expect(find.text('看板里的任务'), findsOneWidget);
 
+    final drag = await tester.startGesture(
+      tester.getCenter(find.text('拖拽任务')),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await drag.moveTo(
+      tester.getCenter(find.text('进行中')) + const Offset(0, 120),
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+    await drag.up();
+    await tester.pumpAndSettle();
+    expect(store.task('task-drag')?.sectionId, 'section-doing');
+
     await tester.tap(find.text('矩阵'));
     await tester.pumpAndSettle();
     expect(find.text('重要且紧急'), findsOneWidget);
@@ -182,6 +203,18 @@ void main() {
     expect(find.text('无日期'), findsOneWidget);
     expect(find.text('今天'), findsOneWidget);
     expect(find.text('看板里的任务'), findsOneWidget);
+
+    final timelineDrag = await tester.startGesture(
+      tester.getCenter(find.text('拖拽任务')),
+    );
+    await tester.pump(const Duration(milliseconds: 700));
+    await timelineDrag.moveTo(
+      tester.getCenter(find.text('今天')) + const Offset(0, 120),
+    );
+    await tester.pump(const Duration(milliseconds: 150));
+    await timelineDrag.up();
+    await tester.pumpAndSettle();
+    expect(store.task('task-drag')?.dueAt, isNotNull);
   });
 
   testWidgets('smart views filter by due date', (tester) async {

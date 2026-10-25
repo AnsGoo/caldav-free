@@ -21,6 +21,7 @@ class _HabitsPageState extends State<HabitsPage> {
   HabitSnapshot? _snapshot;
   bool _loading = false;
   String? _error;
+  int _selectedStamp = _stampFor(DateTime.now());
 
   @override
   void initState() {
@@ -64,16 +65,17 @@ class _HabitsPageState extends State<HabitsPage> {
     }
   }
 
-  int get _todayStamp {
-    final now = DateTime.now();
-    return now.year * 10000 + now.month * 100 + now.day;
-  }
+  int get _todayStamp => _stampFor(DateTime.now());
 
-  HabitCheckinItem? _todayCheckin(HabitItem habit) {
+  DateTime get _selectedDate => _dateForStamp(_selectedStamp);
+
+  bool get _selectedIsToday => _selectedStamp == _todayStamp;
+
+  HabitCheckinItem? _checkinFor(HabitItem habit, int stamp) {
     final snapshot = _snapshot;
     if (snapshot == null) return null;
     for (final checkin in snapshot.checkins) {
-      if (checkin.habitId == habit.id && checkin.stamp == _todayStamp) {
+      if (checkin.habitId == habit.id && checkin.stamp == stamp) {
         return checkin;
       }
     }
@@ -81,8 +83,9 @@ class _HabitsPageState extends State<HabitsPage> {
   }
 
   Future<void> _checkin(HabitItem habit) async {
+    if (_selectedIsFuture) return;
     try {
-      await _api.checkin(habit.id, _todayStamp);
+      await _api.checkin(habit.id, _selectedStamp);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -90,6 +93,10 @@ class _HabitsPageState extends State<HabitsPage> {
           .showSnackBar(SnackBar(content: Text('打卡失败：$error')));
     }
   }
+
+  bool get _selectedIsFuture =>
+      _selectedDate.isAfter(DateTime.now().subtract(const Duration(days: 0))) &&
+      _selectedStamp != _todayStamp;
 
   Future<void> _create() async {
     final draft = await showModalBottomSheet<HabitDraft>(
@@ -171,11 +178,13 @@ class _HabitsPageState extends State<HabitsPage> {
         checkins: snapshot.checkins
             .where((checkin) => checkin.habitId == habit.id)
             .toList(growable: false),
-        todayStamp: _todayStamp,
-        onCheckin: () {
-          Navigator.pop(context);
-          _checkin(habit);
-        },
+        stamp: _selectedStamp,
+        onCheckin: _selectedIsFuture
+            ? null
+            : () {
+                Navigator.pop(context);
+                _checkin(habit);
+              },
       ),
     );
   }
@@ -190,6 +199,37 @@ class _HabitsPageState extends State<HabitsPage> {
         .toList(growable: false);
     final due = active.where((habit) => habit.dueToday).toList();
     final done = due.where((habit) => habit.doneToday).length;
+    final selectedDone = active
+        .where((habit) => _checkinFor(habit, _selectedStamp)?.done == true)
+        .length;
+    final subtitle = active.isEmpty
+        ? '用微小的重复，换取长期的变化'
+        : _selectedIsToday
+        ? (due.isEmpty ? '今天没有安排' : '今天完成 $done / ${due.length}')
+        : '${_selectedDate.month}月${_selectedDate.day}日 · '
+              '完成 $selectedDone / ${active.length}';
+    final sections = <int, String>{};
+    for (final section in snapshot?.sections ?? const []) {
+      final id = section['id'];
+      final name = (section['name'] ?? '').toString().trim();
+      if (id is num && name.isNotEmpty) sections[id.toInt()] = name;
+    }
+    final groups = <_HabitGroup>[];
+    for (final entry in sections.entries) {
+      final items = active
+          .where((habit) => habit.sectionId == entry.key)
+          .toList(growable: false);
+      if (items.isNotEmpty) {
+        groups.add(_HabitGroup(entry.value, items));
+      }
+    }
+    final known = sections.keys.toSet();
+    final other = active
+        .where((habit) => !known.contains(habit.sectionId))
+        .toList(growable: false);
+    if (other.isNotEmpty) {
+      groups.add(_HabitGroup(sections.isEmpty ? '我的习惯' : '其他', other));
+    }
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 88,
@@ -200,7 +240,7 @@ class _HabitsPageState extends State<HabitsPage> {
             const Text('习惯'),
             const SizedBox(height: 5),
             Text(
-              due.isEmpty ? '用微小的重复，换取长期的变化' : '今天完成 $done / ${due.length}',
+              subtitle,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
@@ -208,6 +248,12 @@ class _HabitsPageState extends State<HabitsPage> {
           ],
         ),
         actions: [
+          if (!_selectedIsToday)
+            IconButton(
+              tooltip: '回到今天',
+              onPressed: () => setState(() => _selectedStamp = _todayStamp),
+              icon: const Icon(Icons.today_rounded),
+            ),
           IconButton(
             tooltip: '刷新习惯',
             onPressed: _loading ? null : () => _load(),
@@ -251,6 +297,12 @@ class _HabitsPageState extends State<HabitsPage> {
                 ),
               ),
             ),
+          if (snapshot != null)
+            _HabitWeekStrip(
+              today: DateTime.now(),
+              selectedStamp: _selectedStamp,
+              onSelected: (stamp) => setState(() => _selectedStamp = stamp),
+            ),
           Expanded(
             child: snapshot == null
                 ? const Center(child: CircularProgressIndicator())
@@ -272,47 +324,191 @@ class _HabitsPageState extends State<HabitsPage> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),
                       children: [
-                        AppSectionLabel(
-                          title: '我的习惯',
-                          trailing: due.isEmpty
-                              ? null
-                              : Text(
-                                  '$done / ${due.length}',
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    color: scheme.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                        ),
-                        AppCard(
-                          padding: EdgeInsets.zero,
-                          child: Column(
-                            children: [
-                              for (var i = 0; i < active.length; i++) ...[
-                                _HabitRow(
-                                  habit: active[i],
-                                  checkin: _todayCheckin(active[i]),
-                                  onCheckin: () => _checkin(active[i]),
-                                  onOpen: () => _openDetail(active[i]),
-                                  onEdit: () => _edit(active[i]),
-                                  onDelete: () => _delete(active[i]),
-                                ),
-                                if (i != active.length - 1)
-                                  Divider(
-                                    height: 1,
-                                    indent: 78,
-                                    endIndent: 16,
-                                    color: scheme.outlineVariant,
-                                  ),
-                              ],
-                            ],
+                        for (var g = 0; g < groups.length; g++) ...[
+                          AppSectionLabel(
+                            title: groups[g].name,
+                            trailing: Text(
+                              '${groups[g].habits.where((habit) => _checkinFor(habit, _selectedStamp)?.done == true).length}'
+                              ' / ${groups[g].habits.length}',
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
-                        ),
+                          AppCard(
+                            padding: EdgeInsets.zero,
+                            child: Column(
+                              children: [
+                                for (
+                                  var i = 0;
+                                  i < groups[g].habits.length;
+                                  i++
+                                ) ...[
+                                  _HabitRow(
+                                    habit: groups[g].habits[i],
+                                    checkin: _checkinFor(
+                                      groups[g].habits[i],
+                                      _selectedStamp,
+                                    ),
+                                    onCheckin: _selectedIsFuture
+                                        ? null
+                                        : () => _checkin(groups[g].habits[i]),
+                                    onOpen: () =>
+                                        _openDetail(groups[g].habits[i]),
+                                    onEdit: () => _edit(groups[g].habits[i]),
+                                    onDelete: () =>
+                                        _delete(groups[g].habits[i]),
+                                  ),
+                                  if (i != groups[g].habits.length - 1)
+                                    Divider(
+                                      height: 1,
+                                      indent: 78,
+                                      endIndent: 16,
+                                      color: scheme.outlineVariant,
+                                    ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          if (g != groups.length - 1)
+                            const SizedBox(height: 18),
+                        ],
                       ],
                     ),
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HabitGroup {
+  const _HabitGroup(this.name, this.habits);
+
+  final String name;
+  final List<HabitItem> habits;
+}
+
+class _HabitWeekStrip extends StatelessWidget {
+  const _HabitWeekStrip({
+    required this.today,
+    required this.selectedStamp,
+    required this.onSelected,
+  });
+
+  final DateTime today;
+  final int selectedStamp;
+  final ValueChanged<int> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final monday = todayDate.subtract(Duration(days: todayDate.weekday - 1));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+      child: Row(
+        children: [
+          for (var i = 0; i < 7; i++)
+            Expanded(
+              child: _HabitDayCell(
+                day: monday.add(Duration(days: i)),
+                today: todayDate,
+                selectedStamp: selectedStamp,
+                onSelected: onSelected,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HabitDayCell extends StatelessWidget {
+  const _HabitDayCell({
+    required this.day,
+    required this.today,
+    required this.selectedStamp,
+    required this.onSelected,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final int selectedStamp;
+  final ValueChanged<int> onSelected;
+
+  static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final stamp = _stampFor(day);
+    final selected = stamp == selectedStamp;
+    final isToday = stamp == _stampFor(today);
+    final future = day.isAfter(today);
+    final foreground = selected
+        ? scheme.onPrimary
+        : future
+        ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
+        : isToday
+        ? scheme.primary
+        : scheme.onSurface;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${day.month}月${day.day}日',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: future ? null : () => onSelected(stamp),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _weekdays[day.weekday - 1],
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: selected
+                      ? scheme.primary
+                      : future
+                      ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
+                      : scheme.onSurfaceVariant,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: selected ? scheme.primary : Colors.transparent,
+                  shape: BoxShape.circle,
+                  border: !selected && isToday
+                      ? Border.all(
+                          color: scheme.primary.withValues(alpha: 0.5),
+                          width: 1.2,
+                        )
+                      : null,
+                ),
+                child: Text(
+                  '${day.day}',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontSize: 15,
+                    color: foreground,
+                    fontWeight: selected || isToday
+                        ? FontWeight.w700
+                        : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -330,7 +526,7 @@ class _HabitRow extends StatelessWidget {
 
   final HabitItem habit;
   final HabitCheckinItem? checkin;
-  final VoidCallback onCheckin;
+  final VoidCallback? onCheckin;
   final VoidCallback onOpen;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -341,9 +537,11 @@ class _HabitRow extends StatelessWidget {
     final scheme = theme.colorScheme;
     final color = colorFromHex(habit.color);
     final value = checkin?.value ?? 0;
-    final progress = habit.goal <= 1
-        ? (habit.doneToday ? 1.0 : 0.0)
-        : value / habit.goal;
+    final done = checkin?.done == true;
+    final progress = habit.goal <= 1 ? (done ? 1.0 : 0.0) : value / habit.goal;
+    final ringColor = onCheckin == null
+        ? scheme.onSurfaceVariant.withValues(alpha: 0.3)
+        : color;
     return InkWell(
       onTap: onOpen,
       child: Padding(
@@ -363,8 +561,8 @@ class _HabitRow extends StatelessWidget {
                       value: progress.clamp(0, 1),
                       strokeWidth: 3.5,
                       strokeCap: StrokeCap.round,
-                      color: color,
-                      backgroundColor: color.withValues(alpha: 0.16),
+                      color: ringColor,
+                      backgroundColor: ringColor.withValues(alpha: 0.16),
                     ),
                   ),
                   InkResponse(
@@ -546,6 +744,7 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
       HabitDraft(
         name: name,
         color: _color,
+        sectionId: widget.initial?.sectionId ?? 0,
         goal: goal <= 0 ? 1 : goal,
         step: step <= 0 ? 1 : step,
         unit: _unit.text.trim().isEmpty ? 'Count' : _unit.text.trim(),
@@ -681,24 +880,24 @@ class _HabitDetailSheet extends StatelessWidget {
   const _HabitDetailSheet({
     required this.habit,
     required this.checkins,
-    required this.todayStamp,
+    required this.stamp,
     required this.onCheckin,
   });
 
   final HabitItem habit;
   final List<HabitCheckinItem> checkins;
-  final int todayStamp;
-  final VoidCallback onCheckin;
+  final int stamp;
+  final VoidCallback? onCheckin;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final color = colorFromHex(habit.color);
-    final today = checkins
-        .where((checkin) => checkin.stamp == todayStamp)
+    final selected = checkins
+        .where((checkin) => checkin.stamp == stamp)
         .toList(growable: false);
-    final done = today.isNotEmpty && today.first.done;
+    final done = selected.isNotEmpty && selected.first.done;
     final byStamp = {for (final checkin in checkins) checkin.stamp: checkin};
     final now = DateTime.now();
     final days = List.generate(30, (index) {
@@ -754,9 +953,9 @@ class _HabitDetailSheet extends StatelessWidget {
                 _Stat(label: '累计', value: '${habit.totalCheckIns} 次'),
                 if (habit.goal > 1)
                   _Stat(
-                    label: '今日',
+                    label: '当日',
                     value:
-                        '${today.isEmpty ? 0 : today.first.value}/${habit.goal}',
+                        '${selected.isEmpty ? 0 : selected.first.value}/${habit.goal}',
                   ),
               ],
             ),
@@ -820,4 +1019,15 @@ class _Stat extends StatelessWidget {
       ),
     );
   }
+}
+
+int _stampFor(DateTime day) => day.year * 10000 + day.month * 100 + day.day;
+
+DateTime _dateForStamp(int stamp) {
+  final text = stamp.toString().padLeft(8, '0');
+  return DateTime(
+    int.parse(text.substring(0, 4)),
+    int.parse(text.substring(4, 6)),
+    int.parse(text.substring(6, 8)),
+  );
 }

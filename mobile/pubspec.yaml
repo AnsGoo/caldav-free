@@ -1,7 +1,7 @@
 name: caldav_free
 description: "caldav-free Android client (P0/P1/P2): offline-first tasks with pull/push sync, reminders, trash, recurrence and board/matrix/timeline views."
 publish_to: 'none'
-version: 2.4.0+15
+version: 2.5.0+16
 
 environment:
   sdk: ^3.13.0

@@ -17,6 +17,7 @@ void main() {
               'id': 1,
               'name': '喝水',
               'color': '#4772fa',
+              'sectionId': 7,
               'goal': 8,
               'step': 1,
               'unit': '杯',
@@ -55,6 +56,7 @@ void main() {
     final habit = snapshot.habits.single;
     expect(habit.name, '喝水');
     expect(habit.goal, 8);
+    expect(habit.sectionId, 7);
     expect(habit.currentStreak, 3);
     expect(habit.dueToday, true);
     expect(snapshot.checkins.single.value, 3);

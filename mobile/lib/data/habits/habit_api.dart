@@ -9,6 +9,7 @@ class HabitItem {
     required this.name,
     required this.icon,
     required this.color,
+    required this.sectionId,
     required this.goal,
     required this.step,
     required this.unit,
@@ -28,6 +29,7 @@ class HabitItem {
   final String name;
   final String icon;
   final String color;
+  final int sectionId;
   final double goal;
   final double step;
   final String unit;
@@ -49,6 +51,7 @@ class HabitItem {
     name: (json['name'] ?? '').toString(),
     icon: (json['icon'] ?? '').toString(),
     color: (json['color'] ?? '').toString(),
+    sectionId: _int(json['sectionId']),
     goal: _double(json['goal'], 1),
     step: _double(json['step'], 1),
     unit: (json['unit'] ?? 'Count').toString(),
@@ -75,6 +78,7 @@ class HabitItem {
     name: name,
     icon: icon,
     color: color,
+    sectionId: sectionId,
     goal: goal,
     step: step,
     unit: unit,
@@ -137,6 +141,7 @@ class HabitDraft {
     required this.name,
     required this.color,
     this.icon = '',
+    this.sectionId = 0,
     this.goal = 1,
     this.step = 1,
     this.unit = 'Count',
@@ -149,6 +154,7 @@ class HabitDraft {
   final String name;
   final String color;
   final String icon;
+  final int sectionId;
   final double goal;
   final double step;
   final String unit;
@@ -161,6 +167,7 @@ class HabitDraft {
     'name': name,
     'icon': icon,
     'color': color,
+    'sectionId': sectionId,
     'goal': goal,
     'step': step,
     'unit': unit,

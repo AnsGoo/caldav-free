@@ -136,6 +136,8 @@
 | 130 | Android P2 收尾：时间线自定义起始日期与更早/以后分组 | `7b4447a` |
 | 131 | Android P3 第一批：Basic Auth 日历只读接口、syncId、月/周/日/议程视图、任务同屏 | `9260df3` / `852528a` |
 | 132 | Android P3 第一批：CalDAV/iCal/节假日事件展示、来源图例与事件详情 | `852528a` |
+| 133 | Android P3 第二批：Basic Auth 日程新建/编辑/删除、事件表单与重复规则保留 | — |
+| 134 | Android P3 第二批：iCal 订阅管理、对话框控制器延迟释放修复 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -143,12 +145,12 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2 与 P3 第一批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2 与 P3 前两批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、SSE 实时提示、账号切换
-- P3 后续：事件新建/编辑/删除、iCal 订阅管理、移动端事件推送
+- P3 后续：重复事件“仅此次”编辑、事件离线同步/推送、订阅手动刷新、日历直达任务编辑
 - 同步协议扩展到习惯、专注、倒数日、评论/附件、共享清单
 
 ### AI 与自动化

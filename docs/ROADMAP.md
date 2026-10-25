@@ -134,6 +134,8 @@
 | 128 | Android P2 第三批：列表手动排序模式、拖拽手柄重排、order 字段双端同步 | `2615857` |
 | 129 | Android P2 收尾：看板列直接拖拽、列内任务排序、批量标题/备注 | `7b4447a` |
 | 130 | Android P2 收尾：时间线自定义起始日期与更早/以后分组 | `7b4447a` |
+| 131 | Android P3 第一批：Basic Auth 日历只读接口、syncId、月/周/日/议程视图、任务同屏 | — |
+| 132 | Android P3 第一批：CalDAV/iCal/节假日事件展示、来源图例与事件详情 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -141,12 +143,12 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2 已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2 与 P3 第一批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、SSE 实时提示、账号切换
-- P3：日历月/周/日/议程、任务同屏、CalDAV 日程绑定
+- P3 后续：事件新建/编辑/删除、iCal 订阅管理、移动端事件推送
 - 同步协议扩展到习惯、专注、倒数日、评论/附件、共享清单
 
 ### AI 与自动化

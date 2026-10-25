@@ -17,6 +17,8 @@ pushes it in the background.
   complete/skip the current occurrence.
 - Trash: restore a deleted task or purge it permanently.
 - Global search across all open lists; pinned tasks sort first.
+- Calendar entry in the task app bar: month/week/day/agenda views, CalDAV/iCal/
+  holiday events, task occurrences and task completion from the calendar.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.
@@ -35,8 +37,9 @@ pushes it in the background.
 
 P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.
-P2 is feature-complete: board, matrix, day/week/month timeline, column and
-task ordering, batch field edits and custom timeline ranges. P3 (calendar) is
+P2 is feature-complete. P3 first slice adds a read-only calendar page with
+month/week/day/agenda views, tasks on the same timeline, CalDAV events,
+iCal subscriptions and holidays. Event editing and subscription management are
 next.
 
 ## Run

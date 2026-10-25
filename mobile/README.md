@@ -90,6 +90,29 @@ because `sdkmanager` could not fetch Google manifests reliably in this network;
 `avdmanager create avd` also returned `null`, so `config.ini` was written by
 hand. A normal Android Studio/SDK install can replace this setup.
 
+### Huawei P20 over Wi-Fi ADB
+
+The P20 runs Android 9/10, so it has no Android 11 `adb pair` flow. Enable USB
+debugging, connect the USB cable once, accept the RSA prompt, then run:
+
+```bash
+./scripts/p20-wifi-adb.sh
+```
+
+The script switches adbd to TCP port 5555, reads `wlan0`, connects to the phone
+and prints the install/run commands. After that the USB cable can be removed;
+TCP mode resets on reboot, so rerun the script with USB after a reboot.
+
+On the phone, use the Mac's LAN address (not `10.0.2.2`):
+
+```text
+http://192.168.124.8:5296
+```
+
+Both devices must be on the same Wi-Fi; guest networks with client isolation
+will block ADB and the backend. Huawei may need "Install via USB" enabled and
+"Monitor ADB installation" disabled.
+
 Android emulator → host machine: use `http://10.0.2.2:5232`.
 Physical device: use the LAN address, e.g. `http://192.168.1.10:5232`.
 Public deployments must use HTTPS.

@@ -108,6 +108,54 @@ func (s *Server) apiSyncCalendar(w http.ResponseWriter, r *http.Request) {
 	s.apiTaskCalendarEvents(w, r, current, nil)
 }
 
+func (s *Server) apiSyncFocus(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiFocus(w, r, current, nil)
+}
+
+func (s *Server) apiSyncFocusPreferences(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiFocusPreferences(w, r, current, nil)
+}
+
+func (s *Server) apiSyncFocusStats(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiFocusStats(w, r, current, nil)
+}
+
+func (s *Server) apiSyncFocusTimer(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiFocusTimer(w, r, current, nil)
+}
+
+func (s *Server) apiSyncFocusSessions(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiFocusSessions(w, r, current, nil)
+}
+
+func (s *Server) apiSyncFocusSession(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiFocusSession(w, r, current, nil)
+}
+
 func (s *Server) apiSyncHabits(w http.ResponseWriter, r *http.Request) {
 	current, ok := s.apiSyncUser(w, r)
 	if !ok {

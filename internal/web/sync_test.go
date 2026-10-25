@@ -612,6 +612,54 @@ func TestSyncCalendarEndpoint(t *testing.T) {
 	}
 }
 
+func TestSyncFocus(t *testing.T) {
+	env := newAPIEnv(t)
+
+	status, body := env.syncRequest(t, "GET", "/api/sync/focus", nil)
+	if status != http.StatusOK {
+		t.Fatalf("focus dashboard = %d: %s", status, body)
+	}
+
+	start := time.Now().Add(-25 * time.Minute)
+	end := time.Now()
+	status, body = env.syncRequest(t, "POST", "/api/sync/focus/sessions", map[string]any{
+		"mode":            "pomodoro",
+		"title":           "移动端专注",
+		"startedAt":       start.UTC().Format(time.RFC3339),
+		"endedAt":         end.UTC().Format(time.RFC3339),
+		"durationSeconds": 1500,
+		"pomodoroCount":   1,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create focus session = %d: %s", status, body)
+	}
+	created := decode[map[string]any](t, body)
+	session, _ := created["session"].(map[string]any)
+	id, _ := session["id"].(float64)
+	if id <= 0 {
+		t.Fatalf("focus session id missing: %s", body)
+	}
+
+	status, body = env.syncRequest(t, "GET", "/api/sync/focus", nil)
+	if status != http.StatusOK {
+		t.Fatalf("focus dashboard after create = %d: %s", status, body)
+	}
+	dashboard := decode[struct {
+		Sessions []store.FocusSession `json:"sessions"`
+		Stats    store.FocusStats     `json:"stats"`
+	}](t, body)
+	if len(dashboard.Sessions) != 1 || dashboard.Sessions[0].Mode != "pomodoro" {
+		t.Fatalf("focus sessions: %s", body)
+	}
+
+	status, body = env.syncRequest(
+		t, "DELETE", "/api/sync/focus/sessions/"+strconv.FormatInt(int64(id), 10), nil,
+	)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete focus session = %d: %s", status, body)
+	}
+}
+
 func TestSyncHabits(t *testing.T) {
 	env := newAPIEnv(t)
 

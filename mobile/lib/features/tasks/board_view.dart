@@ -13,12 +13,14 @@ class BoardView extends StatelessWidget {
     required this.tasks,
     required this.onOpenTask,
     required this.onToggleTask,
+    required this.manualSort,
   });
 
   final TaskListItem list;
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
+  final bool manualSort;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,15 @@ class BoardView extends StatelessWidget {
           final id = known.contains(task.sectionId) ? task.sectionId : null;
           (bySection[id] ??= <TaskItem>[]).add(task);
         }
+        if (manualSort) {
+          for (final column in bySection.values) {
+            column.sort((a, b) {
+              final order = a.sortOrder.compareTo(b.sortOrder);
+              if (order != 0) return order;
+              return a.id.compareTo(b.id);
+            });
+          }
+        }
         return ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -46,8 +57,23 @@ class BoardView extends StatelessWidget {
                 list: list,
                 section: sections[index],
                 tasks: bySection[sections[index].id] ?? const [],
+                manualSort: manualSort,
                 onOpenTask: onOpenTask,
                 onToggleTask: onToggleTask,
+                onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
+                  context,
+                  tasks,
+                  bySection[sections[index].id] ?? const [],
+                  oldIndex,
+                  newIndex,
+                ),
+                onReorderSection: (draggedId, targetId) => _reorderSectionByIds(
+                  context,
+                  list.id,
+                  sections,
+                  draggedId,
+                  targetId,
+                ),
                 onMoveLeft: index > 0
                     ? () => _reorderSections(
                         context,
@@ -72,8 +98,16 @@ class BoardView extends StatelessWidget {
               list: list,
               section: null,
               tasks: bySection[null] ?? const [],
+              manualSort: manualSort,
               onOpenTask: onOpenTask,
               onToggleTask: onToggleTask,
+              onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
+                context,
+                tasks,
+                bySection[null] ?? const [],
+                oldIndex,
+                newIndex,
+              ),
             ),
             _AddColumnButton(listId: list.id),
           ],
@@ -89,19 +123,53 @@ class _BoardColumn extends StatelessWidget {
     required this.list,
     required this.section,
     required this.tasks,
+    required this.manualSort,
     required this.onOpenTask,
     required this.onToggleTask,
+    this.onReorderTask,
     this.onMoveLeft,
     this.onMoveRight,
+    this.onReorderSection,
   });
 
   final TaskListItem list;
   final TaskSection? section;
   final List<TaskItem> tasks;
+  final bool manualSort;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
+  final void Function(int oldIndex, int newIndex)? onReorderTask;
   final VoidCallback? onMoveLeft;
   final VoidCallback? onMoveRight;
+  final void Function(String draggedId, String targetId)? onReorderSection;
+
+  Widget _taskCard(BuildContext context, TaskItem task, int index) {
+    return LongPressDraggable<String>(
+      data: task.id,
+      feedback: Material(
+        color: Colors.transparent,
+        child: SizedBox(
+          width: 240,
+          child: _BoardCard(task: task, onTap: null, onToggle: null),
+        ),
+      ),
+      childWhenDragging: Opacity(
+        opacity: 0.35,
+        child: _BoardCard(task: task, onTap: null, onToggle: null),
+      ),
+      child: _BoardCard(
+        task: task,
+        onTap: () => onOpenTask(task),
+        onToggle: () => onToggleTask(task),
+        dragHandle: manualSort
+            ? ReorderableDragStartListener(
+                index: index,
+                child: const Icon(Icons.drag_handle_rounded, size: 18),
+              )
+            : null,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -120,52 +188,118 @@ class _BoardColumn extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 6, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
+          DragTarget<String>(
+            onWillAcceptWithDetails: (details) =>
+                section != null &&
+                details.data.startsWith('section:') &&
+                details.data != 'section:${section!.id}',
+            onAcceptWithDetails: (details) {
+              if (section == null) return;
+              onReorderSection?.call(
+                details.data.substring('section:'.length),
+                section!.id,
+              );
+            },
+            builder: (context, candidates, rejected) => Container(
+              color: candidates.isEmpty
+                  ? null
+                  : scheme.primary.withValues(alpha: 0.08),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 12, 6, 8),
+                child: Row(
+                  children: [
+                    if (section != null)
+                      LongPressDraggable<String>(
+                        data: 'section:${section!.id}',
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              title,
+                              style: theme.textTheme.labelLarge?.copyWith(
+                                color: scheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                        childWhenDragging: Opacity(
+                          opacity: 0.35,
+                          child: const Icon(Icons.drag_indicator_rounded),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Icon(
+                            Icons.drag_indicator_rounded,
+                            size: 18,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    Expanded(
+                      child: Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      '${tasks.length}',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (section != null)
+                      PopupMenuButton<String>(
+                        tooltip: '列操作',
+                        padding: EdgeInsets.zero,
+                        iconSize: 18,
+                        onSelected: (value) {
+                          if (value == 'rename') {
+                            _renameSection(context, section!);
+                          } else if (value == 'delete') {
+                            _deleteSection(context, section!);
+                          } else if (value == 'left') {
+                            onMoveLeft?.call();
+                          } else if (value == 'right') {
+                            onMoveRight?.call();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'rename',
+                            child: Text('重命名'),
+                          ),
+                          if (onMoveLeft != null)
+                            const PopupMenuItem(
+                              value: 'left',
+                              child: Text('左移'),
+                            ),
+                          if (onMoveRight != null)
+                            const PopupMenuItem(
+                              value: 'right',
+                              child: Text('右移'),
+                            ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('删除列'),
+                          ),
+                        ],
+                      ),
+                  ],
                 ),
-                Text(
-                  '${tasks.length}',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
-                if (section != null)
-                  PopupMenuButton<String>(
-                    tooltip: '列操作',
-                    padding: EdgeInsets.zero,
-                    iconSize: 18,
-                    onSelected: (value) {
-                      if (value == 'rename') {
-                        _renameSection(context, section!);
-                      } else if (value == 'delete') {
-                        _deleteSection(context, section!);
-                      } else if (value == 'left') {
-                        onMoveLeft?.call();
-                      } else if (value == 'right') {
-                        onMoveRight?.call();
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(value: 'rename', child: Text('重命名')),
-                      if (onMoveLeft != null)
-                        const PopupMenuItem(value: 'left', child: Text('左移')),
-                      if (onMoveRight != null)
-                        const PopupMenuItem(value: 'right', child: Text('右移')),
-                      const PopupMenuItem(value: 'delete', child: Text('删除列')),
-                    ],
-                  ),
-              ],
+              ),
             ),
           ),
           Expanded(
@@ -193,47 +327,42 @@ class _BoardColumn extends StatelessWidget {
                             ),
                           ),
                         )
+                      : manualSort
+                      ? ReorderableListView.builder(
+                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                          itemCount: tasks.length,
+                          buildDefaultDragHandles: false,
+                          onReorderItem: onReorderTask ?? (_, _) {},
+                          itemBuilder: (context, index) {
+                            final task = tasks[index];
+                            return Padding(
+                              key: ValueKey('board-${task.id}'),
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: _taskCard(context, task, index),
+                            );
+                          },
+                        )
                       : ListView.separated(
                           padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
                           itemCount: tasks.length,
                           separatorBuilder: (_, _) => const SizedBox(height: 8),
-                          itemBuilder: (context, index) {
-                            final task = tasks[index];
-                            return LongPressDraggable<String>(
-                              data: task.id,
-                              feedback: Material(
-                                color: Colors.transparent,
-                                child: SizedBox(
-                                  width: 240,
-                                  child: _BoardCard(
-                                    task: task,
-                                    onTap: null,
-                                    onToggle: null,
-                                  ),
-                                ),
-                              ),
-                              childWhenDragging: Opacity(
-                                opacity: 0.35,
-                                child: _BoardCard(
-                                  task: task,
-                                  onTap: null,
-                                  onToggle: null,
-                                ),
-                              ),
-                              child: _BoardCard(
-                                task: task,
-                                onTap: () => onOpenTask(task),
-                                onToggle: () => onToggleTask(task),
-                              ),
-                            );
-                          },
+                          itemBuilder: (context, index) =>
+                              _taskCard(context, tasks[index], index),
                         ),
                 );
               },
             ),
           ),
           TextButton.icon(
-            onPressed: () => _addTask(context, list, section),
+            onPressed: () {
+              var order = 0;
+              if (manualSort) {
+                for (final task in tasks) {
+                  if (task.sortOrder >= order) order = task.sortOrder + 1;
+                }
+              }
+              _addTask(context, list, section, order);
+            },
             icon: const Icon(Icons.add_rounded, size: 18),
             label: const Text('添加任务'),
             style: TextButton.styleFrom(
@@ -252,11 +381,13 @@ class _BoardCard extends StatelessWidget {
     required this.task,
     required this.onTap,
     required this.onToggle,
+    this.dragHandle,
   });
 
   final TaskItem task;
   final VoidCallback? onTap;
   final VoidCallback? onToggle;
+  final Widget? dragHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -354,6 +485,10 @@ class _BoardCard extends StatelessWidget {
                   ),
                 ),
               ],
+              if (dragHandle != null) ...[
+                const SizedBox(width: 4),
+                dragHandle!,
+              ],
             ],
           ),
         ),
@@ -412,6 +547,73 @@ class _AddColumnButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _reorderColumnTasks(
+  BuildContext context,
+  List<TaskItem> allTasks,
+  List<TaskItem> columnTasks,
+  int oldIndex,
+  int newIndex,
+) async {
+  if (oldIndex < 0 || oldIndex >= columnTasks.length) return;
+  if (newIndex < 0 || newIndex >= columnTasks.length) return;
+  if (columnTasks.length <= 1) return;
+  final columnIds = columnTasks.map((task) => task.id).toList();
+  final moved = columnIds.removeAt(oldIndex);
+  columnIds.insert(newIndex, moved);
+
+  String? anchorId;
+  var insertAfter = false;
+  if (newIndex == 0) {
+    if (columnIds.length > 1) anchorId = columnIds[1];
+  } else {
+    anchorId = columnIds[newIndex - 1];
+    insertAfter = true;
+  }
+
+  final globalIds = allTasks.map((task) => task.id).toList();
+  globalIds.remove(moved);
+  if (anchorId != null) {
+    final anchorIndex = globalIds.indexOf(anchorId);
+    if (anchorIndex >= 0) {
+      globalIds.insert(insertAfter ? anchorIndex + 1 : anchorIndex, moved);
+    } else {
+      globalIds.add(moved);
+    }
+  } else {
+    globalIds.add(moved);
+  }
+  try {
+    await context.read<AppState>().repository.reorderTasks(globalIds);
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('排序失败：$error')));
+  }
+}
+
+Future<void> _reorderSectionByIds(
+  BuildContext context,
+  String listId,
+  List<TaskSection> sections,
+  String draggedId,
+  String targetId,
+) async {
+  if (draggedId == targetId) return;
+  final ids = sections.map((section) => section.id).toList();
+  final from = ids.indexOf(draggedId);
+  final to = ids.indexOf(targetId);
+  if (from < 0 || to < 0) return;
+  final moved = ids.removeAt(from);
+  ids.insert(to, moved);
+  try {
+    await context.read<AppState>().repository.reorderSections(listId, ids);
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('排序失败：$error')));
   }
 }
 
@@ -556,6 +758,7 @@ Future<void> _addTask(
   BuildContext context,
   TaskListItem list,
   TaskSection? section,
+  int sortOrder,
 ) async {
   final controller = TextEditingController();
   final title = await showDialog<String>(
@@ -584,7 +787,11 @@ Future<void> _addTask(
   if (title == null || title.isEmpty || !context.mounted) return;
   final repository = context.read<AppState>().repository;
   try {
-    final task = await repository.createTask(title: title, listId: list.id);
+    final task = await repository.createTask(
+      title: title,
+      listId: list.id,
+      sortOrder: sortOrder,
+    );
     if (section != null) {
       await repository.moveTaskToSection(task.id, section.id);
     }

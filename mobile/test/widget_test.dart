@@ -199,7 +199,7 @@ void main() {
     await tester.tap(find.text('时间线'));
     await tester.pumpAndSettle();
     expect(find.text('无日期'), findsOneWidget);
-    expect(find.text('今天'), findsOneWidget);
+    expect(find.text('今天'), findsWidgets);
     expect(find.text('看板里的任务'), findsOneWidget);
 
     final timelineDrag = await tester.startGesture(
@@ -207,7 +207,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 700));
     await timelineDrag.moveTo(
-      tester.getCenter(find.text('今天')) + const Offset(0, 120),
+      tester.getCenter(find.text('今天').last) + const Offset(0, 120),
     );
     await tester.pump(const Duration(milliseconds: 150));
     await timelineDrag.up();

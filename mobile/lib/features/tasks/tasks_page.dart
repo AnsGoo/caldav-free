@@ -42,6 +42,7 @@ class _TasksPageState extends State<TasksPage> {
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
   TimelineScale _timelineScale = TimelineScale.day;
+  DateTime? _timelineAnchor;
   bool _manualSort = false;
   bool _selecting = false;
   final Set<String> _selectedIds = {};
@@ -458,6 +459,83 @@ class _TasksPageState extends State<TasksPage> {
     await _runBatch('批量添加标签', (id) => repository.addTags(id, tags));
   }
 
+  Future<void> _batchTitle({required bool prefix}) async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(prefix ? '标题加前缀' : '标题加后缀'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            labelText: prefix ? '前缀' : '后缀',
+            hintText: prefix ? '例如：[工作] ' : '例如： - 本周',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('应用'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || value.isEmpty || !mounted) return;
+    final app = context.read<AppState>();
+    await _runBatch(prefix ? '批量加前缀' : '批量加后缀', (id) async {
+      final task = app.store.task(id);
+      if (task == null) return;
+      final title = prefix ? '$value${task.title}' : '${task.title}$value';
+      await app.repository.updateTitle(id, title);
+    });
+  }
+
+  Future<void> _batchNotes() async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('追加备注'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            labelText: '备注内容',
+            hintText: '会追加到现有备注末尾',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('追加'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || value.trim().isEmpty || !mounted) return;
+    final app = context.read<AppState>();
+    await _runBatch('批量追加备注', (id) async {
+      final task = app.store.task(id);
+      if (task == null) return;
+      final notes = task.notes.isEmpty
+          ? value.trim()
+          : '${task.notes}\n${value.trim()}';
+      await app.repository.updateNotes(id, notes);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -592,18 +670,20 @@ class _TasksPageState extends State<TasksPage> {
                       color: _completed ? scheme.primary : null,
                     ),
                   ),
-                  if (!_completed)
-                    IconButton(
-                      tooltip: _manualSort ? '按截止时间排序' : '手动排序',
-                      onPressed: _toggleManualSort,
-                      icon: Icon(
-                        _manualSort
-                            ? Icons.swap_vert_circle_rounded
-                            : Icons.swap_vert_rounded,
-                        color: _manualSort ? scheme.primary : null,
-                      ),
-                    ),
                 ],
+                if ((_layout == _TaskLayout.list ||
+                        _layout == _TaskLayout.board) &&
+                    !_completed)
+                  IconButton(
+                    tooltip: _manualSort ? '按截止时间排序' : '手动排序',
+                    onPressed: _toggleManualSort,
+                    icon: Icon(
+                      _manualSort
+                          ? Icons.swap_vert_circle_rounded
+                          : Icons.swap_vert_rounded,
+                      color: _manualSort ? scheme.primary : null,
+                    ),
+                  ),
                 IconButton(
                   tooltip: '搜索',
                   onPressed: () {
@@ -677,6 +757,9 @@ class _TasksPageState extends State<TasksPage> {
               onPriority: _batchPriority,
               onDue: _batchDue,
               onTags: _batchTags,
+              onTitlePrefix: () => _batchTitle(prefix: true),
+              onTitleSuffix: () => _batchTitle(prefix: false),
+              onNotes: _batchNotes,
             ),
           if (_layout == _TaskLayout.list) ...[
             _ListSelector(
@@ -810,6 +893,7 @@ class _TasksPageState extends State<TasksPage> {
                     : BoardView(
                         list: _boardList!,
                         tasks: _tasks,
+                        manualSort: _manualSort,
                         onOpenTask: (task) =>
                             _openEditor(task, listsById[task.listId]),
                         onToggleTask: _toggle,
@@ -843,7 +927,10 @@ class _TasksPageState extends State<TasksPage> {
             ),
             _TimelineScaleBar(
               scale: _timelineScale,
+              anchor: _timelineAnchor,
               onChanged: (value) => setState(() => _timelineScale = value),
+              onAnchorChanged: (value) =>
+                  setState(() => _timelineAnchor = value),
             ),
             Expanded(
               child: SafeArea(
@@ -851,6 +938,7 @@ class _TasksPageState extends State<TasksPage> {
                 child: TimelineView(
                   tasks: _tasks,
                   scale: _timelineScale,
+                  anchor: _timelineAnchor,
                   onOpenTask: (task) =>
                       _openEditor(task, listsById[task.listId]),
                   onToggleTask: _toggle,
@@ -1107,6 +1195,9 @@ class _BatchBar extends StatelessWidget {
     required this.onPriority,
     required this.onDue,
     required this.onTags,
+    required this.onTitlePrefix,
+    required this.onTitleSuffix,
+    required this.onNotes,
   });
 
   final int count;
@@ -1116,6 +1207,9 @@ class _BatchBar extends StatelessWidget {
   final VoidCallback onPriority;
   final VoidCallback onDue;
   final VoidCallback onTags;
+  final VoidCallback onTitlePrefix;
+  final VoidCallback onTitleSuffix;
+  final VoidCallback onNotes;
 
   @override
   Widget build(BuildContext context) {
@@ -1167,12 +1261,25 @@ class _BatchBar extends StatelessWidget {
                 case 'tags':
                   onTags();
                   break;
+                case 'title_prefix':
+                  onTitlePrefix();
+                  break;
+                case 'title_suffix':
+                  onTitleSuffix();
+                  break;
+                case 'notes':
+                  onNotes();
+                  break;
               }
             },
             itemBuilder: (context) => const [
               PopupMenuItem(value: 'priority', child: Text('设置优先级')),
               PopupMenuItem(value: 'due', child: Text('设置截止日期')),
               PopupMenuItem(value: 'tags', child: Text('添加标签')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'title_prefix', child: Text('标题加前缀')),
+              PopupMenuItem(value: 'title_suffix', child: Text('标题加后缀')),
+              PopupMenuItem(value: 'notes', child: Text('追加备注')),
             ],
           ),
         ],
@@ -1182,15 +1289,35 @@ class _BatchBar extends StatelessWidget {
 }
 
 class _TimelineScaleBar extends StatelessWidget {
-  const _TimelineScaleBar({required this.scale, required this.onChanged});
+  const _TimelineScaleBar({
+    required this.scale,
+    required this.anchor,
+    required this.onChanged,
+    required this.onAnchorChanged,
+  });
 
   final TimelineScale scale;
+  final DateTime? anchor;
   final ValueChanged<TimelineScale> onChanged;
+  final ValueChanged<DateTime?> onAnchorChanged;
+
+  Future<void> _pickAnchor(BuildContext context) async {
+    final now = DateTime.now();
+    final initial = anchor ?? now;
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(initial.year, initial.month, initial.day),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) onAnchorChanged(picked);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final label = anchor == null ? '今天' : '${anchor!.month}/${anchor!.day}';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
       child: Row(
         children: [
           Text(
@@ -1220,6 +1347,23 @@ class _TimelineScaleBar extends StatelessWidget {
             onSelected: (_) => onChanged(TimelineScale.month),
             visualDensity: VisualDensity.compact,
           ),
+          const Spacer(),
+          TextButton.icon(
+            onPressed: () => _pickAnchor(context),
+            icon: const Icon(Icons.calendar_month_rounded, size: 16),
+            label: Text(label),
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+          ),
+          if (anchor != null)
+            IconButton(
+              tooltip: '回到今天',
+              onPressed: () => onAnchorChanged(null),
+              icon: const Icon(Icons.restart_alt_rounded, size: 18),
+              visualDensity: VisualDensity.compact,
+            ),
         ],
       ),
     );

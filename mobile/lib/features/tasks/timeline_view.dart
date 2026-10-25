@@ -14,6 +14,7 @@ class TimelineView extends StatelessWidget {
     required this.onToggleTask,
     required this.onReschedule,
     required this.scale,
+    this.anchor,
   });
 
   final List<TaskItem> tasks;
@@ -21,15 +22,21 @@ class TimelineView extends StatelessWidget {
   final void Function(TaskItem task) onToggleTask;
   final void Function(TaskItem task, DateTime? due) onReschedule;
   final TimelineScale scale;
+  final DateTime? anchor;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
+    final anchorDay = anchor == null
+        ? today
+        : DateTime(anchor!.year, anchor!.month, anchor!.day);
     final start = switch (scale) {
-      TimelineScale.day => today,
-      TimelineScale.week => today.subtract(Duration(days: today.weekday - 1)),
-      TimelineScale.month => DateTime(today.year, today.month),
+      TimelineScale.day => anchorDay,
+      TimelineScale.week => anchorDay.subtract(
+        Duration(days: anchorDay.weekday - 1),
+      ),
+      TimelineScale.month => DateTime(anchorDay.year, anchorDay.month),
     };
     final count = switch (scale) {
       TimelineScale.day => 14,
@@ -51,8 +58,8 @@ class TimelineView extends StatelessWidget {
         continue;
       }
       final day = DateTime(due.year, due.month, due.day);
-      if (day.isBefore(today)) {
-        buckets.putIfAbsent('overdue', () => <TaskItem>[]).add(task);
+      if (day.isBefore(start)) {
+        buckets.putIfAbsent('earlier', () => <TaskItem>[]).add(task);
       } else if (day.isBefore(end)) {
         buckets.putIfAbsent(_bucketKey(day), () => <TaskItem>[]).add(task);
       } else {
@@ -72,11 +79,11 @@ class TimelineView extends StatelessWidget {
           onOpenTask: onOpenTask,
           onToggleTask: onToggleTask,
         ),
-        if (buckets['overdue']?.isNotEmpty == true)
+        if (buckets['earlier']?.isNotEmpty == true)
           _TimelineColumn(
-            title: '已逾期',
-            subtitle: '${buckets['overdue']!.length} 项',
-            tasks: buckets['overdue']!,
+            title: anchorDay == today ? '已逾期' : '更早',
+            subtitle: '${buckets['earlier']!.length} 项',
+            tasks: buckets['earlier']!,
             acceptsDrop: false,
             onDrop: null,
             onOpenTask: onOpenTask,
@@ -94,7 +101,7 @@ class TimelineView extends StatelessWidget {
                 onReschedule(task, _dropDate(task, _bucketStart(start, i))),
             onOpenTask: onOpenTask,
             onToggleTask: onToggleTask,
-            today: i == 0 && scale == TimelineScale.day,
+            today: _isToday(_bucketStart(start, i)),
           ),
         _TimelineColumn(
           title: '以后',
@@ -197,6 +204,11 @@ class TimelineView extends StatelessWidget {
           existing.minute,
         );
     }
+  }
+
+  static bool _isToday(DateTime day) {
+    final now = DateTime.now();
+    return day.year == now.year && day.month == now.month && day.day == now.day;
   }
 
   static String _dayKey(DateTime day) =>

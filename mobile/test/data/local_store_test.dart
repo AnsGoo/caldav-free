@@ -142,6 +142,45 @@ void main() {
     await store.dispose();
   });
 
+  test('smart views filter by due date', () async {
+    final store = LocalStore.memory();
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    Future<void> save(String id, String title, DateTime? due) {
+      return store.saveTask(
+        TaskItem(
+          id: id,
+          listId: 'list-1',
+          title: title,
+          dueAt: due,
+          updatedAt: DateTime.now().toUtc(),
+        ),
+        dirty: false,
+      );
+    }
+
+    await save('overdue', '逾期', start.subtract(const Duration(days: 1)).toUtc());
+    await save('today', '今天', start.add(const Duration(hours: 10)).toUtc());
+    await save('tomorrow', '明天',
+        start.add(const Duration(days: 1, hours: 10)).toUtc());
+    await save('week', '本周', start.add(const Duration(days: 5)).toUtc());
+    await save('later', '以后', start.add(const Duration(days: 10)).toUtc());
+    await save('none', '无日期', null);
+
+    List<String> titles(String view) => store
+        .tasksSnapshot(completed: false, view: view)
+        .map((task) => task.title)
+        .toList();
+
+    expect(titles('today'), containsAll(['逾期', '今天']));
+    expect(titles('today'), isNot(contains('明天')));
+    expect(titles('next7'), containsAll(['今天', '明天', '本周']));
+    expect(titles('next7'), isNot(contains('逾期')));
+    expect(titles('next7'), isNot(contains('以后')));
+    expect(titles('all').length, 6);
+    await store.dispose();
+  });
+
   test('data survives reopening the JSON file', () async {
     final directory = await Directory.systemTemp.createTemp('caldav-store');
     final path = '${directory.path}/store.json';

@@ -9,6 +9,7 @@ pushes it in the background.
 - Login with the CalDAV username/password against `/api/sync/pull`.
 - Offline task create, rename, complete/uncomplete, edit notes, delete.
 - Due date/time + all-day, priority, tags, subtasks, local search.
+- Smart views: all, today (including overdue), next 7 days.
 - List create/rename/delete, folders, moving lists into folders, and moving a task between lists.
 - Incremental pull by cursor, batched push, ETag conflicts, `opId` idempotency.
 - Local write debounce, 15 s foreground polling, pull-to-refresh, manual and
@@ -39,7 +40,7 @@ Android toolchain used locally: JDK 17 at `~/development/jdk17`, SDK 36 at
 export JAVA_HOME="$HOME/development/jdk17/Contents/Home"
 export ANDROID_HOME="$HOME/development/android-sdk"
 flutter build apk --debug
-# -> build/app/outputs/flutter-apk/app-debug.apk (144 MB)
+# -> build/app/outputs/flutter-apk/app-debug.apk (~159 MB)
 ```
 
 Use the **arm64** Flutter SDK on Apple Silicon (the x64 zip runs under Rosetta

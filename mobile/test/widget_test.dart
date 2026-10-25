@@ -105,6 +105,73 @@ void main() {
     expect(find.text('写周报'), findsOneWidget);
   });
 
+  testWidgets('smart views filter by due date', (tester) async {
+    final store = LocalStore.memory();
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    await store.saveList(TaskListItem(
+      id: 'inbox-1',
+      name: '收集箱',
+      isInbox: true,
+      updatedAt: now.toUtc(),
+    ));
+    for (final item in [
+      ('today-task', '今天任务', start.add(const Duration(hours: 10))),
+      ('tomorrow-task', '明天任务',
+          start.add(const Duration(days: 1, hours: 10))),
+      ('later-task', '以后任务', start.add(const Duration(days: 10))),
+    ]) {
+      await store.saveTask(
+        TaskItem(
+          id: item.$1,
+          listId: 'inbox-1',
+          title: item.$2,
+          dueAt: item.$3.toUtc(),
+          updatedAt: now.toUtc(),
+        ),
+        dirty: false,
+      );
+    }
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    )..session = Session(
+        baseUrl: 'http://example.test',
+        username: 'demo',
+        password: 'secret',
+        deviceId: 'device-test',
+      );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('今天任务'), findsOneWidget);
+    expect(find.text('明天任务'), findsOneWidget);
+    expect(find.text('以后任务'), findsOneWidget);
+
+    await tester.tap(find.text('今天'));
+    await tester.pumpAndSettle();
+    expect(find.text('今天任务'), findsOneWidget);
+    expect(find.text('明天任务'), findsNothing);
+    expect(find.text('以后任务'), findsNothing);
+
+    await tester.ensureVisible(find.text('最近 7 天'));
+    await tester.tap(find.text('最近 7 天'));
+    await tester.pumpAndSettle();
+    expect(find.text('今天任务'), findsOneWidget);
+    expect(find.text('明天任务'), findsOneWidget);
+    expect(find.text('以后任务'), findsNothing);
+  });
+
   testWidgets('create a list from the management page', (tester) async {
     final store = LocalStore.memory();
     final app = AppState(

@@ -174,13 +174,35 @@ class LocalStore {
 
   TaskItem? task(String id) => _tasks[id];
 
-  List<TaskItem> tasksSnapshot({String? listId, required bool completed}) {
+  List<TaskItem> tasksSnapshot({
+    String? listId,
+    required bool completed,
+    String view = 'all',
+  }) {
+    final start = _todayStartUtc();
+    final dayEnd = start.add(const Duration(days: 1));
+    final weekEnd = start.add(const Duration(days: 7));
     final items = _tasks.values
-        .where((task) =>
-            task.kind == TaskKind.task &&
-            !task.deleted &&
-            task.completed == completed &&
-            (listId == null || task.listId == listId))
+        .where((task) {
+          if (task.kind != TaskKind.task ||
+              task.deleted ||
+              task.completed != completed) {
+            return false;
+          }
+          if (listId != null && task.listId != listId) return false;
+          if (completed) return true;
+          final due = task.dueAt?.toUtc();
+          switch (view) {
+            case 'today':
+              return due != null && due.isBefore(dayEnd);
+            case 'next7':
+              return due != null &&
+                  !due.isBefore(start) &&
+                  due.isBefore(weekEnd);
+            default:
+              return true;
+          }
+        })
         .toList();
     items.sort(completed ? _compareCompleted : _compareOpen);
     return items;
@@ -189,11 +211,17 @@ class LocalStore {
   Stream<List<TaskItem>> watchTasks({
     String? listId,
     required bool completed,
+    String view = 'all',
   }) async* {
-    yield tasksSnapshot(listId: listId, completed: completed);
+    yield tasksSnapshot(listId: listId, completed: completed, view: view);
     await for (final _ in _changes.stream) {
-      yield tasksSnapshot(listId: listId, completed: completed);
+      yield tasksSnapshot(listId: listId, completed: completed, view: view);
     }
+  }
+
+  DateTime _todayStartUtc() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day).toUtc();
   }
 
   TaskListItem? list(String id) => _lists[id];

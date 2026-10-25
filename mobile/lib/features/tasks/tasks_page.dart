@@ -32,6 +32,7 @@ class _TasksPageState extends State<TasksPage> {
   bool _adding = false;
   bool _searching = false;
   String _query = '';
+  String _view = 'all';
 
   @override
   void initState() {
@@ -74,7 +75,11 @@ class _TasksPageState extends State<TasksPage> {
     _tasksSub?.cancel();
     final store = context.read<AppState>().store;
     _tasksSub = store
-        .watchTasks(listId: _selectedListId, completed: _completed)
+        .watchTasks(
+          listId: _selectedListId,
+          completed: _completed,
+          view: _view,
+        )
         .listen((tasks) {
       if (mounted) setState(() => _tasks = tasks);
     });
@@ -105,7 +110,14 @@ class _TasksPageState extends State<TasksPage> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final selected = _selectedList;
-    final title = _completed ? '已完成' : (selected?.name ?? '任务');
+    final title = _completed
+        ? '已完成'
+        : (selected?.name ??
+            (_view == 'today'
+                ? '今天'
+                : _view == 'next7'
+                    ? '最近 7 天'
+                    : '任务'));
     final listsById = {for (final list in _lists) list.id: list};
     final visible = _filteredTasks;
 
@@ -268,8 +280,19 @@ class _TasksPageState extends State<TasksPage> {
           _ListSelector(
             lists: _lists,
             selectedId: _selectedListId,
+            selectedView: _view,
             onSelected: (id) {
-              setState(() => _selectedListId = id);
+              setState(() {
+                _view = 'all';
+                _selectedListId = id;
+              });
+              _subscribeTasks();
+            },
+            onViewSelected: (view) {
+              setState(() {
+                _selectedListId = null;
+                _view = view;
+              });
               _subscribeTasks();
             },
             onManage: _openLists,
@@ -496,13 +519,17 @@ class _ListSelector extends StatelessWidget {
   const _ListSelector({
     required this.lists,
     required this.selectedId,
+    required this.selectedView,
     required this.onSelected,
+    required this.onViewSelected,
     required this.onManage,
   });
 
   final List<TaskListItem> lists;
   final String? selectedId;
+  final String selectedView;
   final ValueChanged<String?> onSelected;
+  final ValueChanged<String> onViewSelected;
   final VoidCallback onManage;
 
   @override
@@ -513,18 +540,34 @@ class _ListSelector extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: lists.length + 2,
+        itemCount: lists.length + 4,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _SelectorChip(
               label: '全部',
-              selected: selectedId == null,
+              selected: selectedId == null && selectedView == 'all',
               color: scheme.primary,
-              onTap: () => onSelected(null),
+              onTap: () => onViewSelected('all'),
             );
           }
-          if (index == lists.length + 1) {
+          if (index == 1) {
+            return _SelectorChip(
+              label: '今天',
+              selected: selectedId == null && selectedView == 'today',
+              color: const Color(0xFFF59E0B),
+              onTap: () => onViewSelected('today'),
+            );
+          }
+          if (index == 2) {
+            return _SelectorChip(
+              label: '最近 7 天',
+              selected: selectedId == null && selectedView == 'next7',
+              color: const Color(0xFF3B82F6),
+              onTap: () => onViewSelected('next7'),
+            );
+          }
+          if (index == lists.length + 3) {
             return _SelectorChip(
               label: '管理',
               selected: false,
@@ -533,7 +576,7 @@ class _ListSelector extends StatelessWidget {
               onTap: onManage,
             );
           }
-          final list = lists[index - 1];
+          final list = lists[index - 3];
           final color = colorFromHex(list.color);
           return _SelectorChip(
             label: list.name,

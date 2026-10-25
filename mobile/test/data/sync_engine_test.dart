@@ -177,6 +177,42 @@ void main() {
     expect(deviceB.store.task(task.id)?.deleted, false);
   });
 
+  test('folders group lists and deleting a folder ungroups them', () async {
+    await deviceA.engine.sync(full: true);
+    final folder = await deviceA.repo.createFolder('工作');
+    final list = await deviceA.repo.createList(
+      name: '项目',
+      folderId: folder.id,
+    );
+    await deviceA.engine.sync();
+    expect(server.folders[folder.id]?['name'], '工作');
+    expect(server.lists[list.id]?['folderId'], folder.id);
+
+    await deviceB.engine.sync(full: true);
+    expect(deviceB.store.folder(folder.id)?.name, '工作');
+    expect(deviceB.store.list(list.id)?.folderId, folder.id);
+
+    await deviceA.repo.moveListToFolder(list.id, null);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(server.lists[list.id]?['folderId'], isNull);
+    expect(deviceB.store.list(list.id)?.folderId, isNull);
+
+    await deviceA.repo.moveListToFolder(list.id, folder.id);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(deviceB.store.list(list.id)?.folderId, folder.id);
+
+    await deviceA.repo.deleteFolder(folder.id);
+    await deviceA.engine.sync();
+    expect(server.folders.containsKey(folder.id), false);
+    expect(server.lists[list.id]?['folderId'], isNull);
+
+    await deviceB.engine.sync();
+    expect(deviceB.store.folder(folder.id), isNull);
+    expect(deviceB.store.list(list.id)?.folderId, isNull);
+  });
+
   test('network failure keeps the same opId and retries idempotently', () async {
     await deviceA.engine.sync(full: true);
     final task = await deviceA.repo.createTask(

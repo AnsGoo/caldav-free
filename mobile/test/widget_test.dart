@@ -126,6 +126,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('还没有清单'), findsOneWidget);
 
+    await tester.tap(find.byTooltip('新建文件夹'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '工作');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(store.foldersSnapshot().single.name, '工作');
+
     await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField).first, '项目');
@@ -134,7 +141,19 @@ void main() {
 
     expect(find.text('项目'), findsOneWidget);
     expect(store.listsSnapshot().any((list) => list.name == '项目'), true);
-    expect(store.pendingCount, 1);
+    expect(store.pendingCount, 2);
+
+    await tester.tap(find.byTooltip('清单操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('移动到文件夹'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, '工作'));
+    await tester.pumpAndSettle();
+
+    expect(
+      store.listsSnapshot().single.folderId,
+      store.foldersSnapshot().single.id,
+    );
   });
 
   testWidgets('quick add writes through the repository', (tester) async {

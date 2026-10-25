@@ -152,6 +152,7 @@ class LocalStore {
   final Map<String, TaskItem> _tasks = {};
   final Set<String> _dirtyTasks = {};
   final Map<String, TaskListItem> _lists = {};
+  final Map<String, FolderItem> _folders = {};
   final Map<String, OutboxRecord> _outbox = {};
   final Map<String, ConflictRecord> _conflicts = {};
 
@@ -223,6 +224,25 @@ class LocalStore {
     }
   }
 
+  FolderItem? folder(String id) => _folders[id];
+
+  List<FolderItem> foldersSnapshot() {
+    final items = _folders.values.toList();
+    items.sort((a, b) {
+      final order = a.sortOrder.compareTo(b.sortOrder);
+      if (order != 0) return order;
+      return a.name.compareTo(b.name);
+    });
+    return items;
+  }
+
+  Stream<List<FolderItem>> watchFolders() async* {
+    yield foldersSnapshot();
+    await for (final _ in _changes.stream) {
+      yield foldersSnapshot();
+    }
+  }
+
   OutboxRecord? pendingOp(String entity, String entityId) {
     for (final op in _outbox.values) {
       if (op.entity == entity && op.entityId == entityId) return op;
@@ -271,6 +291,18 @@ class LocalStore {
   Future<void> hardDeleteList(String id) {
     return _mutate(() {
       _lists.remove(id);
+    });
+  }
+
+  Future<void> saveFolder(FolderItem folder) {
+    return _mutate(() {
+      _folders[folder.id] = folder;
+    });
+  }
+
+  Future<void> hardDeleteFolder(String id) {
+    return _mutate(() {
+      _folders.remove(id);
     });
   }
 
@@ -373,6 +405,7 @@ class LocalStore {
       _tasks.clear();
       _dirtyTasks.clear();
       _lists.clear();
+      _folders.clear();
       _outbox.clear();
       _conflicts.clear();
       _cursor = '0';
@@ -411,6 +444,15 @@ class LocalStore {
           final value = entry.value;
           if (value is Map<String, dynamic>) {
             _lists[entry.key] = TaskListItem.fromWireJson(value);
+          }
+        }
+      }
+      final folders = decoded['folders'];
+      if (folders is Map<String, dynamic>) {
+        for (final entry in folders.entries) {
+          final value = entry.value;
+          if (value is Map<String, dynamic>) {
+            _folders[entry.key] = FolderItem.fromWireJson(value);
           }
         }
       }
@@ -456,6 +498,8 @@ class LocalStore {
           }),
         ),
         'lists': _lists.map((id, list) => MapEntry(id, list.toWireJson())),
+        'folders':
+            _folders.map((id, folder) => MapEntry(id, folder.toWireJson())),
         'outbox':
             _outbox.map((id, op) => MapEntry(id, op.toJson())),
         'conflicts': _conflicts.map(

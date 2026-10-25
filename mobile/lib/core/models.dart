@@ -227,6 +227,59 @@ class TaskItem {
   }
 }
 
+class FolderItem {
+  const FolderItem({
+    required this.id,
+    required this.name,
+    this.sortOrder = 0,
+    this.etag = '',
+    this.version = 0,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final int sortOrder;
+  final String etag;
+  final int version;
+  final DateTime updatedAt;
+
+  factory FolderItem.fromWireJson(Map<String, dynamic> json) => FolderItem(
+        id: (json['id'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+        sortOrder: _intValue(json['order']),
+        etag: (json['etag'] ?? '').toString(),
+        version: _intValue(json['version']),
+        updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
+      );
+
+  Map<String, dynamic> toWireJson() => {
+        'id': id,
+        'name': name,
+        'order': sortOrder,
+        'etag': etag,
+        'version': version,
+        'modifiedAt': updatedAt.toUtc().toIso8601String(),
+      };
+
+  FolderItem copyWith({
+    String? name,
+    int? sortOrder,
+    String? etag,
+    int? version,
+    DateTime? updatedAt,
+  }) {
+    return FolderItem(
+      id: id,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+      etag: etag ?? this.etag,
+      version: version ?? this.version,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
 class TaskListItem {
   const TaskListItem({
     required this.id,

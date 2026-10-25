@@ -122,6 +122,10 @@ class SyncEngine {
         await _mergeRemoteList(json);
         pulled++;
       }
+      for (final json in page.folders) {
+        await _mergeRemoteFolder(json);
+        pulled++;
+      }
       for (final tombstone in page.tombstones) {
         await _applyTombstone(tombstone);
         pulled++;
@@ -198,6 +202,23 @@ class SyncEngine {
     await store.saveTask(item, dirty: true);
   }
 
+  Future<void> _mergeRemoteFolder(Map<String, dynamic> json) async {
+    final remote = FolderItem.fromWireJson(json);
+    if (remote.id.isEmpty) return;
+    final local = store.folder(remote.id);
+    final op = store.pendingOp('folder', remote.id);
+    if (local == null || op == null) {
+      await store.saveFolder(remote);
+      return;
+    }
+    final merged = mergeListMaps(
+      local: local.toWireJson(),
+      remote: remote.toWireJson(),
+      localFields: op.patch.keys.toSet(),
+    );
+    await store.saveFolder(FolderItem.fromWireJson(merged));
+  }
+
   Future<void> _mergeRemoteList(Map<String, dynamic> json) async {
     final remote = TaskListItem.fromWireJson(json);
     if (remote.id.isEmpty) return;
@@ -227,6 +248,11 @@ class SyncEngine {
         await store.clearConflict('list', tombstone.id);
         await store.hardDeleteList(tombstone.id);
         break;
+      case 'folder':
+        await store.removeOpsForEntity('folder', tombstone.id);
+        await store.clearConflict('folder', tombstone.id);
+        await store.hardDeleteFolder(tombstone.id);
+        break;
       default:
         // Sections/folders/filters are not editable in P0.
         break;
@@ -241,8 +267,13 @@ class SyncEngine {
     // A task created offline may reference a list created in the same batch.
     // Push lists first so the server can resolve the reference.
     ops.sort((a, b) {
-      final rankA = a.entity == 'list' ? 0 : 1;
-      final rankB = b.entity == 'list' ? 0 : 1;
+      int rank(OutboxRecord op) => switch (op.entity) {
+            'folder' => 0,
+            'list' => 1,
+            _ => 2,
+          };
+      final rankA = rank(a);
+      final rankB = rank(b);
       if (rankA != rankB) return rankA - rankB;
       final byTime = a.createdAt.compareTo(b.createdAt);
       if (byTime != 0) return byTime;
@@ -347,8 +378,20 @@ class SyncEngine {
       }
       return;
     }
-    if (op.entity == 'list' && result.entityJson != null) {
-      await store.saveList(TaskListItem.fromWireJson(result.entityJson!));
+    if (op.entity == 'list') {
+      if (op.action == 'delete') {
+        await store.hardDeleteList(op.entityId);
+      } else if (result.entityJson != null) {
+        await store.saveList(TaskListItem.fromWireJson(result.entityJson!));
+      }
+      return;
+    }
+    if (op.entity == 'folder') {
+      if (op.action == 'delete') {
+        await store.hardDeleteFolder(op.entityId);
+      } else if (result.entityJson != null) {
+        await store.saveFolder(FolderItem.fromWireJson(result.entityJson!));
+      }
     }
   }
 
@@ -364,6 +407,20 @@ class SyncEngine {
       return;
     }
 
+    if (op.action == 'delete') {
+      // Deletion wins; refresh the base ETag and retry the delete.
+      final replacement = op.copyWith(
+        opId: newSyncId(),
+        action: 'delete',
+        patch: const {},
+        baseEtag: result.etag ?? '',
+        attempts: 0,
+        nextTryAt: now,
+      );
+      await store.replaceOp(oldOpId: op.opId, replacement: replacement);
+      return;
+    }
+
     if (op.entity == 'task') {
       final local = store.task(op.entityId);
       if (local == null) {
@@ -371,8 +428,7 @@ class SyncEngine {
         return;
       }
 
-      if (op.action == 'delete' || local.deleted) {
-        // Deletion wins, but only after refreshing the base ETag.
+      if (local.deleted) {
         final replacement = op.copyWith(
           opId: newSyncId(),
           action: 'delete',
@@ -433,13 +489,40 @@ class SyncEngine {
         remote: remoteJson,
         localFields: op.patch.keys.toSet(),
       );
-      await store.saveList(TaskListItem.fromWireJson(merged));
+      final item = TaskListItem.fromWireJson(merged);
+      await store.saveList(item);
       final replacement = op.copyWith(
         opId: newSyncId(),
         action: 'update',
         patch: {
-          for (final key in op.patch.keys)
-            key: TaskListItem.fromWireJson(merged).toWireJson()[key],
+          for (final key in op.patch.keys) key: item.toWireJson()[key],
+        },
+        baseEtag: result.etag ?? '',
+        attempts: 0,
+        nextTryAt: now,
+      );
+      await store.replaceOp(oldOpId: op.opId, replacement: replacement);
+      return;
+    }
+
+    if (op.entity == 'folder') {
+      final local = store.folder(op.entityId);
+      if (local == null) {
+        await store.removeOp(op.opId);
+        return;
+      }
+      final merged = mergeListMaps(
+        local: local.toWireJson(),
+        remote: remoteJson,
+        localFields: op.patch.keys.toSet(),
+      );
+      final item = FolderItem.fromWireJson(merged);
+      await store.saveFolder(item);
+      final replacement = op.copyWith(
+        opId: newSyncId(),
+        action: 'update',
+        patch: {
+          for (final key in op.patch.keys) key: item.toWireJson()[key],
         },
         baseEtag: result.etag ?? '',
         attempts: 0,

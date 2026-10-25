@@ -10,6 +10,7 @@ class PullPage {
     required this.hasMore,
     required this.tasks,
     required this.lists,
+    required this.folders,
     required this.tombstones,
   });
 
@@ -17,6 +18,7 @@ class PullPage {
   final bool hasMore;
   final List<Map<String, dynamic>> tasks;
   final List<Map<String, dynamic>> lists;
+  final List<Map<String, dynamic>> folders;
   final List<Tombstone> tombstones;
 }
 
@@ -184,6 +186,7 @@ class HttpSyncApi implements SyncApi {
     }
     final tasks = _mapList(body['tasks']);
     final lists = _mapList(body['lists']);
+    final folders = _mapList(body['folders']);
     final tombstones = (body['tombstones'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map((item) => Tombstone(
@@ -197,6 +200,7 @@ class HttpSyncApi implements SyncApi {
       hasMore: body['hasMore'] == true,
       tasks: tasks,
       lists: lists,
+      folders: folders,
       tombstones: tombstones,
     );
   }

@@ -14,6 +14,7 @@ class FakeSyncServer {
 
   final Map<String, Map<String, dynamic>> tasks = {};
   final Map<String, Map<String, dynamic>> lists = {};
+  final Map<String, Map<String, dynamic>> folders = {};
   final List<_Change> _changes = [];
   final Map<String, PushResult> _opResults = {};
 
@@ -62,6 +63,7 @@ class FakeSyncServer {
 
     final taskJson = <Map<String, dynamic>>[];
     final listJson = <Map<String, dynamic>>[];
+    final folderJson = <Map<String, dynamic>>[];
     final tombstones = <Tombstone>[];
     for (final change in page) {
       if (change.entity == 'task') {
@@ -86,6 +88,17 @@ class FakeSyncServer {
         } else {
           listJson.add(Map<String, dynamic>.from(json));
         }
+      } else if (change.entity == 'folder') {
+        final json = folders[change.id];
+        if (json == null) {
+          tombstones.add(Tombstone(
+            entity: 'folder',
+            id: change.id,
+            deletedAt: _now(),
+          ));
+        } else {
+          folderJson.add(Map<String, dynamic>.from(json));
+        }
       }
     }
 
@@ -94,6 +107,7 @@ class FakeSyncServer {
       hasMore: hasMore,
       tasks: taskJson,
       lists: listJson,
+      folders: folderJson,
       tombstones: tombstones,
     );
   }
@@ -118,14 +132,38 @@ class FakeSyncServer {
   }
 
   PushResult _apply(OutboxOp op) {
-    final entity = op.entity == 'list' ? 'list' : 'task';
-    final current =
-        entity == 'task' ? tasks[op.entityId] : lists[op.entityId];
+    final entity = op.entity == 'list'
+        ? 'list'
+        : op.entity == 'folder'
+            ? 'folder'
+            : 'task';
+    final current = switch (entity) {
+      'task' => tasks[op.entityId],
+      'list' => lists[op.entityId],
+      _ => folders[op.entityId],
+    };
 
     switch (op.action) {
       case 'create':
         if (current != null) {
           return _conflict(op, entity, current);
+        }
+        if (entity == 'folder') {
+          final name = (op.patch['name'] ?? '').toString().trim();
+          if (name.isEmpty) {
+            return _error(op, entity, 'invalid_patch', 'name is required');
+          }
+          final json = <String, dynamic>{
+            'id': op.entityId,
+            'name': name,
+            'order': 0,
+            'modifiedAt': _now(),
+          };
+          _applyPatch(json, op.patch);
+          folders[op.entityId] = json;
+          _touch('folder', op.entityId);
+          appliedOps++;
+          return _ok(op, entity, json);
         }
         if (entity == 'task') {
           final title = (op.patch['title'] ?? '').toString().trim();
@@ -178,6 +216,7 @@ class FakeSyncServer {
           'isInbox': false,
           'modifiedAt': _now(),
         };
+        _applyPatch(json, op.patch);
         lists[op.entityId] = json;
         _touch('list', op.entityId);
         appliedOps++;
@@ -207,6 +246,23 @@ class FakeSyncServer {
           _touch('task', op.entityId);
           appliedOps++;
           return _ok(op, entity, current);
+        }
+        if (entity == 'folder') {
+          for (final entry in lists.entries) {
+            if (entry.value['folderId'] == op.entityId) {
+              entry.value['folderId'] = null;
+              _touch('list', entry.key);
+            }
+          }
+          folders.remove(op.entityId);
+          _log('folder', op.entityId);
+          appliedOps++;
+          return PushResult(
+            opId: op.opId,
+            entity: 'folder',
+            entityId: op.entityId,
+            status: 'ok',
+          );
         }
         // Deleting a list moves its tasks to the inbox, like the Go server.
         for (final entry in tasks.entries) {
@@ -309,7 +365,11 @@ class FakeSyncServer {
       );
 
   void _touch(String entity, String id) {
-    final json = entity == 'task' ? tasks[id] : lists[id];
+    final json = switch (entity) {
+      'task' => tasks[id],
+      'list' => lists[id],
+      _ => folders[id],
+    };
     if (json == null) return;
     json['modifiedAt'] = _now();
     _log(entity, id);

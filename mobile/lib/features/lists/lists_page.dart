@@ -31,6 +31,11 @@ class ListsPage extends StatelessWidget {
         title: const Text('清单管理'),
         actions: [
           IconButton(
+            tooltip: '新建文件夹',
+            onPressed: () => _createFolder(context),
+            icon: const Icon(Icons.create_new_folder_outlined),
+          ),
+          IconButton(
             tooltip: '新建清单',
             onPressed: () => _createList(context),
             icon: const Icon(Icons.add_rounded),
@@ -42,85 +47,311 @@ class ListsPage extends StatelessWidget {
         icon: const Icon(Icons.add_rounded),
         label: const Text('新建清单'),
       ),
-      body: StreamBuilder<List<TaskListItem>>(
-        stream: store.watchLists(),
-        builder: (context, snapshot) {
-          final lists = (snapshot.data ?? const <TaskListItem>[])
-              .where((list) => list.kind == TaskKind.task)
-              .toList();
-          if (lists.isEmpty) {
-            return Center(
-              child: Text(
-                '还没有清单',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-            itemCount: lists.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final list = lists[index];
-              return Material(
-                color: scheme.surface,
-                borderRadius: BorderRadius.circular(14),
-                child: ListTile(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                      color: scheme.outlineVariant.withValues(alpha: 0.55),
+      body: StreamBuilder<List<FolderItem>>(
+        stream: store.watchFolders(),
+        builder: (context, folderSnapshot) {
+          final folders = folderSnapshot.data ?? const <FolderItem>[];
+          return StreamBuilder<List<TaskListItem>>(
+            stream: store.watchLists(),
+            builder: (context, listSnapshot) {
+              final lists = (listSnapshot.data ?? const <TaskListItem>[])
+                  .where((list) => list.kind == TaskKind.task)
+                  .toList();
+              if (lists.isEmpty && folders.isEmpty) {
+                return Center(
+                  child: Text(
+                    '还没有清单',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
-                  leading: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: colorFromHex(list.color),
-                      shape: BoxShape.circle,
+                );
+              }
+              final folderIds = folders.map((folder) => folder.id).toSet();
+              final ungrouped = lists
+                  .where((list) =>
+                      list.folderId == null ||
+                      !folderIds.contains(list.folderId))
+                  .toList(growable: false);
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                children: [
+                  if (ungrouped.isNotEmpty) ...[
+                    _sectionLabel(context, '未分组'),
+                    for (final list in ungrouped)
+                      _listTile(context, list, folders),
+                    const SizedBox(height: 18),
+                  ],
+                  for (final folder in folders) ...[
+                    _folderHeader(
+                      context,
+                      folder,
+                      lists.where((list) => list.folderId == folder.id).length,
                     ),
-                  ),
-                  title: Text(
-                    list.name,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  subtitle: list.isInbox ? const Text('默认清单') : null,
-                  trailing: list.isInbox
-                      ? null
-                      : PopupMenuButton<String>(
-                          tooltip: '清单操作',
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _editList(context, list);
-                            } else if (value == 'delete') {
-                              _deleteList(context, list);
-                            }
-                          },
-                          itemBuilder: (context) => const [
-                            PopupMenuItem(
-                              value: 'edit',
-                              child: Text('编辑'),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Text('删除'),
-                            ),
-                          ],
-                        ),
-                  onTap: list.isInbox
-                      ? null
-                      : () => _editList(context, list),
-                ),
+                    for (final list in lists.where(
+                      (list) => list.folderId == folder.id,
+                    ))
+                      Padding(
+                        padding: const EdgeInsets.only(left: 12),
+                        child: _listTile(context, list, folders),
+                      ),
+                    const SizedBox(height: 18),
+                  ],
+                ],
               );
             },
           );
         },
       ),
     );
+  }
+
+  Widget _sectionLabel(BuildContext context, String text) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Text(
+        text,
+        style: theme.textTheme.labelMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _folderHeader(
+    BuildContext context,
+    FolderItem folder,
+    int count,
+  ) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 0, 8),
+      child: Row(
+        children: [
+          Icon(Icons.folder_rounded, size: 18, color: scheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            folder.name,
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$count',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+          const Spacer(),
+          PopupMenuButton<String>(
+            tooltip: '文件夹操作',
+            onSelected: (value) {
+              if (value == 'edit') {
+                _editFolder(context, folder);
+              } else if (value == 'delete') {
+                _deleteFolder(context, folder);
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'edit', child: Text('重命名')),
+              PopupMenuItem(value: 'delete', child: Text('删除文件夹')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _listTile(
+    BuildContext context,
+    TaskListItem list,
+    List<FolderItem> folders,
+  ) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final canMove = folders.isNotEmpty || list.folderId != null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+          ),
+          leading: Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: colorFromHex(list.color),
+              shape: BoxShape.circle,
+            ),
+          ),
+          title: Text(
+            list.name,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          subtitle: list.isInbox ? const Text('默认清单') : null,
+          trailing: list.isInbox
+              ? null
+              : PopupMenuButton<String>(
+                  tooltip: '清单操作',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'edit':
+                        _editList(context, list);
+                        break;
+                      case 'move':
+                        _moveList(context, list, folders);
+                        break;
+                      case 'delete':
+                        _deleteList(context, list);
+                        break;
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('编辑'),
+                    ),
+                    if (canMove)
+                      const PopupMenuItem(
+                        value: 'move',
+                        child: Text('移动到文件夹'),
+                      ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Text('删除'),
+                    ),
+                  ],
+                ),
+          onTap: list.isInbox ? null : () => _editList(context, list),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _createFolder(BuildContext context) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => const _NameDialog(
+        title: '新建文件夹',
+        hint: '例如：工作、生活',
+      ),
+    );
+    if (name == null || !context.mounted) return;
+    try {
+      await context.read<AppState>().repository.createFolder(name);
+    } catch (error) {
+      if (context.mounted) _snack(context, '新建失败：$error');
+    }
+  }
+
+  Future<void> _editFolder(BuildContext context, FolderItem folder) async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _NameDialog(
+        title: '重命名文件夹',
+        hint: '文件夹名称',
+        initial: folder.name,
+      ),
+    );
+    if (name == null || !context.mounted) return;
+    try {
+      await context.read<AppState>().repository.updateFolder(folder.id, name);
+    } catch (error) {
+      if (context.mounted) _snack(context, '保存失败：$error');
+    }
+  }
+
+  Future<void> _deleteFolder(BuildContext context, FolderItem folder) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除「${folder.name}」？'),
+        content: const Text('文件夹里的清单会移动到「未分组」，清单和任务不会被删除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+    try {
+      await context.read<AppState>().repository.deleteFolder(folder.id);
+    } catch (error) {
+      if (context.mounted) _snack(context, '删除失败：$error');
+    }
+  }
+
+  Future<void> _moveList(
+    BuildContext context,
+    TaskListItem list,
+    List<FolderItem> folders,
+  ) async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('移动到文件夹'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder_off_outlined),
+              title: const Text('未分组'),
+              trailing: list.folderId == null
+                  ? Icon(
+                      Icons.check_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                    )
+                  : null,
+              onTap: () => Navigator.pop(context, ''),
+            ),
+            for (final folder in folders)
+              ListTile(
+                leading: const Icon(Icons.folder_rounded),
+                title: Text(folder.name),
+                trailing: list.folderId == folder.id
+                    ? Icon(
+                        Icons.check_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                      )
+                    : null,
+                onTap: () => Navigator.pop(context, folder.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !context.mounted) return;
+    try {
+      await context.read<AppState>().repository.moveListToFolder(
+            list.id,
+            selected.isEmpty ? null : selected,
+          );
+    } catch (error) {
+      if (context.mounted) _snack(context, '移动失败：$error');
+    }
   }
 
   Future<void> _createList(BuildContext context) async {
@@ -194,6 +425,70 @@ class _ListDraft {
 
   final String name;
   final String color;
+}
+
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({
+    required this.title,
+    required this.hint,
+    this.initial,
+  });
+
+  final String title;
+  final String hint;
+  final String? initial;
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initial ?? '');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    if (value.isEmpty) return;
+    Navigator.pop(context, value);
+  }
 }
 
 class _ListEditorDialog extends StatefulWidget {

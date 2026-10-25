@@ -138,9 +138,116 @@ class TaskRepository {
     await _patch(current, patch, updated);
   }
 
+  Future<FolderItem> createFolder(String name) async {
+    final value = name.trim();
+    if (value.isEmpty) {
+      throw const FormatException('文件夹名称不能为空');
+    }
+    if (store.foldersSnapshot().any(
+          (folder) => folder.name.toLowerCase() == value.toLowerCase(),
+        )) {
+      throw const FormatException('同名文件夹已存在');
+    }
+    var order = 0;
+    for (final folder in store.foldersSnapshot()) {
+      if (folder.sortOrder > order) order = folder.sortOrder;
+    }
+    order += 1;
+    final now = DateTime.now().toUtc();
+    final folder = FolderItem(
+      id: newSyncId(),
+      name: value,
+      sortOrder: order,
+      updatedAt: now,
+    );
+    await store.batch(() async {
+      await store.saveFolder(folder);
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'folder',
+        entityId: folder.id,
+        action: 'create',
+        patch: {'name': value, 'order': order},
+      );
+    });
+    onLocalChange?.call();
+    return folder;
+  }
+
+  Future<void> updateFolder(String id, String name) async {
+    final folder = store.folder(id);
+    if (folder == null) return;
+    final value = name.trim();
+    if (value.isEmpty) throw const FormatException('文件夹名称不能为空');
+    if (value == folder.name) return;
+    final existing = store.pendingOp('folder', id);
+    await store.batch(() async {
+      await store.saveFolder(folder.copyWith(
+        name: value,
+        updatedAt: DateTime.now().toUtc(),
+      ));
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'folder',
+        entityId: id,
+        action: existing?.action == 'create' ? 'create' : 'update',
+        patch: {
+          ...?existing?.patch,
+          'name': value,
+        },
+        baseEtag: existing?.baseEtag ?? folder.etag,
+      );
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> deleteFolder(String id) async {
+    final folder = store.folder(id);
+    if (folder == null) return;
+    final existing = store.pendingOp('folder', id);
+    final hasLists = store.listsSnapshot().any((list) => list.folderId == id);
+    if (existing?.action == 'create' && hasLists) {
+      throw StateError('文件夹尚未同步，请先同步或移走清单');
+    }
+    await store.batch(() async {
+      if (existing != null) {
+        await store.removeOp(existing.opId);
+      }
+      if (existing?.action != 'create') {
+        await store.saveOp(
+          opId: newSyncId(),
+          entity: 'folder',
+          entityId: id,
+          action: 'delete',
+          patch: const {},
+          baseEtag: existing?.baseEtag ?? folder.etag,
+        );
+      }
+      await store.hardDeleteFolder(id);
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> moveListToFolder(String listId, String? folderId) async {
+    final list = store.list(listId);
+    if (list == null || list.folderId == folderId) return;
+    if (folderId != null && store.folder(folderId) == null) {
+      throw const FormatException('文件夹不存在');
+    }
+    await _patchList(
+      list,
+      {'folderId': folderId},
+      list.copyWith(folderId: folderId, clearFolder: folderId == null),
+    );
+  }
+
   Future<TaskListItem> createList({
     required String name,
     String color = '#4772fa',
+    String? folderId,
   }) async {
     final value = name.trim();
     if (value.isEmpty) {
@@ -156,14 +263,25 @@ class TaskRepository {
       if (list.sortOrder > order) order = list.sortOrder;
     }
     order += 1;
+    if (folderId != null && store.folder(folderId) == null) {
+      throw const FormatException('文件夹不存在');
+    }
     final now = DateTime.now().toUtc();
     final list = TaskListItem(
       id: newSyncId(),
+      folderId: folderId,
       name: value,
       color: color,
       sortOrder: order,
       updatedAt: now,
     );
+    final patch = <String, dynamic>{
+      'name': value,
+      'color': color,
+      'kind': 'TASK',
+      'order': order,
+    };
+    if (folderId != null) patch['folderId'] = folderId;
     await store.batch(() async {
       await store.saveList(list, dirty: true);
       await store.saveOp(
@@ -171,12 +289,7 @@ class TaskRepository {
         entity: 'list',
         entityId: list.id,
         action: 'create',
-        patch: {
-          'name': value,
-          'color': color,
-          'kind': 'TASK',
-          'order': order,
-        },
+        patch: patch,
       );
     });
     onLocalChange?.call();
@@ -260,7 +373,7 @@ class TaskRepository {
     final now = DateTime.now().toUtc();
     final existing = store.pendingOp('list', list.id);
     final mergedPatch = <String, dynamic>{
-      if (existing != null) ...existing.patch,
+      ...?existing?.patch,
       ...patch,
     };
     final action = existing?.action == 'create' ? 'create' : 'update';
@@ -399,7 +512,7 @@ class TaskRepository {
     final now = DateTime.now().toUtc();
     final existing = store.pendingOp('task', task.id);
     final mergedPatch = <String, dynamic>{
-      if (existing != null) ...existing.patch,
+      ...?existing?.patch,
       ...patch,
     };
     final action = existing?.action == 'create' ? 'create' : 'update';

@@ -99,6 +99,82 @@ void main() {
     expect(tombstone, true);
   });
 
+  test('real server: folder create, list assignment and folder delete',
+      () async {
+    final api = HttpSyncApi(baseUrl: base, username: user, password: password);
+    addTearDown(api.close);
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    final folderId = newSyncId();
+    final listId = newSyncId();
+
+    final createdFolder = (await api.push(
+      ops: [
+        OutboxOp(
+          opId: newSyncId(),
+          entity: 'folder',
+          entityId: folderId,
+          action: 'create',
+          patch: {'name': 'P1 文件夹 $stamp', 'order': 1},
+        ),
+      ],
+      deviceId: 'p0-e2e',
+    ))
+        .single;
+    expect(createdFolder.status, 'ok', reason: createdFolder.errorMessage);
+    final folderEtag = createdFolder.etag;
+
+    final createdList = (await api.push(
+      ops: [
+        OutboxOp(
+          opId: newSyncId(),
+          entity: 'list',
+          entityId: listId,
+          action: 'create',
+          patch: {
+            'name': 'P1 文件夹清单 $stamp',
+            'color': '#8b5cf6',
+            'folderId': folderId,
+          },
+        ),
+      ],
+      deviceId: 'p0-e2e',
+    ))
+        .single;
+    expect(createdList.status, 'ok', reason: createdList.errorMessage);
+
+    final page = await api.pull(since: '0');
+    final folder = page.folders.firstWhere((json) => json['id'] == folderId);
+    expect(folder['name'], 'P1 文件夹 $stamp');
+    final list = page.lists.firstWhere((json) => json['id'] == listId);
+    expect(list['folderId'], folderId);
+
+    final deleted = (await api.push(
+      ops: [
+        OutboxOp(
+          opId: newSyncId(),
+          entity: 'folder',
+          entityId: folderId,
+          action: 'delete',
+          baseEtag: folderEtag,
+          patch: const {},
+        ),
+      ],
+      deviceId: 'p0-e2e',
+    ))
+        .single;
+    expect(deleted.status, 'ok');
+
+    final after = await api.pull(since: '0');
+    final ungrouped = after.lists.firstWhere((json) => json['id'] == listId);
+    expect(ungrouped['folderId'], isNull);
+    expect(
+      after.tombstones.any(
+        (item) => item.entity == 'folder' && item.id == folderId,
+      ),
+      true,
+    );
+  });
+
   test('real server: create, conflict, idempotency, CalDAV import, delete',
       () async {
     final api = HttpSyncApi(baseUrl: base, username: user, password: password);

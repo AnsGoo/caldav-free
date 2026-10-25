@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -6,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
+import '../../design/app_theme.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
@@ -58,11 +60,13 @@ class _CalendarPageState extends State<CalendarPage> {
     try {
       final snapshot = await _fetchSnapshot(from, to);
       var almanac = const <String, CalendarAlmanacDay>{};
-      if (_view == CalendarView.month) {
+      if (_view == CalendarView.month ||
+          _view == CalendarView.week ||
+          _view == CalendarView.day) {
         try {
           almanac = await _api.fetchAlmanac(from: from, to: to);
         } catch (_) {
-          // The month grid still works without the cultural labels.
+          // The grid still works without the cultural labels.
         }
       }
       if (!mounted || request != _request) return;
@@ -134,12 +138,17 @@ class _CalendarPageState extends State<CalendarPage> {
           ).add(const Duration(days: 7)),
         );
       case CalendarView.week:
-        final monday = anchor.subtract(Duration(days: anchor.weekday - 1));
-        return (monday, monday.add(const Duration(days: 7)));
+        // The pager renders the neighbouring weeks too, so fetch one week of
+        // padding on both sides of the visible week.
+        final sunday = _sundayOf(anchor);
+        return (sunday.subtract(const Duration(days: 7)), sunday.add(const Duration(days: 21)));
       case CalendarView.threeDay:
         return (anchor, anchor.add(const Duration(days: 3)));
       case CalendarView.day:
-        return (anchor, anchor.add(const Duration(days: 1)));
+        return (
+          anchor.subtract(const Duration(days: 8)),
+          anchor.add(const Duration(days: 8)),
+        );
       case CalendarView.agenda:
         return (anchor, anchor.add(const Duration(days: 30)));
       case CalendarView.year:
@@ -177,6 +186,20 @@ class _CalendarPageState extends State<CalendarPage> {
       _view = CalendarView.day;
     });
     unawaited(_load());
+  }
+
+  void _selectDate(DateTime day) {
+    setState(() => _anchor = _dateOnly(day));
+    unawaited(_load());
+  }
+
+  /// Week and day grids navigate by swiping, so the prev/next bar only shows
+  /// once the visible window has left today.
+  bool get _gridShowsToday {
+    final today = _dateOnly(DateTime.now());
+    return _view == CalendarView.week
+        ? _sundayOf(_anchor) == _sundayOf(today)
+        : _dateOnly(_anchor) == today;
   }
 
   Future<void> _toggleTask(CalendarTask task) async {
@@ -304,31 +327,34 @@ class _CalendarPageState extends State<CalendarPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: '上一段',
-                  onPressed: () => _move(-1),
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                Expanded(
-                  child: Text(
-                    _title(_view, _anchor),
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium,
+          if (_view != CalendarView.week &&
+              _view != CalendarView.day ||
+              !_gridShowsToday)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: '上一段',
+                    onPressed: () => _move(-1),
+                    icon: const Icon(Icons.chevron_left_rounded),
                   ),
-                ),
-                IconButton(
-                  tooltip: '下一段',
-                  onPressed: () => _move(1),
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-                TextButton(onPressed: _today, child: const Text('今天')),
-              ],
+                  Expanded(
+                    child: Text(
+                      _title(_view, _anchor),
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '下一段',
+                    onPressed: () => _move(1),
+                    icon: const Icon(Icons.chevron_right_rounded),
+                  ),
+                  TextButton(onPressed: _today, child: const Text('今天')),
+                ],
+              ),
             ),
-          ),
           if (_loading)
             const LinearProgressIndicator(minHeight: 2)
           else if (_error != null)
@@ -372,7 +398,9 @@ class _CalendarPageState extends State<CalendarPage> {
                     CalendarView.week => _WeekView(
                       anchor: _anchor,
                       snapshot: snapshot,
+                      almanac: _almanac,
                       onSelectDay: _selectDay,
+                      onSelectedDate: _selectDate,
                       onOpenEvent: _openEvent,
                       onOpenTask: _openTask,
                       onToggleTask: _toggleTask,
@@ -388,6 +416,8 @@ class _CalendarPageState extends State<CalendarPage> {
                     CalendarView.day => _DayView(
                       anchor: _anchor,
                       snapshot: snapshot,
+                      almanac: _almanac,
+                      onSelectedDate: _selectDate,
                       onOpenEvent: _openEvent,
                       onOpenTask: _openTask,
                       onToggleTask: _toggleTask,
@@ -417,14 +447,12 @@ class _CalendarPageState extends State<CalendarPage> {
       case CalendarView.month:
         return '${anchor.year}年${anchor.month}月';
       case CalendarView.week:
-        final monday = anchor.subtract(Duration(days: anchor.weekday - 1));
-        final sunday = monday.add(const Duration(days: 6));
-        return '${monday.month}月${monday.day}日 - ${sunday.month}月${sunday.day}日';
+        return '${anchor.year}年${anchor.month}月';
       case CalendarView.threeDay:
         final end = anchor.add(const Duration(days: 2));
         return '${anchor.month}月${anchor.day}日 - ${end.month}月${end.day}日';
       case CalendarView.day:
-        return '${anchor.month}月${anchor.day}日 ${_weekday(anchor)}';
+        return '${anchor.year}年${anchor.month}月';
       case CalendarView.agenda:
         return '${anchor.month}月${anchor.day}日起 30 天';
       case CalendarView.year:
@@ -658,6 +686,9 @@ String _weekday(DateTime day) {
   const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
   return names[day.weekday - 1];
 }
+
+DateTime _sundayOf(DateTime day) =>
+    _dateOnly(day).subtract(Duration(days: day.weekday % 7));
 
 class _SourceLegend extends StatelessWidget {
   const _SourceLegend({required this.sources});
@@ -912,11 +943,13 @@ class _MonthView extends StatelessWidget {
   }
 }
 
-class _WeekView extends StatelessWidget {
+class _WeekView extends StatefulWidget {
   const _WeekView({
     required this.anchor,
     required this.snapshot,
+    required this.almanac,
     required this.onSelectDay,
+    required this.onSelectedDate,
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
@@ -924,117 +957,678 @@ class _WeekView extends StatelessWidget {
 
   final DateTime anchor;
   final CalendarSnapshot snapshot;
+  final Map<String, CalendarAlmanacDay> almanac;
   final void Function(DateTime day) onSelectDay;
+  final void Function(DateTime day) onSelectedDate;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
 
   @override
+  State<_WeekView> createState() => _WeekViewState();
+}
+
+/// Middle index of the infinite week/day pagers: page 0 of the pager is the
+/// base week/day kept in the view's own state, so swiping never feeds back
+/// into the geometry the parent anchor is derived from.
+const int _kPagerOrigin = 100000;
+
+class _WeekViewState extends State<_WeekView> {
+  late DateTime _baseWeekStart = _sundayOf(widget.anchor);
+  late final PageController _controller = PageController(
+    initialPage: _kPagerOrigin,
+  );
+  int _page = _kPagerOrigin;
+
+  @override
+  void didUpdateWidget(_WeekView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Swiping reports its own week back as the anchor, so only an outside
+    // change (today, month drill-in, view switch) recentres the pager.
+    if (_sundayOf(widget.anchor) != _visibleWeekStart) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _baseWeekStart = _sundayOf(widget.anchor);
+          _page = _kPagerOrigin;
+        });
+        _controller.jumpToPage(_kPagerOrigin);
+      });
+    }
+  }
+
+  DateTime get _visibleWeekStart =>
+      _baseWeekStart.add(Duration(days: (_page - _kPagerOrigin) * 7));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final monday = anchor.subtract(Duration(days: anchor.weekday - 1));
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      itemCount: 7,
-      separatorBuilder: (_, _) => const SizedBox(width: 10),
-      itemBuilder: (context, index) {
-        final day = monday.add(Duration(days: index));
-        final entries = _entriesForDay(snapshot, day);
-        return _WeekDayColumn(
-          day: day,
-          entries: entries,
-          onSelectDay: onSelectDay,
-          onOpenEvent: onOpenEvent,
-          onOpenTask: onOpenTask,
-          onToggleTask: onToggleTask,
-        );
-      },
+    final today = _dateOnly(DateTime.now());
+    final headerWeekStart = _visibleWeekStart;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
+          child: Row(
+            children: [
+              for (var i = 0; i < 7; i++)
+                Expanded(
+                  child: () {
+                    final day = headerWeekStart.add(Duration(days: i));
+                    final almanac = widget.almanac[_dateKey(day)];
+                    return _DayHeaderCell(
+                      day: day,
+                      today: today,
+                      label: almanac?.label ?? '',
+                      special: almanac?.special ?? false,
+                      onTap: () => widget.onSelectDay(day),
+                    );
+                  }(),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: PageView.builder(
+            controller: _controller,
+            onPageChanged: (page) {
+              if (page == _page) return;
+              setState(() => _page = page);
+              widget.onSelectedDate(
+                _baseWeekStart.add(Duration(days: (page - _kPagerOrigin) * 7)),
+              );
+            },
+            itemBuilder: (context, page) {
+              final weekStart = _baseWeekStart.add(
+                Duration(days: (page - _kPagerOrigin) * 7),
+              );
+              final days = [
+                for (var i = 0; i < 7; i++) weekStart.add(Duration(days: i)),
+              ];
+              return _TimeGrid(
+                days: days,
+                snapshot: widget.snapshot,
+                selectedDay: null,
+                onOpenEvent: widget.onOpenEvent,
+                onOpenTask: widget.onOpenTask,
+                onToggleTask: widget.onToggleTask,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _WeekDayColumn extends StatelessWidget {
-  const _WeekDayColumn({
+class _DayHeaderCell extends StatelessWidget {
+  const _DayHeaderCell({
     required this.day,
-    required this.entries,
-    required this.onSelectDay,
+    required this.today,
+    required this.label,
+    required this.special,
+    required this.onTap,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final String label;
+  final bool special;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isToday = day == today;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            Text(
+              const ['日', '一', '二', '三', '四', '五', '六'][day.weekday % 7],
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Container(
+              width: 30,
+              height: 30,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isToday ? scheme.primary : null,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '${day.day}',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: isToday ? scheme.onPrimary : scheme.onSurface,
+                ),
+              ),
+            ),
+            SizedBox(
+              height: 12,
+              child: Center(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontSize: 8.5,
+                    height: 1,
+                    fontWeight: special ? FontWeight.w600 : FontWeight.w500,
+                    color: label.isEmpty
+                        ? Colors.transparent
+                        : special
+                        ? const Color(0xFFE08A2E)
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DayView extends StatefulWidget {
+  const _DayView({
+    required this.anchor,
+    required this.snapshot,
+    required this.almanac,
+    required this.onSelectedDate,
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
   });
 
-  final DateTime day;
-  final List<_Entry> entries;
-  final void Function(DateTime day) onSelectDay;
+  final DateTime anchor;
+  final CalendarSnapshot snapshot;
+  final Map<String, CalendarAlmanacDay> almanac;
+  final void Function(DateTime day) onSelectedDate;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
 
   @override
+  State<_DayView> createState() => _DayViewState();
+}
+
+class _DayViewState extends State<_DayView> {
+  late DateTime _baseDay = _dateOnly(widget.anchor);
+  late final PageController _controller = PageController(
+    initialPage: _kPagerOrigin,
+  );
+  int _page = _kPagerOrigin;
+
+  DateTime get _visibleDay =>
+      _baseDay.add(Duration(days: _page - _kPagerOrigin));
+
+  @override
+  void didUpdateWidget(_DayView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_dateOnly(widget.anchor) != _visibleDay) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _baseDay = _dateOnly(widget.anchor);
+          _page = _kPagerOrigin;
+        });
+        _controller.jumpToPage(_kPagerOrigin);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final today = _dateOnly(DateTime.now()) == day;
-    return SizedBox(
-      width: 210,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => onSelectDay(day),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-              child: Row(
-                children: [
-                  Text(
-                    '${day.month}/${day.day}',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: today ? scheme.primary : null,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _weekday(day),
-                    style: Theme.of(context).textTheme.labelSmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${entries.length}',
-                    style: Theme.of(context).textTheme.labelSmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final today = _dateOnly(DateTime.now());
+    final visibleDay = _visibleDay;
+    final weekStart = _sundayOf(visibleDay);
+    return Column(
+      children: [
+        SizedBox(
+          height: 92,
+          child: Row(
+            children: [
+              for (var i = 0; i < 7; i++)
+                Expanded(
+                  child: () {
+                    final day = weekStart.add(Duration(days: i));
+                    final isSelected = day == visibleDay;
+                    final isToday = day == today;
+                    final almanac = widget.almanac[_dateKey(day)];
+                    final label = almanac?.label ?? '';
+                    final special = almanac?.special ?? false;
+                    return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => widget.onSelectedDate(day),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? scheme.primary.withValues(alpha: 0.13)
+                              : null,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 5),
+                        child: Column(
+                          children: [
+                            Text(
+                              const ['日', '一', '二', '三', '四', '五', '六'][
+                                day.weekday % 7
+                              ],
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Container(
+                              width: 34,
+                              height: 34,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isSelected ? scheme.primary : null,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${day.day}',
+                                style: theme.textTheme.labelLarge?.copyWith(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected
+                                      ? scheme.onPrimary
+                                      : isToday
+                                      ? scheme.primary
+                                      : scheme.onSurface,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                fontSize: 8.5,
+                                height: 1.1,
+                                fontWeight: special
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                                color: special
+                                    ? const Color(0xFFE08A2E)
+                                    : scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }(),
+                ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: PageView.builder(
+            controller: _controller,
+            onPageChanged: (page) {
+              if (page == _page) return;
+              setState(() => _page = page);
+              widget.onSelectedDate(
+                _baseDay.add(Duration(days: page - _kPagerOrigin)),
+              );
+            },
+            itemBuilder: (context, page) => _TimeGrid(
+              days: [_baseDay.add(Duration(days: page - _kPagerOrigin))],
+              snapshot: widget.snapshot,
+              selectedDay: null,
+              onOpenEvent: widget.onOpenEvent,
+              onOpenTask: widget.onOpenTask,
+              onToggleTask: widget.onToggleTask,
             ),
           ),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: scheme.surfaceContainerLow,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: entries.isEmpty
-                  ? Center(
-                      child: Text(
-                        '暂无安排',
-                        style: Theme.of(context).textTheme.labelSmall
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    )
-                  : ListView.separated(
-                      itemCount: entries.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 6),
-                      itemBuilder: (context, index) => _EntryTile(
-                        entry: entries[index],
-                        compact: true,
-                        onOpenEvent: onOpenEvent,
-                        onOpenTask: onOpenTask,
-                        onToggleTask: onToggleTask,
+        ),
+      ],
+    );
+  }
+}
+
+const double _kHourSlotHeight = 52;
+const double _kTimeGutterWidth = 44;
+
+class _DayTimed {
+  const _DayTimed(this.entry, this.startMinutes, this.endMinutes);
+
+  final _Entry entry;
+  final double startMinutes;
+  final double endMinutes;
+}
+
+class _PlacedTimed {
+  const _PlacedTimed(this.item, this.column, this.columns);
+
+  final _DayTimed item;
+  final int column;
+  final int columns;
+}
+
+List<_PlacedTimed> _packDayTimed(List<_DayTimed> items) {
+  final sorted = [...items]
+    ..sort((a, b) {
+      final start = a.startMinutes.compareTo(b.startMinutes);
+      if (start != 0) return start;
+      return b.endMinutes.compareTo(a.endMinutes);
+    });
+  final placed = <_PlacedTimed>[];
+  var group = <_DayTimed>[];
+  var groupEnd = 0.0;
+
+  void flush() {
+    if (group.isEmpty) return;
+    final groupColumns = <List<_DayTimed>>[];
+    final assignment = <_DayTimed, int>{};
+    for (final item in group) {
+      var assigned = false;
+      for (var c = 0; c < groupColumns.length; c++) {
+        if (item.startMinutes >= groupColumns[c].last.endMinutes) {
+          groupColumns[c].add(item);
+          assignment[item] = c;
+          assigned = true;
+          break;
+        }
+      }
+      if (!assigned) {
+        groupColumns.add([item]);
+        assignment[item] = groupColumns.length - 1;
+      }
+    }
+    for (final item in group) {
+      placed.add(_PlacedTimed(item, assignment[item]!, groupColumns.length));
+    }
+    group = [];
+    groupEnd = 0;
+  }
+
+  for (final item in sorted) {
+    if (group.isNotEmpty && item.startMinutes >= groupEnd) flush();
+    group.add(item);
+    groupEnd = math.max(groupEnd, item.endMinutes);
+  }
+  flush();
+  return placed;
+}
+
+({double top, double height}) _timedBlockRect(_DayTimed item) {
+  final top = item.startMinutes / 60 * _kHourSlotHeight;
+  final bottom = item.endMinutes / 60 * _kHourSlotHeight;
+  return (
+    top: top,
+    height: math.max(bottom - top, _kHourSlotHeight * 0.3),
+  );
+}
+
+class _TimeGrid extends StatefulWidget {
+  const _TimeGrid({
+    required this.days,
+    required this.snapshot,
+    required this.selectedDay,
+    required this.onOpenEvent,
+    required this.onOpenTask,
+    required this.onToggleTask,
+  });
+
+  final List<DateTime> days;
+  final CalendarSnapshot snapshot;
+  final DateTime? selectedDay;
+  final Future<void> Function(CalendarEvent event) onOpenEvent;
+  final Future<void> Function(CalendarTask task) onOpenTask;
+  final Future<void> Function(CalendarTask task) onToggleTask;
+
+  @override
+  State<_TimeGrid> createState() => _TimeGridState();
+}
+
+class _TimeGridState extends State<_TimeGrid> {
+  late final ScrollController _controller = ScrollController(
+    initialScrollOffset: _initialScroll,
+  );
+  Timer? _ticker;
+
+  /// Open on the working part of the day, or on the current time when the
+  /// window contains today, the way TickTick's grid does.
+  double get _initialScroll {
+    final now = DateTime.now();
+    final showsToday = widget.days.any(
+      (day) => _dateOnly(day) == _dateOnly(now),
+    );
+    if (!showsToday) return 7.5 * _kHourSlotHeight;
+    final minutes = now.hour * 60 + now.minute;
+    return math.max(
+      0,
+      minutes / 60 * _kHourSlotHeight - 2 * _kHourSlotHeight,
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final now = DateTime.now();
+    final today = _dateOnly(now);
+    final days = widget.days;
+    final allDay = [
+      for (final day in days)
+        _entriesForDay(widget.snapshot, day)
+            .where((entry) => entry.allDay)
+            .toList(growable: false),
+    ];
+    final timed = [
+      for (final day in days) _packDayTimed(_timedEntriesForDay(widget.snapshot, day)),
+    ];
+    final hasToday = days.any((day) => _dateOnly(day) == today);
+    final nowOffset = hasToday
+        ? (now.hour * 60 + now.minute) / 60 * _kHourSlotHeight
+        : -1.0;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 30,
+            child: Row(
+              children: [
+                SizedBox(
+                  width: _kTimeGutterWidth,
+                  child: Center(
+                    child: Text(
+                      '全天',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontSize: 9.5,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
+                  ),
+                ),
+                for (final chips in allDay)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Row(
+                        children: [
+                          for (final entry in chips)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 1,
+                              ),
+                              child: _AllDayChip(
+                                entry: entry,
+                                onOpenEvent: widget.onOpenEvent,
+                                onOpenTask: widget.onOpenTask,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Container(
+            height: 1,
+            margin: const EdgeInsets.only(left: _kTimeGutterWidth),
+            color: scheme.outlineVariant,
+          ),
+          Expanded(
+            child: ListView(
+              controller: _controller,
+              padding: EdgeInsets.zero,
+              children: [
+                SizedBox(
+                  height: _kHourSlotHeight * 24,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columnWidth =
+                          (constraints.maxWidth - _kTimeGutterWidth) /
+                          days.length;
+                      return Stack(
+                        children: [
+                          for (var hour = 0; hour <= 24; hour++)
+                            Positioned(
+                              left: _kTimeGutterWidth,
+                              right: 0,
+                              top: hour * _kHourSlotHeight,
+                              child: Container(height: 1, color: AppColors.line),
+                            ),
+                          for (var d = 1; d < days.length; d++)
+                            Positioned(
+                              left: _kTimeGutterWidth + d * columnWidth,
+                              top: 0,
+                              bottom: 0,
+                              child: const SizedBox(
+                                width: 1,
+                                child: ColoredBox(color: AppColors.line),
+                              ),
+                            ),
+                          for (var hour = 0; hour < 24; hour++)
+                            Positioned(
+                              left: 0,
+                              width: _kTimeGutterWidth - 8,
+                              top: hour * _kHourSlotHeight - 6,
+                              child: Text(
+                                hour == 0
+                                    ? ''
+                                    : hour.toString().padLeft(2, '0'),
+                                textAlign: TextAlign.right,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontSize: 10.5,
+                                  height: 1,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          for (var d = 0; d < days.length; d++)
+                            Positioned(
+                              left: _kTimeGutterWidth + d * columnWidth,
+                              width: columnWidth,
+                              top: 0,
+                              bottom: 0,
+                              child: Stack(
+                                children: [
+                                  if (widget.selectedDay != null &&
+                                      days[d] == widget.selectedDay)
+                                    Positioned.fill(
+                                      child: Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: scheme.primary.withValues(
+                                            alpha: 0.13,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  for (final placed in timed[d])
+                                    Positioned(
+                                      left:
+                                          columnWidth *
+                                          placed.column /
+                                          placed.columns,
+                                      width: columnWidth / placed.columns - 4,
+                                      top: _timedBlockRect(placed.item).top,
+                                      height: _timedBlockRect(placed.item).height,
+                                      child: _TimedBlock(
+                                        entry: placed.item.entry,
+                                        startMinutes: placed.item.startMinutes,
+                                        endMinutes: placed.item.endMinutes,
+                                        width: columnWidth / placed.columns - 4,
+                                        onOpenEvent: widget.onOpenEvent,
+                                        onOpenTask: widget.onOpenTask,
+                                        onToggleTask: widget.onToggleTask,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          if (nowOffset >= 0)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: nowOffset,
+                              child: const _NowIndicator(),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 96),
+              ],
             ),
           ),
         ],
@@ -1043,43 +1637,237 @@ class _WeekDayColumn extends StatelessWidget {
   }
 }
 
-class _DayView extends StatelessWidget {
-  const _DayView({
-    required this.anchor,
-    required this.snapshot,
+List<_DayTimed> _timedEntriesForDay(CalendarSnapshot snapshot, DateTime day) {
+  final dayStart = _dateOnly(day);
+  final dayEnd = dayStart.add(const Duration(days: 1));
+  final items = <_DayTimed>[];
+  for (final entry in _entriesForDay(snapshot, dayStart)) {
+    if (entry.allDay) continue;
+    final event = entry.event;
+    final task = entry.task;
+    final rawStart = event?.start.toLocal() ?? task!.when!.toLocal();
+    final rawEnd = event != null
+        ? event.end.toLocal()
+        : (task!.due != null && task.due!.toLocal().isAfter(rawStart)
+              ? task.due!.toLocal()
+              : rawStart.add(const Duration(hours: 1)));
+    final start = rawStart.isBefore(dayStart) ? dayStart : rawStart;
+    final end = rawEnd.isAfter(dayEnd) ? dayEnd : rawEnd;
+    double offset(DateTime moment) =>
+        math.min(1440.0, math.max(0.0, moment.difference(dayStart).inMinutes.toDouble()));
+    var startMinutes = offset(start);
+    var endMinutes = offset(end);
+    if (endMinutes <= startMinutes) {
+      endMinutes = math.min(1440.0, startMinutes + 30);
+    }
+    items.add(_DayTimed(entry, startMinutes, endMinutes));
+  }
+  return items;
+}
+
+class _AllDayChip extends StatelessWidget {
+  const _AllDayChip({
+    required this.entry,
+    required this.onOpenEvent,
+    required this.onOpenTask,
+  });
+
+  final _Entry entry;
+  final Future<void> Function(CalendarEvent event) onOpenEvent;
+  final Future<void> Function(CalendarTask task) onOpenTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final task = entry.task;
+    final event = entry.event;
+    final tint = Color.alphaBlend(
+      entry.color.withValues(alpha: 0.28),
+      scheme.surface,
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Material(
+        color: tint,
+        borderRadius: BorderRadius.circular(7),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => task != null ? onOpenTask(task) : onOpenEvent(event!),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (entry.completed)
+                  Icon(
+                    Icons.check_circle_rounded,
+                    size: 12,
+                    color: scheme.onSurfaceVariant,
+                  )
+                else
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: entry.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                const SizedBox(width: 4),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 96),
+                  child: Text(
+                    entry.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      fontSize: 10.5,
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimedBlock extends StatelessWidget {
+  const _TimedBlock({
+    required this.entry,
+    required this.startMinutes,
+    required this.endMinutes,
+    required this.width,
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
   });
 
-  final DateTime anchor;
-  final CalendarSnapshot snapshot;
+  final _Entry entry;
+  final double startMinutes;
+  final double endMinutes;
+  final double width;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
 
   @override
   Widget build(BuildContext context) {
-    final entries = _entriesForDay(snapshot, anchor);
-    if (entries.isEmpty) {
-      return const Center(
-        child: AppEmptyState(
-          icon: Icons.event_available_rounded,
-          title: '今天没有安排',
-          message: '留一点空白，也是一种安排。',
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final task = entry.task;
+    final event = entry.event;
+    final blockHeight = math.max(
+      (endMinutes - startMinutes) / 60 * _kHourSlotHeight,
+      _kHourSlotHeight * 0.3,
+    );
+    final compact = blockHeight < 46;
+    // Week columns are ~50dp wide: drop the colour bar there and let the tint
+    // alone carry the calendar, like TickTick does.
+    final slim = width < 62;
+    final tint = Color.alphaBlend(
+      entry.color.withValues(alpha: 0.22),
+      scheme.surface,
+    );
+    final timeText =
+        '${(startMinutes ~/ 60).toString().padLeft(2, '0')}:${(startMinutes % 60).round().toString().padLeft(2, '0')}'
+        ' - '
+        '${(endMinutes ~/ 60).toString().padLeft(2, '0')}:${(endMinutes % 60).round().toString().padLeft(2, '0')}';
+    return Material(
+      color: tint,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => task != null ? onOpenTask(task) : onOpenEvent(event!),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            slim ? 4 : (compact ? 5 : 8),
+            compact ? 1 : 6,
+            slim ? 4 : (compact ? 5 : 8),
+            compact ? 1 : 6,
+          ),
+          child: Row(
+            crossAxisAlignment: compact
+                ? CrossAxisAlignment.center
+                : CrossAxisAlignment.start,
+            children: [
+              if (!slim) ...[
+                Container(
+                  width: 3,
+                  height: compact ? 12 : double.infinity,
+                  decoration: BoxDecoration(
+                    color: entry.completed
+                        ? scheme.onSurfaceVariant.withValues(alpha: 0.4)
+                        : entry.color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(width: 5),
+              ],
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      entry.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        fontSize: compact ? 10 : 11.5,
+                        height: 1.2,
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                        decoration: entry.completed
+                            ? TextDecoration.lineThrough
+                            : null,
+                      ),
+                    ),
+                    if (!compact) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        timeText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 9.5,
+                          height: 1.2,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
-      itemCount: entries.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 10),
-      itemBuilder: (context, index) => _EntryTile(
-        entry: entries[index],
-        onOpenEvent: onOpenEvent,
-        onOpenTask: onOpenTask,
-        onToggleTask: onToggleTask,
       ),
+    );
+  }
+}
+
+class _NowIndicator extends StatelessWidget {
+  const _NowIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      children: [
+        SizedBox(width: _kTimeGutterWidth - 8),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 2),
+          child: Icon(Icons.circle, size: 7, color: AppColors.red),
+        ),
+        Expanded(
+          child: SizedBox(height: 1.4, child: ColoredBox(color: AppColors.red)),
+        ),
+      ],
     );
   }
 }
@@ -1449,14 +2237,12 @@ class _EntryTile extends StatelessWidget {
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
-    this.compact = false,
   });
 
   final _Entry entry;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1475,12 +2261,7 @@ class _EntryTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: () => task != null ? onOpenTask(task) : onOpenEvent(event!),
         child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            14,
-            compact ? 10 : 13,
-            14,
-            compact ? 10 : 13,
-          ),
+          padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1521,7 +2302,7 @@ class _EntryTile extends StatelessWidget {
                         Expanded(
                           child: Text(
                             entry.title,
-                            maxLines: compact ? 2 : 3,
+                            maxLines: 3,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               fontWeight: FontWeight.w600,

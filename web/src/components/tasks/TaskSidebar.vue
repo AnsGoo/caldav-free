@@ -354,7 +354,7 @@
         <TaskIcon name="bell" :size="16" />
         <span>提醒设置</span>
       </button>
-      <router-link class="tw-side-link" to="/">
+      <router-link class="tw-side-link" to="/dashboard">
         <TaskIcon name="back" :size="16" />
         <span>管理后台</span>
       </router-link>

@@ -57,7 +57,7 @@
         <button class="tw-rail-button" :title="isDarkTheme(theme) ? '切换到浅色' : '切换到深色'" @click="toggleTheme">
           <TaskIcon :name="isDarkTheme(theme) ? 'sun' : 'moon'" :size="20" />
         </button>
-        <router-link class="tw-rail-button" to="/" title="管理后台">
+        <router-link class="tw-rail-button" to="/dashboard" title="管理后台">
           <TaskIcon name="settings" :size="20" />
         </router-link>
       </div>

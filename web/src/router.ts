@@ -17,6 +17,10 @@ const router = createRouter({
     },
     {
       path: '/',
+      redirect: { name: 'tasks' },
+    },
+    {
+      path: '/dashboard',
       name: 'dashboard',
       component: () => import('./views/DashboardView.vue'),
     },
@@ -63,7 +67,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   if (to.meta.share) return true
   if (to.meta.public) {
-    if (auth.user) return { name: 'dashboard' }
+    if (auth.user) return { name: 'tasks' }
     return true
   }
   if (!auth.user) {

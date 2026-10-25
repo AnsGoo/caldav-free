@@ -612,6 +612,68 @@ func TestSyncCalendarEndpoint(t *testing.T) {
 	}
 }
 
+func TestSyncCountdowns(t *testing.T) {
+	env := newAPIEnv(t)
+
+	status, body := env.syncRequest(t, "GET", "/api/sync/countdowns", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list countdowns = %d: %s", status, body)
+	}
+
+	status, body = env.syncRequest(t, "POST", "/api/sync/countdowns", map[string]any{
+		"name":   "移动端倒数",
+		"type":   "countdown",
+		"date":   20261231,
+		"repeat": "none",
+		"color":  "#FF8A65",
+		"pinned": true,
+	})
+	if status != http.StatusCreated {
+		t.Fatalf("create countdown = %d: %s", status, body)
+	}
+	created := decode[struct {
+		Countdown store.CountdownItem `json:"countdown"`
+	}](t, body)
+	if created.Countdown.ID <= 0 || created.Countdown.Name != "移动端倒数" {
+		t.Fatalf("created countdown: %s", body)
+	}
+	if created.Countdown.Days <= 0 || created.Countdown.State != "future" {
+		t.Fatalf("countdown derived fields: %s", body)
+	}
+
+	status, body = env.syncRequest(
+		t, "PATCH", "/api/sync/countdowns/"+strconv.FormatInt(created.Countdown.ID, 10),
+		map[string]any{"name": "移动端纪念日", "pinned": false},
+	)
+	if status != http.StatusOK {
+		t.Fatalf("update countdown = %d: %s", status, body)
+	}
+	updated := decode[struct {
+		Countdown store.CountdownItem `json:"countdown"`
+	}](t, body)
+	if updated.Countdown.Name != "移动端纪念日" || updated.Countdown.Pinned {
+		t.Fatalf("updated countdown: %s", body)
+	}
+
+	status, body = env.syncRequest(t, "GET", "/api/sync/countdowns", nil)
+	if status != http.StatusOK {
+		t.Fatalf("list countdowns after create = %d: %s", status, body)
+	}
+	list := decode[struct {
+		Countdowns []store.CountdownItem `json:"countdowns"`
+	}](t, body)
+	if len(list.Countdowns) != 1 || list.Countdowns[0].ID != created.Countdown.ID {
+		t.Fatalf("countdown list: %s", body)
+	}
+
+	status, body = env.syncRequest(
+		t, "DELETE", "/api/sync/countdowns/"+strconv.FormatInt(created.Countdown.ID, 10), nil,
+	)
+	if status != http.StatusNoContent {
+		t.Fatalf("delete countdown = %d: %s", status, body)
+	}
+}
+
 func TestSyncFocus(t *testing.T) {
 	env := newAPIEnv(t)
 

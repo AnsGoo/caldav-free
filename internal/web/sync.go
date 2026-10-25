@@ -108,6 +108,22 @@ func (s *Server) apiSyncCalendar(w http.ResponseWriter, r *http.Request) {
 	s.apiTaskCalendarEvents(w, r, current, nil)
 }
 
+func (s *Server) apiSyncCountdowns(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiCountdowns(w, r, current, nil)
+}
+
+func (s *Server) apiSyncCountdown(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiCountdown(w, r, current, nil)
+}
+
 func (s *Server) apiSyncFocus(w http.ResponseWriter, r *http.Request) {
 	current, ok := s.apiSyncUser(w, r)
 	if !ok {

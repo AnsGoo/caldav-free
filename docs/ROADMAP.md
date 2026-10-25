@@ -126,6 +126,9 @@
 | 120 | Android P1 收尾：开始时间、本地通知/精确闹钟、回收站恢复/永久删除、全局搜索、置顶 | `28be680` |
 | 121 | Android P1 收尾：重复任务预设/自定义 RRULE、完成推进、跳过本次 | `28be680` |
 | 122 | 同步协议扩展：任务 `restore`/`purge`/`skip` action，重复任务完成推进与 `RECURRENCE_ID` 例外 | `ca7186c` |
+| 123 | Android P2 第一批：看板视图、自定义列、跨列拖拽、列内添加任务 | — |
+| 124 | Android P2 第一批：四象限矩阵、14 天时间线、跨日拖拽改期 | — |
+| 125 | Android P2 第一批：section 本地库/pull/push/tombstone、批量完成/移动/删除 | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
@@ -133,11 +136,12 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1 功能已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
-- Android 模拟器安装与双向同步、通知、回收站、重复任务回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
+- Flutter Android P0/P1 与 P2 第一批已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
 - 后台同步、SSE 实时提示、账号切换
+- P2 后续：列表内拖拽排序/列排序、批量字段修改、时间线日/周/月缩放、日历与任务同屏
 - 同步协议扩展到习惯、专注、倒数日、评论/附件、共享清单
 
 ### AI 与自动化

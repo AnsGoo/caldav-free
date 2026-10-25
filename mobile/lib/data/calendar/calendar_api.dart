@@ -316,6 +316,8 @@ class CalendarApi {
     List<int> reminders = const [],
     String rrule = '',
     List<String> attendees = const [],
+    String scope = 'all',
+    String recurrenceId = '',
   }) async {
     await _writeEvent('PUT', '/api/sync/events', {
       'calendarId': calendarId,
@@ -329,15 +331,23 @@ class CalendarApi {
       'reminders': reminders,
       'rrule': rrule,
       'attendees': attendees,
+      if (scope == 'single') 'scope': 'single',
+      if (scope == 'single') 'recurrenceId': recurrenceId,
     });
   }
 
   Future<void> deleteEvent({
     required int calendarId,
     required String href,
+    String recurrenceId = '',
   }) async {
-    final uri = Uri.parse('$baseUrl/api/sync/events')
-        .replace(queryParameters: {'calendarId': '$calendarId', 'href': href});
+    final uri = Uri.parse('$baseUrl/api/sync/events').replace(
+      queryParameters: {
+        'calendarId': '$calendarId',
+        'href': href,
+        if (recurrenceId.isNotEmpty) 'recurrenceId': recurrenceId,
+      },
+    );
     final response = await _client
         .delete(uri, headers: _headers)
         .timeout(const Duration(seconds: 30));

@@ -384,9 +384,42 @@ class _CalendarPageState extends State<CalendarPage> {
     }
   }
 
+  Future<_EventScope?> _chooseScope(CalendarEvent event, String action) async {
+    if (!event.recurring || event.recurrenceId.isEmpty) {
+      return _EventScope.all;
+    }
+    return showModalBottomSheet<_EventScope>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: Text('$action重复日程'), subtitle: Text(event.summary)),
+            const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.looks_one_outlined),
+              title: const Text('仅此次'),
+              subtitle: const Text('只修改/删除当前实例'),
+              onTap: () => Navigator.pop(context, _EventScope.single),
+            ),
+            ListTile(
+              leading: const Icon(Icons.repeat_rounded),
+              title: const Text('整个系列'),
+              subtitle: const Text('修改/删除所有重复实例'),
+              onTap: () => Navigator.pop(context, _EventScope.all),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _editEvent(CalendarEvent event) async {
     final sources = _writableSources;
     if (sources.isEmpty || event.href.isEmpty) return;
+    final scope = await _chooseScope(event, '编辑');
+    if (scope == null || !mounted) return;
     final draft = await showModalBottomSheet<_EventDraft>(
       context: context,
       isScrollControlled: true,
@@ -418,6 +451,8 @@ class _CalendarPageState extends State<CalendarPage> {
         reminders: draft.reminders,
         rrule: event.rrule,
         attendees: event.attendees,
+        scope: scope == _EventScope.single ? 'single' : 'all',
+        recurrenceId: scope == _EventScope.single ? event.recurrenceId : '',
       );
       await _load(showLoading: false);
     } catch (error) {
@@ -428,11 +463,18 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _deleteEvent(CalendarEvent event) async {
+    final scope = await _chooseScope(event, '删除');
+    if (scope == null || !mounted) return;
+    final single = scope == _EventScope.single;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('删除日程？'),
-        content: Text('“${event.summary}”将从日历中删除。'),
+        content: Text(
+          single
+              ? '仅删除“${event.summary}”的此次实例，其他重复实例保留。'
+              : '“${event.summary}”的整个系列将从日历中删除。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -450,7 +492,11 @@ class _CalendarPageState extends State<CalendarPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _api.deleteEvent(calendarId: event.calendarId, href: event.href);
+      await _api.deleteEvent(
+        calendarId: event.calendarId,
+        href: event.href,
+        recurrenceId: single ? event.recurrenceId : '',
+      );
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -1889,3 +1935,5 @@ class _DetailRow extends StatelessWidget {
     );
   }
 }
+
+enum _EventScope { single, all }

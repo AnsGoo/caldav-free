@@ -27,9 +27,11 @@ pushes it in the background.
   total stats, and recent session records.
 - Countdowns with solar dates, countdown/anniversary/birthday/festival types,
   yearly repeat, pinning, colors and notes.
-- 2026-10 UI pass: paper-layer design tokens, icon-only five-tab navigation,
+- 2026-10 UI passes: paper-layer design tokens, icon-only five-tab navigation,
   borderless cards, underline view tabs, large focus ring, dark mode and
-  1.3x font-scale support. See `docs/客户端UI设计.md`.
+  1.3x font-scale support. A second pass adds eight persisted accent colors,
+  a calendar view menu, 3-day and year views, and holiday labels. See
+  `docs/客户端UI设计.md`.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
   drag-between-columns and manual card ordering; Eisenhower matrix;
   day/week/month timeline with custom start date and drag-to-reschedule.

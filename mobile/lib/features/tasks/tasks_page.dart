@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
+import '../../core/ui_utils.dart';
 import '../../data/engine/sync_controller.dart';
 import '../../data/reminders/reminder_plan.dart';
 import '../../design/format.dart';
@@ -448,7 +449,7 @@ class _TasksPageState extends State<TasksPage> {
         ],
       ),
     );
-    controller.dispose();
+    disposeControllerSoon(controller);
     if (value == null || !mounted) return;
     final tags = value
         .split(RegExp(r'[,，]'))
@@ -486,7 +487,7 @@ class _TasksPageState extends State<TasksPage> {
         ],
       ),
     );
-    controller.dispose();
+    disposeControllerSoon(controller);
     if (value == null || value.isEmpty || !mounted) return;
     final app = context.read<AppState>();
     await _runBatch(prefix ? '批量加前缀' : '批量加后缀', (id) async {
@@ -524,7 +525,7 @@ class _TasksPageState extends State<TasksPage> {
         ],
       ),
     );
-    controller.dispose();
+    disposeControllerSoon(controller);
     if (value == null || value.trim().isEmpty || !mounted) return;
     final app = context.read<AppState>();
     await _runBatch('批量追加备注', (id) async {
@@ -2321,7 +2322,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
         ),
       ),
     );
-    controller.dispose();
+    disposeControllerSoon(controller);
     return result;
   }
 
@@ -2373,7 +2374,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
         ),
       ),
     );
-    controller.dispose();
+    disposeControllerSoon(controller);
     if (result != null && mounted) {
       setState(() => _recurrence = result);
     }

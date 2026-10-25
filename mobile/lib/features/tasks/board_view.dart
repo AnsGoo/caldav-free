@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/models.dart';
+import '../../core/ui_utils.dart';
 import '../../design/format.dart';
 
 /// Kanban board: one column per synced section, plus an "unassigned" column.
@@ -676,7 +677,7 @@ Future<void> _createSection(BuildContext context, String listId) async {
       ],
     ),
   );
-  controller.dispose();
+  disposeControllerSoon(controller);
   if (name == null || name.isEmpty || !context.mounted) return;
   final messenger = ScaffoldMessenger.of(context);
   try {
@@ -712,7 +713,7 @@ Future<void> _renameSection(BuildContext context, TaskSection section) async {
       ],
     ),
   );
-  controller.dispose();
+  disposeControllerSoon(controller);
   if (name == null || name.isEmpty || !context.mounted) return;
   try {
     await context.read<AppState>().repository.renameSection(section.id, name);
@@ -783,7 +784,7 @@ Future<void> _addTask(
       ],
     ),
   );
-  controller.dispose();
+  disposeControllerSoon(controller);
   if (title == null || title.isEmpty || !context.mounted) return;
   final repository = context.read<AppState>().repository;
   try {

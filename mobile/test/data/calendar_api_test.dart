@@ -20,6 +20,7 @@ void main() {
             {
               'id': '3:cal.ics:1',
               'uid': 'evt-1',
+              'href': 'evt-1.ics',
               'calendarId': 3,
               'calendarName': '工作日历',
               'color': '#4772fa',
@@ -30,6 +31,8 @@ void main() {
               'end': '2026-10-26T03:00:00Z',
               'allDay': false,
               'recurring': true,
+              'rrule': 'FREQ=WEEKLY',
+              'attendees': ['a@example.com'],
               'reminders': [10, 0],
             },
           ],
@@ -69,6 +72,9 @@ void main() {
     expect(event.summary, '周会');
     expect(event.start, DateTime.utc(2026, 10, 26, 2));
     expect(event.recurring, true);
+    expect(event.href, 'evt-1.ics');
+    expect(event.rrule, 'FREQ=WEEKLY');
+    expect(event.attendees, ['a@example.com']);
     expect(event.reminders, [10, 0]);
     final task = snapshot.tasks.single;
     expect(task.syncId, 'task-sync-1');

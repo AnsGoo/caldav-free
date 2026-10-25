@@ -59,6 +59,7 @@ type apiSavedFilter struct {
 
 type apiTask struct {
 	ID              int64              `json:"id"`
+	SyncID          string             `json:"syncId,omitempty"`
 	ParentID        int64              `json:"parentId,omitempty"`
 	ListID          int64              `json:"listId"`
 	SectionID       int64              `json:"sectionId"`
@@ -163,6 +164,7 @@ func encodeChecklist(items []apiChecklistItem) string {
 func apiTaskDTO(task *store.Task, list *store.TaskList) apiTask {
 	dto := apiTask{
 		ID:              task.ID,
+		SyncID:          task.SyncID,
 		ParentID:        task.ParentID,
 		ListID:          task.ListID,
 		SectionID:       task.SectionID,

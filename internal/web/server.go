@@ -134,6 +134,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// Machine sync protocol (Basic Auth, no CSRF).
 	mux.HandleFunc("GET /api/sync/pull", s.apiSyncPull)
 	mux.HandleFunc("POST /api/sync/push", s.apiSyncPush)
+	mux.HandleFunc("GET /api/sync/calendar", s.apiSyncCalendar)
 
 	// JSON API used by the Vue admin SPA.
 	mux.HandleFunc("POST /api/admin/login", s.apiLogin)

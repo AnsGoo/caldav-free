@@ -83,7 +83,7 @@ func (s *Server) apiSyncPush(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var request syncapi.PushRequest
+	request := syncapi.PushRequest{}
 	r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&request); err != nil {
@@ -96,4 +96,14 @@ func (s *Server) apiSyncPush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeAPIJSON(w, http.StatusOK, response)
+}
+
+// apiSyncCalendar exposes the workspace calendar (CalDAV VEVENTs, task
+// occurrences, holidays and subscriptions) to Basic-auth sync clients.
+func (s *Server) apiSyncCalendar(w http.ResponseWriter, r *http.Request) {
+	current, ok := s.apiSyncUser(w, r)
+	if !ok {
+		return
+	}
+	s.apiTaskCalendarEvents(w, r, current, nil)
 }

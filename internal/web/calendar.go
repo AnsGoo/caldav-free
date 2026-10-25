@@ -181,6 +181,27 @@ func (s *Server) taskOccurrencesInRange(ctx context.Context, userID int64, from,
 		instanceByOccurrence[recurrenceOccurrenceKey(instance.TaskID, instance.OccurrenceAt)] = instance
 	}
 	out := make([]apiTask, 0, 64)
+	// Non-recurring tasks appear once at their due (or start) time.
+	for _, task := range tasks {
+		if task.Kind == "NOTE" || task.Deleted || task.Recurrence != "" {
+			continue
+		}
+		when := task.DueAt
+		if when == nil {
+			when = task.StartAt
+		}
+		if when == nil || when.Before(from) || !when.Before(to) {
+			continue
+		}
+		dto := apiTaskDTO(task, byID[task.ListID])
+		dto.Due = when.Format(time.RFC3339)
+		dto.Occurrence = when.Format(time.RFC3339)
+		dto.Virtual = false
+		out = append(out, dto)
+		if len(out) >= 2000 {
+			return out, nil
+		}
+	}
 	add := func(task *store.Task, due time.Time, occurrence time.Time, postponed, completed bool) {
 		dto := apiTaskDTO(task, byID[task.ListID])
 		dto.Due = due.Format(time.RFC3339)

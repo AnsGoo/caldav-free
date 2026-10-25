@@ -583,6 +583,33 @@ func TestSyncOrganizationalEntities(t *testing.T) {
 	}
 }
 
+func TestSyncCalendarEndpoint(t *testing.T) {
+	env := newAPIEnv(t)
+
+	req, _ := http.NewRequest("GET", env.server.URL+"/api/sync/calendar?from=2026-10-01&to=2026-11-01", nil)
+	resp, err := env.server.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated calendar = %d", resp.StatusCode)
+	}
+
+	status, body := env.syncRequest(
+		t, "GET", "/api/sync/calendar?from=2026-10-01&to=2026-11-01", nil,
+	)
+	if status != http.StatusOK {
+		t.Fatalf("calendar = %d: %s", status, body)
+	}
+	payload := decode[map[string]json.RawMessage](t, body)
+	for _, key := range []string{"calendars", "events", "tasks", "from", "to"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("calendar response missing %q: %s", key, body)
+		}
+	}
+}
+
 func TestSyncRejectsCrossKindAndBadBaseEtag(t *testing.T) {
 	env := newAPIEnv(t)
 	listPush := env.push(t, syncapi.PushOp{

@@ -84,6 +84,55 @@ void main() {
     api.close();
   });
 
+  test('calendar almanac parses lunar, solar terms and festivals', () async {
+    final api = CalendarApi(
+      baseUrl: 'http://example.test',
+      username: 'demo',
+      password: 'secret',
+      client: MockClient((request) async {
+        expect(request.url.path, '/api/sync/calendar/almanac');
+        return http.Response(
+          jsonEncode({
+            'days': [
+              {
+                'date': '2026-10-01',
+                'lunar': '八月廿一',
+                'jieQi': '',
+                'festival': '国庆节',
+                'label': '国庆节',
+              },
+              {
+                'date': '2026-10-08',
+                'lunar': '八月廿八',
+                'jieQi': '寒露',
+                'festival': '',
+                'label': '寒露',
+              },
+              {
+                'date': '2026-10-09',
+                'lunar': '八月廿九',
+                'jieQi': '',
+                'festival': '',
+                'label': '八月廿九',
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final days = await api.fetchAlmanac(
+      from: DateTime.utc(2026, 10, 1),
+      to: DateTime.utc(2026, 10, 10),
+    );
+    expect(days['2026-10-01']?.label, '国庆节');
+    expect(days['2026-10-01']?.special, true);
+    expect(days['2026-10-08']?.jieQi, '寒露');
+    expect(days['2026-10-09']?.special, false);
+    api.close();
+  });
+
   test('calendar API surfaces server errors', () async {
     final api = CalendarApi(
       baseUrl: 'http://example.test',

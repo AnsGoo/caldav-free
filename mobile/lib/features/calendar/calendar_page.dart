@@ -23,6 +23,7 @@ class _CalendarPageState extends State<CalendarPage> {
   CalendarView _view = CalendarView.month;
   DateTime _anchor = _dateOnly(DateTime.now());
   CalendarSnapshot? _snapshot;
+  Map<String, CalendarAlmanacDay> _almanac = const {};
   bool _loading = false;
   String? _error;
   int _request = 0;
@@ -56,9 +57,18 @@ class _CalendarPageState extends State<CalendarPage> {
     final (from, to) = _rangeFor(_view, _anchor);
     try {
       final snapshot = await _fetchSnapshot(from, to);
+      var almanac = const <String, CalendarAlmanacDay>{};
+      if (_view == CalendarView.month) {
+        try {
+          almanac = await _api.fetchAlmanac(from: from, to: to);
+        } catch (_) {
+          // The month grid still works without the cultural labels.
+        }
+      }
       if (!mounted || request != _request) return;
       setState(() {
         _snapshot = snapshot;
+        _almanac = almanac;
         _loading = false;
         _error = null;
       });
@@ -353,6 +363,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     CalendarView.month => _MonthView(
                       anchor: _anchor,
                       snapshot: snapshot,
+                      almanac: _almanac,
                       onSelectDay: _selectDay,
                       onOpenEvent: _openEvent,
                       onOpenTask: _openTask,
@@ -708,6 +719,11 @@ class _Entry {
       event?.id ?? 'task:${task!.syncId}:${task!.occurrence}:${task!.id}';
 }
 
+String _dateKey(DateTime day) =>
+    '${day.year.toString().padLeft(4, '0')}-'
+    '${day.month.toString().padLeft(2, '0')}-'
+    '${day.day.toString().padLeft(2, '0')}';
+
 String? _holidayLabel(CalendarSnapshot snapshot, DateTime day) {
   final target = _dateOnly(day);
   for (final event in snapshot.events) {
@@ -755,6 +771,7 @@ class _MonthView extends StatelessWidget {
   const _MonthView({
     required this.anchor,
     required this.snapshot,
+    required this.almanac,
     required this.onSelectDay,
     required this.onOpenEvent,
     required this.onOpenTask,
@@ -763,6 +780,7 @@ class _MonthView extends StatelessWidget {
 
   final DateTime anchor;
   final CalendarSnapshot snapshot;
+  final Map<String, CalendarAlmanacDay> almanac;
   final void Function(DateTime day) onSelectDay;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
@@ -803,7 +821,10 @@ class _MonthView extends StatelessWidget {
               final entries = _entriesForDay(snapshot, day);
               final inMonth = day.month == anchor.month;
               final isToday = day == today;
+              final dayAlmanac = almanac[_dateKey(day)];
               final holiday = _holidayLabel(snapshot, day);
+              final label = dayAlmanac?.label ?? holiday ?? '';
+              final special = dayAlmanac?.special == true || holiday != null;
               return InkWell(
                 borderRadius: BorderRadius.circular(14),
                 onTap: () => onSelectDay(day),
@@ -839,15 +860,21 @@ class _MonthView extends StatelessWidget {
                       height: 10,
                       child: Center(
                         child: Text(
-                          holiday ?? '',
+                          label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(
                                 fontSize: 7.5,
                                 height: 1,
-                                color: const Color(0xFFE08A2E),
-                                fontWeight: FontWeight.w600,
+                                color: special
+                                    ? const Color(0xFFE08A2E)
+                                    : scheme.onSurfaceVariant.withValues(
+                                        alpha: 0.8,
+                                      ),
+                                fontWeight: special
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
                               ),
                         ),
                       ),

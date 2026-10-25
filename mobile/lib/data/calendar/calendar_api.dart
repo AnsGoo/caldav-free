@@ -177,6 +177,33 @@ class CalendarSnapshot {
   final DateTime to;
 }
 
+class CalendarAlmanacDay {
+  const CalendarAlmanacDay({
+    required this.date,
+    required this.lunar,
+    required this.jieQi,
+    required this.festival,
+    required this.label,
+  });
+
+  final String date;
+  final String lunar;
+  final String jieQi;
+  final String festival;
+  final String label;
+
+  bool get special => festival.isNotEmpty || jieQi.isNotEmpty;
+
+  factory CalendarAlmanacDay.fromJson(Map<String, dynamic> json) =>
+      CalendarAlmanacDay(
+        date: (json['date'] ?? '').toString(),
+        lunar: (json['lunar'] ?? '').toString(),
+        jieQi: (json['jieQi'] ?? '').toString(),
+        festival: (json['festival'] ?? '').toString(),
+        label: (json['label'] ?? '').toString(),
+      );
+}
+
 class CalendarSubscription {
   const CalendarSubscription({
     required this.id,
@@ -381,6 +408,46 @@ class CalendarApi {
         statusCode: response.statusCode,
       );
     }
+  }
+
+  Future<Map<String, CalendarAlmanacDay>> fetchAlmanac({
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/sync/calendar/almanac').replace(
+      queryParameters: {
+        'from': from.toUtc().toIso8601String(),
+        'to': to.toUtc().toIso8601String(),
+      },
+    );
+    final response = await _client
+        .get(uri, headers: _headers)
+        .timeout(const Duration(seconds: 30));
+    Map<String, dynamic> body = const {};
+    if (response.body.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic>) body = decoded;
+      } on FormatException {
+        body = const {};
+      }
+    }
+    if (response.statusCode != 200) {
+      final message = body['error']?.toString();
+      throw CalendarApiException(
+        message == null || message.isEmpty
+            ? '农历服务返回 HTTP ${response.statusCode}'
+            : message,
+        statusCode: response.statusCode,
+      );
+    }
+    final result = <String, CalendarAlmanacDay>{};
+    for (final value in body['days'] as List<dynamic>? ?? const []) {
+      if (value is! Map<String, dynamic>) continue;
+      final day = CalendarAlmanacDay.fromJson(value);
+      if (day.date.isNotEmpty) result[day.date] = day;
+    }
+    return result;
   }
 
   Future<List<CalendarSubscription>> subscriptions() async {

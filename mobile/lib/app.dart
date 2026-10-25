@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'app_state.dart';
 import 'features/auth/login_page.dart';
-import 'features/tasks/tasks_page.dart';
+import 'features/home/home_shell.dart';
 
 class CalDavApp extends StatelessWidget {
   const CalDavApp({super.key});
@@ -17,7 +17,7 @@ class CalDavApp extends StatelessWidget {
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
       themeMode: ThemeMode.system,
-      home: app.signedIn ? const TasksPage() : const LoginPage(),
+      home: app.signedIn ? const HomeShell() : const LoginPage(),
     );
   }
 

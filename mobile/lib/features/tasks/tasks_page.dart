@@ -41,6 +41,7 @@ class _TasksPageState extends State<TasksPage> {
   String _query = '';
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
+  TimelineScale _timelineScale = TimelineScale.day;
   bool _selecting = false;
   final Set<String> _selectedIds = {};
 
@@ -256,6 +257,156 @@ class _TasksPageState extends State<TasksPage> {
     if (mounted) setState(() => _selectedIds.clear());
   }
 
+  Future<void> _runBatch(
+    String label,
+    Future<void> Function(String id) action,
+  ) async {
+    if (_selectedIds.isEmpty) return;
+    final ids = _selectedIds.toList();
+    setState(() => _selecting = false);
+    try {
+      for (final id in ids) {
+        await action(id);
+      }
+    } catch (error) {
+      _snack('$label失败：$error');
+    }
+    if (mounted) setState(() => _selectedIds.clear());
+  }
+
+  Future<void> _batchPriority() async {
+    const labels = ['无', '低', '中', '高'];
+    final priority = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('设置优先级'),
+            ),
+            for (var value = 0; value <= 3; value++)
+              ListTile(
+                leading: Icon(
+                  Icons.flag_rounded,
+                  color: switch (value) {
+                    3 => const Color(0xFFEF4444),
+                    2 => const Color(0xFFF59E0B),
+                    1 => const Color(0xFF3B82F6),
+                    _ => null,
+                  },
+                ),
+                title: Text(labels[value]),
+                onTap: () => Navigator.pop(context, value),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (priority == null || !mounted) return;
+    final repository = context.read<AppState>().repository;
+    await _runBatch('批量设置优先级', (id) => repository.updatePriority(id, priority));
+  }
+
+  Future<void> _batchDue() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text('设置截止日期'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.today_rounded),
+              title: const Text('今天'),
+              onTap: () => Navigator.pop(context, 'today'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_rounded),
+              title: const Text('明天'),
+              onTap: () => Navigator.pop(context, 'tomorrow'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.date_range_rounded),
+              title: const Text('选择日期…'),
+              onTap: () => Navigator.pop(context, 'custom'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.event_busy_rounded),
+              title: const Text('清除截止日期'),
+              onTap: () => Navigator.pop(context, 'clear'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (choice == null || !mounted) return;
+    DateTime? due;
+    if (choice == 'today') {
+      due = DateTime(today.year, today.month, today.day, 9);
+    } else if (choice == 'tomorrow') {
+      final date = today.add(const Duration(days: 1));
+      due = DateTime(date.year, date.month, date.day, 9);
+    } else if (choice == 'custom') {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: today,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2100),
+      );
+      if (picked == null || !mounted) return;
+      due = DateTime(picked.year, picked.month, picked.day, 9);
+    }
+    final repository = context.read<AppState>().repository;
+    await _runBatch('批量改期', (id) => repository.setDue(id, due));
+  }
+
+  Future<void> _batchTags() async {
+    final controller = TextEditingController();
+    final value = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('添加标签'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '标签',
+            helperText: '多个标签用逗号分隔',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (value == null || !mounted) return;
+    final tags = value
+        .split(RegExp(r'[,，]'))
+        .map((tag) => tag.trim())
+        .where((tag) => tag.isNotEmpty)
+        .toList();
+    if (tags.isEmpty) return;
+    final repository = context.read<AppState>().repository;
+    await _runBatch('批量添加标签', (id) => repository.addTags(id, tags));
+  }
+
   @override
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
@@ -456,6 +607,9 @@ class _TasksPageState extends State<TasksPage> {
               onComplete: _batchComplete,
               onMove: _batchMove,
               onDelete: _batchDelete,
+              onPriority: _batchPriority,
+              onDue: _batchDue,
+              onTags: _batchTags,
             ),
           if (_layout == _TaskLayout.list) ...[
             _ListSelector(
@@ -574,11 +728,16 @@ class _TasksPageState extends State<TasksPage> {
               includeAll: true,
               onChanged: _setScope,
             ),
+            _TimelineScaleBar(
+              scale: _timelineScale,
+              onChanged: (value) => setState(() => _timelineScale = value),
+            ),
             Expanded(
               child: SafeArea(
                 top: false,
                 child: TimelineView(
                   tasks: _tasks,
+                  scale: _timelineScale,
                   onOpenTask: (task) =>
                       _openEditor(task, listsById[task.listId]),
                   onToggleTask: _toggle,
@@ -823,12 +982,18 @@ class _BatchBar extends StatelessWidget {
     required this.onComplete,
     required this.onMove,
     required this.onDelete,
+    required this.onPriority,
+    required this.onDue,
+    required this.onTags,
   });
 
   final int count;
   final VoidCallback onComplete;
   final VoidCallback onMove;
   final VoidCallback onDelete;
+  final VoidCallback onPriority;
+  final VoidCallback onDue;
+  final VoidCallback onTags;
 
   @override
   Widget build(BuildContext context) {
@@ -865,6 +1030,73 @@ class _BatchBar extends StatelessWidget {
             icon: const Icon(Icons.delete_outline_rounded, size: 18),
             label: const Text('删除'),
             style: TextButton.styleFrom(foregroundColor: scheme.error),
+          ),
+          PopupMenuButton<String>(
+            tooltip: '更多批量操作',
+            icon: const Icon(Icons.more_vert_rounded, size: 20),
+            onSelected: (value) {
+              switch (value) {
+                case 'priority':
+                  onPriority();
+                  break;
+                case 'due':
+                  onDue();
+                  break;
+                case 'tags':
+                  onTags();
+                  break;
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'priority', child: Text('设置优先级')),
+              PopupMenuItem(value: 'due', child: Text('设置截止日期')),
+              PopupMenuItem(value: 'tags', child: Text('添加标签')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineScaleBar extends StatelessWidget {
+  const _TimelineScaleBar({required this.scale, required this.onChanged});
+
+  final TimelineScale scale;
+  final ValueChanged<TimelineScale> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Row(
+        children: [
+          Text(
+            '缩放',
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(width: 10),
+          ChoiceChip(
+            label: const Text('日'),
+            selected: scale == TimelineScale.day,
+            onSelected: (_) => onChanged(TimelineScale.day),
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 6),
+          ChoiceChip(
+            label: const Text('周'),
+            selected: scale == TimelineScale.week,
+            onSelected: (_) => onChanged(TimelineScale.week),
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 6),
+          ChoiceChip(
+            label: const Text('月'),
+            selected: scale == TimelineScale.month,
+            onSelected: (_) => onChanged(TimelineScale.month),
+            visualDensity: VisualDensity.compact,
           ),
         ],
       ),

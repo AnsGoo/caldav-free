@@ -40,14 +40,32 @@ class BoardView extends StatelessWidget {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
-            for (final section in sections)
+            for (var index = 0; index < sections.length; index++)
               _BoardColumn(
-                key: ValueKey(section.id),
+                key: ValueKey(sections[index].id),
                 list: list,
-                section: section,
-                tasks: bySection[section.id] ?? const [],
+                section: sections[index],
+                tasks: bySection[sections[index].id] ?? const [],
                 onOpenTask: onOpenTask,
                 onToggleTask: onToggleTask,
+                onMoveLeft: index > 0
+                    ? () => _reorderSections(
+                        context,
+                        list.id,
+                        sections,
+                        index,
+                        index - 1,
+                      )
+                    : null,
+                onMoveRight: index < sections.length - 1
+                    ? () => _reorderSections(
+                        context,
+                        list.id,
+                        sections,
+                        index,
+                        index + 1,
+                      )
+                    : null,
               ),
             _BoardColumn(
               key: const ValueKey('unassigned'),
@@ -73,6 +91,8 @@ class _BoardColumn extends StatelessWidget {
     required this.tasks,
     required this.onOpenTask,
     required this.onToggleTask,
+    this.onMoveLeft,
+    this.onMoveRight,
   });
 
   final TaskListItem list;
@@ -80,6 +100,8 @@ class _BoardColumn extends StatelessWidget {
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
+  final VoidCallback? onMoveLeft;
+  final VoidCallback? onMoveRight;
 
   @override
   Widget build(BuildContext context) {
@@ -128,11 +150,19 @@ class _BoardColumn extends StatelessWidget {
                         _renameSection(context, section!);
                       } else if (value == 'delete') {
                         _deleteSection(context, section!);
+                      } else if (value == 'left') {
+                        onMoveLeft?.call();
+                      } else if (value == 'right') {
+                        onMoveRight?.call();
                       }
                     },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'rename', child: Text('重命名')),
-                      PopupMenuItem(value: 'delete', child: Text('删除列')),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(value: 'rename', child: Text('重命名')),
+                      if (onMoveLeft != null)
+                        const PopupMenuItem(value: 'left', child: Text('左移')),
+                      if (onMoveRight != null)
+                        const PopupMenuItem(value: 'right', child: Text('右移')),
+                      const PopupMenuItem(value: 'delete', child: Text('删除列')),
                     ],
                   ),
               ],
@@ -382,6 +412,26 @@ class _AddColumnButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _reorderSections(
+  BuildContext context,
+  String listId,
+  List<TaskSection> sections,
+  int from,
+  int to,
+) async {
+  final ids = sections.map((section) => section.id).toList();
+  if (from < 0 || from >= ids.length || to < 0 || to >= ids.length) return;
+  final moved = ids.removeAt(from);
+  ids.insert(to, moved);
+  try {
+    await context.read<AppState>().repository.reorderSections(listId, ids);
+  } catch (error) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('排序失败：$error')));
   }
 }
 

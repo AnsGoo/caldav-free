@@ -53,8 +53,7 @@ void main() {
     await store.dispose();
   });
 
-  test('saveEdits sends only fields changed against the editor baseline',
-      () async {
+  test('saveEdits sends only fields changed against the editor baseline', () async {
     final store = LocalStore.memory();
     final repo = TaskRepository(store);
     final task = await repo.createTask(title: '原标题', listId: 'list-1');
@@ -77,9 +76,7 @@ void main() {
       pinned: baseline.pinned,
       recurrence: baseline.recurrence,
       tags: const ['p1', '工作'],
-      checklist: const [
-        ChecklistItem(id: 'sub-1', title: '第一步'),
-      ],
+      checklist: const [ChecklistItem(id: 'sub-1', title: '第一步')],
     );
 
     final op = store.pendingOp('task', task.id)!;
@@ -100,10 +97,7 @@ void main() {
     expect(local.checklist.single.title, '第一步');
 
     // A remote edit to an untouched field must survive a later editor save.
-    await store.saveTask(
-      local.copyWith(notes: '远端备注'),
-      dirty: false,
-    );
+    await store.saveTask(local.copyWith(notes: '远端备注'), dirty: false);
     await repo.saveEdits(
       task.id,
       baseline: baseline,
@@ -117,9 +111,7 @@ void main() {
       pinned: baseline.pinned,
       recurrence: baseline.recurrence,
       tags: const ['p1', '工作'],
-      checklist: const [
-        ChecklistItem(id: 'sub-1', title: '第一步'),
-      ],
+      checklist: const [ChecklistItem(id: 'sub-1', title: '第一步')],
     );
     expect(store.task(task.id)!.notes, '远端备注');
     await store.dispose();
@@ -193,6 +185,27 @@ void main() {
     await store.dispose();
   });
 
+  test('batch field helpers patch priority, due and tags', () async {
+    final store = LocalStore.memory();
+    final repo = TaskRepository(store);
+    final task = await repo.createTask(title: '批量字段', listId: 'list-1');
+
+    await repo.updatePriority(task.id, 3);
+    final due = DateTime.utc(2026, 11, 5, 9);
+    await repo.setDue(task.id, due);
+    await repo.addTags(task.id, ['工作', '批量', '工作']);
+
+    final local = store.task(task.id)!;
+    expect(local.priority, 3);
+    expect(local.dueAt, due);
+    expect(local.tags, ['工作', '批量']);
+    final op = store.pendingOp('task', task.id)!;
+    expect(op.patch['priority'], 3);
+    expect(op.patch['due'], '2026-11-05T09:00:00.000Z');
+    expect(op.patch['tags'], ['工作', '批量']);
+    await store.dispose();
+  });
+
   test('smart views filter by due date', () async {
     final store = LocalStore.memory();
     final now = DateTime.now();
@@ -210,10 +223,17 @@ void main() {
       );
     }
 
-    await save('overdue', '逾期', start.subtract(const Duration(days: 1)).toUtc());
+    await save(
+      'overdue',
+      '逾期',
+      start.subtract(const Duration(days: 1)).toUtc(),
+    );
     await save('today', '今天', start.add(const Duration(hours: 10)).toUtc());
-    await save('tomorrow', '明天',
-        start.add(const Duration(days: 1, hours: 10)).toUtc());
+    await save(
+      'tomorrow',
+      '明天',
+      start.add(const Duration(days: 1, hours: 10)).toUtc(),
+    );
     await save('week', '本周', start.add(const Duration(days: 5)).toUtc());
     await save('later', '以后', start.add(const Duration(days: 10)).toUtc());
     await save('none', '无日期', null);

@@ -170,6 +170,10 @@ void main() {
       listId: inbox.id,
       name: '进行中',
     );
+    final done = await deviceA.repo.createSection(
+      listId: inbox.id,
+      name: '已完成',
+    );
     final task = await deviceA.repo.createTask(title: '看板任务', listId: inbox.id);
     await deviceA.repo.moveTaskToSection(task.id, section.id);
     await deviceA.engine.sync();
@@ -178,6 +182,17 @@ void main() {
     expect(deviceB.store.section(section.id)?.name, '进行中');
     expect(deviceB.store.task(task.id)?.sectionId, section.id);
     expect(server.sections[section.id]?['name'], '进行中');
+
+    await deviceA.repo.reorderSections(inbox.id, [done.id, section.id]);
+    await deviceA.engine.sync();
+    await deviceB.engine.sync();
+    expect(
+      deviceB.store
+          .sectionsSnapshot(listId: inbox.id)
+          .map((section) => section.id)
+          .toList(),
+      [done.id, section.id],
+    );
 
     await deviceB.repo.renameSection(section.id, '待办');
     await deviceB.engine.sync();

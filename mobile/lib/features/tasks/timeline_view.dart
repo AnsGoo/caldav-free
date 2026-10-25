@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../design/format.dart';
 
-/// A simple 14-day timeline. Tasks can be dragged between days to reschedule.
+enum TimelineScale { day, week, month }
+
+/// Day/week/month timeline. Tasks can be dragged between buckets to reschedule.
 class TimelineView extends StatelessWidget {
   const TimelineView({
     super.key,
@@ -11,19 +13,34 @@ class TimelineView extends StatelessWidget {
     required this.onOpenTask,
     required this.onToggleTask,
     required this.onReschedule,
-  }) : days = 14;
+    required this.scale,
+  });
 
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
   final void Function(TaskItem task, DateTime? due) onReschedule;
-  final int days;
+  final TimelineScale scale;
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final end = today.add(Duration(days: days));
+    final start = switch (scale) {
+      TimelineScale.day => today,
+      TimelineScale.week => today.subtract(Duration(days: today.weekday - 1)),
+      TimelineScale.month => DateTime(today.year, today.month),
+    };
+    final count = switch (scale) {
+      TimelineScale.day => 14,
+      TimelineScale.week => 8,
+      TimelineScale.month => 3,
+    };
+    final end = switch (scale) {
+      TimelineScale.day => start.add(Duration(days: count)),
+      TimelineScale.week => start.add(Duration(days: count * 7)),
+      TimelineScale.month => DateTime(start.year, start.month + count),
+    };
     final buckets = <String, List<TaskItem>>{};
     final undated = <TaskItem>[];
     final farFuture = <TaskItem>[];
@@ -37,7 +54,7 @@ class TimelineView extends StatelessWidget {
       if (day.isBefore(today)) {
         buckets.putIfAbsent('overdue', () => <TaskItem>[]).add(task);
       } else if (day.isBefore(end)) {
-        buckets.putIfAbsent(_dayKey(day), () => <TaskItem>[]).add(task);
+        buckets.putIfAbsent(_bucketKey(day), () => <TaskItem>[]).add(task);
       } else {
         farFuture.add(task);
       }
@@ -66,29 +83,18 @@ class TimelineView extends StatelessWidget {
             onToggleTask: onToggleTask,
             accent: const Color(0xFFEF4444),
           ),
-        for (var i = 0; i < days; i++)
+        for (var i = 0; i < count; i++)
           _TimelineColumn(
-            title: _dayTitle(today.add(Duration(days: i)), i),
-            subtitle: _weekday(today.add(Duration(days: i))),
-            tasks: buckets[_dayKey(today.add(Duration(days: i)))] ?? const [],
+            width: scale == TimelineScale.day ? 196 : 220,
+            title: _bucketTitle(start, i),
+            subtitle: _bucketSubtitle(start, i),
+            tasks: buckets[_bucketKey(_bucketStart(start, i))] ?? const [],
             acceptsDrop: true,
-            onDrop: (task) {
-              final existing = task.dueAt?.toLocal();
-              final date = today.add(Duration(days: i));
-              final due = task.allDay || existing == null
-                  ? DateTime(date.year, date.month, date.day)
-                  : DateTime(
-                      date.year,
-                      date.month,
-                      date.day,
-                      existing.hour,
-                      existing.minute,
-                    );
-              onReschedule(task, due.toUtc());
-            },
+            onDrop: (task) =>
+                onReschedule(task, _dropDate(task, _bucketStart(start, i))),
             onOpenTask: onOpenTask,
             onToggleTask: onToggleTask,
-            today: i == 0,
+            today: i == 0 && scale == TimelineScale.day,
           ),
         _TimelineColumn(
           title: '以后',
@@ -103,14 +109,98 @@ class TimelineView extends StatelessWidget {
     );
   }
 
+  DateTime _bucketStart(DateTime start, int index) => switch (scale) {
+    TimelineScale.day => start.add(Duration(days: index)),
+    TimelineScale.week => start.add(Duration(days: index * 7)),
+    TimelineScale.month => DateTime(start.year, start.month + index),
+  };
+
+  String _bucketKey(DateTime day) => switch (scale) {
+    TimelineScale.day => _dayKey(day),
+    TimelineScale.week => _dayKey(
+      day.subtract(Duration(days: day.weekday - 1)),
+    ),
+    TimelineScale.month => '${day.year}-${day.month}',
+  };
+
+  String _bucketTitle(DateTime start, int index) {
+    final target = _bucketStart(start, index);
+    switch (scale) {
+      case TimelineScale.day:
+        if (index == 0) return '今天';
+        if (index == 1) return '明天';
+        return '${target.month}月${target.day}日';
+      case TimelineScale.week:
+        if (index == 0) return '本周';
+        if (index == 1) return '下周';
+        return '${target.month}月${target.day}日周';
+      case TimelineScale.month:
+        if (index == 0) return '${target.month}月';
+        return '${target.year}年${target.month}月';
+    }
+  }
+
+  String _bucketSubtitle(DateTime start, int index) {
+    final target = _bucketStart(start, index);
+    switch (scale) {
+      case TimelineScale.day:
+        return _weekday(target);
+      case TimelineScale.week:
+        final end = target.add(const Duration(days: 6));
+        return '${target.month}/${target.day} - ${end.month}/${end.day}';
+      case TimelineScale.month:
+        return index == 0 ? '本月' : '${target.month}月';
+    }
+  }
+
+  DateTime? _dropDate(TaskItem task, DateTime bucketStart) {
+    final existing = task.dueAt?.toLocal();
+    switch (scale) {
+      case TimelineScale.day:
+        if (task.allDay || existing == null) {
+          return DateTime(bucketStart.year, bucketStart.month, bucketStart.day);
+        }
+        return DateTime(
+          bucketStart.year,
+          bucketStart.month,
+          bucketStart.day,
+          existing.hour,
+          existing.minute,
+        );
+      case TimelineScale.week:
+        final weekday = existing?.weekday ?? DateTime.monday;
+        final date = bucketStart.add(Duration(days: weekday - 1));
+        if (task.allDay || existing == null) {
+          return DateTime(date.year, date.month, date.day);
+        }
+        return DateTime(
+          date.year,
+          date.month,
+          date.day,
+          existing.hour,
+          existing.minute,
+        );
+      case TimelineScale.month:
+        final day = existing?.day ?? 1;
+        final last = DateTime(bucketStart.year, bucketStart.month + 1, 0).day;
+        final date = DateTime(
+          bucketStart.year,
+          bucketStart.month,
+          day > last ? last : day,
+        );
+        if (task.allDay || existing == null) return date;
+        return DateTime(
+          date.year,
+          date.month,
+          date.day,
+          existing.hour,
+          existing.minute,
+        );
+    }
+  }
+
   static String _dayKey(DateTime day) =>
       '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
-
-  static String _dayTitle(DateTime day, int index) {
-    if (index == 0) return '今天';
-    if (index == 1) return '明天';
-    return '${day.month}月${day.day}日';
-  }
 
   static String _weekday(DateTime day) {
     const names = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -127,6 +217,7 @@ class _TimelineColumn extends StatelessWidget {
     required this.onDrop,
     required this.onOpenTask,
     required this.onToggleTask,
+    this.width = 196,
     this.accent,
     this.today = false,
   });
@@ -138,6 +229,7 @@ class _TimelineColumn extends StatelessWidget {
   final void Function(TaskItem task)? onDrop;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
+  final double width;
   final Color? accent;
   final bool today;
 
@@ -147,7 +239,7 @@ class _TimelineColumn extends StatelessWidget {
     final scheme = theme.colorScheme;
     final color = accent ?? scheme.primary;
     return Container(
-      width: 196,
+      width: width,
       margin: const EdgeInsets.only(right: 10),
       decoration: BoxDecoration(
         color: today

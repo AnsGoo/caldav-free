@@ -286,6 +286,62 @@ class TaskRepository {
     }
   }
 
+  Future<void> reorderSections(String listId, List<String> orderedIds) async {
+    final sections = store.sectionsSnapshot(listId: listId);
+    if (sections.isEmpty) return;
+    final byId = {for (final section in sections) section.id: section};
+    final ids = orderedIds.where(byId.containsKey).toList();
+    if (ids.length != sections.length) return;
+    final now = DateTime.now().toUtc();
+    await store.batch(() async {
+      for (var index = 0; index < ids.length; index++) {
+        final section = byId[ids[index]]!;
+        if (section.sortOrder == index) continue;
+        final updated = section.copyWith(sortOrder: index, updatedAt: now);
+        final existing = store.pendingOp('section', section.id);
+        await store.saveSection(updated);
+        if (existing != null) {
+          await store.removeOp(existing.opId);
+        }
+        await store.saveOp(
+          opId: newSyncId(),
+          entity: 'section',
+          entityId: section.id,
+          action: existing?.action == 'create' ? 'create' : 'update',
+          patch: {...?existing?.patch, 'order': index},
+          baseEtag: existing?.baseEtag ?? section.etag,
+        );
+      }
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> updatePriority(String id, int priority) async {
+    final task = store.task(id);
+    if (task == null || task.priority == priority) return;
+    await _patch(task, {
+      'priority': priority,
+    }, task.copyWith(priority: priority));
+  }
+
+  Future<void> setDue(String id, DateTime? due) async {
+    final task = store.task(id);
+    if (task == null) return;
+    final utc = due?.toUtc();
+    if (_sameInstant(task.dueAt, utc)) return;
+    await _patch(task, {
+      'due': utc?.toIso8601String(),
+    }, task.copyWith(dueAt: utc, clearDue: utc == null));
+  }
+
+  Future<void> addTags(String id, Iterable<String> tags) async {
+    final task = store.task(id);
+    if (task == null) return;
+    final merged = _normalizeTags([...task.tags, ...tags]);
+    if (_sameTags(task.tags, merged)) return;
+    await _patch(task, {'tags': merged}, task.copyWith(tags: merged));
+  }
+
   Future<void> moveTaskToList(String taskId, String listId) async {
     final task = store.task(taskId);
     if (task == null || task.listId == listId) return;

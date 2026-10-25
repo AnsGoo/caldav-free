@@ -178,9 +178,7 @@ void main() {
     expect(find.text('未分列'), findsOneWidget);
     expect(find.text('看板里的任务'), findsOneWidget);
 
-    final drag = await tester.startGesture(
-      tester.getCenter(find.text('拖拽任务')),
-    );
+    final drag = await tester.startGesture(tester.getCenter(find.text('拖拽任务')));
     await tester.pump(const Duration(milliseconds: 700));
     await drag.moveTo(
       tester.getCenter(find.text('进行中')) + const Offset(0, 120),
@@ -215,6 +213,15 @@ void main() {
     await timelineDrag.up();
     await tester.pumpAndSettle();
     expect(store.task('task-drag')?.dueAt, isNotNull);
+
+    await tester.tap(find.text('周'));
+    await tester.pumpAndSettle();
+    expect(find.text('本周'), findsOneWidget);
+    expect(find.text('下周'), findsOneWidget);
+
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    expect(find.text('本月'), findsOneWidget);
   });
 
   testWidgets('smart views filter by due date', (tester) async {

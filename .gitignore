@@ -13,4 +13,16 @@ __debug_bin*
 
 node_modules/
 
-app/
+/app/
+# Flutter client
+/mobile/.dart_tool/
+/mobile/.flutter-plugins
+/mobile/.flutter-plugins-dependencies
+/mobile/build/
+/mobile/.idea/
+/mobile/*.iml
+/mobile/android/.gradle/
+/mobile/android/local.properties
+/mobile/android/app/debug/
+/mobile/android/app/profile/
+/mobile/android/app/release/

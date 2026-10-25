@@ -118,10 +118,22 @@
 | 112 | 重复任务实例历史、跳过本次、完成实例记录 | `0297239` |
 | 113 | `RECURRENCE-ID` 实例例外、日历重复任务展开、例外清理 | `8779140` |
 | 114 | 重复实例双向同步、顺延、原始系列锚点、日历实例直接操作 | `d818b90` |
+| 115 | 客户端同步协议：`sync_logs` 触发器、`sync_id` 回填、pull/push、ETag 冲突、opId 幂等、CalDAV 同源变更流 | — |
+| 116 | Android Flutter P0：登录、原子 JSON 本地库、outbox、pull/merge/push/settle、冲突重试、任务页、诊断页、真实后端 E2E | — |
 
 原建议的 6 项（重复/提醒、垃圾桶/批量/排序、文件夹/过滤器/标签、日历、统计、AI）已全部完成。
 
 ## 2. 尚未实现
+
+### 跨端客户端
+
+- Flutter Android P0 已实现（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Android SDK/JDK 安装、APK 构建、真机与模拟器回归
+- 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
+- Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）
+- 后台同步、本地通知、SSE 提示、账号切换
+- 同步协议扩展到习惯、专注、倒数日、评论/附件、共享清单
+- 推送任务完成时的重复实例推进与 `RECURRENCE_ID` 写入
 
 ### AI 与自动化
 

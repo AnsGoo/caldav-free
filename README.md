@@ -36,6 +36,8 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - 笔记清单：侧栏「笔记」分组集中展示笔记清单，点击 + 直接新建笔记，文档图标新建笔记清单；笔记使用固定宽度卡片视图和 Markdown 所见即所得编辑器（Tiptap，单栏实时渲染），支持标题、加粗、斜体、删除线、引用、代码、列表、复选框、表格、链接、自动保存、置顶、搜索与删除；笔记清单和单篇笔记都支持只读/可编辑共享，笔记支持评论、@提及、附件和改动动态；编辑器顶部可切换笔记所属清单，编辑器与卡片列表之间的分隔线可拖动调整宽度；Markdown 存储，服务端维护搜索镜像；笔记只保存在工作台，不写入 CalDAV VTODO
 - 时间线视图：按清单分组的横向时间轴，支持日 / 周 / 月缩放、按清单 / 标签 / 优先级着色、点击空白新建、拖动任务条改期、上一段 / 今天 / 下一段
 - CalDAV 近实时同步：工作台打开时每 15 秒增量同步 VTODO，变化通过 SSE 自动刷新列表；其他标签页和 CalDAV 客户端修改会同步到当前页面
+- 客户端同步协议：`/api/sync/pull` + `/api/sync/push`，用户级增量游标、`etag/version` 乐观并发、`opId` 幂等、回收站与 tombstone 传播；工作台、AI、CalDAV 写入共用同一份变更日志
+- Android 客户端 P0（`mobile/`，Flutter）：登录、离线任务列表、outbox、增量 pull/push、ETag 冲突重试、CalDAV 同源变更、同步诊断；APK 构建待安装 Android SDK
 - 并列显示：任务列表 / 看板 / 时间线可与日历左右并列，拖动分隔条调整宽度，点击任务时自动收起日历面板
 - 工作台内日期、时间选择器统一使用 Arco DatePicker / TimePicker，不使用浏览器原生日期控件
 - 日历支持月、周、2 周、3 日、日、日程、年七种视图；支持外部 ICS 日历订阅和内置节假日日历；订阅与节假日事件只读，但可点击查看详情；移动端月视图用紧凑圆点展示事件密度，并使用满宽满高工作区；月视图日期格自动均分剩余高度，周/日为填满剩余空间的时间网格，日程为未来 30 天满宽清单
@@ -98,6 +100,8 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - [倒数纪念日复刻记录](docs/倒数纪念日模块.md)：REA 证据、卡片、周期、提醒与未对齐项
 - [习惯模块复刻记录](docs/习惯模块.md)：REA 证据、打卡、提醒、统计、导入导出与未对齐项
 - [Admin JSON API](docs/API.md)：任务/清单/文件夹/过滤器/标签/日历/统计/AI 接口与示例
+- [客户端同步协议](docs/同步协议.md)：`/api/sync/pull` + `/api/sync/push` 的游标、ETag、幂等与冲突处理
+- [客户端 P0](docs/客户端P0.md)：Flutter Android 骨架、本地库、同步内核、测试与真机待办
 - [架构与同步设计](docs/ARCHITECTURE.md)：数据表、VTODO 对账、事件展开、统计聚合、AI 工具循环
 - [实现进度与路线图](docs/ROADMAP.md)：已完成批次、提交记录、未实现能力与优先级
 
@@ -251,6 +255,8 @@ docker run -d --name caldav \
 | `/admin` | Vue 管理后台（仅管理员） |
 | `/admin/tasks` | 任务工作台（清单 / 看板 / 日历） |
 | `/api/admin/*` | 管理后台 JSON API（会话 + CSRF） |
+| `/api/sync/pull` | 客户端增量拉取（Basic Auth，游标分页） |
+| `/api/sync/push` | 客户端批量推送（Basic Auth，ETag 冲突检测 + opId 幂等） |
 | `/api/admin/tasks` | 任务工作台数据与任务 CRUD |
 | `/api/admin/tasks/reminders` | 提醒候选任务（页面内提醒） |
 | `/api/admin/tasks/push/public-key` | Web Push VAPID 公钥 |
@@ -340,7 +346,9 @@ internal/ical          iCalendar 解析、序列化、时区、重复展开、�
 internal/dav           CalDAV/WebDAV HTTP 处理器、XML、属性、REPORT
 internal/tasks         任务快速添加的自然语言解析（日期、时间、标签、优先级）
 internal/tasksync      任务与 CalDAV VTODO 集合的双向同步、冲突处理与对象恢复
+internal/syncapi       客户端 pull/push 协议、同步 DTO、ETag 冲突与幂等
 internal/web           管理后台（模板、会话、CSRF、静态资源 embed）
+mobile/                Android Flutter 客户端（P0：登录、本地库、同步内核、任务页）
 ```
 
 数据表：
@@ -349,6 +357,9 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 - `calendars`：日历集合、时区、组件、sync 序号
 - `objects`：ICS 原文、ETag、时间范围缓存、墓碑
 - `sync_changes`：每次变更的序号日志，用于 sync-collection
+- `sync_logs`：用户级变更日志，pull 游标；由触发器覆盖任务/清单/看板列/文件夹/筛选器的所有写路径
+- `sync_ops`：push 幂等结果（按用户 + opId 去重，保留 7 天）
+- `sync_id`：任务/清单/看板列/文件夹/筛选器的客户端同步 ID（列上唯一索引）
 - `settings`：服务端设置
 - `task_folders`：清单文件夹
 - `task_lists`：任务清单（每个用户一个收集箱，可归属文件夹）
@@ -380,6 +391,13 @@ internal/web           管理后台（模板、会话、CSRF、静态资源 embe
 
 `sync-collection` 返回自 token 之后每个 href 的最新变更；删除以 `404 Not Found` 响应表示。
 同步日志目前永久保留，适合个人/小团队规模。
+
+客户端增量同步走独立协议：
+
+- `GET /api/sync/pull?since=<cursor>`：返回自游标以来的任务/清单/看板列/文件夹/筛选器快照与 tombstone。
+- `POST /api/sync/push`：按 `opId` 幂等、按 `baseEtag` 做乐观并发；冲突时返回服务端最新快照。
+- 日志表 `sync_logs` 由 SQLite 触发器维护，保留 90 天；push 幂等结果保留 7 天。
+- 详细契约与 curl 示例见 [客户端同步协议](docs/同步协议.md)。
 
 ## 备份与迁移
 
@@ -551,7 +569,11 @@ go vet ./...
 ## 已知限制
 
 - 任务工作台通过自动创建的 `caldav-tasks` 日历同步 `VTODO`；任务日历被客户端删除后，下次打开工作台会自动重建并恢复任务对象。
-- 工作台与客户端同时修改同一任务时采用“工作台优先”的最后写入策略，不做字段级合并。
+- 工作台与 CalDAV 客户端同时修改同一任务时采用“工作台优先”的最后写入策略，不做字段级合并；客户端同步协议（pull/push）则用 `baseEtag` 检测冲突并返回服务端快照，由客户端合并后重试。
+- 客户端同步协议已覆盖任务、清单、看板列、文件夹和筛选器；习惯、专注、倒数日、笔记评论/附件、清单共享暂未纳入。
+- Android P0 客户端已实现离线任务与同步内核；APK 构建需要本机 Android SDK/JDK，当前环境未安装。P0 使用应用私有目录中的原子 JSON 本地库与明文凭据，drift/SQLite、Keystore/Keychain 和后台同步列在 P1。
+- 通过 push 把重复任务标记完成不会推进到下一次，也不会写入 `RECURRENCE-ID` 实例历史；重复实例操作暂用工作台接口。
+- `sync_logs` 保留 90 天、`sync_ops` 保留 7 天；离线超过 90 天的客户端需要 `since=0` 全量同步。
 - 重复任务在完成时会把当前 VTODO 的 `DTSTART` / `DUE` 推进到下一次，不保留每次完成的历史实例；带 `COUNT` / `UNTIL` 的复杂规则会以当前到期时间重新锚定。
 - 手动排序只保证当前筛选结果内的相对顺序；跨日期分组的排序在重新加载后仍以手动顺序为准。
 - 服务端 Web Push 需要 HTTPS（或 localhost）、浏览器允许通知并完成设备订阅；浏览器完全退出时通知可能延迟到下次启动。
@@ -587,7 +609,7 @@ go vet ./...
 - 不实现 CardDAV（联系人）。
 - 不实现 RFC 6638 日程邀请/调度（iTIP/iMIP）、scheduling inbox/outbox。
 - 不实现 WebDAV 锁（LOCK/UNLOCK）与细粒度 ACL；权限模型为“所有者读写，管理员全权”。
-- 同步日志不自动清理；大量历史变更后建议在维护窗口重建或归档。
+- CalDAV `sync-collection` 的 `sync_changes` 目前永久保留；客户端 pull/push 的 `sync_logs` 已按 90 天自动清理。
 - `RECURRENCE-ID;RANGE=THISANDFUTURE` 按单次覆盖处理，不扩展后续实例。
 - 时区回退对无法识别的自定义 TZID 使用 VTIMEZONE 的固定偏移，跨 DST 的极少数事件可能有 1 小时偏差；常见 IANA / Windows 时区不受影响。
 

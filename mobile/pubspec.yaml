@@ -1,0 +1,23 @@
+name: caldav_free
+description: "caldav-free Android client (P0): offline-first tasks with pull/push sync."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: 1.6.0
+  path: 1.9.1
+  provider: 6.1.5+1
+  uuid: 4.5.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+
+flutter:
+  uses-material-design: true

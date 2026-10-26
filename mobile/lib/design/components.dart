@@ -413,12 +413,16 @@ class AppUnderlineTabs<T> extends StatelessWidget {
         children: [
           for (var i = 0; i < values.length; i++)
             Padding(
-              padding: const EdgeInsets.only(right: 24),
+              padding: const EdgeInsets.only(right: 6),
               child: InkWell(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
+                hoverColor: scheme.onSurface.withValues(alpha: 0.08),
                 onTap: () => onChanged(values[i]),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 5,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -433,10 +437,10 @@ class AppUnderlineTabs<T> extends StatelessWidget {
                               : FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 7),
+                      const SizedBox(height: 5),
                       AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        height: 2,
+                        height: 2.5,
                         width: values[i] == selected ? 22 : 0,
                         decoration: BoxDecoration(
                           color: scheme.primary,

@@ -201,6 +201,7 @@ class _CountdownPageState extends State<CountdownPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'countdown-compose-fab',
         onPressed: _create,
         child: const Icon(Icons.add_rounded),
       ),

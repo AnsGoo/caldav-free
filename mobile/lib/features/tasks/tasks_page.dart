@@ -763,29 +763,28 @@ class _TasksPageState extends State<TasksPage> {
                     onNotes: _batchNotes,
                   ),
                 if (_layout == _TaskLayout.list) ...[
-                  if (!wide)
-                    _ListSelector(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      selectedView: _view,
-                      onSelected: (id) {
-                        setState(() {
-                          _view = 'all';
-                          _selectedListId = id;
-                          _manualSort = false;
-                        });
-                        _subscribeTasks();
-                      },
-                      onViewSelected: (view) {
-                        setState(() {
-                          _selectedListId = null;
-                          _view = view;
-                          _manualSort = false;
-                        });
-                        _subscribeTasks();
-                      },
-                      onManage: _openLists,
-                    ),
+                  _ListSelector(
+                    lists: _lists,
+                    selectedId: _selectedListId,
+                    selectedView: _view,
+                    onSelected: (id) {
+                      setState(() {
+                        _view = 'all';
+                        _selectedListId = id;
+                        _manualSort = false;
+                      });
+                      _subscribeTasks();
+                    },
+                    onViewSelected: (view) {
+                      setState(() {
+                        _selectedListId = null;
+                        _view = view;
+                        _manualSort = false;
+                      });
+                      _subscribeTasks();
+                    },
+                    onManage: _openLists,
+                  ),
                   Expanded(
                     child: visible.isEmpty
                         ? RefreshIndicator(
@@ -878,13 +877,12 @@ class _TasksPageState extends State<TasksPage> {
                           ),
                   ),
                 ] else if (_layout == _TaskLayout.board) ...[
-                  if (!wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _boardList?.id,
-                      includeAll: false,
-                      onChanged: _setScope,
-                    ),
+                  _ViewScopeBar(
+                    lists: _lists,
+                    selectedId: _boardList?.id,
+                    includeAll: false,
+                    onChanged: _setScope,
+                  ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -1398,8 +1396,12 @@ class _ViewScopeBar extends StatelessWidget {
     final scheme = theme.colorScheme;
     final valid = lists.any((list) => list.id == selectedId);
     final value = valid ? selectedId : (includeAll ? null : lists.first.id);
+    final current = value == null
+        ? null
+        : lists.firstWhere((list) => list.id == value);
+    final currentName = current?.name ?? '全部清单';
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
+      padding: const EdgeInsets.fromLTRB(20, 0, 12, 10),
       child: Row(
         children: [
           Icon(
@@ -1416,28 +1418,136 @@ class _ViewScopeBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String?>(
-                value: value,
-                isDense: true,
-                items: [
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: PopupMenuButton<String?>(
+                tooltip: '范围',
+                color: scheme.surfaceContainerHigh,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                onSelected: onChanged,
+                itemBuilder: (context) => [
                   if (includeAll)
-                    const DropdownMenuItem<String?>(
+                    PopupMenuItem<String?>(
                       value: null,
-                      child: Text('全部清单'),
+                      child: _ScopeItem(
+                        label: '全部清单',
+                        selected: value == null,
+                      ),
                     ),
                   for (final list in lists)
-                    DropdownMenuItem<String?>(
+                    PopupMenuItem<String?>(
                       value: list.id,
-                      child: Text(list.name),
+                      child: _ScopeItem(
+                        label: list.name,
+                        selected: list.id == value,
+                        color: colorFromHex(list.color),
+                      ),
                     ),
                 ],
-                onChanged: onChanged,
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 7,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.secondaryContainer.withValues(alpha: 0.55),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (current != null)
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: colorFromHex(current.color),
+                            shape: BoxShape.circle,
+                          ),
+                        )
+                      else
+                        Icon(
+                          Icons.filter_alt_rounded,
+                          size: 15,
+                          color: scheme.onSecondaryContainer,
+                        ),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          currentName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            color: scheme.onSecondaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 3),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: scheme.onSecondaryContainer,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ScopeItem extends StatelessWidget {
+  const _ScopeItem({
+    required this.label,
+    required this.selected,
+    this.color,
+  });
+
+  final String label;
+  final bool selected;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        SizedBox(
+          width: 22,
+          child: color != null
+              ? Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                )
+              : null,
+        ),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+              color: selected ? scheme.primary : null,
+            ),
+          ),
+        ),
+        if (selected)
+          Icon(Icons.check_rounded, size: 16, color: scheme.primary),
+      ],
     );
   }
 }

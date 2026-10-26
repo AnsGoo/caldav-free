@@ -41,6 +41,7 @@ class ListsPage extends StatelessWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'lists-compose-fab',
         onPressed: () => _createList(context),
         child: const Icon(Icons.add_rounded),
       ),

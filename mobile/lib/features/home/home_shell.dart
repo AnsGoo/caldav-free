@@ -17,6 +17,11 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
+  /// Slots are built on first visit and stay mounted afterwards. That keeps
+  /// scroll offsets and in-progress edits across tab switches without paying
+  /// to initialise — and immediately fetch — all five tabs at startup.
+  final Set<int> _built = <int>{0};
+
   static const _destinations = [
     AppNavDestination(
       icon: Icons.checklist_rounded,
@@ -45,10 +50,41 @@ class _HomeShellState extends State<HomeShell> {
     ),
   ];
 
+  void _select(int value) {
+    if (value == _index) return;
+    setState(() {
+      _index = value;
+      _built.add(value);
+    });
+  }
+
+  Widget _page(int slot) {
+    switch (slot) {
+      case 0:
+        return const TasksPage();
+      case 1:
+        return const CalendarPage();
+      case 2:
+        return const HabitsPage();
+      case 3:
+        return const FocusPage();
+      case 4:
+        return const CountdownPage();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  /// Mutes tickers on inactive tabs so their animations stop producing frames,
+  /// and returns a zero-size placeholder for tabs that were never opened.
+  Widget _slot(int slot) {
+    if (!_built.contains(slot)) return const SizedBox.shrink();
+    return TickerMode(enabled: slot == _index, child: _page(slot));
+  }
+
   @override
   Widget build(BuildContext context) {
     final useRail = isWideLayout(context);
-    void select(int value) => setState(() => _index = value);
     return Scaffold(
       body: Row(
         children: [
@@ -56,19 +92,15 @@ class _HomeShellState extends State<HomeShell> {
             AppSideNav(
               index: _index,
               destinations: _destinations,
-              onSelected: select,
+              onSelected: _select,
             )
           else
             const SizedBox.shrink(),
           Expanded(
             child: IndexedStack(
               index: _index,
-              children: const [
-                TasksPage(),
-                CalendarPage(),
-                HabitsPage(),
-                FocusPage(),
-                CountdownPage(),
+              children: [
+                for (var i = 0; i < _destinations.length; i++) _slot(i),
               ],
             ),
           ),
@@ -79,7 +111,7 @@ class _HomeShellState extends State<HomeShell> {
           : AppBottomNav(
               index: _index,
               destinations: _destinations,
-              onSelected: select,
+              onSelected: _select,
             ),
     );
   }

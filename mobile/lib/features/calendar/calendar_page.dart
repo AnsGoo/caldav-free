@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../core/models.dart';
 import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
 import '../../design/app_theme.dart';
@@ -228,6 +229,42 @@ class _CalendarPageState extends State<CalendarPage> {
         : _dateOnly(_anchor) == today;
   }
 
+  /// Offline fallback: the calendar is rendered from the local task store so
+  /// scheduled tasks stay visible while the server is unreachable.
+  CalendarSnapshot _localSnapshot() {
+    final store = context.read<AppState>().store;
+    final lists = {for (final l in store.listsSnapshot()) l.id: l};
+    final tasks = <CalendarTask>[];
+    for (final t in store.allTasks()) {
+      if (t.deleted || t.kind != TaskKind.task) continue;
+      final due = t.dueAt?.toLocal();
+      final start = t.startAt?.toLocal();
+      if (due == null && start == null) continue;
+      final list = lists[t.listId];
+      tasks.add(
+        CalendarTask(
+          id: 0,
+          syncId: t.id,          title: t.title,
+          listName: list?.name ?? '',
+          listColor: list?.color ?? '',
+          start: start,
+          due: due,
+          allDay: t.allDay,
+          completed: t.completed,
+          priority: t.priority,
+          recurring: t.recurrence.isNotEmpty,
+        ),
+      );
+    }
+    return CalendarSnapshot(
+      sources: const [],
+      events: const [],
+      tasks: tasks,
+      from: _anchor,
+      to: _anchor,
+    );
+  }
+
   Future<void> _toggleTask(CalendarTask task) async {
     if (task.syncId.isEmpty || task.virtual) return;
     final app = context.read<AppState>();
@@ -271,17 +308,6 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_api == null) {
-      return const Scaffold(
-        body: Center(
-          child: AppEmptyState(
-            icon: Icons.wifi_off_rounded,
-            title: '服务未连接',
-            message: '请先连接服务器后再查看日历',
-          ),
-        ),
-      );
-    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final snapshot = _snapshot;
@@ -357,6 +383,7 @@ class _CalendarPageState extends State<CalendarPage> {
           : Tooltip(
               message: '新建日程',
               child: FloatingActionButton(
+                heroTag: 'calendar-compose-fab',
                 onPressed: _createEvent,
                 child: const Icon(Icons.add_rounded),
               ),
@@ -399,13 +426,7 @@ class _CalendarPageState extends State<CalendarPage> {
           Expanded(
             child: Builder(
               builder: (context) {
-                final effective = snapshot ?? CalendarSnapshot(
-                  sources: const [],
-                  events: const [],
-                  tasks: const [],
-                  from: _anchor,
-                  to: _anchor,
-                );
+                final effective = snapshot ?? _localSnapshot();
                 return switch (_view) {
                     CalendarView.month => _MonthView(
                       anchor: _anchor,
@@ -680,6 +701,7 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _manageSubscriptions() async {
+    if (_api == null) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

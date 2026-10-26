@@ -387,6 +387,7 @@ class _HabitsPageState extends State<HabitsPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'habits-compose-fab',
         onPressed: _create,
         child: const Icon(Icons.add_rounded),
       ),

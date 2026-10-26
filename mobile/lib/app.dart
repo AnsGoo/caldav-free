@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
 import 'app_state.dart';
@@ -16,6 +17,13 @@ class CalDavApp extends StatelessWidget {
     return MaterialApp(
       title: 'caldav-free',
       debugShowCheckedModeBanner: false,
+      locale: const Locale('zh'),
+      supportedLocales: const [Locale('zh'), Locale('en')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: buildAppTheme(Brightness.light, accent: accent),
       darkTheme: buildAppTheme(Brightness.dark, accent: accent),
       themeMode: ThemeMode.system,

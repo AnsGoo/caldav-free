@@ -283,11 +283,11 @@ ThemeData buildAppTheme(Brightness brightness, {Color? accent}) {
         disabledBackgroundColor: surfaceMuted,
         disabledForegroundColor: inkSecondary,
         elevation: 0,
-        minimumSize: const Size(0, 52),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        minimumSize: const Size(0, 40),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: textTheme.labelLarge?.copyWith(
-          fontSize: 16,
+          fontSize: 14,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -295,9 +295,9 @@ ThemeData buildAppTheme(Brightness brightness, {Color? accent}) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primary,
-        minimumSize: const Size(44, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        minimumSize: const Size(36, 36),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: textTheme.labelLarge?.copyWith(
           color: primary,
           fontWeight: FontWeight.w700,
@@ -307,20 +307,20 @@ ThemeData buildAppTheme(Brightness brightness, {Color? accent}) {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: ink,
-        minimumSize: const Size(0, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        minimumSize: const Size(0, 38),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         side: BorderSide(color: line),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         textStyle: textTheme.labelLarge,
       ),
     ),
     iconButtonTheme: IconButtonThemeData(
       style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(Size(48, 48)),
+        minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
         foregroundColor: WidgetStatePropertyAll(ink),
-        iconSize: const WidgetStatePropertyAll(22),
+        iconSize: const WidgetStatePropertyAll(20),
         shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     ),

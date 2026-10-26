@@ -310,13 +310,13 @@ class _FocusPageState extends State<FocusPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(
-                width: 188,
+                width: 148,
                 child: FilledButton(
                   onPressed: _running ? _pause : _start,
                   style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 56),
+                    minimumSize: const Size(0, 42),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(28),
+                      borderRadius: BorderRadius.circular(21),
                     ),
                   ),
                   child: Text(_running ? '暂停' : '开始'),
@@ -327,13 +327,13 @@ class _FocusPageState extends State<FocusPage> {
                 tooltip: '重置计时',
                 onPressed: _reset,
                 style: IconButton.styleFrom(
-                  minimumSize: const Size(52, 52),
-                  maximumSize: const Size(52, 52),
+                  minimumSize: const Size(42, 42),
+                  maximumSize: const Size(42, 42),
                   backgroundColor: scheme.surface,
                   foregroundColor: scheme.onSurfaceVariant,
                   shape: const CircleBorder(),
                 ),
-                icon: const Icon(Icons.refresh_rounded, size: 21),
+                icon: const Icon(Icons.refresh_rounded, size: 19),
               ),
             ],
           ),

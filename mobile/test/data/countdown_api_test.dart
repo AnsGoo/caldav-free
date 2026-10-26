@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:caldav_free/core/ids.dart';
@@ -192,6 +193,11 @@ void main() {
     final items = await api.load();
     expect(items.map((item) => item.name), containsAll(['旅行', '新年']));
     expect(items.firstWhere((item) => item.id == created.id).days, isNonNegative);
+    // Overlaying repeatedly (background retries) must stay idempotent.
+    final overlaid = await api.overlayPending(items);
+    expect(overlaid.length, items.length);
+    final twice = await api.overlayPending(overlaid);
+    expect(twice.where((item) => item.id < 0).length, 1);
     // The failed replay keeps the create queued.
     expect((await queue.items()).length, 1);
 
@@ -201,6 +207,57 @@ void main() {
     expect(afterDelete.map((item) => item.id), isNot(contains(created.id)));
     expect(calls.where((call) => call.startsWith('DELETE')), isEmpty);
     await api.flush();
+    api.close();
+  });
+
+  test('a timed-out create that reached the server is never re-POSTed', () async {
+    final calls = <String>[];
+    Map<String, dynamic> serverRow() => {
+      'id': 7,
+      'name': '新年',
+      'type': 'festival',
+      'date': 20270101,
+      'repeat': 'yearly',
+      'pinned': false,
+      'status': 0,
+      'color': '#66BB6A',
+      'icon': '⏳',
+      'remark': '一起跨年',
+      'days': 68,
+      'state': 'future',
+      'occurrenceDate': 20270101,
+    };
+    final client = MockClient((request) async {
+      calls.add('${request.method} ${request.url.path}');
+      if (request.method == 'POST') {
+        // The server committed but the response never arrived.
+        throw TimeoutException('slow');
+      }
+      return http.Response(
+        jsonEncode({
+          'countdowns': request.url.path.endsWith('countdowns') ? [serverRow()] : [],
+        }),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    final queue = CountdownWriteQueue.inMemory();
+    final api = CountdownApi(
+      baseUrl: 'http://example.test',
+      username: 'demo',
+      password: 'secret',
+      client: client,
+      writeQueue: queue,
+    );
+
+    final items = await api.load();
+    expect(queue.isEmpty, isTrue);
+    expect(items.single.id, 7);
+    expect(
+      calls.where((call) => call.startsWith('POST')),
+      hasLength(1),
+      reason: 'timed-out create must not replay into a duplicate',
+    );
     api.close();
   });
 

@@ -19,7 +19,6 @@ class _CountdownPageState extends State<CountdownPage> {
   CountdownApi? _api;
   List<CountdownItem> _items = const [];
   bool _loading = false;
-  String? _error;
   bool _connected = false;
   Timer? _retryTimer;
 
@@ -33,6 +32,9 @@ class _CountdownPageState extends State<CountdownPage> {
         username: session.username,
         password: session.password,
       );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_load());
+      });
     }
   }
 
@@ -71,10 +73,7 @@ class _CountdownPageState extends State<CountdownPage> {
   Future<void> _load({bool showLoading = true}) async {
     if (_api == null) return;
     if (showLoading && mounted) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
+      setState(() => _loading = true);
     }
     try {
       final items = await _api!.load();
@@ -84,9 +83,10 @@ class _CountdownPageState extends State<CountdownPage> {
       setState(() {
         _items = items;
         _loading = false;
-        _error = null;
       });
     } catch (_) {
+      // Silent background sync: keep the local view, queue stays durable and
+      // a periodic retry replays it once the server is reachable again.
       List<CountdownItem> merged = _items;
       try {
         merged = await _api!.overlayPending(_items);
@@ -95,7 +95,6 @@ class _CountdownPageState extends State<CountdownPage> {
       setState(() {
         _items = merged;
         _loading = false;
-        _error = '无法连接到服务器，待同步的修改会在联网后自动上传';
       });
       _scheduleRetry();
     }
@@ -220,17 +219,7 @@ class _CountdownPageState extends State<CountdownPage> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
             children: [
               if (_loading) const LinearProgressIndicator(minHeight: 2),
-              if (_error != null && !_loading)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    _error!,
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
-                ),
-              if (_items.isEmpty && !_loading && _error == null)
+              if (_items.isEmpty && !_loading)
                 SizedBox(
                   height: constraints.maxHeight - 40,
                   child: const Center(

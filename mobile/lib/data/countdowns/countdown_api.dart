@@ -164,32 +164,36 @@ class CountdownApi {
     final queue = await _queue;
     if (queue.isEmpty) return remote;
     final ops = await queue.items();
-    final removed = <int>{
-      for (final op in ops)
-        if (op.action == 'delete') op.countdownId,
+    final byId = <int, CountdownItem>{
+      for (final item in remote)
+        if (!item.id.isNegative) item.id: item,
     };
-    final patches = <int, Map<String, dynamic>>{};
-    final created = <CountdownItem>[];
+    // Queue ops are replayed in FIFO order onto the map so overlaying an
+    // already-overlaid list (e.g. repeated background retries) is idempotent
+    // and never duplicates the pending item.
     for (final op in ops) {
-      final payload = op.payload;
-      if (payload == null) continue;
       switch (op.action) {
-        case 'create':
-          created.add(buildOptimisticItem(op.countdownId, payload));
+        case 'delete':
+          byId.remove(op.countdownId);
         case 'update':
-          patches[op.countdownId] = payload;
+          final payload = op.payload;
+          final existing = byId[op.countdownId];
+          if (payload == null) continue;
+          if (existing != null) {
+            byId[op.countdownId] = _patched(existing, payload);
+          } else if (!op.countdownId.isNegative) {
+            byId[op.countdownId] = buildOptimisticItem(
+              op.countdownId,
+              payload,
+            );
+          }
+        case 'create':
+          final payload = op.payload;
+          if (payload == null) continue;
+          byId[op.countdownId] = buildOptimisticItem(op.countdownId, payload);
       }
     }
-    final merged = <CountdownItem>[];
-    for (final item in remote) {
-      if (removed.contains(item.id)) continue;
-      final patch = patches.remove(item.id);
-      merged.add(patch == null ? item : _patched(item, patch));
-    }
-    for (final patch in patches.values) {
-      created.add(buildOptimisticItem(0, patch));
-    }
-    merged.addAll(created);
+    final merged = byId.values.toList();
     merged.sort((a, b) {
       if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
       return a.occurrenceDate.compareTo(b.occurrenceDate);
@@ -364,33 +368,29 @@ class CountdownApi {
     final queue = await _queue;
     if (queue.isEmpty) return;
     final ops = await queue.items();
-    final remap = <int, int>{};
+    final timedOutCreates = <CountdownPendingOp>[];
     for (final op in ops) {
-      final countdownId = remap[op.countdownId] ?? op.countdownId;
       try {
         switch (op.action) {
           case 'create':
-            final body = await _request(
-              'POST',
-              '/api/sync/countdowns',
-              payload: op.payload,
-            );
-            final created = body['countdown'];
-            final realId = created is Map<String, dynamic>
-                ? _int(created['id'], 0)
-                : 0;
-            if (realId > 0 && op.countdownId != realId) {
-              remap[op.countdownId] = realId;
-              await queue.replaceCountdownId(op.countdownId, realId);
+            try {
+              await _createRemote(op);
+            } on Object catch (inner) {
+              if (!_timedOut(inner)) rethrow;
+              // The server may have committed without us ever seeing the
+              // response; reconciling against the list avoids replaying the
+              // create into a duplicate record.
+              timedOutCreates.add(op);
+              continue;
             }
           case 'update':
             await _request(
               'PATCH',
-              '/api/sync/countdowns/$countdownId',
+              '/api/sync/countdowns/${op.countdownId}',
               payload: op.payload,
             );
           case 'delete':
-            await _request('DELETE', '/api/sync/countdowns/$countdownId');
+            await _request('DELETE', '/api/sync/countdowns/${op.countdownId}');
           default:
             await queue.remove(op.opId);
             continue;
@@ -402,12 +402,62 @@ class CountdownApi {
       }
       await queue.remove(op.opId);
     }
+    if (timedOutCreates.isNotEmpty) {
+      await _reconcileTimedOutCreates(queue, timedOutCreates);
+    }
+  }
+
+  Future<void> _createRemote(CountdownPendingOp op) async {
+    final body = await _request(
+      'POST',
+      '/api/sync/countdowns',
+      payload: op.payload,
+    );
+    final created = body['countdown'];
+    final realId = created is Map<String, dynamic> ? _int(created['id'], 0) : 0;
+    if (realId > 0 && op.countdownId != realId) {
+      await (await _queue).replaceCountdownId(op.countdownId, realId);
+    }
+  }
+
+  /// Creates whose POST timed out are dropped when the server already holds
+  /// an equivalent record; otherwise they stay queued for the next retry.
+  Future<void> _reconcileTimedOutCreates(
+    CountdownWriteQueue queue,
+    List<CountdownPendingOp> timedOut,
+  ) async {
+    List<CountdownItem> serverItems;
+    try {
+      serverItems = await fetch();
+    } on Object {
+      return;
+    }
+    for (final op in timedOut) {
+      final payload = op.payload;
+      if (payload == null) {
+        await queue.remove(op.opId);
+        continue;
+      }
+      final stamp = _int(payload['date'], 0);
+      final name = (payload['name'] ?? '').toString();
+      final type = (payload['type'] ?? 'countdown').toString();
+      final synced = serverItems.any(
+        (item) =>
+            !item.id.isNegative &&
+            item.date == stamp &&
+            item.name == name &&
+            item.type == type,
+      );
+      if (synced) await queue.remove(op.opId);
+    }
   }
 
   static bool _isUnreachable(Object error) =>
       error is http.ClientException ||
       error is TimeoutException ||
       error is SocketException;
+
+  static bool _timedOut(Object error) => error is TimeoutException;
 
   static int _newTempId() =>
       -(DateTime.now().microsecondsSinceEpoch * 10 +

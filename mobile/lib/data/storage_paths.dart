@@ -25,7 +25,8 @@ Future<Directory> appStorageDirectory() async {
       // Fall through to a best-effort host directory.
     }
   }
-  final home = Platform.environment['HOME'];
+  final home = Platform.environment['HOME']
+      ?? Platform.environment['USERPROFILE'];
   final directory = home != null && home.isNotEmpty
       ? Directory(p.join(home, '.caldav_free'))
       : Directory(p.join(Directory.systemTemp.path, 'caldav_free'));

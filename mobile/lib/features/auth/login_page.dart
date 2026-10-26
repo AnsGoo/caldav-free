@@ -15,7 +15,11 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _server = TextEditingController(text: 'http://10.0.2.2:5232');
+  final _server = TextEditingController(
+    text: Platform.isAndroid
+        ? 'http://10.0.2.2:5232'
+        : 'http://localhost:5232',
+  );
   final _username = TextEditingController();
   final _password = TextEditingController();
   final _passwordFocus = FocusNode();
@@ -224,8 +228,11 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    '模拟器访问本机服务用 10.0.2.2；真机请填写局域网地址。\n'
-                    '公网部署请使用 HTTPS。',
+                    Platform.isAndroid
+                        ? '模拟器访问本机服务用 10.0.2.2；真机请填写局域网地址。\n'
+                            '公网部署请使用 HTTPS。'
+                        : '如服务器在本机，使用 localhost 即可。\n'
+                            '公网部署请使用 HTTPS。',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,

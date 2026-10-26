@@ -17,7 +17,7 @@ class ReminderScheduler {
   ReminderScheduler({
     required this.store,
     NotificationGateway? gateway,
-  }) : _gateway = gateway ?? LocalNotificationGateway();
+  }) : _gateway = gateway ?? createDefaultGateway();
 
   final LocalStore store;
   final NotificationGateway _gateway;

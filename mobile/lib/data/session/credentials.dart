@@ -118,6 +118,7 @@ class FileCredentialsStore implements CredentialsStore {
     await file.parent.create(recursive: true);
     final temp = File('${file.path}.tmp');
     await temp.writeAsString(jsonEncode(_data), flush: true);
+    if (await file.exists()) await file.delete();
     await temp.rename(file.path);
   }
 }

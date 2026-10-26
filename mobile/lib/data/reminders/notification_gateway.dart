@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -137,4 +138,32 @@ class LocalNotificationGateway implements NotificationGateway {
 
   @override
   Future<void> cancelAll() => _plugin.cancelAll();
+}
+
+class NoOpNotificationGateway implements NotificationGateway {
+  @override
+  Future<void> initialize({required void Function(String? payload) onTap}) async {}
+
+  @override
+  Future<bool> requestPermissions() async => true;
+
+  @override
+  Future<bool> exactAlarmsAllowed() async => true;
+
+  @override
+  Future<bool> requestExactAlarmsPermission() async => true;
+
+  @override
+  Future<void> schedule(ReminderPlanItem item, {required bool exact}) async {}
+
+  @override
+  Future<void> cancelPending() async {}
+
+  @override
+  Future<void> cancelAll() async {}
+}
+
+NotificationGateway createDefaultGateway() {
+  if (Platform.isAndroid) return LocalNotificationGateway();
+  return NoOpNotificationGateway();
 }

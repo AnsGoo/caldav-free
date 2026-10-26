@@ -591,28 +591,10 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                   const SizedBox(height: 5),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: _statusColor(sync, scheme),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _statusText(sync),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    _statusIcon(sync),
+                    size: 15,
+                    color: _statusColor(sync, scheme),
                   ),
                 ],
               ),
@@ -768,8 +750,6 @@ class _TasksPageState extends State<TasksPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (sync?.error != null)
-                  _SyncBanner(message: sync!.error!, onRetry: () => app.syncNow()),
                 if (!_searching && !_selecting)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
@@ -1025,17 +1005,11 @@ class _TasksPageState extends State<TasksPage> {
     });
   }
 
-  String _statusText(SyncController? sync) {
-    if (sync == null) return '未连接';
-    if (sync.phase == SyncPhase.syncing) return '正在同步…';
-    if (sync.error != null) return '同步失败';
-    final base = sync.lastSyncedAt == null
-        ? '等待首次同步'
-        : '已同步 · ${relativeTime(sync.lastSyncedAt)}';
-    final extras = <String>[];
-    if (sync.pending > 0) extras.add('待推送 ${sync.pending}');
-    if (sync.failed > 0) extras.add('失败 ${sync.failed}');
-    return extras.isEmpty ? base : '$base · ${extras.join(' · ')}';
+  IconData _statusIcon(SyncController? sync) {
+    if (sync == null) return Icons.cloud_off_rounded;
+    if (sync.phase == SyncPhase.syncing) return Icons.sync_rounded;
+    if (sync.error != null) return Icons.cloud_off_rounded;
+    return Icons.cloud_done_rounded;
   }
 
   Color _statusColor(SyncController? sync, ColorScheme scheme) {
@@ -1216,46 +1190,6 @@ class _TasksPageState extends State<TasksPage> {
     if (confirmed == true && mounted) {
       await context.read<AppState>().disconnect();
     }
-  }
-}
-
-class _SyncBanner extends StatelessWidget {
-  const _SyncBanner({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.cloud_off_rounded,
-            size: 18,
-            color: scheme.onErrorContainer,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: scheme.onErrorContainer),
-            ),
-          ),
-          TextButton(onPressed: onRetry, child: const Text('重试')),
-        ],
-      ),
-    );
   }
 }
 

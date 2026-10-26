@@ -182,7 +182,7 @@ class FocusApi {
     if (payload != null) request.body = jsonEncode(payload);
     final streamed = await _client
         .send(request)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     final response = await http.Response.fromStream(streamed);
     Map<String, dynamic> body = const {};
     if (response.body.isNotEmpty) {

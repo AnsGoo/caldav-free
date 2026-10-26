@@ -272,7 +272,7 @@ class CalendarApi {
     );
     final response = await _client
         .get(uri, headers: _headers)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     Map<String, dynamic> body = const {};
     if (response.body.isNotEmpty) {
       try {
@@ -377,7 +377,7 @@ class CalendarApi {
     );
     final response = await _client
         .delete(uri, headers: _headers)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CalendarApiException(
         _errorMessage(response),
@@ -400,7 +400,7 @@ class CalendarApi {
       ..body = jsonEncode(body);
     final streamed = await _client
         .send(request)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     final response = await http.Response.fromStream(streamed);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CalendarApiException(
@@ -422,7 +422,7 @@ class CalendarApi {
     );
     final response = await _client
         .get(uri, headers: _headers)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     Map<String, dynamic> body = const {};
     if (response.body.isNotEmpty) {
       try {
@@ -454,7 +454,7 @@ class CalendarApi {
     final uri = Uri.parse('$baseUrl/api/sync/subscriptions');
     final response = await _client
         .get(uri, headers: _headers)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode != 200) {
       throw CalendarApiException(
         _errorMessage(response),
@@ -484,7 +484,7 @@ class CalendarApi {
     final uri = Uri.parse('$baseUrl/api/sync/subscriptions/$id');
     final response = await _client
         .delete(uri, headers: _headers)
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 10));
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CalendarApiException(
         _errorMessage(response),

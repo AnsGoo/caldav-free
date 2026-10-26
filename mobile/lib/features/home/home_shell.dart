@@ -47,9 +47,6 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    // A rotated phone or a tablet leaves too little height for a 62dp bar, so
-    // the shell swaps the bottom navigation for the vertical rail. The page
-    // stack keeps the same slot in both layouts, so rotating never rebuilds it.
     final useRail = isWideLayout(context);
     void select(int value) => setState(() => _index = value);
     return Scaffold(

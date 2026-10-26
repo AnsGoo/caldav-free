@@ -20,7 +20,6 @@ class _HabitsPageState extends State<HabitsPage> {
   HabitApi? _api;
   HabitSnapshot? _snapshot;
   bool _loading = false;
-  String? _error;
   int _selectedStamp = _stampFor(DateTime.now());
   bool _connected = false;
 
@@ -28,7 +27,6 @@ class _HabitsPageState extends State<HabitsPage> {
   void initState() {
     super.initState();
     final session = context.read<AppState>().session;
-    _connected = session != null;
     if (session != null) {
       _api = HabitApi(
         baseUrl: session.baseUrl,
@@ -61,7 +59,6 @@ class _HabitsPageState extends State<HabitsPage> {
       setState(() {
         _snapshot = null;
         _loading = false;
-        _error = null;
       });
     }
   }
@@ -77,7 +74,6 @@ class _HabitsPageState extends State<HabitsPage> {
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
-        _error = null;
       });
     }
     try {
@@ -86,13 +82,11 @@ class _HabitsPageState extends State<HabitsPage> {
       setState(() {
         _snapshot = snapshot;
         _loading = false;
-        _error = null;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = error.toString();
       });
     }
   }
@@ -114,15 +108,87 @@ class _HabitsPageState extends State<HabitsPage> {
     return null;
   }
 
+  void _fail(String title, Object error) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$title：$error')),
+    );
+  }
+
+  HabitSnapshot get _baseSnapshot =>
+      _snapshot ??
+      const HabitSnapshot(
+        habits: [],
+        checkins: [],
+        sections: [],
+        preferences: {},
+      );
+
+  void _applyHabitUpsert(HabitItem item) {
+    final base = _baseSnapshot;
+    final habits = base.habits.where((h) => h.id != item.id).toList();
+    habits.add(item);
+    setState(() {
+      _snapshot = HabitSnapshot(
+        habits: habits,
+        checkins: base.checkins,
+        sections: base.sections,
+        preferences: base.preferences,
+      );
+    });
+  }
+
+  void _applyHabitDelete(int id) {
+    final base = _baseSnapshot;
+    setState(() {
+      _snapshot = HabitSnapshot(
+        habits: base.habits.where((h) => h.id != id).toList(),
+        checkins: base.checkins.where((c) => c.habitId != id).toList(),
+        sections: base.sections,
+        preferences: base.preferences,
+      );
+    });
+  }
+
+  void _applyCheckin(HabitItem habit, int stamp) {
+    final base = _baseSnapshot;
+    setState(() {
+      _snapshot = HabitSnapshot(
+        habits: [
+          for (final h in base.habits)
+            if (h.id == habit.id)
+              h.copyWith(doneToday: true, currentStreak: h.currentStreak + 1)
+            else
+              h,
+        ],
+        checkins: [
+          ...base.checkins.where(
+            (c) => !(c.habitId == habit.id && c.stamp == stamp),
+          ),
+          HabitCheckinItem(
+            habitId: habit.id,
+            stamp: stamp,
+            value: habit.goal,
+            goal: habit.goal,
+            status: 2,
+          ),
+        ],
+        sections: base.sections,
+        preferences: base.preferences,
+      );
+    });
+  }
+
   Future<void> _checkin(HabitItem habit) async {
     if (_selectedIsFuture) return;
     try {
       await _api!.checkin(habit.id, _selectedStamp);
+      _applyCheckin(habit, _selectedStamp);
       await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('打卡失败：$error')));
+    } on HabitApiException catch (error) {
+      _fail('打卡失败', error);
+    } catch (error, stack) {
+      debugPrint('习惯打卡本地处理失败: $error\n$stack');
     }
   }
 
@@ -139,12 +205,13 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api!.create(draft);
+      final item = await _api!.create(draft);
+      _applyHabitUpsert(item);
       await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('创建习惯失败：$error')));
+    } on HabitApiException catch (error) {
+      _fail('创建习惯失败', error);
+    } catch (error, stack) {
+      debugPrint('习惯创建本地处理失败: $error\n$stack');
     }
   }
 
@@ -157,12 +224,13 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api!.update(habit.id, draft);
+      final item = await _api!.update(habit.id, draft);
+      _applyHabitUpsert(item);
       await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('保存习惯失败：$error')));
+    } on HabitApiException catch (error) {
+      _fail('保存习惯失败', error);
+    } catch (error, stack) {
+      debugPrint('习惯保存本地处理失败: $error\n$stack');
     }
   }
 
@@ -190,11 +258,12 @@ class _HabitsPageState extends State<HabitsPage> {
     if (confirmed != true || !mounted) return;
     try {
       await _api!.delete(habit.id);
+      _applyHabitDelete(habit.id);
       await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('删除失败：$error')));
+    } on HabitApiException catch (error) {
+      _fail('删除失败', error);
+    } catch (error, stack) {
+      debugPrint('习惯删除本地处理失败: $error\n$stack');
     }
   }
 
@@ -313,33 +382,6 @@ class _HabitsPageState extends State<HabitsPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_loading) const LinearProgressIndicator(minHeight: 2),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
-              child: Material(
-                color: scheme.errorContainer,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: scheme.onErrorContainer),
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () => _load(),
-                        child: const Text('重试'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           if (snapshot != null)
             _HabitWeekStrip(
               today: DateTime.now(),
@@ -347,7 +389,7 @@ class _HabitsPageState extends State<HabitsPage> {
               onSelected: (stamp) => setState(() => _selectedStamp = stamp),
             ),
           Expanded(
-            child: snapshot == null
+            child: snapshot == null && _loading
                 ? const Center(child: CircularProgressIndicator())
                 : active.isEmpty
                 ? Center(

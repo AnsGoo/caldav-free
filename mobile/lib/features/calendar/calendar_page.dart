@@ -27,7 +27,6 @@ class _CalendarPageState extends State<CalendarPage> {
   CalendarSnapshot? _snapshot;
   Map<String, CalendarAlmanacDay> _almanac = const {};
   bool _loading = false;
-  String? _error;
   int _request = 0;
   bool _connected = false;
 
@@ -35,7 +34,6 @@ class _CalendarPageState extends State<CalendarPage> {
   void initState() {
     super.initState();
     final session = context.read<AppState>().session;
-    _connected = session != null;
     if (session != null) {
       _api = CalendarApi(
         baseUrl: session.baseUrl,
@@ -68,7 +66,6 @@ class _CalendarPageState extends State<CalendarPage> {
       setState(() {
         _snapshot = null;
         _loading = false;
-        _error = null;
       });
     }
   }
@@ -85,7 +82,6 @@ class _CalendarPageState extends State<CalendarPage> {
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
-        _error = null;
       });
     }
     final (from, to) = _rangeFor(_view, _anchor);
@@ -106,13 +102,11 @@ class _CalendarPageState extends State<CalendarPage> {
         _snapshot = snapshot;
         _almanac = almanac;
         _loading = false;
-        _error = null;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted || request != _request) return;
       setState(() {
         _loading = false;
-        _error = error.toString();
       });
     }
   }
@@ -399,39 +393,23 @@ class _CalendarPageState extends State<CalendarPage> {
               ),
             ),
           if (_loading)
-            const LinearProgressIndicator(minHeight: 2)
-          else if (_error != null)
-            Material(
-              color: scheme.errorContainer,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _error!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: scheme.onErrorContainer),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => _load(),
-                      child: const Text('重试'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            const LinearProgressIndicator(minHeight: 2),
           if (snapshot != null && snapshot.sources.isNotEmpty)
             _SourceLegend(sources: snapshot.sources),
           Expanded(
-            child: snapshot == null
-                ? const Center(child: CircularProgressIndicator())
-                : switch (_view) {
+            child: Builder(
+              builder: (context) {
+                final effective = snapshot ?? CalendarSnapshot(
+                  sources: const [],
+                  events: const [],
+                  tasks: const [],
+                  from: _anchor,
+                  to: _anchor,
+                );
+                return switch (_view) {
                     CalendarView.month => _MonthView(
                       anchor: _anchor,
-                      snapshot: snapshot,
+                      snapshot: effective,
                       almanac: _almanac,
                       onSelectDay: _selectDay,
                       onOpenEvent: _openEvent,
@@ -440,7 +418,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     CalendarView.week => _WeekView(
                       anchor: _anchor,
-                      snapshot: snapshot,
+                      snapshot: effective,
                       almanac: _almanac,
                       onSelectDay: _selectDay,
                       onSelectedDate: _selectDate,
@@ -450,7 +428,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     CalendarView.threeDay => _ThreeDayView(
                       anchor: _anchor,
-                      snapshot: snapshot,
+                      snapshot: effective,
                       onSelectDay: _selectDay,
                       onOpenEvent: _openEvent,
                       onOpenTask: _openTask,
@@ -458,7 +436,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     CalendarView.day => _DayView(
                       anchor: _anchor,
-                      snapshot: snapshot,
+                      snapshot: effective,
                       almanac: _almanac,
                       onSelectedDate: _selectDate,
                       onOpenEvent: _openEvent,
@@ -467,7 +445,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     CalendarView.agenda => _AgendaView(
                       anchor: _anchor,
-                      snapshot: snapshot,
+                      snapshot: effective,
                       onSelectDay: _selectDay,
                       onOpenEvent: _openEvent,
                       onOpenTask: _openTask,
@@ -475,10 +453,12 @@ class _CalendarPageState extends State<CalendarPage> {
                     ),
                     CalendarView.year => _YearView(
                       anchor: _anchor,
-                      snapshot: snapshot,
+                      snapshot: effective,
                       onSelectDay: _selectDay,
                     ),
-                  },
+                  };
+              },
+            ),
           ),
         ],
       ),
@@ -706,7 +686,7 @@ class _CalendarPageState extends State<CalendarPage> {
       showDragHandle: true,
       builder: (context) => FractionallySizedBox(
         heightFactor: 0.72,
-        child: _SubscriptionSheet(api: _api),
+        child: _SubscriptionSheet(api: _api!),
       ),
     );
     if (mounted) await _load(showLoading: false);

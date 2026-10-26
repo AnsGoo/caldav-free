@@ -1,6 +1,8 @@
 {
   "recommendations": [
     "golang.go",
-    "Vue.volar"
+    "Vue.volar",
+    "Dart-Code.dart-code",
+    "Dart-Code.flutter"
   ]
 }

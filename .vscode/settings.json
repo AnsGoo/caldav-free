@@ -1,0 +1,10 @@
+{
+  "dart.flutterHotReloadOnSave": "manual",
+  "dart.flutterHotRestartOnSave": "auto",
+  "dart.lineLength": 100,
+  "editor.formatOnSave": true,
+  "[dart]": {
+    "editor.rulers": [100],
+    "editor.tabSize": 2
+  }
+}

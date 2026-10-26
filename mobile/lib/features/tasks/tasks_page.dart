@@ -590,12 +590,6 @@ class _TasksPageState extends State<TasksPage> {
                       letterSpacing: -0.9,
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Icon(
-                    _statusIcon(sync),
-                    size: 15,
-                    color: _statusColor(sync, scheme),
-                  ),
                 ],
               ),
         actions: _selecting
@@ -1003,20 +997,6 @@ class _TasksPageState extends State<TasksPage> {
       _searching = false;
       _query = '';
     });
-  }
-
-  IconData _statusIcon(SyncController? sync) {
-    if (sync == null) return Icons.cloud_off_rounded;
-    if (sync.phase == SyncPhase.syncing) return Icons.sync_rounded;
-    if (sync.error != null) return Icons.cloud_off_rounded;
-    return Icons.cloud_done_rounded;
-  }
-
-  Color _statusColor(SyncController? sync, ColorScheme scheme) {
-    if (sync == null) return scheme.outline;
-    if (sync.error != null) return scheme.error;
-    if (sync.phase == SyncPhase.syncing) return const Color(0xFFF59E0B);
-    return const Color(0xFF22C55E);
   }
 
   Future<void> _handleTaskMenu(String value) async {

@@ -20,7 +20,6 @@ class _FocusPageState extends State<FocusPage> {
   FocusApi? _api;
   FocusDash? _dash;
   bool _loading = false;
-  String? _error;
   bool _connected = false;
 
   int _minutes = 25;
@@ -36,7 +35,6 @@ class _FocusPageState extends State<FocusPage> {
   void initState() {
     super.initState();
     final session = context.read<AppState>().session;
-    _connected = session != null;
     if (session != null) {
       _api = FocusApi(
         baseUrl: session.baseUrl,
@@ -69,7 +67,6 @@ class _FocusPageState extends State<FocusPage> {
       setState(() {
         _dash = null;
         _loading = false;
-        _error = null;
       });
     }
   }
@@ -86,7 +83,6 @@ class _FocusPageState extends State<FocusPage> {
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
-        _error = null;
       });
     }
     try {
@@ -95,13 +91,11 @@ class _FocusPageState extends State<FocusPage> {
       setState(() {
         _dash = dash;
         _loading = false;
-        _error = null;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = error.toString();
       });
     }
   }
@@ -265,30 +259,6 @@ class _FocusPageState extends State<FocusPage> {
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [
           if (_loading) const LinearProgressIndicator(minHeight: 2),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Material(
-                color: scheme.errorContainer,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: scheme.onErrorContainer),
-                        ),
-                      ),
-                      TextButton(onPressed: _load, child: const Text('重试')),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           const SizedBox(height: 18),
           Center(
             child: SizedBox(

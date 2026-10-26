@@ -26,7 +26,6 @@ class _CountdownPageState extends State<CountdownPage> {
   void initState() {
     super.initState();
     final session = context.read<AppState>().session;
-    _connected = session != null;
     if (session != null) {
       _api = CountdownApi(
         baseUrl: session.baseUrl,
@@ -86,11 +85,11 @@ class _CountdownPageState extends State<CountdownPage> {
         _loading = false;
         _error = null;
       });
-    } catch (error) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = error.toString();
+        _error = '无法连接到服务器';
       });
     }
   }
@@ -213,27 +212,6 @@ class _CountdownPageState extends State<CountdownPage> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
             children: [
               if (_loading) const LinearProgressIndicator(minHeight: 2),
-              if (_error != null)
-                Material(
-                  color: scheme.errorContainer,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(color: scheme.onErrorContainer),
-                          ),
-                        ),
-                        TextButton(onPressed: _load, child: const Text('重试')),
-                      ],
-                    ),
-                  ),
-                ),
               if (_items.isEmpty && !_loading && _error == null)
                 SizedBox(
                   height: constraints.maxHeight - 40,

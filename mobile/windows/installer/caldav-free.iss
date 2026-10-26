@@ -3,7 +3,6 @@
 ; Requires: flutter build windows --release (output in ..\..\build\windows\x64\runner\Release\)
 
 #define MyAppName "caldav-free"
-#define MyAppVersion "2.7.1"
 #define MyAppPublisher "caldav-free"
 #define MyAppURL "https://github.com/caldav-free/caldav-free"
 #define MyAppExeName "caldav_free.exe"

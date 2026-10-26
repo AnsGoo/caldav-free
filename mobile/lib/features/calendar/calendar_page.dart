@@ -184,7 +184,10 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _setView(CalendarView view) {
-    setState(() => _view = view);
+    setState(() {
+      _view = view;
+      _anchor = _dateOnly(DateTime.now());
+    });
     unawaited(_load());
   }
 
@@ -218,15 +221,6 @@ class _CalendarPageState extends State<CalendarPage> {
   void _selectDate(DateTime day) {
     setState(() => _anchor = _dateOnly(day));
     unawaited(_load());
-  }
-
-  /// Week and day grids navigate by swiping, so the prev/next bar only shows
-  /// once the visible window has left today.
-  bool get _gridShowsToday {
-    final today = _dateOnly(DateTime.now());
-    return _view == CalendarView.week
-        ? _sundayOf(_anchor) == _sundayOf(today)
-        : _dateOnly(_anchor) == today;
   }
 
   /// Offline fallback: the calendar is rendered from the local task store so
@@ -391,36 +385,31 @@ class _CalendarPageState extends State<CalendarPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_view != CalendarView.week &&
-              _view != CalendarView.day ||
-              !_gridShowsToday)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
-              child: Row(
-                children: [
-                  IconButton(
-                    tooltip: '上一段',
-                    onPressed: () => _move(-1),
-                    icon: const Icon(Icons.chevron_left_rounded),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
+            child: Row(
+              children: [
+                IconButton(
+                  tooltip: '上一段',
+                  onPressed: () => _move(-1),
+                  icon: const Icon(Icons.chevron_left_rounded),
+                ),
+                Expanded(
+                  child: Text(
+                    _title(_view, _anchor),
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleMedium,
                   ),
-                  Expanded(
-                    child: Text(
-                      _title(_view, _anchor),
-                      textAlign: TextAlign.center,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: '下一段',
-                    onPressed: () => _move(1),
-                    icon: const Icon(Icons.chevron_right_rounded),
-                  ),
-                  TextButton(onPressed: _today, child: const Text('今天')),
-                ],
-              ),
+                ),
+                IconButton(
+                  tooltip: '下一段',
+                  onPressed: () => _move(1),
+                  icon: const Icon(Icons.chevron_right_rounded),
+                ),
+                TextButton(onPressed: _today, child: const Text('今天')),
+              ],
             ),
-          if (_loading)
-            const LinearProgressIndicator(minHeight: 2),
+          ),
           if (snapshot != null && snapshot.sources.isNotEmpty)
             _SourceLegend(sources: snapshot.sources),
           Expanded(
@@ -1295,63 +1284,76 @@ class _DayViewState extends State<_DayView> {
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => widget.onSelectedDate(day),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? scheme.primary.withValues(alpha: 0.13)
-                              : null,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 5),
-                        child: Column(
-                          children: [
-                            Text(
-                              const ['日', '一', '二', '三', '四', '五', '六'][
-                                day.weekday % 7
-                              ],
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Container(
-                              width: 34,
-                              height: 34,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: isSelected ? scheme.primary : null,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                '${day.day}',
-                                style: theme.textTheme.labelLarge?.copyWith(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: isSelected
-                                      ? scheme.onPrimary
-                                      : isToday
-                                      ? scheme.primary
-                                      : scheme.onSurface,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? scheme.primary.withValues(alpha: 0.13)
+                                : null,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                const ['日', '一', '二', '三', '四', '五', '六'][
+                                  day.weekday % 7
+                                ],
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontSize: 8.5,
-                                height: 1.1,
-                                fontWeight: special
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                                color: special
-                                    ? AppColors.festivalFor(theme.brightness)
-                                    : scheme.onSurfaceVariant,
+                              const SizedBox(height: 3),
+                              Container(
+                                width: 30,
+                                height: 30,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: isSelected ? scheme.primary : null,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Text(
+                                  '${day.day}',
+                                  style: theme.textTheme.labelLarge?.copyWith(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: isSelected
+                                        ? scheme.onPrimary
+                                        : isToday
+                                        ? scheme.primary
+                                        : scheme.onSurface,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 2),
+                              SizedBox(
+                                width: 40,
+                                child: Text(
+                                  label,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    fontSize: 8.5,
+                                    height: 1.1,
+                                    fontWeight: special
+                                        ? FontWeight.w600
+                                        : FontWeight.w500,
+                                    color: special
+                                        ? AppColors.festivalFor(
+                                            theme.brightness,
+                                          )
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     );

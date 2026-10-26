@@ -21,7 +21,7 @@ class CalendarPage extends StatefulWidget {
 }
 
 class _CalendarPageState extends State<CalendarPage> {
-  late final CalendarApi _api;
+  CalendarApi? _api;
   CalendarView _view = CalendarView.month;
   DateTime _anchor = _dateOnly(DateTime.now());
   CalendarSnapshot? _snapshot;
@@ -29,26 +29,58 @@ class _CalendarPageState extends State<CalendarPage> {
   bool _loading = false;
   String? _error;
   int _request = 0;
+  bool _connected = false;
 
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session!;
-    _api = CalendarApi(
-      baseUrl: session.baseUrl,
-      username: session.username,
-      password: session.password,
-    );
-    unawaited(_load());
+    final session = context.read<AppState>().session;
+    _connected = session != null;
+    if (session != null) {
+      _api = CalendarApi(
+        baseUrl: session.baseUrl,
+        username: session.username,
+        password: session.password,
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final connected = context.watch<AppState>().connected;
+    if (connected == _connected && _api != null) return;
+    _connected = connected;
+    _api?.close();
+    final session = context.read<AppState>().session;
+    _api = connected && session != null
+        ? CalendarApi(
+            baseUrl: session.baseUrl,
+            username: session.username,
+            password: session.password,
+          )
+        : null;
+    if (_api != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_load());
+      });
+    } else if (mounted) {
+      setState(() {
+        _snapshot = null;
+        _loading = false;
+        _error = null;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _api.close();
+    _api?.close();
     super.dispose();
   }
 
   Future<void> _load({bool showLoading = true}) async {
+    if (_api == null) return;
     final request = ++_request;
     if (showLoading && mounted) {
       setState(() {
@@ -64,7 +96,7 @@ class _CalendarPageState extends State<CalendarPage> {
           _view == CalendarView.week ||
           _view == CalendarView.day) {
         try {
-          almanac = await _api.fetchAlmanac(from: from, to: to);
+          almanac = await _api!.fetchAlmanac(from: from, to: to);
         } catch (_) {
           // The grid still works without the cultural labels.
         }
@@ -87,7 +119,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   Future<CalendarSnapshot> _fetchSnapshot(DateTime from, DateTime to) async {
     if (_view != CalendarView.year) {
-      return _api.fetch(from: from, to: to);
+      return _api!.fetch(from: from, to: to);
     }
     final year = from.year;
     final ranges = [
@@ -97,7 +129,7 @@ class _CalendarPageState extends State<CalendarPage> {
       (DateTime(year, 10, 1), DateTime(year + 1, 1, 1)),
     ];
     final snapshots = await Future.wait(
-      ranges.map((range) => _api.fetch(from: range.$1, to: range.$2)),
+      ranges.map((range) => _api!.fetch(from: range.$1, to: range.$2)),
     );
     final sources = <int, CalendarSource>{};
     final events = <String, CalendarEvent>{};
@@ -245,6 +277,17 @@ class _CalendarPageState extends State<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_api == null) {
+      return const Scaffold(
+        body: Center(
+          child: AppEmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '服务未连接',
+            message: '请先连接服务器后再查看日历',
+          ),
+        ),
+      );
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final snapshot = _snapshot;
@@ -517,7 +560,7 @@ class _CalendarPageState extends State<CalendarPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api.createEvent(
+      await _api!.createEvent(
         calendarId: draft.calendarId,
         summary: draft.summary,
         start: draft.start,
@@ -590,7 +633,7 @@ class _CalendarPageState extends State<CalendarPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api.updateEvent(
+      await _api!.updateEvent(
         calendarId: event.calendarId,
         href: event.href,
         summary: draft.summary,
@@ -643,7 +686,7 @@ class _CalendarPageState extends State<CalendarPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _api.deleteEvent(
+      await _api!.deleteEvent(
         calendarId: event.calendarId,
         href: event.href,
         recurrenceId: single ? event.recurrenceId : '',

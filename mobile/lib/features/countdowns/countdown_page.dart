@@ -16,30 +16,62 @@ class CountdownPage extends StatefulWidget {
 }
 
 class _CountdownPageState extends State<CountdownPage> {
-  late final CountdownApi _api;
+  CountdownApi? _api;
   List<CountdownItem> _items = const [];
   bool _loading = false;
   String? _error;
+  bool _connected = false;
 
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session!;
-    _api = CountdownApi(
-      baseUrl: session.baseUrl,
-      username: session.username,
-      password: session.password,
-    );
-    unawaited(_load());
+    final session = context.read<AppState>().session;
+    _connected = session != null;
+    if (session != null) {
+      _api = CountdownApi(
+        baseUrl: session.baseUrl,
+        username: session.username,
+        password: session.password,
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final connected = context.watch<AppState>().connected;
+    if (connected == _connected && _api != null) return;
+    _connected = connected;
+    _api?.close();
+    final session = context.read<AppState>().session;
+    _api = connected && session != null
+        ? CountdownApi(
+            baseUrl: session.baseUrl,
+            username: session.username,
+            password: session.password,
+          )
+        : null;
+    if (_api != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_load());
+      });
+    } else if (mounted) {
+      setState(() {
+        _items = const [];
+        _loading = false;
+        _error = null;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _api.close();
+    _api?.close();
     super.dispose();
   }
 
   Future<void> _load({bool showLoading = true}) async {
+    if (_api == null) return;
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
@@ -47,7 +79,7 @@ class _CountdownPageState extends State<CountdownPage> {
       });
     }
     try {
-      final items = await _api.fetch();
+      final items = await _api!.fetch();
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -72,7 +104,7 @@ class _CountdownPageState extends State<CountdownPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api.create(draft);
+      await _api!.create(draft);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -90,7 +122,7 @@ class _CountdownPageState extends State<CountdownPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api.update(item.id, draft);
+      await _api!.update(item.id, draft);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -119,7 +151,7 @@ class _CountdownPageState extends State<CountdownPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _api.delete(item.id);
+      await _api!.delete(item.id);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -130,6 +162,17 @@ class _CountdownPageState extends State<CountdownPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_api == null) {
+      return const Scaffold(
+        body: Center(
+          child: AppEmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '服务未连接',
+            message: '请先连接服务器后再查看倒数日',
+          ),
+        ),
+      );
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Scaffold(

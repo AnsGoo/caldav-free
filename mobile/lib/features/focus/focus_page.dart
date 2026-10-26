@@ -17,10 +17,11 @@ class FocusPage extends StatefulWidget {
 }
 
 class _FocusPageState extends State<FocusPage> {
-  late final FocusApi _api;
+  FocusApi? _api;
   FocusDash? _dash;
   bool _loading = false;
   String? _error;
+  bool _connected = false;
 
   int _minutes = 25;
   int _remaining = 25 * 60;
@@ -34,23 +35,54 @@ class _FocusPageState extends State<FocusPage> {
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session!;
-    _api = FocusApi(
-      baseUrl: session.baseUrl,
-      username: session.username,
-      password: session.password,
-    );
-    unawaited(_load());
+    final session = context.read<AppState>().session;
+    _connected = session != null;
+    if (session != null) {
+      _api = FocusApi(
+        baseUrl: session.baseUrl,
+        username: session.username,
+        password: session.password,
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final connected = context.watch<AppState>().connected;
+    if (connected == _connected && _api != null) return;
+    _connected = connected;
+    _api?.close();
+    final session = context.read<AppState>().session;
+    _api = connected && session != null
+        ? FocusApi(
+            baseUrl: session.baseUrl,
+            username: session.username,
+            password: session.password,
+          )
+        : null;
+    if (_api != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_load());
+      });
+    } else if (mounted) {
+      setState(() {
+        _dash = null;
+        _loading = false;
+        _error = null;
+      });
+    }
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
-    _api.close();
+    _api?.close();
     super.dispose();
   }
 
   Future<void> _load({bool showLoading = true}) async {
+    if (_api == null) return;
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
@@ -58,7 +90,7 @@ class _FocusPageState extends State<FocusPage> {
       });
     }
     try {
-      final dash = await _api.fetch();
+      final dash = await _api!.fetch();
       if (!mounted) return;
       setState(() {
         _dash = dash;
@@ -139,8 +171,10 @@ class _FocusPageState extends State<FocusPage> {
       _startedAt = null;
       _deadline = null;
     });
+    final api = _api;
+    if (api == null) return;
     try {
-      await _api.saveSession(
+      await api.saveSession(
         startedAt: started,
         endedAt: ended,
         durationSeconds: seconds,
@@ -158,7 +192,7 @@ class _FocusPageState extends State<FocusPage> {
 
   Future<void> _deleteSession(FocusSession session) async {
     try {
-      await _api.deleteSession(session.id);
+      await _api!.deleteSession(session.id);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -169,6 +203,17 @@ class _FocusPageState extends State<FocusPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_api == null) {
+      return const Scaffold(
+        body: Center(
+          child: AppEmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '服务未连接',
+            message: '请先连接服务器后再使用专注功能',
+          ),
+        ),
+      );
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final dash = _dash;

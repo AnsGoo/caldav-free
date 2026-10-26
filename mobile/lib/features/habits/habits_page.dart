@@ -17,31 +17,63 @@ class HabitsPage extends StatefulWidget {
 }
 
 class _HabitsPageState extends State<HabitsPage> {
-  late final HabitApi _api;
+  HabitApi? _api;
   HabitSnapshot? _snapshot;
   bool _loading = false;
   String? _error;
   int _selectedStamp = _stampFor(DateTime.now());
+  bool _connected = false;
 
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session!;
-    _api = HabitApi(
-      baseUrl: session.baseUrl,
-      username: session.username,
-      password: session.password,
-    );
-    unawaited(_load());
+    final session = context.read<AppState>().session;
+    _connected = session != null;
+    if (session != null) {
+      _api = HabitApi(
+        baseUrl: session.baseUrl,
+        username: session.username,
+        password: session.password,
+      );
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final connected = context.watch<AppState>().connected;
+    if (connected == _connected && _api != null) return;
+    _connected = connected;
+    _api?.close();
+    final session = context.read<AppState>().session;
+    _api = connected && session != null
+        ? HabitApi(
+            baseUrl: session.baseUrl,
+            username: session.username,
+            password: session.password,
+          )
+        : null;
+    if (_api != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_load());
+      });
+    } else if (mounted) {
+      setState(() {
+        _snapshot = null;
+        _loading = false;
+        _error = null;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _api.close();
+    _api?.close();
     super.dispose();
   }
 
   Future<void> _load({bool showLoading = true}) async {
+    if (_api == null) return;
     if (showLoading && mounted) {
       setState(() {
         _loading = true;
@@ -49,7 +81,7 @@ class _HabitsPageState extends State<HabitsPage> {
       });
     }
     try {
-      final snapshot = await _api.fetch();
+      final snapshot = await _api!.fetch();
       if (!mounted) return;
       setState(() {
         _snapshot = snapshot;
@@ -85,7 +117,7 @@ class _HabitsPageState extends State<HabitsPage> {
   Future<void> _checkin(HabitItem habit) async {
     if (_selectedIsFuture) return;
     try {
-      await _api.checkin(habit.id, _selectedStamp);
+      await _api!.checkin(habit.id, _selectedStamp);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -107,7 +139,7 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api.create(draft);
+      await _api!.create(draft);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -125,7 +157,7 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      await _api.update(habit.id, draft);
+      await _api!.update(habit.id, draft);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -157,7 +189,7 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _api.delete(habit.id);
+      await _api!.delete(habit.id);
       await _load(showLoading: false);
     } catch (error) {
       if (!mounted) return;
@@ -191,6 +223,17 @@ class _HabitsPageState extends State<HabitsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_api == null) {
+      return const Scaffold(
+        body: Center(
+          child: AppEmptyState(
+            icon: Icons.wifi_off_rounded,
+            title: '服务未连接',
+            message: '请先连接服务器后再查看习惯',
+          ),
+        ),
+      );
+    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final snapshot = _snapshot;

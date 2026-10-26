@@ -44,5 +44,10 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
+# Windows build artifacts
+/windows/runner/ephemeral/
+/windows/flutter/ephemeral/
+/windows/installer/output/
+
 # Widget Preview related
 .widget_preview/

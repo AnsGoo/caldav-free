@@ -21,6 +21,7 @@ class _CountdownPageState extends State<CountdownPage> {
   bool _loading = false;
   String? _error;
   bool _connected = false;
+  Timer? _retryTimer;
 
   @override
   void initState() {
@@ -38,33 +39,31 @@ class _CountdownPageState extends State<CountdownPage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final connected = context.watch<AppState>().connected;
-    if (connected == _connected && _api != null) return;
+    final app = context.watch<AppState>();
+    if (_api == null && app.session != null) {
+      final session = app.session!;
+      _api = CountdownApi(
+        baseUrl: session.baseUrl,
+        username: session.username,
+        password: session.password,
+      );
+    }
+    // The api instance intentionally survives disconnects: writes are
+    // local-first and replay from the durable queue once connectivity is
+    // back, so the page must stay usable offline.
+    final connected = app.connected;
+    if (connected == _connected) return;
     _connected = connected;
-    _api?.close();
-    final session = context.read<AppState>().session;
-    _api = connected && session != null
-        ? CountdownApi(
-            baseUrl: session.baseUrl,
-            username: session.username,
-            password: session.password,
-          )
-        : null;
-    if (_api != null) {
+    if (connected && _api != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_load());
-      });
-    } else if (mounted) {
-      setState(() {
-        _items = const [];
-        _loading = false;
-        _error = null;
       });
     }
   }
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _api?.close();
     super.dispose();
   }
@@ -78,7 +77,9 @@ class _CountdownPageState extends State<CountdownPage> {
       });
     }
     try {
-      final items = await _api!.fetch();
+      final items = await _api!.load();
+      _retryTimer?.cancel();
+      _retryTimer = null;
       if (!mounted) return;
       setState(() {
         _items = items;
@@ -86,12 +87,25 @@ class _CountdownPageState extends State<CountdownPage> {
         _error = null;
       });
     } catch (_) {
+      List<CountdownItem> merged = _items;
+      try {
+        merged = await _api!.overlayPending(_items);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
+        _items = merged;
         _loading = false;
-        _error = '无法连接到服务器';
+        _error = '无法连接到服务器，待同步的修改会在联网后自动上传';
       });
+      _scheduleRetry();
     }
+  }
+
+  void _scheduleRetry() {
+    if (_retryTimer != null || _api == null) return;
+    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_load(showLoading: false));
+    });
   }
 
   Future<void> _create() async {
@@ -101,15 +115,11 @@ class _CountdownPageState extends State<CountdownPage> {
       showDragHandle: true,
       builder: (context) => const _CountdownEditorSheet(),
     );
-    if (draft == null || !mounted) return;
-    try {
-      await _api!.create(draft);
-      await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('创建倒数记录失败：$error')));
-    }
+    if (draft == null || !mounted || _api == null) return;
+    final item = await _api!.create(draft);
+    if (!mounted) return;
+    setState(() => _items = [..._items, item]);
+    unawaited(_load(showLoading: false));
   }
 
   Future<void> _edit(CountdownItem item) async {
@@ -119,15 +129,16 @@ class _CountdownPageState extends State<CountdownPage> {
       showDragHandle: true,
       builder: (context) => _CountdownEditorSheet(initial: item),
     );
-    if (draft == null || !mounted) return;
-    try {
-      await _api!.update(item.id, draft);
-      await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('更新倒数记录失败：$error')));
-    }
+    if (draft == null || !mounted || _api == null) return;
+    final updated = await _api!.update(item.id, draft);
+    if (!mounted) return;
+    setState(() {
+      _items = [
+        for (final existing in _items)
+          if (existing.id == item.id) updated else existing,
+      ];
+    });
+    unawaited(_load(showLoading: false));
   }
 
   Future<void> _delete(CountdownItem item) async {
@@ -148,15 +159,11 @@ class _CountdownPageState extends State<CountdownPage> {
         ],
       ),
     );
-    if (confirmed != true || !mounted) return;
-    try {
-      await _api!.delete(item.id);
-      await _load(showLoading: false);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('删除失败：$error')));
-    }
+    if (confirmed != true || !mounted || _api == null) return;
+    await _api!.delete(item.id);
+    if (!mounted) return;
+    setState(() => _items = _items.where((e) => e.id != item.id).toList());
+    unawaited(_load(showLoading: false));
   }
 
   @override
@@ -166,8 +173,8 @@ class _CountdownPageState extends State<CountdownPage> {
         body: Center(
           child: AppEmptyState(
             icon: Icons.wifi_off_rounded,
-            title: '服务未连接',
-            message: '请先连接服务器后再查看倒数日',
+            title: '尚未配置服务器',
+            message: '请先在"连接服务器"中配置后，再使用倒数日',
           ),
         ),
       );
@@ -213,6 +220,16 @@ class _CountdownPageState extends State<CountdownPage> {
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
             children: [
               if (_loading) const LinearProgressIndicator(minHeight: 2),
+              if (_error != null && !_loading)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    _error!,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
               if (_items.isEmpty && !_loading && _error == null)
                 SizedBox(
                   height: constraints.maxHeight - 40,

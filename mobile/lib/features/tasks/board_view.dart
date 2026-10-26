@@ -6,18 +6,21 @@ import '../../core/models.dart';
 import '../../core/ui_utils.dart';
 import '../../design/format.dart';
 
-/// Kanban board: one column per synced section, plus an "unassigned" column.
+/// Kanban board. Scoped to one list: columns are that list's sections.
+/// "All lists" scope (list == null): one column per task list.
 class BoardView extends StatelessWidget {
   const BoardView({
     super.key,
-    required this.list,
+    this.list,
+    required this.lists,
     required this.tasks,
     required this.onOpenTask,
     required this.onToggleTask,
     required this.manualSort,
   });
 
-  final TaskListItem list;
+  final TaskListItem? list;
+  final List<TaskListItem> lists;
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
@@ -25,6 +28,32 @@ class BoardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final list = this.list;
+    if (list == null) {
+      final byList = <String, List<TaskItem>>{
+        for (final l in lists) l.id: <TaskItem>[],
+      };
+      for (final task in tasks) {
+        byList[task.listId]?.add(task);
+      }
+      return ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        children: [
+          for (final l in lists)
+            _ListBoardColumn(
+              key: ValueKey('list-board-${l.id}'),
+              list: l,
+              tasks: byList[l.id] ?? const [],
+              onOpenTask: onOpenTask,
+              onToggleTask: onToggleTask,
+            ),
+        ],
+      );
+    }
+    final scoped = tasks
+        .where((task) => task.listId == list.id)
+        .toList(growable: false);
     final store = context.read<AppState>().store;
     return StreamBuilder<List<TaskSection>>(
       stream: store.watchSections(listId: list.id),
@@ -35,7 +64,7 @@ class BoardView extends StatelessWidget {
         for (final section in sections) {
           bySection[section.id] = <TaskItem>[];
         }
-        for (final task in tasks) {
+        for (final task in scoped) {
           final id = known.contains(task.sectionId) ? task.sectionId : null;
           (bySection[id] ??= <TaskItem>[]).add(task);
         }
@@ -63,7 +92,7 @@ class BoardView extends StatelessWidget {
                 onToggleTask: onToggleTask,
                 onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
                   context,
-                  tasks,
+                  scoped,
                   bySection[sections[index].id] ?? const [],
                   oldIndex,
                   newIndex,
@@ -104,7 +133,7 @@ class BoardView extends StatelessWidget {
               onToggleTask: onToggleTask,
               onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
                 context,
-                tasks,
+                scoped,
                 bySection[null] ?? const [],
                 oldIndex,
                 newIndex,
@@ -413,6 +442,168 @@ class _BoardColumn extends StatelessWidget {
   }
 }
 
+/// One board column per task list ("全部清单" scope).
+class _ListBoardColumn extends StatelessWidget {
+  const _ListBoardColumn({
+    super.key,
+    required this.list,
+    required this.tasks,
+    required this.onOpenTask,
+    required this.onToggleTask,
+  });
+
+  final TaskListItem list;
+  final List<TaskItem> tasks;
+  final void Function(TaskItem task) onOpenTask;
+  final void Function(TaskItem task) onToggleTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      width: 264,
+      margin: const EdgeInsets.only(right: 10),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 2, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(left: 4, right: 7),
+                  decoration: BoxDecoration(
+                    color: colorFromHex(list.color),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    list.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${tasks.length}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '添加任务',
+                  onPressed: () => _addTask(context, list, null, 0),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    padding: EdgeInsets.zero,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: DragTarget<String>(
+              onWillAcceptWithDetails: (details) =>
+                  !details.data.startsWith('section:'),
+              onAcceptWithDetails: (details) =>
+                  _moveTaskToList(context, details.data, list.id),
+              builder: (context, candidates, rejected) {
+                final active = candidates.isNotEmpty;
+                return Container(
+                  margin: const EdgeInsets.fromLTRB(2, 0, 2, 4),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? scheme.primary.withValues(alpha: 0.06)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: tasks.isEmpty
+                      ? Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: double.infinity,
+                            height: 116,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: scheme.surface.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: scheme.outlineVariant.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              active ? '放到这里' : '拖入任务',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                          itemCount: tasks.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) {
+                            final task = tasks[index];
+                            return LongPressDraggable<String>(
+                              data: task.id,
+                              feedback: Material(
+                                color: Colors.transparent,
+                                child: SizedBox(
+                                  width: 240,
+                                  child: _BoardCard(
+                                    task: task,
+                                    onTap: null,
+                                    onToggle: null,
+                                  ),
+                                ),
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.35,
+                                child: _BoardCard(
+                                  task: task,
+                                  onTap: null,
+                                  onToggle: null,
+                                ),
+                              ),
+                              child: _BoardCard(
+                                task: task,
+                                onTap: () => onOpenTask(task),
+                                onToggle: () => onToggleTask(task),
+                              ),
+                            );
+                          },
+                        ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _BoardCard extends StatelessWidget {
   const _BoardCard({
     required this.task,
@@ -697,6 +888,22 @@ Future<void> _moveTask(
       taskId,
       sectionId,
     );
+  } catch (error) {
+    messenger.showSnackBar(SnackBar(content: Text('移动失败：$error')));
+  }
+}
+
+Future<void> _moveTaskToList(
+  BuildContext context,
+  String taskId,
+  String listId,
+) async {
+  final app = context.read<AppState>();
+  final task = app.store.task(taskId);
+  if (task == null || task.listId == listId) return;
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    await app.repository.moveTaskToList(taskId, listId);
   } catch (error) {
     messenger.showSnackBar(SnackBar(content: Text('移动失败：$error')));
   }

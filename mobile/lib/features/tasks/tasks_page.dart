@@ -136,13 +136,9 @@ class _TasksPageState extends State<TasksPage> {
       _selectedIds.clear();
       if (layout != _TaskLayout.list) {
         _view = 'all';
-        if (layout == _TaskLayout.board) {
-          _selectedListId ??= _boardList?.id;
-        } else {
-          // Matrix and timeline span every list; drop any scope the board
-          // pinned so local tasks in other lists stay visible.
-          _selectedListId = null;
-        }
+        // Board/matrix/timeline all start scoped to every list; the board
+        // shows one column per list until a single list is picked.
+        _selectedListId = null;
       }
     });
     _subscribeTasks();
@@ -883,24 +879,25 @@ class _TasksPageState extends State<TasksPage> {
                 ] else if (_layout == _TaskLayout.board) ...[
                   _ViewScopeBar(
                     lists: _lists,
-                    selectedId: _boardList?.id,
-                    includeAll: false,
+                    selectedId: _selectedListId,
+                    includeAll: true,
                     onChanged: _setScope,
                   ),
                   Expanded(
                     child: SafeArea(
                       top: false,
-                      child: _boardList == null
+                      child: _lists.isEmpty
                           ? Center(
                               child: Text(
-                                _lists.isEmpty ? '先创建一个清单' : '暂无可展示的清单',
+                                '先创建一个清单',
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: scheme.onSurfaceVariant,
                                 ),
                               ),
                             )
                           : BoardView(
-                              list: _boardList!,
+                              list: _selectedList,
+                              lists: _lists,
                               tasks: _tasks,
                               manualSort: _manualSort,
                               onOpenTask: (task) =>
@@ -921,6 +918,8 @@ class _TasksPageState extends State<TasksPage> {
                       top: false,
                       child: MatrixView(
                         tasks: _tasks,
+                        lists: _lists,
+                        groupByList: _selectedListId == null,
                         onOpenTask: (task) =>
                             _openEditor(task, listsById[task.listId]),
                         onToggleTask: _toggle,

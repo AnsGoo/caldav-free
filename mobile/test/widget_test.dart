@@ -232,6 +232,16 @@ void main() {
 
     await tester.tap(find.text('看板'));
     await tester.pumpAndSettle();
+    // 看板默认全部清单：每个清单作为一列
+    expect(find.text('全部清单'), findsOneWidget);
+    expect(find.text('看板里的任务'), findsOneWidget);
+    expect(find.text('未分列'), findsNothing);
+
+    await tester.tap(find.text('全部清单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('收集箱').last);
+    await tester.pumpAndSettle();
+    // 选定清单后按分列展示
     expect(find.text('进行中'), findsOneWidget);
     expect(find.text('未分列'), findsOneWidget);
     expect(find.text('看板里的任务'), findsOneWidget);

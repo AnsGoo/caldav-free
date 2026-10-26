@@ -10,11 +10,15 @@ class MatrixView extends StatelessWidget {
     required this.tasks,
     required this.onOpenTask,
     required this.onToggleTask,
+    this.lists = const [],
+    this.groupByList = false,
   });
 
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
+  final List<TaskListItem> lists;
+  final bool groupByList;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +32,23 @@ class MatrixView extends StatelessWidget {
       final index = important ? (urgent ? 0 : 1) : (urgent ? 2 : 3);
       quadrants[index].add(task);
     }
+    Widget quadrant({
+      required String title,
+      required String subtitle,
+      required IconData icon,
+      required Color color,
+      required int index,
+    }) => _Quadrant(
+      title: title,
+      subtitle: subtitle,
+      icon: icon,
+      color: color,
+      tasks: quadrants[index],
+      lists: lists,
+      groupByList: groupByList,
+      onOpenTask: onOpenTask,
+      onToggleTask: onToggleTask,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
@@ -37,26 +58,22 @@ class MatrixView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: _Quadrant(
+                  child: quadrant(
                     title: '重要且紧急',
                     subtitle: '优先处理',
                     icon: Icons.local_fire_department_rounded,
                     color: const Color(0xFFEF4444),
-                    tasks: quadrants[0],
-                    onOpenTask: onOpenTask,
-                    onToggleTask: onToggleTask,
+                      index: 0,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _Quadrant(
+                  child: quadrant(
                     title: '重要不紧急',
                     subtitle: '计划推进',
                     icon: Icons.flag_rounded,
                     color: const Color(0xFF3B82F6),
-                    tasks: quadrants[1],
-                    onOpenTask: onOpenTask,
-                    onToggleTask: onToggleTask,
+                      index: 1,
                   ),
                 ),
               ],
@@ -68,26 +85,22 @@ class MatrixView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: _Quadrant(
+                  child: quadrant(
                     title: '紧急不重要',
                     subtitle: '尽快处理',
                     icon: Icons.bolt_rounded,
                     color: const Color(0xFFF59E0B),
-                    tasks: quadrants[2],
-                    onOpenTask: onOpenTask,
-                    onToggleTask: onToggleTask,
+                      index: 2,
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: _Quadrant(
+                  child: quadrant(
                     title: '不重要不紧急',
                     subtitle: '有空再做',
                     icon: Icons.spa_rounded,
                     color: const Color(0xFF22C55E),
-                    tasks: quadrants[3],
-                    onOpenTask: onOpenTask,
-                    onToggleTask: onToggleTask,
+                      index: 3,
                   ),
                 ),
               ],
@@ -108,6 +121,8 @@ class _Quadrant extends StatelessWidget {
     required this.tasks,
     required this.onOpenTask,
     required this.onToggleTask,
+    this.lists = const [],
+    this.groupByList = false,
   });
 
   final String title;
@@ -117,6 +132,79 @@ class _Quadrant extends StatelessWidget {
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
+  final List<TaskListItem> lists;
+  final bool groupByList;
+
+  Widget _card(TaskItem task) => Padding(
+    padding: const EdgeInsets.only(bottom: 6),
+    child: _MatrixTask(
+      task: task,
+      onTap: () => onOpenTask(task),
+      onToggle: () => onToggleTask(task),
+    ),
+  );
+
+  List<Widget> _rows(BuildContext context) {
+    if (!groupByList || lists.length < 2) {
+      return [for (final task in tasks) _card(task)];
+    }
+    final scheme = Theme.of(context).colorScheme;
+    final order = {for (var i = 0; i < lists.length; i++) lists[i].id: i};
+    final byList = <String, List<TaskItem>>{};
+    for (final task in tasks) {
+      (byList[task.listId] ??= <TaskItem>[]).add(task);
+    }
+    final ids =
+        byList.keys.toList()
+          ..sort(
+            (a, b) => (order[a] ?? lists.length).compareTo(
+              order[b] ?? lists.length,
+            ),
+          );
+    final rows = <Widget>[];
+    for (final id in ids) {
+      TaskListItem? list;
+      for (final candidate in lists) {
+        if (candidate.id == id) {
+          list = candidate;
+          break;
+        }
+      }
+      if (list != null) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 6, 2, 3),
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: colorFromHex(list.color),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  list.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+      for (final task in byList[id]!) {
+        rows.add(_card(task));
+      }
+    }
+    return rows;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -201,18 +289,9 @@ class _Quadrant extends StatelessWidget {
                       ),
                     ),
                   )
-                : ListView.separated(
+                : ListView(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    itemCount: tasks.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final task = tasks[index];
-                      return _MatrixTask(
-                        task: task,
-                        onTap: () => onOpenTask(task),
-                        onToggle: () => onToggleTask(task),
-                      );
-                    },
+                    children: _rows(context),
                   ),
           ),
         ],

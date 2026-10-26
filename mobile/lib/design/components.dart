@@ -155,8 +155,8 @@ class AppEmptyState extends StatelessWidget {
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  SizedBox(height: compact ? 48 : 72),
                   Container(
                     width: compact ? 64 : 88,
                     height: compact ? 64 : 88,
@@ -282,7 +282,8 @@ class AppSideNav extends StatelessWidget {
         child: Column(
           children: [
             for (var i = 0; i < destinations.length; i++)
-              Expanded(
+              SizedBox(
+                height: 52,
                 child: _NavItem(
                   destination: destinations[i],
                   selected: i == index,

@@ -11,6 +11,7 @@ import '../../data/calendar/calendar_api.dart';
 import '../../design/app_theme.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
+import '../tasks/tasks_page.dart';
 
 enum CalendarView { month, week, threeDay, day, agenda, year }
 
@@ -516,15 +517,15 @@ class _CalendarPageState extends State<CalendarPage> {
         event.calendarId > 0 &&
         !event.readOnly &&
         _writableSources.any((source) => source.id == event.calendarId);
+    if (canEdit) {
+      await _editEvent(event);
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => _EventSheet(
-        event: event,
-        onEdit: canEdit ? () => _editEvent(event) : null,
-        onDelete: canEdit ? () => _deleteEvent(event) : null,
-      ),
+      builder: (context) => _EventSheet(event: event),
     );
   }
 
@@ -619,6 +620,10 @@ class _CalendarPageState extends State<CalendarPage> {
         initialAllDay: event.allDay,
         initialReminders: event.reminders,
         lockCalendar: true,
+        onDelete: () {
+          Navigator.pop(context);
+          unawaited(_deleteEvent(event));
+        },
       ),
     );
     if (draft == null || !mounted) return;
@@ -704,6 +709,19 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   Future<void> _openTask(CalendarTask task) async {
+    final app = context.read<AppState>();
+    final stored = task.virtual || task.syncId.isEmpty
+        ? null
+        : app.store.task(task.syncId);
+    if (stored != null) {
+      final list = app.store
+          .listsSnapshot()
+          .where((l) => l.id == stored.listId)
+          .firstOrNull;
+      await showTaskEditor(context, task: stored, list: list);
+      if (mounted) await _load(showLoading: false);
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -2736,6 +2754,7 @@ class _EventEditorSheet extends StatefulWidget {
     this.initialAllDay = false,
     this.initialReminders = const [],
     this.lockCalendar = false,
+    this.onDelete,
   });
 
   final List<CalendarSource> calendars;
@@ -2748,6 +2767,7 @@ class _EventEditorSheet extends StatefulWidget {
   final bool initialAllDay;
   final List<int> initialReminders;
   final bool lockCalendar;
+  final VoidCallback? onDelete;
 
   @override
   State<_EventEditorSheet> createState() => _EventEditorSheetState();
@@ -2993,6 +3013,15 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
                   onPressed: () => Navigator.pop(context),
                   child: const Text('取消'),
                 ),
+                if (widget.onDelete != null)
+                  TextButton.icon(
+                    onPressed: widget.onDelete,
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    label: const Text('删除'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 const Spacer(),
                 FilledButton(onPressed: _save, child: const Text('保存')),
               ],
@@ -3039,11 +3068,9 @@ class _DateRow extends StatelessWidget {
 }
 
 class _EventSheet extends StatelessWidget {
-  const _EventSheet({required this.event, this.onEdit, this.onDelete});
+  const _EventSheet({required this.event});
 
   final CalendarEvent event;
-  final Future<void> Function()? onEdit;
-  final Future<void> Function()? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -3118,34 +3145,6 @@ class _EventSheet extends StatelessWidget {
                 color: scheme.onSurfaceVariant,
               ),
             ),
-            if (onEdit != null || onDelete != null) ...[
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  if (onEdit != null)
-                    TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        onEdit!();
-                      },
-                      icon: const Icon(Icons.edit_outlined, size: 18),
-                      label: const Text('编辑'),
-                    ),
-                  if (onDelete != null)
-                    TextButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        onDelete!();
-                      },
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                      label: const Text('删除'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: scheme.error,
-                      ),
-                    ),
-                ],
-              ),
-            ],
           ],
         ),
       ),

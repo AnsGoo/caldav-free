@@ -1123,12 +1123,7 @@ class _TasksPageState extends State<TasksPage> {
   }
 
   void _openEditor(TaskItem task, TaskListItem? list) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => _TaskEditorSheet(task: task, list: list),
-    );
+    showTaskEditor(context, task: task, list: list);
   }
 
   void _snack(String message) {
@@ -2336,6 +2331,19 @@ class _QuickAddBar extends StatelessWidget {
     );
   }
 }
+
+/// Opens the shared task editor sheet for an existing task. Used by the
+/// tasks page and the calendar; the sheet persists through [AppState].
+Future<void> showTaskEditor(
+  BuildContext context, {
+  required TaskItem task,
+  TaskListItem? list,
+}) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  showDragHandle: true,
+  builder: (_) => _TaskEditorSheet(task: task, list: list),
+);
 
 class _TaskEditorSheet extends StatefulWidget {
   const _TaskEditorSheet({required this.task, required this.list});

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caldav_free/data/habits/habit_api.dart';
+import 'package:caldav_free/data/habits/habit_write_queue.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -64,7 +65,7 @@ void main() {
     api.close();
   });
 
-  test('habit API posts check-in and create requests', () async {
+  test('local-first writes queue and sync on next fetch', () async {
     final calls = <String>[];
     final client = MockClient((request) async {
       calls.add('${request.method} ${request.url.path}');
@@ -72,14 +73,20 @@ void main() {
         expect(jsonDecode(request.body)['stamp'], 20261025);
         return http.Response('{}', 200);
       }
-      expect(request.method, 'POST');
-      final body = jsonDecode(request.body) as Map<String, dynamic>;
-      expect(body['name'], '早起');
+      if (request.method == 'POST') {
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['name'], '早起');
+        return http.Response(
+          jsonEncode({
+            'habit': {'id': 2, 'name': '早起', 'status': 0},
+          }),
+          201,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       return http.Response(
-        jsonEncode({
-          'habit': {'id': 2, 'name': '早起', 'status': 0},
-        }),
-        201,
+        jsonEncode({'habits': [], 'checkins': [], 'sections': []}),
+        200,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     });
@@ -88,13 +95,20 @@ void main() {
       username: 'demo',
       password: 'secret',
       client: client,
+      writeQueue: HabitWriteQueue.inMemory(),
     );
     await api.checkin(1, 20261025);
     final created = await api.create(
       const HabitDraft(name: '早起', color: '#22c55e'),
     );
-    expect(created.id, 2);
-    expect(calls, ['POST /api/sync/habits/1/checkin', 'POST /api/sync/habits']);
+    expect(created.id, lessThan(0));
+    expect(calls, isEmpty);
+    await api.fetch();
+    expect(calls, [
+      'POST /api/sync/habits/1/checkin',
+      'POST /api/sync/habits',
+      'GET /api/sync/habits',
+    ]);
     api.close();
   });
 }

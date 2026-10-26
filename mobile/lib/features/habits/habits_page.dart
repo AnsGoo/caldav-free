@@ -22,6 +22,7 @@ class _HabitsPageState extends State<HabitsPage> {
   bool _loading = false;
   int _selectedStamp = _stampFor(DateTime.now());
   bool _connected = false;
+  Timer? _retryTimer;
 
   @override
   void initState() {
@@ -65,6 +66,7 @@ class _HabitsPageState extends State<HabitsPage> {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _api?.close();
     super.dispose();
   }
@@ -78,17 +80,27 @@ class _HabitsPageState extends State<HabitsPage> {
     }
     try {
       final snapshot = await _api!.fetch();
+      _retryTimer?.cancel();
+      _retryTimer = null;
       if (!mounted) return;
       setState(() {
         _snapshot = snapshot;
         _loading = false;
       });
     } catch (_) {
+      _scheduleRetry();
       if (!mounted) return;
       setState(() {
         _loading = false;
       });
     }
+  }
+
+  void _scheduleRetry() {
+    if (_retryTimer != null || _api == null) return;
+    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      unawaited(_load(showLoading: false));
+    });
   }
 
   int get _todayStamp => _stampFor(DateTime.now());

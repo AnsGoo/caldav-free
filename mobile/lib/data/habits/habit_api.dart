@@ -190,19 +190,18 @@ class HabitApi {
     required this.username,
     required this.password,
     http.Client? client,
-    HabitWriteQueue? writeQueue,
+    this.writeQueue,
   }) : baseUrl = _normalize(baseUrl),
-       _client = client ?? http.Client(),
-       _writeQueue = writeQueue;
+       _client = client ?? http.Client();
 
   final String baseUrl;
   final String username;
   final String password;
   final http.Client _client;
-  final HabitWriteQueue? _writeQueue;
+  final HabitWriteQueue? writeQueue;
 
   Future<HabitWriteQueue> get _queue async =>
-      _writeQueue ?? await HabitWriteQueue.shared();
+      writeQueue ?? await HabitWriteQueue.shared();
 
   static String _normalize(String raw) {
     var value = raw.trim();
@@ -250,123 +249,94 @@ class HabitApi {
   }
 
   Future<HabitItem> create(HabitDraft draft) async {
-    try {
-      final body = await _request(
-        'POST',
-        '/api/sync/habits',
+    final queue = await _queue;
+    final tempId = _newTempId();
+    await queue.add(
+      HabitPendingOp(
+        opId: newSyncId(),
+        action: 'create',
+        habitId: tempId,
         payload: draft.toJson(),
-      );
-      return HabitItem.fromJson(
-        (body['habit'] as Map<String, dynamic>? ?? const {}),
-      );
-    } on Object catch (error) {
-      if (!_isUnreachable(error)) rethrow;
-      final tempId = _newTempId();
-      final queue = await _queue;
-      await queue.add(
-        HabitPendingOp(
-          opId: newSyncId(),
-          action: 'create',
-          habitId: tempId,
-          payload: draft.toJson(),
-          createdAt: DateTime.now().toUtc(),
-        ),
-      );
-      return _optimisticItem(tempId, draft);
-    }
+        createdAt: DateTime.now().toUtc(),
+      ),
+    );
+    return _optimisticItem(tempId, draft);
   }
 
   Future<HabitItem> update(int id, HabitDraft draft) async {
-    try {
-      final body = await _request(
-        'PATCH',
-        '/api/sync/habits/$id',
-        payload: draft.toJson(),
-      );
-      return HabitItem.fromJson(
-        (body['habit'] as Map<String, dynamic>? ?? const {}),
-      );
-    } on Object catch (error) {
-      if (!_isUnreachable(error)) rethrow;
-      final queue = await _queue;
-      if (id < 0) {
-        final rewritten = await queue.replaceCreatePayload(
-          id,
-          draft.toJson(),
-        );
-        if (!rewritten) {
-          await queue.add(
-            HabitPendingOp(
-              opId: newSyncId(),
-              action: 'create',
-              habitId: id,
-              payload: draft.toJson(),
-              createdAt: DateTime.now().toUtc(),
-            ),
-          );
-        }
-      } else {
+    final queue = await _queue;
+    if (id < 0) {
+      final rewritten = await queue.replaceCreatePayload(id, draft.toJson());
+      if (!rewritten) {
         await queue.add(
           HabitPendingOp(
             opId: newSyncId(),
-            action: 'update',
+            action: 'create',
             habitId: id,
             payload: draft.toJson(),
             createdAt: DateTime.now().toUtc(),
           ),
         );
       }
-      return _optimisticItem(id, draft);
+    } else {
+      await queue.add(
+        HabitPendingOp(
+          opId: newSyncId(),
+          action: 'update',
+          habitId: id,
+          payload: draft.toJson(),
+          createdAt: DateTime.now().toUtc(),
+        ),
+      );
     }
+    return _optimisticItem(id, draft);
   }
 
   Future<void> delete(int id) async {
-    try {
-      await _request('DELETE', '/api/sync/habits/$id');
-    } on Object catch (error) {
-      if (!_isUnreachable(error)) rethrow;
-      final queue = await _queue;
-      if (id < 0) {
-        await queue.cancelTemp(id);
-        return;
-      }
-      await queue.add(
-        HabitPendingOp(
-          opId: newSyncId(),
-          action: 'delete',
-          habitId: id,
-          createdAt: DateTime.now().toUtc(),
-        ),
-      );
+    final queue = await _queue;
+    if (id < 0) {
+      await queue.cancelTemp(id);
+      return;
     }
+    await queue.add(
+      HabitPendingOp(
+        opId: newSyncId(),
+        action: 'delete',
+        habitId: id,
+        createdAt: DateTime.now().toUtc(),
+      ),
+    );
   }
 
   Future<void> checkin(int id, int stamp) async {
-    try {
-      await _request(
-        'POST',
-        '/api/sync/habits/$id/checkin',
-        payload: {'stamp': stamp},
-      );
-    } on Object catch (error) {
-      if (!_isUnreachable(error)) rethrow;
-      final queue = await _queue;
-      await queue.add(
-        HabitPendingOp(
-          opId: newSyncId(),
-          action: 'checkin',
-          habitId: id,
-          stamp: stamp,
-          createdAt: DateTime.now().toUtc(),
-        ),
-      );
-    }
+    final queue = await _queue;
+    await queue.add(
+      HabitPendingOp(
+        opId: newSyncId(),
+        action: 'checkin',
+        habitId: id,
+        stamp: stamp,
+        createdAt: DateTime.now().toUtc(),
+      ),
+    );
   }
 
-  /// Replays queued offline writes in order. Stops on the first unreachable
-  /// error; ops rejected by the server outright are dropped so the queue
-  /// cannot be poisoned.
-  Future<void> flush() async {
+  Future<void>? _flushing;
+
+  /// Replays all queued local writes against the server. Serialized so a
+  /// background retry and a user refresh cannot push the same op twice.
+  Future<void> flush() {
+    final running = _flushing;
+    if (running != null) return running;
+    late final Future<void> tracked;
+    tracked = _flushOnce().whenComplete(() {
+      if (identical(_flushing, tracked)) _flushing = null;
+    });
+    _flushing = tracked;
+    return tracked;
+  }
+
+  Future<void> _flushOnce() async {
     final queue = await _queue;
     if (queue.isEmpty) return;
     final ops = await queue.items();

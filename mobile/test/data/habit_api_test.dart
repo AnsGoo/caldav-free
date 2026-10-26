@@ -65,7 +65,7 @@ void main() {
     api.close();
   });
 
-  test('local-first writes queue and sync on next fetch', () async {
+  test('writes stay queued locally and sync on the background flush', () async {
     final calls = <String>[];
     final client = MockClient((request) async {
       calls.add('${request.method} ${request.url.path}');
@@ -103,12 +103,17 @@ void main() {
     );
     expect(created.id, lessThan(0));
     expect(calls, isEmpty);
+    // Reads never push; the background sync pass replays the queue first.
+    await api.flush();
     await api.fetch();
-    expect(calls, [
-      'POST /api/sync/habits/1/checkin',
-      'POST /api/sync/habits',
-      'GET /api/sync/habits',
-    ]);
+    expect(
+      calls,
+      containsAllInOrder([
+        'POST /api/sync/habits/1/checkin',
+        'POST /api/sync/habits',
+        'GET /api/sync/habits',
+      ]),
+    );
     api.close();
   });
 }

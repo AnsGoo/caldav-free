@@ -79,7 +79,7 @@ class _HabitsPageState extends State<HabitsPage> {
       });
     }
     try {
-      final snapshot = await _api!.fetch();
+      final snapshot = await _api!.load();
       _retryTimer?.cancel();
       _retryTimer = null;
       if (!mounted) return;

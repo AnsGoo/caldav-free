@@ -140,14 +140,13 @@ class CountdownApi {
   /// Server countdowns plus any local writes still waiting to sync, so
   /// pending edits show up immediately even before the round-trip lands.
   /// Throws when the server is unreachable; callers keep their cached list
-  /// and can overlay [pendingItems] on top of it.
+  /// and can overlay [overlayPending] on top of it.
   Future<List<CountdownItem>> load() async {
     final remote = await fetch();
     return _applyPending(remote);
   }
 
   Future<List<CountdownItem>> fetch() async {
-    await flush();
     final body = await _request('GET', '/api/sync/countdowns');
     return (body['countdowns'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
@@ -298,7 +297,6 @@ class CountdownApi {
         createdAt: DateTime.now().toUtc(),
       ),
     );
-    unawaited(flush());
     return buildOptimisticItem(tempId, draft.toJson());
   }
 
@@ -328,7 +326,6 @@ class CountdownApi {
         ),
       );
     }
-    unawaited(flush());
     return buildOptimisticItem(id, draft.toJson());
   }
 
@@ -346,7 +343,6 @@ class CountdownApi {
         createdAt: DateTime.now().toUtc(),
       ),
     );
-    unawaited(flush());
   }
 
   Future<void>? _flushing;

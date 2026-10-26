@@ -46,12 +46,17 @@ class SyncEngine {
     required this.api,
     required this.deviceId,
     Duration Function(int attempts)? backoff,
+    this.queueFlushers = const [],
   }) : _backoffOverride = backoff;
 
   final LocalStore store;
   final SyncApi api;
   final String deviceId;
   final Duration Function(int attempts)? _backoffOverride;
+
+  /// Durable local-only write queues (habits, countdowns, ...) replayed by
+  /// this background pass instead of by the pages that enqueued them.
+  final List<Future<void> Function()> queueFlushers;
 
   Future<SyncRunResult>? _current;
 
@@ -75,6 +80,15 @@ class SyncEngine {
     var conflicts = 0;
     var failed = 0;
     final errors = <String>[];
+
+    for (final flush in queueFlushers) {
+      try {
+        await flush();
+      } on Object {
+        // Queue flushers keep their entries durably and retry on the next
+        // background pass; a failing side queue must not sink the main sync.
+      }
+    }
 
     pulled += await _pull(full: full);
 

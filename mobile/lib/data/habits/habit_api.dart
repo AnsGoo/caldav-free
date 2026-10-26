@@ -182,6 +182,20 @@ class HabitDraft {
     'status': status,
     'recordEnable': false,
   };
+
+  factory HabitDraft.fromJson(Map<String, dynamic> json) => HabitDraft(
+    name: (json['name'] ?? '').toString(),
+    color: (json['color'] ?? '').toString(),
+    icon: (json['icon'] ?? '').toString(),
+    sectionId: _int(json['sectionId']),
+    goal: _double(json['goal'], 1),
+    step: _double(json['step'], 1),
+    unit: (json['unit'] ?? 'Count').toString(),
+    frequency: (json['frequency'] ?? '{"type":"daily","weekdays":[0,1,2,3,4,5,6]}').toString(),
+    targetDays: _int(json['targetDays']),
+    style: (json['style'] ?? 'check').toString(),
+    status: _int(json['status']),
+  );
 }
 
 class HabitApi {
@@ -217,8 +231,84 @@ class HabitApi {
     'Accept': 'application/json',
   };
 
+  /// Server snapshot plus local habits/check-ins still queued, so an offline
+  /// create keeps showing after a refresh instead of blinking out.
+  Future<HabitSnapshot> load() async {
+    final snapshot = await fetch();
+    return _overlayPending(snapshot);
+  }
+
+  Future<HabitSnapshot> _overlayPending(HabitSnapshot snapshot) async {
+    final queue = await _queue;
+    if (queue.isEmpty) return snapshot;
+    final ops = await queue.items();
+    final byId = <int, HabitItem>{for (final h in snapshot.habits) h.id: h};
+    final checkinPatch = <String, double>{};
+    final removed = <int>{};
+    for (final op in ops) {
+      switch (op.action) {
+        case 'create':
+          final payload = op.payload;
+          if (payload != null) {
+            byId[op.habitId] = _optimisticItem(op.habitId, HabitDraft.fromJson(payload));
+          }
+        case 'update':
+          final payload = op.payload;
+          final existing = byId[op.habitId];
+          if (payload != null && existing != null) {
+            byId[op.habitId] = _optimisticItem(
+              op.habitId,
+              HabitDraft.fromJson(payload),
+            ).copyWith(
+              currentStreak: existing.currentStreak,
+              maxStreak: existing.maxStreak,
+              totalCheckIns: existing.totalCheckIns,
+              dueToday: existing.dueToday,
+              doneToday: existing.doneToday,
+            );
+          }
+        case 'delete':
+          byId.remove(op.habitId);
+          removed.add(op.habitId);
+        case 'checkin':
+          final stamp = op.stamp;
+          if (stamp != null && !removed.contains(op.habitId)) {
+            checkinPatch['${op.habitId}:$stamp'] = 1;
+          }
+        default:
+          continue;
+      }
+    }
+    final checkins = [
+      for (final c in snapshot.checkins)
+        if (!checkinPatch.containsKey('${c.habitId}:${c.stamp}')) c,
+    ];
+    for (final key in checkinPatch.keys) {
+      final parts = key.split(':');
+      checkins.add(
+        HabitCheckinItem(
+          habitId: int.parse(parts[0]),
+          stamp: int.parse(parts[1]),
+          value: 1,
+          goal: byId[int.parse(parts[0])]?.goal ?? 1,
+          status: 2,
+        ),
+      );
+    }
+    final habits = byId.values.toList()
+      ..sort((a, b) {
+        final order = a.sectionId.compareTo(b.sectionId);
+        return order != 0 ? order : a.name.compareTo(b.name);
+      });
+    return HabitSnapshot(
+      habits: habits,
+      checkins: checkins,
+      sections: snapshot.sections,
+      preferences: snapshot.preferences,
+    );
+  }
+
   Future<HabitSnapshot> fetch() async {
-    await flush();
     final body = await _request('GET', '/api/sync/habits');
     final rawCheckins = body['checkins'];
     final checkinRows = <Map<String, dynamic>>[];

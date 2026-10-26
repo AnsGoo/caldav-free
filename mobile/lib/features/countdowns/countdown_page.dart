@@ -20,7 +20,6 @@ class _CountdownPageState extends State<CountdownPage> {
   List<CountdownItem> _items = const [];
   bool _loading = false;
   bool _connected = false;
-  Timer? _retryTimer;
 
   @override
   void initState() {
@@ -65,7 +64,6 @@ class _CountdownPageState extends State<CountdownPage> {
 
   @override
   void dispose() {
-    _retryTimer?.cancel();
     _api?.close();
     super.dispose();
   }
@@ -77,16 +75,15 @@ class _CountdownPageState extends State<CountdownPage> {
     }
     try {
       final items = await _api!.load();
-      _retryTimer?.cancel();
-      _retryTimer = null;
       if (!mounted) return;
       setState(() {
         _items = items;
         _loading = false;
       });
     } catch (_) {
-      // Silent background sync: keep the local view, queue stays durable and
-      // a periodic retry replays it once the server is reachable again.
+      // Server unreachable: keep showing local data plus queued writes.
+      // The background sync thread replays the queue silently; the page
+      // itself never retries the network.
       List<CountdownItem> merged = _items;
       try {
         merged = await _api!.overlayPending(_items);
@@ -96,15 +93,7 @@ class _CountdownPageState extends State<CountdownPage> {
         _items = merged;
         _loading = false;
       });
-      _scheduleRetry();
     }
-  }
-
-  void _scheduleRetry() {
-    if (_retryTimer != null || _api == null) return;
-    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      unawaited(_load(showLoading: false));
-    });
   }
 
   Future<void> _create() async {

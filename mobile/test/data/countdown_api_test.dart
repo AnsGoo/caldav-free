@@ -127,16 +127,18 @@ void main() {
     expect(created.id, lessThan(0));
     expect(created.name, '新年');
     expect(queue.isEmpty, isFalse);
+    // Local saves never touch the network; only the background sync pass does.
     expect(calls, isEmpty);
 
     final updated = await api.update(created.id, _draft());
     expect(updated.name, '新年');
+    expect(calls, isEmpty);
     // Temp-id edits rewrite the pending create instead of adding an update.
     expect((await queue.items()).where((op) => op.action == 'update'), isEmpty);
 
-    final items = await api.load();
     await api.flush();
     expect(queue.isEmpty, isTrue);
+    final items = await api.load();
     expect(items.single.id, 2);
     expect(items.single.name, '新年');
     expect(
@@ -149,7 +151,7 @@ void main() {
     api.close();
   });
 
-  test('failed write replays stay queued and temps never sync', () async {
+  test('writes stay local, pending overlay is idempotent, temps never sync', () async {
     final calls = <String>[];
     final client = MockClient((request) async {
       calls.add('${request.method} ${request.url.path}');
@@ -198,7 +200,7 @@ void main() {
     expect(overlaid.length, items.length);
     final twice = await api.overlayPending(overlaid);
     expect(twice.where((item) => item.id < 0).length, 1);
-    // The failed replay keeps the create queued.
+    // Nothing has been pushed yet: only the background sync pass replays.
     expect((await queue.items()).length, 1);
 
     await api.delete(created.id);
@@ -250,8 +252,10 @@ void main() {
       writeQueue: queue,
     );
 
-    final items = await api.load();
+    await api.create(_draft());
+    await api.flush();
     expect(queue.isEmpty, isTrue);
+    final items = await api.load();
     expect(items.single.id, 7);
     expect(
       calls.where((call) => call.startsWith('POST')),

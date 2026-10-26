@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'data/countdowns/countdown_api.dart';
 import 'data/db/local_store.dart';
 import 'data/engine/sync_controller.dart';
 import 'data/engine/sync_engine.dart';
+import 'data/habits/habit_api.dart';
 import 'data/reminders/reminder_scheduler.dart';
 import 'data/remote/sync_api.dart';
 import 'data/session/credentials.dart';
@@ -138,6 +140,20 @@ class AppState extends ChangeNotifier {
       await previousReminders.stop(cancelAll: true);
     }
     final current = session!;
+    // Local-only write queues (habits, countdowns) are replayed here, in the
+    // background sync pass. Pages never touch the network for writes.
+    final queueFlushers = <Future<void> Function()>{
+      HabitApi(
+        baseUrl: current.baseUrl,
+        username: current.username,
+        password: current.password,
+      ).flush,
+      CountdownApi(
+        baseUrl: current.baseUrl,
+        username: current.username,
+        password: current.password,
+      ).flush,
+    }.toList();
     final engine = SyncEngine(
       store: store,
       api: HttpSyncApi(
@@ -146,6 +162,7 @@ class AppState extends ChangeNotifier {
         password: current.password,
       ),
       deviceId: current.deviceId,
+      queueFlushers: queueFlushers,
     );
     final controller = SyncController(engine: engine, store: store);
     repository.onLocalChange = controller.requestSync;

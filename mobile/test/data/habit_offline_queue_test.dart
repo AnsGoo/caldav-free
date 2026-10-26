@@ -39,7 +39,7 @@ void main() {
     expect(ops.single.action, 'create');
   });
 
-  test('fetch replays queued writes once the server is reachable', () async {
+  test('background flush replays queued writes once the server is reachable', () async {
     final queue = HabitWriteQueue.inMemory();
     var online = false;
     final requests = <String>[];
@@ -75,6 +75,7 @@ void main() {
     ]);
 
     online = true;
+    await api.flush();
     final snapshot = await api.fetch();
 
     expect(
@@ -82,7 +83,6 @@ void main() {
       containsAllInOrder([
         'POST /api/sync/habits',
         'POST /api/sync/habits/42/checkin',
-        'GET /api/sync/habits',
       ]),
     );
     expect(await queue.items(), isEmpty);

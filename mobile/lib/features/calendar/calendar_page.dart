@@ -226,8 +226,7 @@ class _CalendarPageState extends State<CalendarPage> {
 
   /// Offline fallback: the calendar is rendered from the local task store so
   /// scheduled tasks stay visible while the server is unreachable.
-  CalendarSnapshot _localSnapshot() {
-    final store = context.read<AppState>().store;
+  CalendarSnapshot _localSnapshot() {    final store = context.read<AppState>().store;
     final lists = {for (final l in store.listsSnapshot()) l.id: l};
     final tasks = <CalendarTask>[];
     for (final t in store.allTasks()) {
@@ -257,6 +256,25 @@ class _CalendarPageState extends State<CalendarPage> {
       tasks: tasks,
       from: _anchor,
       to: _anchor,
+    );
+  }
+
+  /// Local tasks that the server snapshot does not carry yet (created while
+  /// offline, or not synced for the window) are merged in by syncId.
+  CalendarSnapshot _mergeLocalTasks(CalendarSnapshot? snapshot) {
+    if (snapshot == null) return _localSnapshot();
+    final known = {for (final t in snapshot.tasks) t.syncId};
+    final extra = _localSnapshot()
+        .tasks
+        .where((t) => t.syncId.isNotEmpty && !known.contains(t.syncId))
+        .toList();
+    if (extra.isEmpty) return snapshot;
+    return CalendarSnapshot(
+      sources: snapshot.sources,
+      events: snapshot.events,
+      tasks: [...snapshot.tasks, ...extra],
+      from: snapshot.from,
+      to: snapshot.to,
     );
   }
 
@@ -416,7 +434,7 @@ class _CalendarPageState extends State<CalendarPage> {
           Expanded(
             child: Builder(
               builder: (context) {
-                final effective = snapshot ?? _localSnapshot();
+                final effective = _mergeLocalTasks(snapshot);
                 return switch (_view) {
                     CalendarView.month => _MonthView(
                       anchor: _anchor,

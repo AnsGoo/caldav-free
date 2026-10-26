@@ -338,14 +338,14 @@ void main() {
     expect(find.text('明天任务'), findsOneWidget);
     expect(find.text('以后任务'), findsOneWidget);
 
-    await tester.tap(find.text('今天'));
+    await tester.tap(find.text('今天').first);
     await tester.pumpAndSettle();
     expect(find.text('今天任务'), findsOneWidget);
     expect(find.text('明天任务'), findsNothing);
     expect(find.text('以后任务'), findsNothing);
 
-    await tester.ensureVisible(find.text('最近 7 天'));
-    await tester.tap(find.text('最近 7 天'));
+    await tester.ensureVisible(find.text('最近 7 天').first);
+    await tester.tap(find.text('最近 7 天').first);
     await tester.pumpAndSettle();
     expect(find.text('今天任务'), findsOneWidget);
     expect(find.text('明天任务'), findsOneWidget);

@@ -136,8 +136,12 @@ class _TasksPageState extends State<TasksPage> {
       _selectedIds.clear();
       if (layout != _TaskLayout.list) {
         _view = 'all';
-        if (layout == _TaskLayout.board && _selectedListId == null) {
-          _selectedListId = _boardList?.id;
+        if (layout == _TaskLayout.board) {
+          _selectedListId ??= _boardList?.id;
+        } else {
+          // Matrix and timeline span every list; drop any scope the board
+          // pinned so local tasks in other lists stay visible.
+          _selectedListId = null;
         }
       }
     });
@@ -906,13 +910,12 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 ] else if (_layout == _TaskLayout.matrix) ...[
-                  if (!wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      includeAll: true,
-                      onChanged: _setScope,
-                    ),
+                  _ViewScopeBar(
+                    lists: _lists,
+                    selectedId: _selectedListId,
+                    includeAll: true,
+                    onChanged: _setScope,
+                  ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -925,13 +928,12 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 ] else ...[
-                  if (!wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      includeAll: true,
-                      onChanged: _setScope,
-                    ),
+                  _ViewScopeBar(
+                    lists: _lists,
+                    selectedId: _selectedListId,
+                    includeAll: true,
+                    onChanged: _setScope,
+                  ),
                   _TimelineScaleBar(
                     scale: _timelineScale,
                     anchor: _timelineAnchor,

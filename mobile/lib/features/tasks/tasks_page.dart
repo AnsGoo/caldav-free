@@ -12,6 +12,7 @@ import '../../data/engine/sync_controller.dart';
 import '../../data/reminders/reminder_plan.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
+import '../auth/login_page.dart';
 import '../lists/lists_page.dart';
 import '../settings/sync_diagnostics_page.dart';
 import '../search/search_page.dart';
@@ -719,9 +720,19 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                     const PopupMenuDivider(),
                     PopupMenuItem(
-                      value: 'logout',
-                      child: _menuRow(Icons.logout_rounded, '退出登录'),
+                      value: 'connect',
+                      child: _menuRow(
+                        app.connected
+                            ? Icons.cloud_done_rounded
+                            : Icons.cloud_outlined,
+                        app.connected ? '已连接服务器' : '连接服务器',
+                      ),
                     ),
+                    if (app.connected)
+                      PopupMenuItem(
+                        value: 'disconnect',
+                        child: _menuRow(Icons.cloud_off_rounded, '断开连接'),
+                      ),
                   ],
                 ),
                 const SizedBox(width: 6),
@@ -1071,8 +1082,11 @@ class _TasksPageState extends State<TasksPage> {
           context,
         ).push(MaterialPageRoute(builder: (_) => const SyncDiagnosticsPage()));
         break;
-      case 'logout':
-        await _confirmLogout();
+      case 'connect':
+        _openConnectSheet();
+        break;
+      case 'disconnect':
+        await _confirmDisconnect();
         break;
     }
   }
@@ -1172,12 +1186,21 @@ class _TasksPageState extends State<TasksPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _confirmLogout() async {
+  void _openConnectSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => const ConnectServerSheet(),
+    );
+  }
+
+  Future<void> _confirmDisconnect() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('退出登录？'),
-        content: const Text('本地任务、待推送操作和凭据都会被清空。'),
+        title: const Text('断开连接？'),
+        content: const Text('断开后仍可正常使用本地功能，凭据会被清除，本地数据保留。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -1185,13 +1208,13 @@ class _TasksPageState extends State<TasksPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('退出'),
+            child: const Text('断开'),
           ),
         ],
       ),
     );
     if (confirmed == true && mounted) {
-      await context.read<AppState>().logout();
+      await context.read<AppState>().disconnect();
     }
   }
 }

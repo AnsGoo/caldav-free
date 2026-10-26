@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 void main() {
-  testWidgets('login page renders the connection form', (tester) async {
+  testWidgets('connect sheet renders the connection form', (tester) async {
     final store = LocalStore.memory();
     final app = AppState(
       store: store,
@@ -27,13 +27,12 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AppState>.value(
         value: app,
-        child: const MaterialApp(home: LoginPage()),
+        child: const MaterialApp(home: Scaffold(body: ConnectServerSheet())),
       ),
     );
 
-    expect(find.text('连接你的服务器'), findsOneWidget);
-    expect(find.text('登录并同步'), findsOneWidget);
-    expect(find.text('caldav-free'), findsOneWidget);
+    expect(find.text('连接服务器'), findsOneWidget);
+    expect(find.text('连接并同步'), findsOneWidget);
   });
 
   testWidgets('search filters title and notes locally', (tester) async {

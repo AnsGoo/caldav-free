@@ -11,7 +11,7 @@ import 'data/session/credentials.dart';
 import 'data/tasks_repository.dart';
 
 /// Application-scoped session + sync wiring. Kept as a ChangeNotifier so the
-/// widget tree can rebuild on login/logout without a router dependency.
+/// widget tree can rebuild on connect/disconnect without a router dependency.
 class AppState extends ChangeNotifier {
   AppState({
     required this.store,
@@ -31,7 +31,7 @@ class AppState extends ChangeNotifier {
 
   VoidCallback? _syncListener;
 
-  bool get signedIn => session != null;
+  bool get connected => session != null;
 
   String get accent => store.accent;
 
@@ -44,11 +44,19 @@ class AppState extends ChangeNotifier {
     session = await credentials.load();
     if (session != null) {
       await _wireSync();
+    } else {
+      await _startOffline();
     }
     notifyListeners();
   }
 
-  Future<void> login({
+  Future<void> _startOffline() async {
+    final scheduler = ReminderScheduler(store: store);
+    reminders = scheduler;
+    unawaited(scheduler.start());
+  }
+
+  Future<void> connect({
     required String baseUrl,
     required String username,
     required String password,
@@ -103,17 +111,17 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
+  Future<void> disconnect() async {
     _detachSync();
     syncController?.dispose();
     syncController = null;
     await reminders?.stop(cancelAll: true);
     reminders = null;
     repository.onLocalChange = null;
-    await store.clearAll();
     await credentials.clear();
     session = null;
     error = null;
+    await _startOffline();
     notifyListeners();
   }
 

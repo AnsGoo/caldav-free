@@ -36,16 +36,22 @@ class SyncDiagnosticsPage extends StatelessWidget {
                 Row(
                   children: [
                     Icon(
-                      sync?.error == null
-                          ? Icons.cloud_done_rounded
-                          : Icons.cloud_off_rounded,
-                      color: sync?.error == null
-                          ? const Color(0xFF22C55E)
-                          : scheme.error,
+                      session == null
+                          ? Icons.cloud_off_rounded
+                          : sync?.error == null
+                              ? Icons.cloud_done_rounded
+                              : Icons.cloud_off_rounded,
+                      color: session == null
+                          ? scheme.onSurfaceVariant
+                          : sync?.error == null
+                              ? const Color(0xFF22C55E)
+                              : scheme.error,
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      sync?.error == null ? '同步正常' : '同步异常',
+                      session == null
+                          ? '未连接服务器'
+                          : sync?.error == null ? '同步正常' : '同步异常',
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
@@ -85,7 +91,7 @@ class SyncDiagnosticsPage extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: sync?.phase == SyncPhase.syncing
+                  onPressed: sync == null || sync.phase == SyncPhase.syncing
                       ? null
                       : () => app.syncNow(),
                   icon: const Icon(Icons.sync_rounded, size: 18),
@@ -95,7 +101,7 @@ class SyncDiagnosticsPage extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: sync?.phase == SyncPhase.syncing
+                  onPressed: sync == null || sync.phase == SyncPhase.syncing
                       ? null
                       : () => app.syncNow(full: true),
                   icon: const Icon(Icons.restart_alt_rounded, size: 18),
@@ -123,8 +129,8 @@ class SyncDiagnosticsPage extends StatelessWidget {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('退出登录？'),
-                  content: const Text('本地任务、待推送操作和凭据都会被清空。'),
+                  title: const Text('断开连接？'),
+                  content: const Text('断开后仍可正常使用本地功能，凭据会被清除，本地数据保留。'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -132,19 +138,19 @@ class SyncDiagnosticsPage extends StatelessWidget {
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(context, true),
-                      child: const Text('退出'),
+                      child: const Text('断开'),
                     ),
                   ],
                 ),
               );
               if (confirmed != true) return;
-              await app.logout();
+              await app.disconnect();
               if (context.mounted) {
                 Navigator.of(context).popUntil((route) => route.isFirst);
               }
             },
-            icon: Icon(Icons.logout_rounded, size: 18, color: scheme.error),
-            label: Text('退出登录', style: TextStyle(color: scheme.error)),
+            icon: Icon(Icons.cloud_off_rounded, size: 18, color: scheme.error),
+            label: Text('断开连接', style: TextStyle(color: scheme.error)),
           ),
         ],
       ),

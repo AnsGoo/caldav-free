@@ -39,10 +39,18 @@ void main() {
     return store;
   }
 
+  Future<void> useView(WidgetTester tester, String label) async {
+    await tester.tap(find.byType(PopupMenuButton<CalendarView>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(label));
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('long-pressing a month cell quick-adds an all-day task locally', (
     tester,
   ) async {
     final store = await pump(tester);
+    await useView(tester, '月视图');
     final day = DateTime(DateTime.now().year, DateTime.now().month, 15);
 
     await tester.longPress(find.text('15'));
@@ -71,6 +79,7 @@ void main() {
     tester,
   ) async {
     final store = await pump(tester);
+    await useView(tester, '月视图');
 
     await tester.longPress(find.text('15'));
     await tester.pumpAndSettle();
@@ -85,6 +94,7 @@ void main() {
 
   testWidgets('an empty title leaves no task behind', (tester) async {
     final store = await pump(tester);
+    await useView(tester, '月视图');
 
     await tester.longPress(find.text('15'));
     await tester.pumpAndSettle();

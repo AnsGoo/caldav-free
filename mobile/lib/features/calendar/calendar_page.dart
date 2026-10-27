@@ -14,7 +14,7 @@ import '../../design/components.dart';
 import '../../design/format.dart';
 import '../tasks/tasks_page.dart';
 
-enum CalendarView { month, week, threeDay, day, agenda, year }
+enum CalendarView { month, week, schedule, day, year }
 
 class CalendarPage extends StatefulWidget {
   const CalendarPage({super.key});
@@ -25,7 +25,7 @@ class CalendarPage extends StatefulWidget {
 
 class _CalendarPageState extends State<CalendarPage> {
   CalendarApi? _api;
-  CalendarView _view = CalendarView.month;
+  CalendarView _view = CalendarView.schedule;
   DateTime _anchor = _dateOnly(DateTime.now());
   CalendarSnapshot? _snapshot;
   Map<String, CalendarAlmanacDay> _almanac = const {};
@@ -175,15 +175,13 @@ class _CalendarPageState extends State<CalendarPage> {
           sunday.subtract(const Duration(days: 7)),
           sunday.add(const Duration(days: 21)),
         );
-      case CalendarView.threeDay:
+      case CalendarView.schedule:
         return (anchor, anchor.add(const Duration(days: 3)));
       case CalendarView.day:
         return (
           anchor.subtract(const Duration(days: 8)),
           anchor.add(const Duration(days: 8)),
         );
-      case CalendarView.agenda:
-        return (anchor, anchor.add(const Duration(days: 30)));
       case CalendarView.year:
         return (DateTime(anchor.year, 1, 1), DateTime(anchor.year + 1, 1, 1));
     }
@@ -204,9 +202,8 @@ class _CalendarPageState extends State<CalendarPage> {
       _anchor = switch (_view) {
         CalendarView.month => DateTime(_anchor.year, _anchor.month + delta, 1),
         CalendarView.week => _anchor.add(Duration(days: 7 * delta)),
-        CalendarView.threeDay => _anchor.add(Duration(days: 3 * delta)),
+        CalendarView.schedule => _anchor.add(Duration(days: 3 * delta)),
         CalendarView.day => _anchor.add(Duration(days: delta)),
-        CalendarView.agenda => _anchor.add(Duration(days: 30 * delta)),
         CalendarView.year => DateTime(_anchor.year + delta, 1, 1),
       };
     });
@@ -379,6 +376,38 @@ class _CalendarPageState extends State<CalendarPage> {
           .where((source) => source.id > 0)
           .toList(growable: false);
 
+  /// The day view pairs the event FAB with a task quick-add; the inline
+  /// composer borrows the corner while it is open.
+  Widget? _fab(ColorScheme scheme) {
+    if (_view == CalendarView.day && _composingDay != null) return null;
+    final event = _writableSources.isEmpty
+        ? null
+        : Tooltip(
+            message: '新建日程',
+            child: FloatingActionButton(
+              heroTag: 'calendar-compose-fab',
+              onPressed: _createEvent,
+              child: const Icon(Icons.add_rounded),
+            ),
+          );
+    if (_view != CalendarView.day) return event;
+    final task = Tooltip(
+      message: '在 ${_anchor.month}月${_anchor.day}日新建任务',
+      child: FloatingActionButton.small(
+        heroTag: 'calendar-task-fab',
+        onPressed: () => _startCompose(_anchor),
+        backgroundColor: scheme.surfaceContainerHigh,
+        foregroundColor: scheme.primary,
+        child: const Icon(Icons.playlist_add_rounded),
+      ),
+    );
+    if (event == null) return task;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [task, const SizedBox(width: 10), event],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -408,12 +437,11 @@ class _CalendarPageState extends State<CalendarPage> {
             onSelected: _setView,
             itemBuilder: (context) => [
               for (final view in const [
-                CalendarView.agenda,
                 CalendarView.year,
                 CalendarView.month,
                 CalendarView.week,
-                CalendarView.threeDay,
                 CalendarView.day,
+                CalendarView.schedule,
               ])
                 PopupMenuItem(
                   value: view,
@@ -451,16 +479,7 @@ class _CalendarPageState extends State<CalendarPage> {
           const SizedBox(width: 6),
         ],
       ),
-      floatingActionButton: _writableSources.isEmpty
-          ? null
-          : Tooltip(
-              message: '新建日程',
-              child: FloatingActionButton(
-                heroTag: 'calendar-compose-fab',
-                onPressed: _createEvent,
-                child: const Icon(Icons.add_rounded),
-              ),
-            ),
+      floatingActionButton: _fab(scheme),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -519,7 +538,7 @@ class _CalendarPageState extends State<CalendarPage> {
                     onOpenTask: _openTask,
                     onToggleTask: _toggleTask,
                   ),
-                  CalendarView.threeDay => _ThreeDayView(
+                  CalendarView.schedule => _ScheduleView(
                     anchor: _anchor,
                     snapshot: effective,
                     onSelectDay: _selectDay,
@@ -531,23 +550,19 @@ class _CalendarPageState extends State<CalendarPage> {
                     anchor: _anchor,
                     snapshot: effective,
                     almanac: _almanac,
+                    composingDay: _composingDay,
                     onSelectedDate: _selectDate,
                     onOpenEvent: _openEvent,
                     onOpenTask: _openTask,
                     onToggleTask: _toggleTask,
-                  ),
-                  CalendarView.agenda => _AgendaView(
-                    anchor: _anchor,
-                    snapshot: effective,
-                    onSelectDay: _selectDay,
-                    onOpenEvent: _openEvent,
-                    onOpenTask: _openTask,
-                    onToggleTask: _toggleTask,
+                    onCommitCompose: _commitCompose,
+                    onCancelCompose: _cancelCompose,
                   ),
                   CalendarView.year => _YearView(
                     anchor: _anchor,
                     snapshot: effective,
                     onSelectDay: _selectDay,
+                    bottomInset: _writableSources.isEmpty ? 12 : 78,
                   ),
                 };
               },
@@ -564,13 +579,11 @@ class _CalendarPageState extends State<CalendarPage> {
         return '${anchor.year}年${anchor.month}月';
       case CalendarView.week:
         return '${anchor.year}年${anchor.month}月';
-      case CalendarView.threeDay:
+      case CalendarView.schedule:
         final end = anchor.add(const Duration(days: 2));
         return '${anchor.month}月${anchor.day}日 - ${end.month}月${end.day}日';
       case CalendarView.day:
         return '${anchor.year}年${anchor.month}月';
-      case CalendarView.agenda:
-        return '${anchor.month}月${anchor.day}日起 30 天';
       case CalendarView.year:
         return '${anchor.year}年';
     }
@@ -579,18 +592,16 @@ class _CalendarPageState extends State<CalendarPage> {
   String _viewLabel(CalendarView view) => switch (view) {
     CalendarView.month => '月视图',
     CalendarView.week => '周视图',
-    CalendarView.threeDay => '3 日视图',
+    CalendarView.schedule => '日程',
     CalendarView.day => '日视图',
-    CalendarView.agenda => '议程',
     CalendarView.year => '年视图',
   };
 
   IconData _viewIcon(CalendarView view) => switch (view) {
     CalendarView.month => Icons.calendar_view_month_rounded,
     CalendarView.week => Icons.view_week_outlined,
-    CalendarView.threeDay => Icons.view_column_outlined,
+    CalendarView.schedule => Icons.view_column_outlined,
     CalendarView.day => Icons.calendar_view_day_rounded,
-    CalendarView.agenda => Icons.view_agenda_outlined,
     CalendarView.year => Icons.grid_view_rounded,
   };
 
@@ -1478,19 +1489,25 @@ class _DayView extends StatefulWidget {
     required this.anchor,
     required this.snapshot,
     required this.almanac,
+    required this.composingDay,
     required this.onSelectedDate,
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
+    required this.onCommitCompose,
+    required this.onCancelCompose,
   });
 
   final DateTime anchor;
   final CalendarSnapshot snapshot;
   final Map<String, CalendarAlmanacDay> almanac;
+  final DateTime? composingDay;
   final void Function(DateTime day) onSelectedDate;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
+  final Future<void> Function(String title) onCommitCompose;
+  final VoidCallback onCancelCompose;
 
   @override
   State<_DayView> createState() => _DayViewState();
@@ -1662,7 +1679,108 @@ class _DayViewState extends State<_DayView> {
             },
           ),
         ),
+        if (widget.composingDay == visibleDay)
+          _DayTaskComposer(
+            day: visibleDay,
+            onCommit: widget.onCommitCompose,
+            onCancel: widget.onCancelCompose,
+          ),
       ],
+    );
+  }
+}
+
+/// Inline quick-add for the day view; the task is written locally with an
+/// all-day due date, exactly like the month view's cell composer.
+class _DayTaskComposer extends StatefulWidget {
+  const _DayTaskComposer({
+    required this.day,
+    required this.onCommit,
+    required this.onCancel,
+  });
+
+  final DateTime day;
+  final Future<void> Function(String title) onCommit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_DayTaskComposer> createState() => _DayTaskComposerState();
+}
+
+class _DayTaskComposerState extends State<_DayTaskComposer> {
+  final TextEditingController _controller = TextEditingController();
+  bool _settled = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit(String value) {
+    if (_settled) return;
+    _settled = true;
+    final title = value.trim();
+    if (title.isEmpty) {
+      widget.onCancel();
+      return;
+    }
+    unawaited(widget.onCommit(title));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+      child: AppCard(
+        padding: const EdgeInsets.fromLTRB(12, 0, 6, 0),
+        color: scheme.surfaceContainerLow,
+        child: Row(
+          children: [
+            Icon(Icons.playlist_add_rounded, size: 18, color: scheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _controller,
+                autofocus: true,
+                maxLength: 200,
+                textInputAction: TextInputAction.done,
+                onSubmitted: _submit,
+                style: theme.textTheme.bodyMedium,
+                decoration: InputDecoration(
+                  isDense: true,
+                  counterText: '',
+                  filled: false,
+                  hintText: '在 ${widget.day.month}月${widget.day.day}日新建任务',
+                  hintStyle: theme.textTheme.bodyMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: '取消',
+              onPressed: widget.onCancel,
+              icon: const Icon(Icons.close_rounded, size: 18),
+            ),
+            IconButton.filled(
+              tooltip: '添加任务',
+              onPressed: () => _submit(_controller.text),
+              style: IconButton.styleFrom(
+                minimumSize: const Size(36, 36),
+                maximumSize: const Size(36, 36),
+              ),
+              icon: const Icon(Icons.arrow_upward_rounded, size: 18),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -2293,8 +2411,8 @@ class _NowIndicator extends StatelessWidget {
   }
 }
 
-class _ThreeDayView extends StatelessWidget {
-  const _ThreeDayView({
+class _ScheduleView extends StatelessWidget {
+  const _ScheduleView({
     required this.anchor,
     required this.snapshot,
     required this.onSelectDay,
@@ -2319,7 +2437,7 @@ class _ThreeDayView extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 2, 20, 100),
       children: [
         for (var offset = 0; offset < 3; offset++) ...[
-          _ThreeDayHeader(
+          _ScheduleHeader(
             day: anchor.add(Duration(days: offset)),
             count: _entriesForDay(
               snapshot,
@@ -2364,8 +2482,8 @@ class _ThreeDayView extends StatelessWidget {
   }
 }
 
-class _ThreeDayHeader extends StatelessWidget {
-  const _ThreeDayHeader({
+class _ScheduleHeader extends StatelessWidget {
+  const _ScheduleHeader({
     required this.day,
     required this.count,
     required this.today,
@@ -2439,34 +2557,55 @@ class _YearView extends StatelessWidget {
     required this.anchor,
     required this.snapshot,
     required this.onSelectDay,
+    required this.bottomInset,
   });
 
   final DateTime anchor;
   final CalendarSnapshot snapshot;
   final void Function(DateTime day) onSelectDay;
 
+  /// Height the floating action button claims in the bottom-right corner.
+  final double bottomInset;
+
   @override
   Widget build(BuildContext context) {
     final today = _dateOnly(DateTime.now());
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 2, 20, 100),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 0.82,
-        mainAxisSpacing: 18,
-        crossAxisSpacing: 8,
+    // One screen, no scrolling: the four rows split the available height and
+    // each mini month squeezes its week rows into whatever is left.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, 2, 12, bottomInset),
+      child: Column(
+        children: [
+          for (var row = 0; row < 4; row++)
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: row == 3 ? 0 : 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (var column = 0; column < 3; column++)
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: column == 0 ? 0 : 8),
+                          child: AppCard(
+                            radius: 14,
+                            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+                            child: _MiniMonth(
+                              year: anchor.year,
+                              month: row * 3 + column + 1,
+                              snapshot: snapshot,
+                              today: today,
+                              onSelectDay: onSelectDay,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
-      itemCount: 12,
-      itemBuilder: (context, index) {
-        final month = index + 1;
-        return _MiniMonth(
-          year: anchor.year,
-          month: month,
-          snapshot: snapshot,
-          today: today,
-          onSelectDay: onSelectDay,
-        );
-      },
     );
   }
 }
@@ -2492,17 +2631,43 @@ class _MiniMonth extends StatelessWidget {
     final scheme = theme.colorScheme;
     final first = DateTime(year, month, 1);
     final start = first.subtract(Duration(days: first.weekday - 1));
+    final cells = <({DateTime day, List<_Entry> entries})>[];
+    for (var index = 0; index < 42; index++) {
+      final day = start.add(Duration(days: index));
+      cells.add((day: day, entries: _entriesForDay(snapshot, day)));
+    }
+    final total = cells
+        .where((cell) => cell.day.month == month)
+        .fold<int>(0, (sum, cell) => sum + cell.entries.length);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '$month月',
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
+        Row(
+          children: [
+            Text(
+              '$month月',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const Spacer(),
+            // Three narrow cards per row plus accessibility text scaling can
+            // outgrow the header; the count gives way, never the month name.
+            Flexible(
+              child: Text(
+                '$total 项',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  fontSize: 9.5,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 4),
         Row(
           children: [
             for (final label in const ['一', '二', '三', '四', '五', '六', '日'])
@@ -2511,7 +2676,8 @@ class _MiniMonth extends StatelessWidget {
                   child: Text(
                     label,
                     style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 8.5,
+                      fontSize: 7.5,
+                      height: 1,
                       color: scheme.onSurfaceVariant,
                     ),
                   ),
@@ -2519,135 +2685,81 @@ class _MiniMonth extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 3),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: 42,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            childAspectRatio: 1,
-          ),
-          itemBuilder: (context, index) {
-            final day = start.add(Duration(days: index));
-            final inMonth = day.month == month;
-            final isToday = day == today;
-            final hasEntries = _entriesForDay(snapshot, day).isNotEmpty;
-            return InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => onSelectDay(day),
-              child: Center(
-                child: Container(
-                  width: 16,
-                  height: 16,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: isToday ? scheme.primary : null,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    '${day.day}',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      fontSize: 9,
-                      height: 1,
-                      fontWeight: hasEntries || isToday
-                          ? FontWeight.w700
-                          : FontWeight.w500,
-                      color: isToday
-                          ? scheme.onPrimary
-                          : inMonth
-                          ? (hasEntries ? scheme.primary : scheme.onSurface)
-                          : scheme.onSurfaceVariant.withValues(alpha: 0.35),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Six week rows share whatever height the card has left; the
+              // day marker follows the row so nothing ever gets clipped.
+              final rowExtent = constraints.maxHeight / 6;
+              final marker = (rowExtent * 0.94).clamp(0.0, 18.0);
+              return Column(
+                children: [
+                  for (var week = 0; week < 6; week++)
+                    Expanded(
+                      child: Row(
+                        children: [
+                          for (var weekday = 0; weekday < 7; weekday++)
+                            Expanded(
+                              child: _dayCell(
+                                context: context,
+                                cell: cells[week * 7 + weekday],
+                                marker: marker,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                ),
-              ),
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ],
     );
   }
-}
 
-class _AgendaView extends StatelessWidget {
-  const _AgendaView({
-    required this.anchor,
-    required this.snapshot,
-    required this.onSelectDay,
-    required this.onOpenEvent,
-    required this.onOpenTask,
-    required this.onToggleTask,
-  });
-
-  final DateTime anchor;
-  final CalendarSnapshot snapshot;
-  final void Function(DateTime day) onSelectDay;
-  final Future<void> Function(CalendarEvent event) onOpenEvent;
-  final Future<void> Function(CalendarTask task) onOpenTask;
-  final Future<void> Function(CalendarTask task) onToggleTask;
-
-  @override
-  Widget build(BuildContext context) {
-    final groups = <DateTime, List<_Entry>>{};
-    for (var offset = 0; offset < 30; offset++) {
-      final day = anchor.add(Duration(days: offset));
-      final entries = _entriesForDay(snapshot, day);
-      if (entries.isNotEmpty) groups[day] = entries;
-    }
-    if (groups.isEmpty) {
-      return Center(
-        child: Text(
-          '未来 30 天没有安排',
-          style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ),
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-      children: [
-        for (final group in groups.entries) ...[
-          InkWell(
-            onTap: () => onSelectDay(group.key),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 10, 0, 6),
-              child: Row(
-                children: [
-                  Text(
-                    '${group.key.month}月${group.key.day}日',
-                    style: Theme.of(context).textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    _weekday(group.key),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${group.value.length}',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
+  Widget _dayCell({
+    required BuildContext context,
+    required ({DateTime day, List<_Entry> entries}) cell,
+    required double marker,
+  }) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final day = cell.day;
+    final inMonth = day.month == month;
+    final isToday = day == today;
+    final hasEntries = cell.entries.isNotEmpty;
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => onSelectDay(day),
+      child: Center(
+        child: Container(
+          width: marker,
+          height: marker,
+          alignment: Alignment.center,
+          decoration: isToday
+              ? BoxDecoration(color: scheme.primary, shape: BoxShape.circle)
+              : null,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${day.day}',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontSize: 9,
+                height: 1,
+                fontWeight: hasEntries || isToday
+                    ? FontWeight.w700
+                    : FontWeight.w500,
+                color: isToday
+                    ? scheme.onPrimary
+                    : inMonth
+                    ? (hasEntries ? scheme.primary : scheme.onSurface)
+                    : scheme.onSurfaceVariant.withValues(alpha: 0.35),
               ),
             ),
           ),
-          for (final entry in group.value) ...[
-            _EntryTile(
-              entry: entry,
-              onOpenEvent: onOpenEvent,
-              onOpenTask: onOpenTask,
-              onToggleTask: onToggleTask,
-            ),
-            const SizedBox(height: 6),
-          ],
-        ],
-      ],
+        ),
+      ),
     );
   }
 }

@@ -37,6 +37,31 @@ void main() {
     },
   );
 
+  test(
+    'createTask carries an all-day due date in the single create op',
+    () async {
+      final store = LocalStore.memory();
+      final repo = TaskRepository(store);
+      final day = DateTime(2026, 11, 5);
+
+      final task = await repo.createTask(
+        title: '交报告',
+        listId: 'list-1',
+        dueAt: day,
+        allDay: true,
+      );
+
+      expect(store.task(task.id)?.allDay, isTrue);
+      expect(store.task(task.id)?.dueAt, day);
+      expect(store.pendingCount, 1);
+      final op = store.pendingOp('task', task.id)!;
+      expect(op.action, 'create');
+      expect(op.patch['due'], day.toUtc().toIso8601String());
+      expect(op.patch['allDay'], isTrue);
+      await store.dispose();
+    },
+  );
+
   test('deleting a never-synced task removes both task and outbox', () async {
     final store = LocalStore.memory();
     final repo = TaskRepository(store);
@@ -300,7 +325,10 @@ void main() {
     final reopened = await LocalStore.open(path: path);
     expect(reopened.task(keep.id)?.title, '留下');
     expect(reopened.task(drop.id), isNull);
-    expect(reopened.allTasks().map((task) => task.id), isNot(contains(drop.id)));
+    expect(
+      reopened.allTasks().map((task) => task.id),
+      isNot(contains(drop.id)),
+    );
     expect(reopened.listsSnapshot().single.name, '清单');
     await reopened.dispose();
     await directory.delete(recursive: true);

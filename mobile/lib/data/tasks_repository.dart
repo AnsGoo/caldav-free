@@ -15,6 +15,8 @@ class TaskRepository {
     required String title,
     required String listId,
     int sortOrder = 0,
+    DateTime? dueAt,
+    bool allDay = false,
   }) async {
     final now = DateTime.now().toUtc();
     final task = TaskItem(
@@ -23,6 +25,8 @@ class TaskRepository {
       title: title.trim(),
       notes: '',
       kind: TaskKind.task,
+      dueAt: dueAt,
+      allDay: allDay,
       updatedAt: now,
       createdAt: now,
       sortOrder: sortOrder,
@@ -34,7 +38,7 @@ class TaskRepository {
       'notesFormat': 'text',
       'kind': 'TASK',
       'priority': 0,
-      'allDay': false,
+      'allDay': allDay,
       'recurrence': '',
       'reminderOffsets': const <int>[],
       'tags': const <String>[],
@@ -43,6 +47,7 @@ class TaskRepository {
       'completed': false,
       'pinned': false,
       'order': sortOrder,
+      if (dueAt != null) 'due': dueAt.toUtc().toIso8601String(),
     };
     await store.batch(() async {
       await store.saveTask(task, dirty: true);

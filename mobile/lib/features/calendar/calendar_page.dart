@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
@@ -31,6 +32,7 @@ class _CalendarPageState extends State<CalendarPage> {
   bool _loading = false;
   int _request = 0;
   bool _connected = false;
+  DateTime? _composingDay;
 
   @override
   void initState() {
@@ -169,7 +171,10 @@ class _CalendarPageState extends State<CalendarPage> {
         // The pager renders the neighbouring weeks too, so fetch one week of
         // padding on both sides of the visible week.
         final sunday = _sundayOf(anchor);
-        return (sunday.subtract(const Duration(days: 7)), sunday.add(const Duration(days: 21)));
+        return (
+          sunday.subtract(const Duration(days: 7)),
+          sunday.add(const Duration(days: 21)),
+        );
       case CalendarView.threeDay:
         return (anchor, anchor.add(const Duration(days: 3)));
       case CalendarView.day:
@@ -188,12 +193,14 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _view = view;
       _anchor = _dateOnly(DateTime.now());
+      _composingDay = null;
     });
     unawaited(_load());
   }
 
   void _move(int delta) {
     setState(() {
+      _composingDay = null;
       _anchor = switch (_view) {
         CalendarView.month => DateTime(_anchor.year, _anchor.month + delta, 1),
         CalendarView.week => _anchor.add(Duration(days: 7 * delta)),
@@ -207,7 +214,10 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _today() {
-    setState(() => _anchor = _dateOnly(DateTime.now()));
+    setState(() {
+      _anchor = _dateOnly(DateTime.now());
+      _composingDay = null;
+    });
     unawaited(_load());
   }
 
@@ -215,18 +225,68 @@ class _CalendarPageState extends State<CalendarPage> {
     setState(() {
       _anchor = day;
       _view = CalendarView.day;
+      _composingDay = null;
     });
     unawaited(_load());
   }
 
   void _selectDate(DateTime day) {
-    setState(() => _anchor = _dateOnly(day));
+    setState(() {
+      _anchor = _dateOnly(day);
+      _composingDay = null;
+    });
     unawaited(_load());
+  }
+
+  void _startCompose(DateTime day) {
+    if (_composingDay == day) return;
+    setState(() => _composingDay = day);
+  }
+
+  void _cancelCompose() {
+    if (_composingDay == null) return;
+    setState(() => _composingDay = null);
+  }
+
+  /// Inline month-cell quick add: the task is written locally with an all-day
+  /// due date and the silent sync thread pushes it; the dot shows up from the
+  /// local merge without any request here.
+  Future<void> _commitCompose(String title) async {
+    final day = _composingDay;
+    if (day == null) return;
+    final app = context.read<AppState>();
+    final lists = app.store.listsSnapshot();
+    final list = app.store.inbox() ?? (lists.isEmpty ? null : lists.first);
+    if (list == null) {
+      _cancelCompose();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('还没有清单，请先在任务页新建清单')));
+      return;
+    }
+    try {
+      await app.repository.createTask(
+        title: title,
+        listId: list.id,
+        dueAt: DateTime(day.year, day.month, day.day),
+        allDay: true,
+      );
+    } catch (error) {
+      _cancelCompose();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('新建任务失败：$error')));
+      return;
+    }
+    // Rebuild so the merged local task shows on the cell immediately.
+    if (!mounted) return;
+    setState(() => _composingDay = null);
   }
 
   /// Offline fallback: the calendar is rendered from the local task store so
   /// scheduled tasks stay visible while the server is unreachable.
-  CalendarSnapshot _localSnapshot() {    final store = context.read<AppState>().store;
+  CalendarSnapshot _localSnapshot() {
+    final store = context.read<AppState>().store;
     final lists = {for (final l in store.listsSnapshot()) l.id: l};
     final tasks = <CalendarTask>[];
     for (final t in store.allTasks()) {
@@ -238,7 +298,8 @@ class _CalendarPageState extends State<CalendarPage> {
       tasks.add(
         CalendarTask(
           id: 0,
-          syncId: t.id,          title: t.title,
+          syncId: t.id,
+          title: t.title,
           listName: list?.name ?? '',
           listColor: list?.color ?? '',
           start: start,
@@ -264,8 +325,7 @@ class _CalendarPageState extends State<CalendarPage> {
   CalendarSnapshot _mergeLocalTasks(CalendarSnapshot? snapshot) {
     if (snapshot == null) return _localSnapshot();
     final known = {for (final t in snapshot.tasks) t.syncId};
-    final extra = _localSnapshot()
-        .tasks
+    final extra = _localSnapshot().tasks
         .where((t) => t.syncId.isNotEmpty && !known.contains(t.syncId))
         .toList();
     if (extra.isEmpty) return snapshot;
@@ -436,56 +496,60 @@ class _CalendarPageState extends State<CalendarPage> {
               builder: (context) {
                 final effective = _mergeLocalTasks(snapshot);
                 return switch (_view) {
-                    CalendarView.month => _MonthView(
-                      anchor: _anchor,
-                      snapshot: effective,
-                      almanac: _almanac,
-                      onSelectDay: _selectDay,
-                      onOpenEvent: _openEvent,
-                      onOpenTask: _openTask,
-                      onToggleTask: _toggleTask,
-                    ),
-                    CalendarView.week => _WeekView(
-                      anchor: _anchor,
-                      snapshot: effective,
-                      almanac: _almanac,
-                      onSelectDay: _selectDay,
-                      onSelectedDate: _selectDate,
-                      onOpenEvent: _openEvent,
-                      onOpenTask: _openTask,
-                      onToggleTask: _toggleTask,
-                    ),
-                    CalendarView.threeDay => _ThreeDayView(
-                      anchor: _anchor,
-                      snapshot: effective,
-                      onSelectDay: _selectDay,
-                      onOpenEvent: _openEvent,
-                      onOpenTask: _openTask,
-                      onToggleTask: _toggleTask,
-                    ),
-                    CalendarView.day => _DayView(
-                      anchor: _anchor,
-                      snapshot: effective,
-                      almanac: _almanac,
-                      onSelectedDate: _selectDate,
-                      onOpenEvent: _openEvent,
-                      onOpenTask: _openTask,
-                      onToggleTask: _toggleTask,
-                    ),
-                    CalendarView.agenda => _AgendaView(
-                      anchor: _anchor,
-                      snapshot: effective,
-                      onSelectDay: _selectDay,
-                      onOpenEvent: _openEvent,
-                      onOpenTask: _openTask,
-                      onToggleTask: _toggleTask,
-                    ),
-                    CalendarView.year => _YearView(
-                      anchor: _anchor,
-                      snapshot: effective,
-                      onSelectDay: _selectDay,
-                    ),
-                  };
+                  CalendarView.month => _MonthView(
+                    anchor: _anchor,
+                    snapshot: effective,
+                    almanac: _almanac,
+                    composingDay: _composingDay,
+                    onSelectDay: _selectDay,
+                    onOpenEvent: _openEvent,
+                    onOpenTask: _openTask,
+                    onToggleTask: _toggleTask,
+                    onStartCompose: _startCompose,
+                    onCommitCompose: _commitCompose,
+                    onCancelCompose: _cancelCompose,
+                  ),
+                  CalendarView.week => _WeekView(
+                    anchor: _anchor,
+                    snapshot: effective,
+                    almanac: _almanac,
+                    onSelectDay: _selectDay,
+                    onSelectedDate: _selectDate,
+                    onOpenEvent: _openEvent,
+                    onOpenTask: _openTask,
+                    onToggleTask: _toggleTask,
+                  ),
+                  CalendarView.threeDay => _ThreeDayView(
+                    anchor: _anchor,
+                    snapshot: effective,
+                    onSelectDay: _selectDay,
+                    onOpenEvent: _openEvent,
+                    onOpenTask: _openTask,
+                    onToggleTask: _toggleTask,
+                  ),
+                  CalendarView.day => _DayView(
+                    anchor: _anchor,
+                    snapshot: effective,
+                    almanac: _almanac,
+                    onSelectedDate: _selectDate,
+                    onOpenEvent: _openEvent,
+                    onOpenTask: _openTask,
+                    onToggleTask: _toggleTask,
+                  ),
+                  CalendarView.agenda => _AgendaView(
+                    anchor: _anchor,
+                    snapshot: effective,
+                    onSelectDay: _selectDay,
+                    onOpenEvent: _openEvent,
+                    onOpenTask: _openTask,
+                    onToggleTask: _toggleTask,
+                  ),
+                  CalendarView.year => _YearView(
+                    anchor: _anchor,
+                    snapshot: effective,
+                    onSelectDay: _selectDay,
+                  ),
+                };
               },
             ),
           ),
@@ -868,27 +932,51 @@ List<_Entry> _entriesForDay(CalendarSnapshot snapshot, DateTime day) {
   return entries;
 }
 
-class _MonthView extends StatelessWidget {
+class _MonthView extends StatefulWidget {
   const _MonthView({
     required this.anchor,
     required this.snapshot,
     required this.almanac,
+    required this.composingDay,
     required this.onSelectDay,
     required this.onOpenEvent,
     required this.onOpenTask,
     required this.onToggleTask,
+    required this.onStartCompose,
+    required this.onCommitCompose,
+    required this.onCancelCompose,
   });
 
   final DateTime anchor;
   final CalendarSnapshot snapshot;
   final Map<String, CalendarAlmanacDay> almanac;
+  final DateTime? composingDay;
   final void Function(DateTime day) onSelectDay;
   final Future<void> Function(CalendarEvent event) onOpenEvent;
   final Future<void> Function(CalendarTask task) onOpenTask;
   final Future<void> Function(CalendarTask task) onToggleTask;
+  final void Function(DateTime day) onStartCompose;
+  final Future<void> Function(String title) onCommitCompose;
+  final VoidCallback onCancelCompose;
+
+  @override
+  State<_MonthView> createState() => _MonthViewState();
+}
+
+class _MonthViewState extends State<_MonthView> {
+  int? _hoveredCell;
+
+  @override
+  void didUpdateWidget(covariant _MonthView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.anchor != widget.anchor) _hoveredCell = null;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final anchor = widget.anchor;
+    final snapshot = widget.snapshot;
+    final almanac = widget.almanac;
     final first = DateTime(anchor.year, anchor.month, 1);
     final gridStart = first.subtract(Duration(days: first.weekday - 1));
     final today = _dateOnly(DateTime.now());
@@ -930,89 +1018,139 @@ class _MonthView extends StatelessWidget {
                 final holiday = _holidayLabel(snapshot, day);
                 final label = dayAlmanac?.label ?? holiday ?? '';
                 final special = dayAlmanac?.special == true || holiday != null;
-                return InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: () => onSelectDay(day),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                final composing = day == widget.composingDay;
+                return MouseRegion(
+                  onEnter: (_) {
+                    if (_hoveredCell != index) {
+                      setState(() => _hoveredCell = index);
+                    }
+                  },
+                  onExit: (_) {
+                    if (_hoveredCell == index) {
+                      setState(() => _hoveredCell = null);
+                    }
+                  },
+                  child: Stack(
+                    fit: StackFit.expand,
                     children: [
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 32,
-                        height: 32,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: isToday ? scheme.primary : Colors.transparent,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Text(
-                          '${day.day}',
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(
-                                fontSize: 14,
-                                fontWeight: isToday
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
-                                color: isToday
-                                    ? scheme.onPrimary
-                                    : inMonth
-                                    ? scheme.onSurface
-                                    : scheme.onSurfaceVariant.withValues(
-                                        alpha: 0.45,
-                                      ),
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      SizedBox(
-                        height: 10,
-                        child: Center(
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.labelSmall
-                                ?.copyWith(
-                                  fontSize: 7.5,
-                                  height: 1,
-                                  color: special
-                                      ? AppColors.festivalFor(
-                                          Theme.of(context).brightness,
-                                        )
-                                      : scheme.onSurfaceVariant.withValues(
-                                          alpha: 0.8,
-                                        ),
-                                  fontWeight: special
-                                      ? FontWeight.w600
-                                      : FontWeight.w500,
-                                ),
-                          ),
-                        ),
-                      ),
-                      SizedBox(
-                        height: 6,
-                        child: Row(
+                      InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => widget.onSelectDay(day),
+                        onLongPress: () => widget.onStartCompose(day),
+                        child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            for (final entry in entries.take(3))
-                              Container(
-                                width: 5,
-                                height: 5,
-                                margin: const EdgeInsets.symmetric(
-                                  horizontal: 1,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: entry.completed
-                                      ? scheme.onSurfaceVariant.withValues(
-                                          alpha: 0.35,
-                                        )
-                                      : entry.color,
-                                  shape: BoxShape.circle,
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 32,
+                              height: 32,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isToday
+                                    ? scheme.primary
+                                    : Colors.transparent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${day.day}',
+                                style: Theme.of(context).textTheme.labelLarge
+                                    ?.copyWith(
+                                      fontSize: 14,
+                                      fontWeight: isToday
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: isToday
+                                          ? scheme.onPrimary
+                                          : inMonth
+                                          ? scheme.onSurface
+                                          : scheme.onSurfaceVariant.withValues(
+                                              alpha: 0.45,
+                                            ),
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (composing)
+                              _DayComposer(
+                                key: ValueKey(day),
+                                onCommit: widget.onCommitCompose,
+                                onCancel: widget.onCancelCompose,
+                              )
+                            else ...[
+                              SizedBox(
+                                height: 10,
+                                child: Center(
+                                  child: Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          fontSize: 7.5,
+                                          height: 1,
+                                          color: special
+                                              ? AppColors.festivalFor(
+                                                  Theme.of(context).brightness,
+                                                )
+                                              : scheme.onSurfaceVariant
+                                                    .withValues(alpha: 0.8),
+                                          fontWeight: special
+                                              ? FontWeight.w600
+                                              : FontWeight.w500,
+                                        ),
+                                  ),
                                 ),
                               ),
+                              SizedBox(
+                                height: 6,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    for (final entry in entries.take(3))
+                                      Container(
+                                        width: 5,
+                                        height: 5,
+                                        margin: const EdgeInsets.symmetric(
+                                          horizontal: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: entry.completed
+                                              ? scheme.onSurfaceVariant
+                                                    .withValues(alpha: 0.35)
+                                              : entry.color,
+                                          shape: BoxShape.circle,
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),
+                      if (!composing && _hoveredCell == index)
+                        Positioned(
+                          top: 1,
+                          right: 2,
+                          child: Tooltip(
+                            message: '在 ${day.month}月${day.day}日新建任务',
+                            waitDuration: const Duration(milliseconds: 400),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(7),
+                              onTap: () => widget.onStartCompose(day),
+                              child: Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: Icon(
+                                  Icons.add_rounded,
+                                  size: 15,
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 );
@@ -1021,6 +1159,100 @@ class _MonthView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Inline quick-add input replacing a month cell's content: Enter or leaving
+/// the field commits, Escape cancels, an empty title cancels silently.
+class _DayComposer extends StatefulWidget {
+  const _DayComposer({
+    super.key,
+    required this.onCommit,
+    required this.onCancel,
+  });
+
+  final Future<void> Function(String title) onCommit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_DayComposer> createState() => _DayComposerState();
+}
+
+class _DayComposerState extends State<_DayComposer> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _node = FocusNode();
+  bool _settled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _node.addListener(_onFocusChange);
+  }
+
+  void _onFocusChange() {
+    if (!_node.hasFocus) _submit(_controller.text);
+  }
+
+  void _submit(String value) {
+    if (_settled) return;
+    _settled = true;
+    final title = value.trim();
+    if (title.isEmpty) {
+      widget.onCancel();
+      return;
+    }
+    unawaited(widget.onCommit(title));
+  }
+
+  @override
+  void dispose() {
+    _node
+      ..removeListener(_onFocusChange)
+      ..dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          _settled = true;
+          widget.onCancel();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: TextField(
+        controller: _controller,
+        focusNode: _node,
+        autofocus: true,
+        maxLength: 200,
+        textInputAction: TextInputAction.done,
+        onSubmitted: _submit,
+        style: theme.textTheme.labelMedium?.copyWith(fontSize: 11),
+        decoration: InputDecoration(
+          isDense: true,
+          counterText: '',
+          filled: false,
+          hintText: '新建任务',
+          hintStyle: theme.textTheme.labelMedium?.copyWith(
+            fontSize: 11,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+          ),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 2,
+            vertical: 2,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1337,9 +1569,15 @@ class _DayViewState extends State<_DayView> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Text(
-                                const ['日', '一', '二', '三', '四', '五', '六'][
-                                  day.weekday % 7
-                                ],
+                                const [
+                                  '日',
+                                  '一',
+                                  '二',
+                                  '三',
+                                  '四',
+                                  '五',
+                                  '六',
+                                ][day.weekday % 7],
                                 style: theme.textTheme.labelSmall?.copyWith(
                                   color: scheme.onSurfaceVariant,
                                 ),
@@ -1523,10 +1761,7 @@ List<_PlacedTimed> _packDayTimed(List<_DayTimed> items) {
 ({double top, double height}) _timedBlockRect(_DayTimed item) {
   final top = item.startMinutes / 60 * _kHourSlotHeight;
   final bottom = item.endMinutes / 60 * _kHourSlotHeight;
-  return (
-    top: top,
-    height: math.max(bottom - top, _kMinTimedBlockHeight),
-  );
+  return (top: top, height: math.max(bottom - top, _kMinTimedBlockHeight));
 }
 
 /// Shortest block the grid draws: keeps a 30-minute event readable and
@@ -1574,10 +1809,7 @@ class _TimeGridState extends State<_TimeGrid> {
     );
     if (!showsToday) return 7.5 * _kHourSlotHeight;
     final minutes = now.hour * 60 + now.minute;
-    return math.max(
-      0,
-      minutes / 60 * _kHourSlotHeight - 2 * _kHourSlotHeight,
-    );
+    return math.max(0, minutes / 60 * _kHourSlotHeight - 2 * _kHourSlotHeight);
   }
 
   @override
@@ -1604,12 +1836,14 @@ class _TimeGridState extends State<_TimeGrid> {
     final days = widget.days;
     final allDay = [
       for (final day in days)
-        _entriesForDay(widget.snapshot, day)
-            .where((entry) => entry.allDay)
-            .toList(growable: false),
+        _entriesForDay(
+          widget.snapshot,
+          day,
+        ).where((entry) => entry.allDay).toList(growable: false),
     ];
     final timed = [
-      for (final day in days) _packDayTimed(_timedEntriesForDay(widget.snapshot, day)),
+      for (final day in days)
+        _packDayTimed(_timedEntriesForDay(widget.snapshot, day)),
     ];
     final hasToday = days.any((day) => _dateOnly(day) == today);
     final nowOffset = hasToday
@@ -1741,7 +1975,8 @@ class _TimeGridState extends State<_TimeGrid> {
                                   for (final placed in timed[d])
                                     () {
                                       final rect = _timedBlockRect(placed.item);
-                                      final split = columnWidth / placed.columns;
+                                      final split =
+                                          columnWidth / placed.columns;
                                       // A real split leaves ~17dp in a seven-day
                                       // column, so cascade instead and keep the
                                       // blocks wide enough to read.
@@ -1768,7 +2003,8 @@ class _TimeGridState extends State<_TimeGrid> {
                                         height: rect.height,
                                         child: _TimedBlock(
                                           entry: placed.item.entry,
-                                          startMinutes: placed.item.startMinutes,
+                                          startMinutes:
+                                              placed.item.startMinutes,
                                           endMinutes: placed.item.endMinutes,
                                           width: width,
                                           onOpenEvent: widget.onOpenEvent,
@@ -1818,8 +2054,10 @@ List<_DayTimed> _timedEntriesForDay(CalendarSnapshot snapshot, DateTime day) {
               : rawStart.add(const Duration(hours: 1)));
     final start = rawStart.isBefore(dayStart) ? dayStart : rawStart;
     final end = rawEnd.isAfter(dayEnd) ? dayEnd : rawEnd;
-    double offset(DateTime moment) =>
-        math.min(1440.0, math.max(0.0, moment.difference(dayStart).inMinutes.toDouble()));
+    double offset(DateTime moment) => math.min(
+      1440.0,
+      math.max(0.0, moment.difference(dayStart).inMinutes.toDouble()),
+    );
     var startMinutes = offset(start);
     var endMinutes = offset(end);
     if (endMinutes <= startMinutes) {
@@ -1944,10 +2182,9 @@ class _TimedBlock extends StatelessWidget {
       // taken" and stays tappable.
       return Material(
         color: Color.alphaBlend(
-          (entry.completed
-                  ? scheme.onSurfaceVariant
-                  : entry.color)
-              .withValues(alpha: 0.55),
+          (entry.completed ? scheme.onSurfaceVariant : entry.color).withValues(
+            alpha: 0.55,
+          ),
           scheme.surface,
         ),
         borderRadius: BorderRadius.circular(6),
@@ -1957,9 +2194,7 @@ class _TimedBlock extends StatelessWidget {
         ),
       );
     }
-    final verticalPad = compact
-        ? math.max(1.0, (blockHeight - 13) / 2)
-        : 6.0;
+    final verticalPad = compact ? math.max(1.0, (blockHeight - 13) / 2) : 6.0;
     final timeText =
         '${(startMinutes ~/ 60).toString().padLeft(2, '0')}:${(startMinutes % 60).round().toString().padLeft(2, '0')}'
         ' - '

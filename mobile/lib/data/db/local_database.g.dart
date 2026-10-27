@@ -7102,6 +7102,853 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
   }
 }
 
+class $FocusSessionsTable extends FocusSessions
+    with TableInfo<$FocusSessionsTable, FocusSessionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FocusSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _modeMeta = const VerificationMeta('mode');
+  @override
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+    'mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pomodoro'),
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
+    'started_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _endedAtMeta = const VerificationMeta(
+    'endedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> endedAt = GeneratedColumn<DateTime>(
+    'ended_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
+    'duration_seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _pomodoroCountMeta = const VerificationMeta(
+    'pomodoroCount',
+  );
+  @override
+  late final GeneratedColumn<int> pomodoroCount = GeneratedColumn<int>(
+    'pomodoro_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    mode,
+    startedAt,
+    endedAt,
+    durationSeconds,
+    pomodoroCount,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'focus_sessions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FocusSessionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    }
+    if (data.containsKey('mode')) {
+      context.handle(
+        _modeMeta,
+        mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
+      );
+    }
+    if (data.containsKey('started_at')) {
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
+    }
+    if (data.containsKey('ended_at')) {
+      context.handle(
+        _endedAtMeta,
+        endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
+      );
+    }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pomodoro_count')) {
+      context.handle(
+        _pomodoroCountMeta,
+        pomodoroCount.isAcceptableOrUnknown(
+          data['pomodoro_count']!,
+          _pomodoroCountMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FocusSessionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FocusSessionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      mode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mode'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      ),
+      endedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}ended_at'],
+      ),
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      )!,
+      pomodoroCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pomodoro_count'],
+      )!,
+    );
+  }
+
+  @override
+  $FocusSessionsTable createAlias(String alias) {
+    return $FocusSessionsTable(attachedDatabase, alias);
+  }
+}
+
+class FocusSessionRow extends DataClass implements Insertable<FocusSessionRow> {
+  final int id;
+  final String title;
+  final String mode;
+  final DateTime? startedAt;
+  final DateTime? endedAt;
+  final int durationSeconds;
+  final int pomodoroCount;
+  const FocusSessionRow({
+    required this.id,
+    required this.title,
+    required this.mode,
+    this.startedAt,
+    this.endedAt,
+    required this.durationSeconds,
+    required this.pomodoroCount,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['title'] = Variable<String>(title);
+    map['mode'] = Variable<String>(mode);
+    if (!nullToAbsent || startedAt != null) {
+      map['started_at'] = Variable<DateTime>(startedAt);
+    }
+    if (!nullToAbsent || endedAt != null) {
+      map['ended_at'] = Variable<DateTime>(endedAt);
+    }
+    map['duration_seconds'] = Variable<int>(durationSeconds);
+    map['pomodoro_count'] = Variable<int>(pomodoroCount);
+    return map;
+  }
+
+  FocusSessionsCompanion toCompanion(bool nullToAbsent) {
+    return FocusSessionsCompanion(
+      id: Value(id),
+      title: Value(title),
+      mode: Value(mode),
+      startedAt: startedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(startedAt),
+      endedAt: endedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(endedAt),
+      durationSeconds: Value(durationSeconds),
+      pomodoroCount: Value(pomodoroCount),
+    );
+  }
+
+  factory FocusSessionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FocusSessionRow(
+      id: serializer.fromJson<int>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      mode: serializer.fromJson<String>(json['mode']),
+      startedAt: serializer.fromJson<DateTime?>(json['startedAt']),
+      endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
+      durationSeconds: serializer.fromJson<int>(json['durationSeconds']),
+      pomodoroCount: serializer.fromJson<int>(json['pomodoroCount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'title': serializer.toJson<String>(title),
+      'mode': serializer.toJson<String>(mode),
+      'startedAt': serializer.toJson<DateTime?>(startedAt),
+      'endedAt': serializer.toJson<DateTime?>(endedAt),
+      'durationSeconds': serializer.toJson<int>(durationSeconds),
+      'pomodoroCount': serializer.toJson<int>(pomodoroCount),
+    };
+  }
+
+  FocusSessionRow copyWith({
+    int? id,
+    String? title,
+    String? mode,
+    Value<DateTime?> startedAt = const Value.absent(),
+    Value<DateTime?> endedAt = const Value.absent(),
+    int? durationSeconds,
+    int? pomodoroCount,
+  }) => FocusSessionRow(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    mode: mode ?? this.mode,
+    startedAt: startedAt.present ? startedAt.value : this.startedAt,
+    endedAt: endedAt.present ? endedAt.value : this.endedAt,
+    durationSeconds: durationSeconds ?? this.durationSeconds,
+    pomodoroCount: pomodoroCount ?? this.pomodoroCount,
+  );
+  FocusSessionRow copyWithCompanion(FocusSessionsCompanion data) {
+    return FocusSessionRow(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      mode: data.mode.present ? data.mode.value : this.mode,
+      startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
+      endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
+      pomodoroCount: data.pomodoroCount.present
+          ? data.pomodoroCount.value
+          : this.pomodoroCount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusSessionRow(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('mode: $mode, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('pomodoroCount: $pomodoroCount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    title,
+    mode,
+    startedAt,
+    endedAt,
+    durationSeconds,
+    pomodoroCount,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FocusSessionRow &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.mode == this.mode &&
+          other.startedAt == this.startedAt &&
+          other.endedAt == this.endedAt &&
+          other.durationSeconds == this.durationSeconds &&
+          other.pomodoroCount == this.pomodoroCount);
+}
+
+class FocusSessionsCompanion extends UpdateCompanion<FocusSessionRow> {
+  final Value<int> id;
+  final Value<String> title;
+  final Value<String> mode;
+  final Value<DateTime?> startedAt;
+  final Value<DateTime?> endedAt;
+  final Value<int> durationSeconds;
+  final Value<int> pomodoroCount;
+  const FocusSessionsCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
+    this.pomodoroCount = const Value.absent(),
+  });
+  FocusSessionsCompanion.insert({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.startedAt = const Value.absent(),
+    this.endedAt = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
+    this.pomodoroCount = const Value.absent(),
+  });
+  static Insertable<FocusSessionRow> custom({
+    Expression<int>? id,
+    Expression<String>? title,
+    Expression<String>? mode,
+    Expression<DateTime>? startedAt,
+    Expression<DateTime>? endedAt,
+    Expression<int>? durationSeconds,
+    Expression<int>? pomodoroCount,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (mode != null) 'mode': mode,
+      if (startedAt != null) 'started_at': startedAt,
+      if (endedAt != null) 'ended_at': endedAt,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
+      if (pomodoroCount != null) 'pomodoro_count': pomodoroCount,
+    });
+  }
+
+  FocusSessionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? title,
+    Value<String>? mode,
+    Value<DateTime?>? startedAt,
+    Value<DateTime?>? endedAt,
+    Value<int>? durationSeconds,
+    Value<int>? pomodoroCount,
+  }) {
+    return FocusSessionsCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      mode: mode ?? this.mode,
+      startedAt: startedAt ?? this.startedAt,
+      endedAt: endedAt ?? this.endedAt,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      pomodoroCount: pomodoroCount ?? this.pomodoroCount,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (mode.present) {
+      map['mode'] = Variable<String>(mode.value);
+    }
+    if (startedAt.present) {
+      map['started_at'] = Variable<DateTime>(startedAt.value);
+    }
+    if (endedAt.present) {
+      map['ended_at'] = Variable<DateTime>(endedAt.value);
+    }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<int>(durationSeconds.value);
+    }
+    if (pomodoroCount.present) {
+      map['pomodoro_count'] = Variable<int>(pomodoroCount.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('mode: $mode, ')
+          ..write('startedAt: $startedAt, ')
+          ..write('endedAt: $endedAt, ')
+          ..write('durationSeconds: $durationSeconds, ')
+          ..write('pomodoroCount: $pomodoroCount')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FocusOutboxTable extends FocusOutbox
+    with TableInfo<$FocusOutboxTable, FocusOutboxRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FocusOutboxTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _seqMeta = const VerificationMeta('seq');
+  @override
+  late final GeneratedColumn<int> seq = GeneratedColumn<int>(
+    'seq',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _opIdMeta = const VerificationMeta('opId');
+  @override
+  late final GeneratedColumn<String> opId = GeneratedColumn<String>(
+    'op_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _actionMeta = const VerificationMeta('action');
+  @override
+  late final GeneratedColumn<String> action = GeneratedColumn<String>(
+    'action',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    seq,
+    opId,
+    action,
+    sessionId,
+    payload,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'focus_outbox';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<FocusOutboxRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('seq')) {
+      context.handle(
+        _seqMeta,
+        seq.isAcceptableOrUnknown(data['seq']!, _seqMeta),
+      );
+    }
+    if (data.containsKey('op_id')) {
+      context.handle(
+        _opIdMeta,
+        opId.isAcceptableOrUnknown(data['op_id']!, _opIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_opIdMeta);
+    }
+    if (data.containsKey('action')) {
+      context.handle(
+        _actionMeta,
+        action.isAcceptableOrUnknown(data['action']!, _actionMeta),
+      );
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {seq};
+  @override
+  FocusOutboxRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FocusOutboxRow(
+      seq: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seq'],
+      )!,
+      opId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}op_id'],
+      )!,
+      action: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}action'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}session_id'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $FocusOutboxTable createAlias(String alias) {
+    return $FocusOutboxTable(attachedDatabase, alias);
+  }
+}
+
+class FocusOutboxRow extends DataClass implements Insertable<FocusOutboxRow> {
+  final int seq;
+  final String opId;
+  final String action;
+  final int sessionId;
+  final String? payload;
+  final DateTime createdAt;
+  const FocusOutboxRow({
+    required this.seq,
+    required this.opId,
+    required this.action,
+    required this.sessionId,
+    this.payload,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['seq'] = Variable<int>(seq);
+    map['op_id'] = Variable<String>(opId);
+    map['action'] = Variable<String>(action);
+    map['session_id'] = Variable<int>(sessionId);
+    if (!nullToAbsent || payload != null) {
+      map['payload'] = Variable<String>(payload);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  FocusOutboxCompanion toCompanion(bool nullToAbsent) {
+    return FocusOutboxCompanion(
+      seq: Value(seq),
+      opId: Value(opId),
+      action: Value(action),
+      sessionId: Value(sessionId),
+      payload: payload == null && nullToAbsent
+          ? const Value.absent()
+          : Value(payload),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory FocusOutboxRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FocusOutboxRow(
+      seq: serializer.fromJson<int>(json['seq']),
+      opId: serializer.fromJson<String>(json['opId']),
+      action: serializer.fromJson<String>(json['action']),
+      sessionId: serializer.fromJson<int>(json['sessionId']),
+      payload: serializer.fromJson<String?>(json['payload']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'seq': serializer.toJson<int>(seq),
+      'opId': serializer.toJson<String>(opId),
+      'action': serializer.toJson<String>(action),
+      'sessionId': serializer.toJson<int>(sessionId),
+      'payload': serializer.toJson<String?>(payload),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  FocusOutboxRow copyWith({
+    int? seq,
+    String? opId,
+    String? action,
+    int? sessionId,
+    Value<String?> payload = const Value.absent(),
+    DateTime? createdAt,
+  }) => FocusOutboxRow(
+    seq: seq ?? this.seq,
+    opId: opId ?? this.opId,
+    action: action ?? this.action,
+    sessionId: sessionId ?? this.sessionId,
+    payload: payload.present ? payload.value : this.payload,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  FocusOutboxRow copyWithCompanion(FocusOutboxCompanion data) {
+    return FocusOutboxRow(
+      seq: data.seq.present ? data.seq.value : this.seq,
+      opId: data.opId.present ? data.opId.value : this.opId,
+      action: data.action.present ? data.action.value : this.action,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusOutboxRow(')
+          ..write('seq: $seq, ')
+          ..write('opId: $opId, ')
+          ..write('action: $action, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('payload: $payload, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(seq, opId, action, sessionId, payload, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FocusOutboxRow &&
+          other.seq == this.seq &&
+          other.opId == this.opId &&
+          other.action == this.action &&
+          other.sessionId == this.sessionId &&
+          other.payload == this.payload &&
+          other.createdAt == this.createdAt);
+}
+
+class FocusOutboxCompanion extends UpdateCompanion<FocusOutboxRow> {
+  final Value<int> seq;
+  final Value<String> opId;
+  final Value<String> action;
+  final Value<int> sessionId;
+  final Value<String?> payload;
+  final Value<DateTime> createdAt;
+  const FocusOutboxCompanion({
+    this.seq = const Value.absent(),
+    this.opId = const Value.absent(),
+    this.action = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  FocusOutboxCompanion.insert({
+    this.seq = const Value.absent(),
+    required String opId,
+    this.action = const Value.absent(),
+    required int sessionId,
+    this.payload = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : opId = Value(opId),
+       sessionId = Value(sessionId);
+  static Insertable<FocusOutboxRow> custom({
+    Expression<int>? seq,
+    Expression<String>? opId,
+    Expression<String>? action,
+    Expression<int>? sessionId,
+    Expression<String>? payload,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (seq != null) 'seq': seq,
+      if (opId != null) 'op_id': opId,
+      if (action != null) 'action': action,
+      if (sessionId != null) 'session_id': sessionId,
+      if (payload != null) 'payload': payload,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  FocusOutboxCompanion copyWith({
+    Value<int>? seq,
+    Value<String>? opId,
+    Value<String>? action,
+    Value<int>? sessionId,
+    Value<String?>? payload,
+    Value<DateTime>? createdAt,
+  }) {
+    return FocusOutboxCompanion(
+      seq: seq ?? this.seq,
+      opId: opId ?? this.opId,
+      action: action ?? this.action,
+      sessionId: sessionId ?? this.sessionId,
+      payload: payload ?? this.payload,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (seq.present) {
+      map['seq'] = Variable<int>(seq.value);
+    }
+    if (opId.present) {
+      map['op_id'] = Variable<String>(opId.value);
+    }
+    if (action.present) {
+      map['action'] = Variable<String>(action.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusOutboxCompanion(')
+          ..write('seq: $seq, ')
+          ..write('opId: $opId, ')
+          ..write('action: $action, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('payload: $payload, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $MetaTable extends Meta with TableInfo<$MetaTable, MetaRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -7324,6 +8171,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $HabitCheckinsTable habitCheckins = $HabitCheckinsTable(this);
   late final $HabitSectionsTable habitSections = $HabitSectionsTable(this);
   late final $CountdownsTable countdowns = $CountdownsTable(this);
+  late final $FocusSessionsTable focusSessions = $FocusSessionsTable(this);
+  late final $FocusOutboxTable focusOutbox = $FocusOutboxTable(this);
   late final $MetaTable meta = $MetaTable(this);
   late final Index idxTaskList = Index(
     'idx_task_list',
@@ -7369,6 +8218,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_habit_section',
     'CREATE INDEX idx_habit_section ON habits (section_id)',
   );
+  late final Index idxFocusStarted = Index(
+    'idx_focus_started',
+    'CREATE INDEX idx_focus_started ON focus_sessions (started_at)',
+  );
+  late final Index idxFocusoutboxOp = Index(
+    'idx_focusoutbox_op',
+    'CREATE UNIQUE INDEX idx_focusoutbox_op ON focus_outbox (op_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7386,6 +8243,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     habitCheckins,
     habitSections,
     countdowns,
+    focusSessions,
+    focusOutbox,
     meta,
     idxTaskList,
     idxTaskSection,
@@ -7398,6 +8257,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxHabitoutboxOp,
     idxCountdownoutboxOp,
     idxHabitSection,
+    idxFocusStarted,
+    idxFocusoutboxOp,
   ];
 }
 
@@ -11051,6 +11912,473 @@ typedef $$CountdownsTableProcessedTableManager =
       CountdownRow,
       PrefetchHooks Function()
     >;
+typedef $$FocusSessionsTableCreateCompanionBuilder =
+    FocusSessionsCompanion Function({
+      Value<int> id,
+      Value<String> title,
+      Value<String> mode,
+      Value<DateTime?> startedAt,
+      Value<DateTime?> endedAt,
+      Value<int> durationSeconds,
+      Value<int> pomodoroCount,
+    });
+typedef $$FocusSessionsTableUpdateCompanionBuilder =
+    FocusSessionsCompanion Function({
+      Value<int> id,
+      Value<String> title,
+      Value<String> mode,
+      Value<DateTime?> startedAt,
+      Value<DateTime?> endedAt,
+      Value<int> durationSeconds,
+      Value<int> pomodoroCount,
+    });
+
+class $$FocusSessionsTableFilterComposer
+    extends Composer<_$AppDatabase, $FocusSessionsTable> {
+  $$FocusSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pomodoroCount => $composableBuilder(
+    column: $table.pomodoroCount,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FocusSessionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $FocusSessionsTable> {
+  $$FocusSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get endedAt => $composableBuilder(
+    column: $table.endedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pomodoroCount => $composableBuilder(
+    column: $table.pomodoroCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FocusSessionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FocusSessionsTable> {
+  $$FocusSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get endedAt =>
+      $composableBuilder(column: $table.endedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get pomodoroCount => $composableBuilder(
+    column: $table.pomodoroCount,
+    builder: (column) => column,
+  );
+}
+
+class $$FocusSessionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FocusSessionsTable,
+          FocusSessionRow,
+          $$FocusSessionsTableFilterComposer,
+          $$FocusSessionsTableOrderingComposer,
+          $$FocusSessionsTableAnnotationComposer,
+          $$FocusSessionsTableCreateCompanionBuilder,
+          $$FocusSessionsTableUpdateCompanionBuilder,
+          (
+            FocusSessionRow,
+            BaseReferences<_$AppDatabase, $FocusSessionsTable, FocusSessionRow>,
+          ),
+          FocusSessionRow,
+          PrefetchHooks Function()
+        > {
+  $$FocusSessionsTableTableManager(_$AppDatabase db, $FocusSessionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FocusSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FocusSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FocusSessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> mode = const Value.absent(),
+                Value<DateTime?> startedAt = const Value.absent(),
+                Value<DateTime?> endedAt = const Value.absent(),
+                Value<int> durationSeconds = const Value.absent(),
+                Value<int> pomodoroCount = const Value.absent(),
+              }) => FocusSessionsCompanion(
+                id: id,
+                title: title,
+                mode: mode,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                durationSeconds: durationSeconds,
+                pomodoroCount: pomodoroCount,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> mode = const Value.absent(),
+                Value<DateTime?> startedAt = const Value.absent(),
+                Value<DateTime?> endedAt = const Value.absent(),
+                Value<int> durationSeconds = const Value.absent(),
+                Value<int> pomodoroCount = const Value.absent(),
+              }) => FocusSessionsCompanion.insert(
+                id: id,
+                title: title,
+                mode: mode,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                durationSeconds: durationSeconds,
+                pomodoroCount: pomodoroCount,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FocusSessionsTable, FocusSessionRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $FocusSessionsTable,
+                    FocusSessionRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FocusSessionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FocusSessionsTable,
+      FocusSessionRow,
+      $$FocusSessionsTableFilterComposer,
+      $$FocusSessionsTableOrderingComposer,
+      $$FocusSessionsTableAnnotationComposer,
+      $$FocusSessionsTableCreateCompanionBuilder,
+      $$FocusSessionsTableUpdateCompanionBuilder,
+      (
+        FocusSessionRow,
+        BaseReferences<_$AppDatabase, $FocusSessionsTable, FocusSessionRow>,
+      ),
+      FocusSessionRow,
+      PrefetchHooks Function()
+    >;
+typedef $$FocusOutboxTableCreateCompanionBuilder =
+    FocusOutboxCompanion Function({
+      Value<int> seq,
+      required String opId,
+      Value<String> action,
+      required int sessionId,
+      Value<String?> payload,
+      Value<DateTime> createdAt,
+    });
+typedef $$FocusOutboxTableUpdateCompanionBuilder =
+    FocusOutboxCompanion Function({
+      Value<int> seq,
+      Value<String> opId,
+      Value<String> action,
+      Value<int> sessionId,
+      Value<String?> payload,
+      Value<DateTime> createdAt,
+    });
+
+class $$FocusOutboxTableFilterComposer
+    extends Composer<_$AppDatabase, $FocusOutboxTable> {
+  $$FocusOutboxTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get action => $composableBuilder(
+    column: $table.action,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$FocusOutboxTableOrderingComposer
+    extends Composer<_$AppDatabase, $FocusOutboxTable> {
+  $$FocusOutboxTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get seq => $composableBuilder(
+    column: $table.seq,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opId => $composableBuilder(
+    column: $table.opId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get action => $composableBuilder(
+    column: $table.action,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sessionId => $composableBuilder(
+    column: $table.sessionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$FocusOutboxTableAnnotationComposer
+    extends Composer<_$AppDatabase, $FocusOutboxTable> {
+  $$FocusOutboxTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get seq =>
+      $composableBuilder(column: $table.seq, builder: (column) => column);
+
+  GeneratedColumn<String> get opId =>
+      $composableBuilder(column: $table.opId, builder: (column) => column);
+
+  GeneratedColumn<String> get action =>
+      $composableBuilder(column: $table.action, builder: (column) => column);
+
+  GeneratedColumn<int> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$FocusOutboxTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FocusOutboxTable,
+          FocusOutboxRow,
+          $$FocusOutboxTableFilterComposer,
+          $$FocusOutboxTableOrderingComposer,
+          $$FocusOutboxTableAnnotationComposer,
+          $$FocusOutboxTableCreateCompanionBuilder,
+          $$FocusOutboxTableUpdateCompanionBuilder,
+          (
+            FocusOutboxRow,
+            BaseReferences<_$AppDatabase, $FocusOutboxTable, FocusOutboxRow>,
+          ),
+          FocusOutboxRow,
+          PrefetchHooks Function()
+        > {
+  $$FocusOutboxTableTableManager(_$AppDatabase db, $FocusOutboxTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FocusOutboxTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FocusOutboxTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FocusOutboxTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> seq = const Value.absent(),
+                Value<String> opId = const Value.absent(),
+                Value<String> action = const Value.absent(),
+                Value<int> sessionId = const Value.absent(),
+                Value<String?> payload = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => FocusOutboxCompanion(
+                seq: seq,
+                opId: opId,
+                action: action,
+                sessionId: sessionId,
+                payload: payload,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> seq = const Value.absent(),
+                required String opId,
+                Value<String> action = const Value.absent(),
+                required int sessionId,
+                Value<String?> payload = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => FocusOutboxCompanion.insert(
+                seq: seq,
+                opId: opId,
+                action: action,
+                sessionId: sessionId,
+                payload: payload,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$FocusOutboxTable, FocusOutboxRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $FocusOutboxTable,
+                    FocusOutboxRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$FocusOutboxTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FocusOutboxTable,
+      FocusOutboxRow,
+      $$FocusOutboxTableFilterComposer,
+      $$FocusOutboxTableOrderingComposer,
+      $$FocusOutboxTableAnnotationComposer,
+      $$FocusOutboxTableCreateCompanionBuilder,
+      $$FocusOutboxTableUpdateCompanionBuilder,
+      (
+        FocusOutboxRow,
+        BaseReferences<_$AppDatabase, $FocusOutboxTable, FocusOutboxRow>,
+      ),
+      FocusOutboxRow,
+      PrefetchHooks Function()
+    >;
 typedef $$MetaTableCreateCompanionBuilder = MetaCompanion Function({
   required String key,
   required String value,
@@ -11211,5 +12539,9 @@ class $AppDatabaseManager {
       $$HabitSectionsTableTableManager(_db, _db.habitSections);
   $$CountdownsTableTableManager get countdowns =>
       $$CountdownsTableTableManager(_db, _db.countdowns);
+  $$FocusSessionsTableTableManager get focusSessions =>
+      $$FocusSessionsTableTableManager(_db, _db.focusSessions);
+  $$FocusOutboxTableTableManager get focusOutbox =>
+      $$FocusOutboxTableTableManager(_db, _db.focusOutbox);
   $$MetaTableTableManager get meta => $$MetaTableTableManager(_db, _db.meta);
 }

@@ -62,8 +62,6 @@ class _HabitsPageState extends State<HabitsPage> {
     super.dispose();
   }
 
-  Future<void> _sync() => context.read<AppState>().syncNow();
-
   int get _todayStamp => _stampFor(DateTime.now());
 
   DateTime get _selectedDate => _dateForStamp(_selectedStamp);
@@ -238,11 +236,6 @@ class _HabitsPageState extends State<HabitsPage> {
               onPressed: () => setState(() => _selectedStamp = _todayStamp),
               icon: const Icon(Icons.today_rounded),
             ),
-          IconButton(
-            tooltip: '同步习惯',
-            onPressed: _sync,
-            icon: const Icon(Icons.sync_rounded),
-          ),
           const SizedBox(width: 6),
         ],
       ),
@@ -272,64 +265,58 @@ class _HabitsPageState extends State<HabitsPage> {
                       ),
                     ),
                   )
-                : RefreshIndicator(
-                    onRefresh: _sync,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),
-                      children: [
-                        for (var g = 0; g < groups.length; g++) ...[
-                          AppSectionLabel(
-                            title: groups[g].name,
-                            trailing: Text(
-                              '${groups[g].habits.where((habit) => _checkinFor(habit, _selectedStamp)?.done == true).length}'
-                              ' / ${groups[g].habits.length}',
-                              style: theme.textTheme.labelLarge?.copyWith(
-                                color: scheme.primary,
-                                fontWeight: FontWeight.w700,
-                              ),
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),
+                    children: [
+                      for (var g = 0; g < groups.length; g++) ...[
+                        AppSectionLabel(
+                          title: groups[g].name,
+                          trailing: Text(
+                            '${groups[g].habits.where((habit) => _checkinFor(habit, _selectedStamp)?.done == true).length}'
+                            ' / ${groups[g].habits.length}',
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: scheme.primary,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          AppCard(
-                            padding: EdgeInsets.zero,
-                            child: Column(
-                              children: [
-                                for (
-                                  var i = 0;
-                                  i < groups[g].habits.length;
-                                  i++
-                                ) ...[
-                                  _HabitRow(
-                                    habit: groups[g].habits[i],
-                                    checkin: _checkinFor(
-                                      groups[g].habits[i],
-                                      _selectedStamp,
-                                    ),
-                                    onCheckin: _selectedIsFuture
-                                        ? null
-                                        : () => _checkin(groups[g].habits[i]),
-                                    onOpen: () =>
-                                        _openDetail(groups[g].habits[i]),
-                                    onEdit: () => _edit(groups[g].habits[i]),
-                                    onDelete: () =>
-                                        _delete(groups[g].habits[i]),
+                        ),
+                        AppCard(
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            children: [
+                              for (
+                                var i = 0;
+                                i < groups[g].habits.length;
+                                i++
+                              ) ...[
+                                _HabitRow(
+                                  habit: groups[g].habits[i],
+                                  checkin: _checkinFor(
+                                    groups[g].habits[i],
+                                    _selectedStamp,
                                   ),
-                                  if (i != groups[g].habits.length - 1)
-                                    Divider(
-                                      height: 1,
-                                      indent: 78,
-                                      endIndent: 16,
-                                      color: scheme.outlineVariant,
-                                    ),
-                                ],
+                                  onCheckin: _selectedIsFuture
+                                      ? null
+                                      : () => _checkin(groups[g].habits[i]),
+                                  onOpen: () =>
+                                      _openDetail(groups[g].habits[i]),
+                                  onEdit: () => _edit(groups[g].habits[i]),
+                                  onDelete: () => _delete(groups[g].habits[i]),
+                                ),
+                                if (i != groups[g].habits.length - 1)
+                                  Divider(
+                                    height: 1,
+                                    indent: 78,
+                                    endIndent: 16,
+                                    color: scheme.outlineVariant,
+                                  ),
                               ],
-                            ),
+                            ],
                           ),
-                          if (g != groups.length - 1)
-                            const SizedBox(height: 18),
-                        ],
+                        ),
+                        if (g != groups.length - 1) const SizedBox(height: 18),
                       ],
-                    ),
+                    ],
                   ),
           ),
         ],

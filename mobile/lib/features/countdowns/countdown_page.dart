@@ -54,8 +54,6 @@ class _CountdownPageState extends State<CountdownPage> {
     super.dispose();
   }
 
-  Future<void> _sync() => context.read<AppState>().syncNow();
-
   Future<void> _create() async {
     final draft = await showModalBottomSheet<CountdownDraft>(
       context: context,
@@ -121,49 +119,38 @@ class _CountdownPageState extends State<CountdownPage> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: '同步倒数日',
-            onPressed: () => unawaited(_sync()),
-            icon: const Icon(Icons.sync_rounded),
-          ),
-          const SizedBox(width: 6),
-        ],
+        actions: [const SizedBox(width: 6)],
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'countdown-compose-fab',
         onPressed: _create,
         child: const Icon(Icons.add_rounded),
       ),
-      body: RefreshIndicator(
-        onRefresh: _sync,
-        child: LayoutBuilder(
-          builder: (context, constraints) => ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
-            children: [
-              if (_items.isEmpty)
-                SizedBox(
-                  height: constraints.maxHeight - 40,
-                  child: const Center(
-                    child: AppEmptyState(
-                      icon: Icons.hourglass_empty_rounded,
-                      title: '还没有倒数记录',
-                      message: '记录重要日子，看看还有多少天',
-                    ),
+      body: LayoutBuilder(
+        builder: (context, constraints) => ListView(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
+          children: [
+            if (_items.isEmpty)
+              SizedBox(
+                height: constraints.maxHeight - 40,
+                child: const Center(
+                  child: AppEmptyState(
+                    icon: Icons.hourglass_empty_rounded,
+                    title: '还没有倒数记录',
+                    message: '记录重要日子，看看还有多少天',
                   ),
-                )
-              else
-                for (final item in _items) ...[
-                  _CountdownCard(
-                    item: item,
-                    onEdit: () => _edit(item),
-                    onDelete: () => _delete(item),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-            ],
-          ),
+                ),
+              )
+            else
+              for (final item in _items) ...[
+                _CountdownCard(
+                  item: item,
+                  onEdit: () => _edit(item),
+                  onDelete: () => _delete(item),
+                ),
+                const SizedBox(height: 12),
+              ],
+          ],
         ),
       ),
     );

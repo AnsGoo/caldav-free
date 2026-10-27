@@ -385,6 +385,53 @@ class Countdowns extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// Local mirror of `internal/store/focus.go:FocusSession` (the last hundred
+/// records the server returns). The focus page reads only these rows plus the
+/// cached preferences/stats, so it renders on the first frame offline.
+@TableIndex(name: 'idx_focus_started', columns: {#startedAt})
+@DataClassName('FocusSessionRow')
+class FocusSessions extends Table {
+  IntColumn get id => integer()();
+
+  TextColumn get title => text().withDefault(const Constant(''))();
+
+  TextColumn get mode => text().withDefault(const Constant('pomodoro'))();
+
+  DateTimeColumn get startedAt => dateTime().named('started_at').nullable()();
+
+  DateTimeColumn get endedAt => dateTime().named('ended_at').nullable()();
+
+  IntColumn get durationSeconds =>
+      integer().named('duration_seconds').withDefault(const Constant(0))();
+
+  IntColumn get pomodoroCount =>
+      integer().named('pomodoro_count').withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Same shape as [CountdownOutbox], for focus sessions.
+@TableIndex(name: 'idx_focusoutbox_op', columns: {#opId}, unique: true)
+@DataClassName('FocusOutboxRow')
+class FocusOutbox extends Table {
+  IntColumn get seq => integer().autoIncrement()();
+
+  TextColumn get opId => text().named('op_id')();
+
+  TextColumn get action => text().withDefault(const Constant(''))();
+
+  IntColumn get sessionId => integer().named('session_id')();
+
+  TextColumn get payload => text().nullable()();
+
+  DateTimeColumn get createdAt =>
+      dateTime().named('created_at').withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {seq};
+}
+
 /// Key/value store for the sync cursor and UI preferences.
 @DataClassName('MetaRow')
 class Meta extends Table {
@@ -404,6 +451,12 @@ const String accentKey = 'accent';
 /// are cached as one JSON value rather than a table of scalars.
 const String habitPreferencesKey = 'habit_preferences';
 
+/// Focus preferences and the server's aggregate stats are single-row values, so
+/// they are cached as JSON in [Meta] instead of their own tables. Totals cover
+/// the whole history, which the session mirror (last 100 rows) cannot derive.
+const String focusPreferencesKey = 'focus_preferences';
+const String focusStatsKey = 'focus_stats';
+
 @DriftDatabase(
   tables: [
     Tasks,
@@ -418,6 +471,8 @@ const String habitPreferencesKey = 'habit_preferences';
     HabitCheckins,
     HabitSections,
     Countdowns,
+    FocusSessions,
+    FocusOutbox,
     Meta,
   ],
 )
@@ -429,7 +484,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -441,6 +496,11 @@ class AppDatabase extends _$AppDatabase {
         await migrator.createTable(habitCheckins);
         await migrator.createTable(habitSections);
         await migrator.createTable(countdowns);
+      }
+      if (from < 3) {
+        // v3: focus read mirror and its write queue.
+        await migrator.createTable(focusSessions);
+        await migrator.createTable(focusOutbox);
       }
     },
   );

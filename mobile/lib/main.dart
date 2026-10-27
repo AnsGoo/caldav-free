@@ -5,6 +5,7 @@ import 'app.dart';
 import 'app_state.dart';
 import 'data/countdowns/countdown_store.dart';
 import 'data/db/local_store.dart';
+import 'data/focus/focus_store.dart';
 import 'data/habits/habit_store.dart';
 import 'data/session/credentials.dart';
 import 'data/tasks_repository.dart';
@@ -15,12 +16,14 @@ Future<void> main() async {
     final store = await LocalStore.open();
     final habits = await HabitStore.open(database: store.database);
     final countdowns = await CountdownStore.open(database: store.database);
+    final focus = await FocusStore.open(database: store.database);
     final app = AppState(
       store: store,
       credentials: FileCredentialsStore(),
       repository: TaskRepository(store),
       habits: habits,
       countdowns: countdowns,
+      focus: focus,
     );
     await app.restore();
     runApp(ChangeNotifierProvider<AppState>.value(

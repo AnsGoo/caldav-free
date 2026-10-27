@@ -7,6 +7,8 @@ import 'data/countdowns/countdown_store.dart';
 import 'data/db/local_store.dart';
 import 'data/engine/sync_controller.dart';
 import 'data/engine/sync_engine.dart';
+import 'data/focus/focus_api.dart';
+import 'data/focus/focus_store.dart';
 import 'data/habits/habit_api.dart';
 import 'data/habits/habit_store.dart';
 import 'data/reminders/reminder_scheduler.dart';
@@ -23,17 +25,20 @@ class AppState extends ChangeNotifier {
     required this.repository,
     HabitStore? habits,
     CountdownStore? countdowns,
+    FocusStore? focus,
   }) : habits = habits ?? HabitStore.inMemory(),
-       countdowns = countdowns ?? CountdownStore.inMemory();
+       countdowns = countdowns ?? CountdownStore.inMemory(),
+       focus = focus ?? FocusStore.inMemory();
 
   final LocalStore store;
   final CredentialsStore credentials;
   final TaskRepository repository;
 
-  /// Habit and countdown read mirrors. Pages render from these, never from the
-  /// network; the sync thread fills them in the background.
+  /// Habit, countdown and focus read mirrors. Pages render from these, never
+  /// from the network; the sync thread fills them in the background.
   final HabitStore habits;
   final CountdownStore countdowns;
+  final FocusStore focus;
 
   Session? session;
   SyncController? syncController;
@@ -43,6 +48,7 @@ class AppState extends ChangeNotifier {
 
   HabitApi? _habitApi;
   CountdownApi? _countdownApi;
+  FocusApi? _focusApi;
 
   VoidCallback? _syncListener;
 
@@ -111,6 +117,7 @@ class AppState extends ChangeNotifier {
         await store.clearAll();
         await habits.clearMirror();
         await countdowns.clearMirror();
+        await focus.clearMirror();
       }
 
       final next = Session(
@@ -167,8 +174,14 @@ class AppState extends ChangeNotifier {
       username: current.username,
       password: current.password,
     );
+    final focusApi = FocusApi(
+      baseUrl: current.baseUrl,
+      username: current.username,
+      password: current.password,
+    );
     _habitApi = habitApi;
     _countdownApi = countdownApi;
+    _focusApi = focusApi;
     final engine = SyncEngine(
       store: store,
       api: HttpSyncApi(
@@ -177,16 +190,18 @@ class AppState extends ChangeNotifier {
         password: current.password,
       ),
       deviceId: current.deviceId,
-      queueFlushers: [habitApi.flush, countdownApi.flush],
+      queueFlushers: [habitApi.flush, countdownApi.flush, focusApi.flush],
       mirrorPullers: [
         () async => habits.replaceMirror(await habitApi.fetch()),
         () async => countdowns.replaceMirror(await countdownApi.fetch()),
+        () async => focus.replaceMirror(await focusApi.fetch()),
       ],
     );
     final controller = SyncController(engine: engine, store: store);
     repository.onLocalChange = controller.requestSync;
     habits.onLocalWrite = controller.requestSync;
     countdowns.onLocalWrite = controller.requestSync;
+    focus.onLocalWrite = controller.requestSync;
     syncController = controller;
     _syncListener = notifyListeners;
     controller.addListener(_syncListener!);
@@ -205,10 +220,13 @@ class AppState extends ChangeNotifier {
     }
     habits.onLocalWrite = null;
     countdowns.onLocalWrite = null;
+    focus.onLocalWrite = null;
     _habitApi?.close();
     _habitApi = null;
     _countdownApi?.close();
     _countdownApi = null;
+    _focusApi?.close();
+    _focusApi = null;
   }
 
   @override
@@ -218,6 +236,7 @@ class AppState extends ChangeNotifier {
     unawaited(reminders?.stop());
     habits.dispose();
     countdowns.dispose();
+    focus.dispose();
     super.dispose();
   }
 }

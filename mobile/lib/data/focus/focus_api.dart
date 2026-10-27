@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
+
+import 'focus_write_queue.dart';
 
 class FocusPreferences {
   const FocusPreferences({
@@ -26,6 +29,14 @@ class FocusPreferences {
         longBreakInterval: _int(json['longBreakInterval'], 4),
         dailyGoal: _int(json['dailyGoal'], 4),
       );
+
+  Map<String, dynamic> toJson() => {
+    'pomodoroMinutes': pomodoroMinutes,
+    'shortBreakMinutes': shortBreakMinutes,
+    'longBreakMinutes': longBreakMinutes,
+    'longBreakInterval': longBreakInterval,
+    'dailyGoal': dailyGoal,
+  };
 }
 
 class FocusStats {
@@ -53,6 +64,15 @@ class FocusStats {
     todayFocusSeconds: _int(json['todayFocusSeconds'], 0),
     goal: _int(json['dailyGoal'], 4),
   );
+
+  Map<String, dynamic> toJson() => {
+    'todayPomodoroCount': todayPomodoroCount,
+    'todayFocusMinutes': todayFocusMinutes,
+    'totalPomodoroCount': totalPomodoroCount,
+    'totalFocusMinutes': totalFocusMinutes,
+    'todayFocusSeconds': todayFocusSeconds,
+    'dailyGoal': goal,
+  };
 }
 
 class FocusSession {
@@ -63,6 +83,7 @@ class FocusSession {
     required this.startedAt,
     required this.endedAt,
     required this.durationSeconds,
+    this.pomodoroCount = 0,
   });
 
   final int id;
@@ -71,6 +92,7 @@ class FocusSession {
   final DateTime? startedAt;
   final DateTime? endedAt;
   final int durationSeconds;
+  final int pomodoroCount;
 
   factory FocusSession.fromJson(Map<String, dynamic> json) => FocusSession(
     id: _int(json['id'], 0),
@@ -79,6 +101,7 @@ class FocusSession {
     startedAt: _date(json['startedAt']),
     endedAt: _date(json['endedAt']),
     durationSeconds: _int(json['durationSeconds'], 0),
+    pomodoroCount: _int(json['pomodoroCount'], 0),
   );
 }
 
@@ -100,6 +123,7 @@ class FocusApi {
     required this.username,
     required this.password,
     http.Client? client,
+    this.writeQueue,
   }) : baseUrl = _normalize(baseUrl),
        _client = client ?? http.Client();
 
@@ -107,6 +131,10 @@ class FocusApi {
   final String username;
   final String password;
   final http.Client _client;
+  final FocusWriteQueue? writeQueue;
+
+  Future<FocusWriteQueue> get _queue async =>
+      writeQueue ?? await FocusWriteQueue.shared();
 
   static String _normalize(String raw) {
     var value = raw.trim();
@@ -122,6 +150,8 @@ class FocusApi {
     'Accept': 'application/json',
   };
 
+  /// Server snapshot for the background sync pass. The focus page reads the
+  /// local mirror in `FocusStore` instead of calling this.
   Future<FocusDash> fetch() async {
     final body = await _request('GET', '/api/sync/focus');
     final preferences = body['preferences'];
@@ -140,33 +170,110 @@ class FocusApi {
     );
   }
 
-  Future<void> saveSession({
-    required DateTime startedAt,
-    required DateTime endedAt,
-    required int durationSeconds,
-    String mode = 'pomodoro',
-    String title = '专注',
-    int pomodoroCount = 1,
-    String note = '',
-  }) async {
-    await _request(
-      'POST',
-      '/api/sync/focus/sessions',
-      payload: {
-        'mode': mode,
-        'title': title,
-        'startedAt': startedAt.toUtc().toIso8601String(),
-        'endedAt': endedAt.toUtc().toIso8601String(),
-        'durationSeconds': durationSeconds,
-        'pomodoroCount': pomodoroCount,
-        'note': note,
-      },
-    );
+  Future<void>? _flushing;
+
+  /// Replays all queued local writes against the server. Serialized so a
+  /// background retry and a user refresh cannot push the same record twice.
+  Future<void> flush() {
+    final running = _flushing;
+    if (running != null) return running;
+    late final Future<void> tracked;
+    tracked = _flushOnce().whenComplete(() {
+      if (identical(_flushing, tracked)) _flushing = null;
+    });
+    _flushing = tracked;
+    return tracked;
   }
 
-  Future<void> deleteSession(int id) async {
-    await _request('DELETE', '/api/sync/focus/sessions/$id');
+  Future<void> _flushOnce() async {
+    final queue = await _queue;
+    if (queue.isEmpty) return;
+    final ops = await queue.items();
+    final timedOutCreates = <FocusPendingOp>[];
+    for (final op in ops) {
+      try {
+        switch (op.action) {
+          case 'create':
+            try {
+              await _createRemote(op);
+            } on Object catch (inner) {
+              if (!_timedOut(inner)) rethrow;
+              // The server may have committed without us ever seeing the
+              // response; reconciling against the list avoids replaying the
+              // create into a duplicate record.
+              timedOutCreates.add(op);
+              continue;
+            }
+          case 'delete':
+            await _request(
+              'DELETE',
+              '/api/sync/focus/sessions/${op.sessionId}',
+            );
+          default:
+            await queue.remove(op.opId);
+            continue;
+        }
+      } on Object catch (error) {
+        if (_isUnreachable(error)) return;
+        await queue.remove(op.opId);
+        continue;
+      }
+      await queue.remove(op.opId);
+    }
+    if (timedOutCreates.isNotEmpty) {
+      await _reconcileTimedOutCreates(queue, timedOutCreates);
+    }
   }
+
+  Future<void> _createRemote(FocusPendingOp op) async {
+    final body = await _request(
+      'POST',
+      '/api/sync/focus/sessions',
+      payload: op.payload,
+    );
+    final created = body['session'];
+    final realId = created is Map<String, dynamic> ? _int(created['id'], 0) : 0;
+    if (realId > 0 && op.sessionId != realId) {
+      await (await _queue).replaceSessionId(op.sessionId, realId);
+    }
+  }
+
+  /// Creates whose POST timed out are dropped when the server already holds an
+  /// equivalent record; otherwise they stay queued for the next retry.
+  Future<void> _reconcileTimedOutCreates(
+    FocusWriteQueue queue,
+    List<FocusPendingOp> timedOut,
+  ) async {
+    FocusDash dash;
+    try {
+      dash = await fetch();
+    } on Object {
+      return;
+    }
+    for (final op in timedOut) {
+      final payload = op.payload;
+      if (payload == null) {
+        await queue.remove(op.opId);
+        continue;
+      }
+      final started = (payload['startedAt'] ?? '').toString();
+      final seconds = _int(payload['durationSeconds'], 0);
+      final synced = dash.sessions.any(
+        (session) =>
+            !session.id.isNegative &&
+            session.durationSeconds == seconds &&
+            session.startedAt?.toUtc().toIso8601String() == started,
+      );
+      if (synced) await queue.remove(op.opId);
+    }
+  }
+
+  static bool _isUnreachable(Object error) =>
+      error is http.ClientException ||
+      error is TimeoutException ||
+      error is SocketException;
+
+  static bool _timedOut(Object error) => error is TimeoutException;
 
   Future<Map<String, dynamic>> _request(
     String method,

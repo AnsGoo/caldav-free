@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../data/focus/focus_api.dart';
+import '../../data/focus/focus_store.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
@@ -17,10 +18,9 @@ class FocusPage extends StatefulWidget {
 }
 
 class _FocusPageState extends State<FocusPage> {
-  FocusApi? _api;
-  FocusDash? _dash;
-  bool _loading = false;
-  bool _connected = false;
+  FocusStore? _store;
+  List<FocusSession> _sessions = const [];
+  FocusStats _stats = const FocusStats();
 
   int _minutes = 25;
   int _remaining = 25 * 60;
@@ -34,70 +34,39 @@ class _FocusPageState extends State<FocusPage> {
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session;
-    if (session != null) {
-      _api = FocusApi(
-        baseUrl: session.baseUrl,
-        username: session.username,
-        password: session.password,
-      );
-    }
+    _attach(context.read<AppState>().focus);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final connected = context.watch<AppState>().connected;
-    if (connected == _connected && _api != null) return;
-    _connected = connected;
-    _api?.close();
-    final session = context.read<AppState>().session;
-    _api = connected && session != null
-        ? FocusApi(
-            baseUrl: session.baseUrl,
-            username: session.username,
-            password: session.password,
-          )
-        : null;
-    if (_api != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_load());
-      });
-    } else if (mounted) {
-      setState(() {
-        _dash = null;
-        _loading = false;
-      });
-    }
+    _attach(context.read<AppState>().focus);
+  }
+
+  /// The store is app-scoped and pushes mirror updates on its own; the page
+  /// only repaints when it says the data changed.
+  void _attach(FocusStore store) {
+    if (identical(_store, store)) return;
+    _store?.removeListener(_onStoreChanged);
+    _store = store..addListener(_onStoreChanged);
+    _sessions = store.sessions;
+    _stats = store.stats;
+  }
+
+  void _onStoreChanged() {
+    final store = _store;
+    if (store == null || !mounted) return;
+    setState(() {
+      _sessions = store.sessions;
+      _stats = store.stats;
+    });
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
-    _api?.close();
+    _store?.removeListener(_onStoreChanged);
     super.dispose();
-  }
-
-  Future<void> _load({bool showLoading = true}) async {
-    if (_api == null) return;
-    if (showLoading && mounted) {
-      setState(() {
-        _loading = true;
-      });
-    }
-    try {
-      final dash = await _api!.fetch();
-      if (!mounted) return;
-      setState(() {
-        _dash = dash;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
-    }
   }
 
   void _setMinutes(int minutes) {
@@ -165,59 +134,47 @@ class _FocusPageState extends State<FocusPage> {
       _startedAt = null;
       _deadline = null;
     });
-    final api = _api;
-    if (api == null) return;
+    final store = _store;
+    if (store == null) return;
     try {
-      await api.saveSession(
+      await store.saveSession(
         startedAt: started,
         endedAt: ended,
         durationSeconds: seconds,
       );
-      await _load(showLoading: false);
       if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('专注完成，已记录 $_minutes 分钟')));
-    } catch (error) {
+    } catch (error, stack) {
+      debugPrint('专注记录本地保存失败: $error\n$stack');
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('保存专注记录失败：$error')));
+          .showSnackBar(const SnackBar(content: Text('专注记录保存失败，请稍后重试')));
     }
   }
 
   Future<void> _deleteSession(FocusSession session) async {
     try {
-      await _api!.deleteSession(session.id);
-      await _load(showLoading: false);
-    } catch (error) {
+      await _store?.deleteSession(session.id);
+    } catch (error, stack) {
+      debugPrint('专注记录本地删除失败: $error\n$stack');
       if (!mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('删除记录失败：$error')));
+          .showSnackBar(const SnackBar(content: Text('删除失败，请稍后重试')));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_api == null) {
-      return const Scaffold(
-        body: Center(
-          child: AppEmptyState(
-            icon: Icons.wifi_off_rounded,
-            title: '服务未连接',
-            message: '请先连接服务器后再使用专注功能',
-          ),
-        ),
-      );
-    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final dash = _dash;
     final total = _minutes * 60;
     final progress = total == 0
         ? 0.0
         : (1 - _remaining / total).clamp(0.0, 1.0);
     final minutes = _remaining ~/ 60;
     final seconds = _remaining % 60;
-    final stats = dash?.stats;
+    final stats = _stats;
     final ringSize = (MediaQuery.sizeOf(context).width - 56).clamp(
       228.0,
       286.0,
@@ -236,29 +193,18 @@ class _FocusPageState extends State<FocusPage> {
             ),
             const SizedBox(height: 5),
             Text(
-              stats == null
-                  ? '把注意力留给当下'
-                  : '今日 ${stats.todayFocusMinutes} 分钟 · '
-                        '${stats.todayPomodoroCount}/${stats.goal} 番茄',
+              '今日 ${stats.todayFocusMinutes} 分钟 · '
+              '${stats.todayPomodoroCount}/${stats.goal} 番茄',
               style: theme.textTheme.labelSmall?.copyWith(
                 color: scheme.onSurfaceVariant,
               ),
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            tooltip: '刷新专注',
-            onPressed: _loading ? null : () => _load(),
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: 6),
-        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [
-          if (_loading) const LinearProgressIndicator(minHeight: 2),
           const SizedBox(height: 18),
           Center(
             child: SizedBox(
@@ -355,16 +301,14 @@ class _FocusPageState extends State<FocusPage> {
           const SizedBox(height: 36),
           AppSectionLabel(
             title: '最近专注',
-            trailing: dash == null
-                ? null
-                : Text(
-                    '累计 ${dash.stats.totalFocusMinutes} 分钟',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-                  ),
+            trailing: Text(
+              '累计 ${stats.totalFocusMinutes} 分钟',
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
           ),
-          if (dash == null || dash.sessions.isEmpty)
+          if (_sessions.isEmpty)
             AppCard(
               padding: const EdgeInsets.symmetric(vertical: 22),
               child: Center(
@@ -381,12 +325,12 @@ class _FocusPageState extends State<FocusPage> {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  for (var i = 0; i < dash.sessions.length && i < 8; i++) ...[
+                  for (var i = 0; i < _sessions.length && i < 8; i++) ...[
                     _SessionRow(
-                      session: dash.sessions[i],
-                      onDelete: () => _deleteSession(dash.sessions[i]),
+                      session: _sessions[i],
+                      onDelete: () => _deleteSession(_sessions[i]),
                     ),
-                    if (i != dash.sessions.length - 1 && i != 7)
+                    if (i != _sessions.length - 1 && i != 7)
                       Divider(
                         height: 1,
                         indent: 64,

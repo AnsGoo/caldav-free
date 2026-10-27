@@ -118,8 +118,8 @@ class SyncDiagnosticsPage extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            'P0 本地库为原子写入的 JSON 文件（LocalStore 接口）；drift/SQLite '
-            '依赖在当前构建环境不可用，迁移计划见 docs/客户端P0.md。',
+            '本地库为 SQLite（drift，caldav_free.db），表结构与服务端字段对齐；'
+            '读写走内存快照，写入经同一事务落库。',
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
           ),

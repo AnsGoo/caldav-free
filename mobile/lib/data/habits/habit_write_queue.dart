@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show DoNothing, OrderingTerm, Value;
 import 'package:path/path.dart' as p;
 
 import '../storage_paths.dart';
+import '../db/local_database.dart';
 
 class HabitPendingOp {
   const HabitPendingOp({
@@ -49,77 +51,124 @@ class HabitPendingOp {
 
 /// Durable FIFO queue of habit writes that could not reach the server.
 ///
-/// Entries survive app restarts so offline edits sync once connectivity
+/// Entries live in the same SQLite database as the task data, in insertion
+/// order, and survive app restarts so offline edits sync once connectivity
 /// returns. A habitId below zero is a client-issued temporary id; it is
 /// rewritten to the server id when the pending create replays successfully.
 class HabitWriteQueue {
-  HabitWriteQueue._(this._file);
+  HabitWriteQueue._(this._db, [this._legacyFile]);
 
   /// Memory-only queue for tests.
-  factory HabitWriteQueue.inMemory() {
-    final queue = HabitWriteQueue._(null);
-    queue._loaded = true;
-    return queue;
-  }
+  factory HabitWriteQueue.inMemory() =>
+      HabitWriteQueue._(AppDatabase.memory());
 
-  /// File-backed queue at an explicit path for tests.
-  factory HabitWriteQueue.forPath(String path) =>
-      HabitWriteQueue._(File(path));
+  /// Database-backed queue at an explicit path for tests.
+  factory HabitWriteQueue.forPath(
+    String dbPath, {
+    File? legacyFile,
+    bool ownsDatabase = true,
+  }) =>
+      HabitWriteQueue._(
+        ownsDatabase ? AppDatabase.file(dbPath) : sharedAppDatabase(dbPath),
+        legacyFile,
+      );
+
+  Future<void> close() => _db.close();
 
   static HabitWriteQueue? _shared;
 
   static Future<HabitWriteQueue> shared() async {
     final existing = _shared;
     if (existing != null) return existing;
-    final file = File(p.join((await appStorageDirectory()).path, 'caldav_habit_queue.json'));
-    final queue = HabitWriteQueue._(file);
+    final directory = await appStorageDirectory();
+    final queue = HabitWriteQueue._(
+      sharedAppDatabase(p.join(directory.path, 'caldav_free.db')),
+      File(p.join(directory.path, 'caldav_habit_queue.json')),
+    );
     await queue._ensureLoaded();
     _shared = queue;
     return queue;
   }
 
-  final File? _file;
+  final AppDatabase _db;
+  final File? _legacyFile;
   final List<HabitPendingOp> _ops = [];
+  Future<void>? _loading;
 
   bool get isEmpty => _ops.isEmpty;
 
   Future<void> _ensureLoaded() async {
-    if (_loaded) return;
-    _loaded = true;
-    final file = _file;
-    if (file == null || !await file.exists()) return;
+    final inFlight = _loading;
+    if (inFlight != null) return inFlight;
+    _loading = () async {
+      for (final row in await (_db.select(
+        _db.habitOutbox,
+      )..orderBy([(t) => OrderingTerm.asc(t.seq)])).get()) {
+        final op = _opFrom(row);
+        if (op.opId.isNotEmpty && op.action.isNotEmpty) _ops.add(op);
+      }
+      await _importLegacyFile();
+    }();
+    return _loading;
+  }
+
+  /// One-time upgrade from the pre-SQLite JSON queue file.
+  Future<void> _importLegacyFile() async {
+    final file = _legacyFile;
+    if (file == null || _ops.isNotEmpty || !await file.exists()) return;
+    List<HabitPendingOp> imported = const [];
     try {
       final decoded = jsonDecode(await file.readAsString());
       final ops = decoded is Map<String, dynamic> ? decoded['ops'] : null;
       if (ops is List) {
-        for (final value in ops.whereType<Map<String, dynamic>>()) {
-          final op = HabitPendingOp.fromJson(value);
-          if (op.opId.isNotEmpty && op.action.isNotEmpty) _ops.add(op);
-        }
+        imported = ops
+            .whereType<Map<String, dynamic>>()
+            .map(HabitPendingOp.fromJson)
+            .where((op) => op.opId.isNotEmpty && op.action.isNotEmpty)
+            .toList();
       }
     } catch (_) {
-      // A corrupt queue file must not brick the page; start clean.
-      _ops.clear();
+      // A corrupt queue file must not brick the page; keep it aside.
+    }
+    for (final op in imported) {
+      _ops.add(op);
+      await _insert(op);
+    }
+    if (imported.isEmpty) return;
+    try {
+      await file.rename('${file.path}.migrated.bak');
+    } on FileSystemException {
+      // Another process claimed the import; the rows are already in SQLite.
     }
   }
 
-  bool _loaded = false;
+  HabitPendingOp _opFrom(HabitOutboxRow row) => HabitPendingOp(
+    opId: row.opId,
+    action: row.action,
+    habitId: row.habitId,
+    payload: decodeJsonObject(row.payload),
+    stamp: row.stamp,
+    createdAt: row.createdAt,
+  );
 
-  Future<void> _save() async {
-    final file = _file;
-    if (file == null) return;
-    final tmp = File('${file.path}.tmp');
-    await tmp.writeAsString(
-      jsonEncode({'ops': _ops.map((op) => op.toJson()).toList()}),
-      flush: true,
-    );
-    await tmp.rename(file.path);
-  }
+  Future<void> _insert(HabitPendingOp op) => _db
+      .into(_db.habitOutbox)
+      .insert(
+        HabitOutboxCompanion.insert(
+          opId: op.opId,
+          action: Value(op.action),
+          habitId: op.habitId,
+          payload: Value(encodeJsonObject(op.payload)),
+          stamp: Value(op.stamp),
+          createdAt: Value(op.createdAt),
+        ),
+        onConflict: DoNothing(),
+      );
 
   Future<void> add(HabitPendingOp op) async {
     await _ensureLoaded();
     _ops.add(op);
-    await _save();
+    await _insert(op);
   }
 
   Future<List<HabitPendingOp>> items() async {
@@ -131,7 +180,10 @@ class HabitWriteQueue {
     await _ensureLoaded();
     final before = _ops.length;
     _ops.removeWhere((op) => op.opId == opId);
-    if (_ops.length != before) await _save();
+    if (_ops.length == before) return;
+    await (_db.delete(_db.habitOutbox)
+          ..where((row) => row.opId.equals(opId)))
+        .go();
   }
 
   Future<void> replaceHabitId(int tempId, int realId) async {
@@ -139,19 +191,21 @@ class HabitWriteQueue {
     var changed = false;
     for (var i = 0; i < _ops.length; i++) {
       final op = _ops[i];
-      if (op.habitId == tempId) {
-        _ops[i] = HabitPendingOp(
-          opId: op.opId,
-          action: op.action,
-          habitId: realId,
-          payload: op.payload,
-          stamp: op.stamp,
-          createdAt: op.createdAt,
-        );
-        changed = true;
-      }
+      if (op.habitId != tempId) continue;
+      _ops[i] = HabitPendingOp(
+        opId: op.opId,
+        action: op.action,
+        habitId: realId,
+        payload: op.payload,
+        stamp: op.stamp,
+        createdAt: op.createdAt,
+      );
+      changed = true;
     }
-    if (changed) await _save();
+    if (!changed) return;
+    await (_db.update(_db.habitOutbox)
+          ..where((row) => row.habitId.equals(tempId)))
+        .write(HabitOutboxCompanion(habitId: Value(realId)));
   }
 
   /// Drops every queued op for an unsynced temp habit (offline create undone).
@@ -160,27 +214,36 @@ class HabitWriteQueue {
     if (tempId >= 0) return;
     final before = _ops.length;
     _ops.removeWhere((op) => op.habitId == tempId);
-    if (_ops.length != before) await _save();
+    if (_ops.length == before) return;
+    await (_db.delete(_db.habitOutbox)
+          ..where((row) => row.habitId.equals(tempId)))
+        .go();
   }
 
   /// Rewrites the payload of the pending create for a temp habit. Returns
   /// false when no queued create exists.
-  Future<bool> replaceCreatePayload(int tempId, Map<String, dynamic> payload) async {
+  Future<bool> replaceCreatePayload(
+    int tempId,
+    Map<String, dynamic> payload,
+  ) async {
     await _ensureLoaded();
     for (var i = 0; i < _ops.length; i++) {
       final op = _ops[i];
-      if (op.action == 'create' && op.habitId == tempId) {
-        _ops[i] = HabitPendingOp(
-          opId: op.opId,
-          action: op.action,
-          habitId: op.habitId,
-          payload: payload,
-          stamp: op.stamp,
-          createdAt: op.createdAt,
-        );
-        await _save();
-        return true;
-      }
+      if (op.action != 'create' || op.habitId != tempId) continue;
+      _ops[i] = HabitPendingOp(
+        opId: op.opId,
+        action: op.action,
+        habitId: op.habitId,
+        payload: payload,
+        stamp: op.stamp,
+        createdAt: op.createdAt,
+      );
+      await (_db.update(_db.habitOutbox)
+            ..where((row) => row.opId.equals(op.opId)))
+          .write(
+            HabitOutboxCompanion(payload: Value(encodeJsonObject(payload))),
+          );
+      return true;
     }
     return false;
   }

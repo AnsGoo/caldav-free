@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:caldav_free/core/models.dart';
@@ -263,18 +264,107 @@ void main() {
     await store.dispose();
   });
 
-  test('data survives reopening the JSON file', () async {
+  test('data survives reopening the SQLite database', () async {
     final directory = await Directory.systemTemp.createTemp('caldav-store');
     final path = '${directory.path}/store.json';
     final store = await LocalStore.open(path: path);
     final repo = TaskRepository(store);
     final task = await repo.createTask(title: '持久化', listId: 'list-1');
+    await store.setAccent('#C23B5A');
+    await store.writeCursor('42');
     await store.dispose();
 
     final reopened = await LocalStore.open(path: path);
     expect(reopened.task(task.id)?.title, '持久化');
     expect(reopened.pendingCount, 1);
     expect(reopened.pendingOp('task', task.id)?.patch['title'], '持久化');
+    expect(reopened.accent, '#C23B5A');
+    expect(reopened.cursor, '42');
+    await reopened.dispose();
+    await directory.delete(recursive: true);
+  });
+
+  test('deleted rows and cleared lists stay deleted after reopen', () async {
+    final directory = await Directory.systemTemp.createTemp('caldav-store');
+    final path = '${directory.path}/store.json';
+    final store = await LocalStore.open(path: path);
+    final repo = TaskRepository(store);
+    final keep = await repo.createTask(title: '留下', listId: 'list-1');
+    final drop = await repo.createTask(title: '删除', listId: 'list-1');
+    await store.saveList(
+      TaskListItem(id: 'list-1', name: '清单', updatedAt: DateTime.now()),
+    );
+    await store.hardDeleteTask(drop.id);
+    await store.dispose();
+
+    final reopened = await LocalStore.open(path: path);
+    expect(reopened.task(keep.id)?.title, '留下');
+    expect(reopened.task(drop.id), isNull);
+    expect(reopened.allTasks().map((task) => task.id), isNot(contains(drop.id)));
+    expect(reopened.listsSnapshot().single.name, '清单');
+    await reopened.dispose();
+    await directory.delete(recursive: true);
+  });
+
+  test('the legacy JSON file is imported once and kept as a backup', () async {
+    final directory = await Directory.systemTemp.createTemp('caldav-store');
+    final path = '${directory.path}/store.json';
+    final task = TaskItem(
+      id: 'task-1',
+      listId: 'list-1',
+      title: '旧数据',
+      tags: const ['有,逗号'],
+      reminderOffsets: const [10, 0],
+      checklist: const [ChecklistItem(id: 'c-1', title: '子项')],
+      updatedAt: DateTime.parse('2026-10-01T00:00:00Z'),
+    );
+    File(path).writeAsStringSync(
+      jsonEncode({
+        'schema': 1,
+        'cursor': '7',
+        'accent': '#123456',
+        'tasks': {
+          task.id: {'dirty': true, 'data': task.toWireJson()},
+        },
+        'lists': {
+          'list-1': TaskListItem(
+            id: 'list-1',
+            name: '旧清单',
+            updatedAt: DateTime.parse('2026-10-01T00:00:00Z'),
+          ).toWireJson(),
+        },
+        'outbox': {
+          'op-1': OutboxRecord(
+            opId: 'op-1',
+            entity: 'task',
+            entityId: task.id,
+            action: 'update',
+            patch: const {'title': '旧数据'},
+            attempts: 3,
+            nextTryAt: DateTime.parse('2026-10-01T00:00:00Z'),
+            createdAt: DateTime.parse('2026-10-01T00:00:00Z'),
+          ).toJson(),
+        },
+      }),
+    );
+
+    final store = await LocalStore.open(path: path);
+    expect(store.cursor, '7');
+    expect(store.accent, '#123456');
+    expect(store.task(task.id)?.tags, ['有,逗号']);
+    expect(store.task(task.id)?.reminderOffsets, [10, 0]);
+    expect(store.task(task.id)?.checklist.single.title, '子项');
+    expect(store.isDirty, isTrue);
+    expect(store.listsSnapshot().single.name, '旧清单');
+    expect(store.pendingOp('task', task.id)?.attempts, 3);
+    await store.dispose();
+
+    expect(File(path).existsSync(), isFalse);
+    expect(File('$path.migrated.bak').existsSync(), isTrue);
+
+    final reopened = await LocalStore.open(path: path);
+    expect(reopened.task(task.id)?.title, '旧数据');
+    expect(reopened.pendingCount, 1);
     await reopened.dispose();
     await directory.delete(recursive: true);
   });

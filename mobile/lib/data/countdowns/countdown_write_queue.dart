@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show DoNothing, OrderingTerm, Value;
 import 'package:path/path.dart' as p;
 
 import '../storage_paths.dart';
+import '../db/local_database.dart';
 
 class CountdownPendingOp {
   const CountdownPendingOp({
@@ -52,79 +54,122 @@ class CountdownPendingOp {
 
 /// Durable FIFO queue of countdown writes that could not reach the server.
 ///
-/// Entries survive app restarts so offline edits sync once connectivity
-/// returns. A countdownId below zero is a client-issued temporary id; it is
-/// rewritten to the server id when the pending create replays successfully.
+/// Same storage and semantics as the habit queue: rows in the shared SQLite
+/// database, in insertion order. A countdownId below zero is a client-issued
+/// temporary id; it is rewritten to the server id when the pending create
+/// replays successfully.
 class CountdownWriteQueue {
-  CountdownWriteQueue._(this._file);
+  CountdownWriteQueue._(this._db, [this._legacyFile]);
 
   /// Memory-only queue for tests.
-  factory CountdownWriteQueue.inMemory() {
-    final queue = CountdownWriteQueue._(null);
-    queue._loaded = true;
-    return queue;
-  }
+  factory CountdownWriteQueue.inMemory() =>
+      CountdownWriteQueue._(AppDatabase.memory());
 
-  /// File-backed queue at an explicit path for tests.
-  factory CountdownWriteQueue.forPath(String path) =>
-      CountdownWriteQueue._(File(path));
+  /// Database-backed queue at an explicit path for tests.
+  factory CountdownWriteQueue.forPath(
+    String dbPath, {
+    File? legacyFile,
+    bool ownsDatabase = true,
+  }) =>
+      CountdownWriteQueue._(
+        ownsDatabase ? AppDatabase.file(dbPath) : sharedAppDatabase(dbPath),
+        legacyFile,
+      );
+
+  Future<void> close() => _db.close();
 
   static CountdownWriteQueue? _shared;
 
   static Future<CountdownWriteQueue> shared() async {
     final existing = _shared;
     if (existing != null) return existing;
-    final file = File(
-      p.join((await appStorageDirectory()).path, 'caldav_countdown_queue.json'),
+    final directory = await appStorageDirectory();
+    final queue = CountdownWriteQueue._(
+      sharedAppDatabase(p.join(directory.path, 'caldav_free.db')),
+      File(p.join(directory.path, 'caldav_countdown_queue.json')),
     );
-    final queue = CountdownWriteQueue._(file);
     await queue._ensureLoaded();
     _shared = queue;
     return queue;
   }
 
-  final File? _file;
+  final AppDatabase _db;
+  final File? _legacyFile;
   final List<CountdownPendingOp> _ops = [];
+  Future<void>? _loading;
 
   bool get isEmpty => _ops.isEmpty;
 
-  bool _loaded = false;
-
   Future<void> _ensureLoaded() async {
-    if (_loaded) return;
-    _loaded = true;
-    final file = _file;
-    if (file == null || !await file.exists()) return;
+    final inFlight = _loading;
+    if (inFlight != null) return inFlight;
+    _loading = () async {
+      for (final row in await (_db.select(
+        _db.countdownOutbox,
+      )..orderBy([(t) => OrderingTerm.asc(t.seq)])).get()) {
+        final op = _opFrom(row);
+        if (op.opId.isNotEmpty && op.action.isNotEmpty) _ops.add(op);
+      }
+      await _importLegacyFile();
+    }();
+    return _loading;
+  }
+
+  /// One-time upgrade from the pre-SQLite JSON queue file.
+  Future<void> _importLegacyFile() async {
+    final file = _legacyFile;
+    if (file == null || _ops.isNotEmpty || !await file.exists()) return;
+    List<CountdownPendingOp> imported = const [];
     try {
       final decoded = jsonDecode(await file.readAsString());
       final ops = decoded is Map<String, dynamic> ? decoded['ops'] : null;
       if (ops is List) {
-        for (final value in ops.whereType<Map<String, dynamic>>()) {
-          final op = CountdownPendingOp.fromJson(value);
-          if (op.opId.isNotEmpty && op.action.isNotEmpty) _ops.add(op);
-        }
+        imported = ops
+            .whereType<Map<String, dynamic>>()
+            .map(CountdownPendingOp.fromJson)
+            .where((op) => op.opId.isNotEmpty && op.action.isNotEmpty)
+            .toList();
       }
     } catch (_) {
-      // A corrupt queue file must not brick the page; start clean.
-      _ops.clear();
+      // A corrupt queue file must not brick the page; keep it aside.
+    }
+    for (final op in imported) {
+      _ops.add(op);
+      await _insert(op);
+    }
+    if (imported.isEmpty) return;
+    try {
+      await file.rename('${file.path}.migrated.bak');
+    } on FileSystemException {
+      // Another process claimed the import; the rows are already in SQLite.
     }
   }
 
-  Future<void> _save() async {
-    final file = _file;
-    if (file == null) return;
-    final tmp = File('${file.path}.tmp');
-    await tmp.writeAsString(
-      jsonEncode({'ops': _ops.map((op) => op.toJson()).toList()}),
-      flush: true,
-    );
-    await tmp.rename(file.path);
-  }
+  CountdownPendingOp _opFrom(CountdownOutboxRow row) => CountdownPendingOp(
+    opId: row.opId,
+    action: row.action,
+    countdownId: row.countdownId,
+    payload: decodeJsonObject(row.payload),
+    createdAt: row.createdAt,
+  );
+
+  Future<void> _insert(CountdownPendingOp op) => _db
+      .into(_db.countdownOutbox)
+      .insert(
+        CountdownOutboxCompanion.insert(
+          opId: op.opId,
+          action: Value(op.action),
+          countdownId: op.countdownId,
+          payload: Value(encodeJsonObject(op.payload)),
+          createdAt: Value(op.createdAt),
+        ),
+        onConflict: DoNothing(),
+      );
 
   Future<void> add(CountdownPendingOp op) async {
     await _ensureLoaded();
     _ops.add(op);
-    await _save();
+    await _insert(op);
   }
 
   Future<List<CountdownPendingOp>> items() async {
@@ -136,7 +181,10 @@ class CountdownWriteQueue {
     await _ensureLoaded();
     final before = _ops.length;
     _ops.removeWhere((op) => op.opId == opId);
-    if (_ops.length != before) await _save();
+    if (_ops.length == before) return;
+    await (_db.delete(_db.countdownOutbox)
+          ..where((row) => row.opId.equals(opId)))
+        .go();
   }
 
   Future<void> replaceCountdownId(int tempId, int realId) async {
@@ -144,27 +192,32 @@ class CountdownWriteQueue {
     var changed = false;
     for (var i = 0; i < _ops.length; i++) {
       final op = _ops[i];
-      if (op.countdownId == tempId) {
-        _ops[i] = CountdownPendingOp(
-          opId: op.opId,
-          action: op.action,
-          countdownId: realId,
-          payload: op.payload,
-          createdAt: op.createdAt,
-        );
-        changed = true;
-      }
+      if (op.countdownId != tempId) continue;
+      _ops[i] = CountdownPendingOp(
+        opId: op.opId,
+        action: op.action,
+        countdownId: realId,
+        payload: op.payload,
+        createdAt: op.createdAt,
+      );
+      changed = true;
     }
-    if (changed) await _save();
+    if (!changed) return;
+    await (_db.update(_db.countdownOutbox)
+          ..where((row) => row.countdownId.equals(tempId)))
+        .write(CountdownOutboxCompanion(countdownId: Value(realId)));
   }
 
-  /// Drops every queued op for an unsynced temp countdown (offline create undone).
+  /// Drops every queued op for an unsynced temp countdown (create undone).
   Future<void> cancelTemp(int tempId) async {
     await _ensureLoaded();
     if (tempId >= 0) return;
     final before = _ops.length;
     _ops.removeWhere((op) => op.countdownId == tempId);
-    if (_ops.length != before) await _save();
+    if (_ops.length == before) return;
+    await (_db.delete(_db.countdownOutbox)
+          ..where((row) => row.countdownId.equals(tempId)))
+        .go();
   }
 
   /// Rewrites the payload of the pending create for a temp countdown.
@@ -176,17 +229,22 @@ class CountdownWriteQueue {
     await _ensureLoaded();
     for (var i = 0; i < _ops.length; i++) {
       final op = _ops[i];
-      if (op.action == 'create' && op.countdownId == tempId) {
-        _ops[i] = CountdownPendingOp(
-          opId: op.opId,
-          action: op.action,
-          countdownId: op.countdownId,
-          payload: payload,
-          createdAt: op.createdAt,
-        );
-        await _save();
-        return true;
-      }
+      if (op.action != 'create' || op.countdownId != tempId) continue;
+      _ops[i] = CountdownPendingOp(
+        opId: op.opId,
+        action: op.action,
+        countdownId: op.countdownId,
+        payload: payload,
+        createdAt: op.createdAt,
+      );
+      await (_db.update(_db.countdownOutbox)
+            ..where((row) => row.opId.equals(op.opId)))
+          .write(
+            CountdownOutboxCompanion(
+              payload: Value(encodeJsonObject(payload)),
+            ),
+          );
+      return true;
     }
     return false;
   }

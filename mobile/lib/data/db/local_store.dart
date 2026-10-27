@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/drift.dart' show BooleanExpressionOperators, DoUpdate;
 import 'package:path/path.dart' as p;
 
 import '../../core/models.dart';
-import '../storage_paths.dart';
 import '../remote/sync_api.dart';
+import '../storage_paths.dart';
+import 'local_database.dart';
 
 /// A pending local operation. Stored in the same file as the business data so
 /// a crash cannot lose the intent to push.
@@ -128,26 +130,42 @@ class ConflictRecord {
   );
 }
 
-/// Local-first store for P0.
+/// Local-first store.
 ///
-/// The production plan calls for drift/SQLite. That package could not be
-/// fetched in the current build environment, so P0 uses an atomic JSON file
-/// behind this class. Every caller only sees this API, so swapping in drift
-/// later is a storage-layer change, not a sync-engine rewrite.
+/// Two layers: the maps below answer every read synchronously (the sync engine
+/// and the whole UI rely on that), and SQLite via drift is the durable journal
+/// underneath. Each mutation updates memory, then writes the touched rows
+/// inside one transaction; `batch` collapses a group of mutations into a single
+/// transaction and a single change event.
 class LocalStore {
-  LocalStore._(this._file);
+  LocalStore._(this._db, this._legacyFile, this._ownsDatabase);
 
-  factory LocalStore.memory() => LocalStore._(null);
+  /// Pure in-memory store: no SQLite, no persistence. Used by widget tests,
+  /// whose fake async zone cannot drive a real database connection.
+  factory LocalStore.memory() => LocalStore._(null, null, false);
 
+  /// `path` is the legacy JSON data file. It becomes the sibling `.db` SQLite
+  /// file; when that database is still empty and the JSON file has content,
+  /// the data is imported once and the JSON renamed to `.migrated.bak`.
   static Future<LocalStore> open({String? path}) async {
-    final filePath =
+    final requested =
         path ?? p.join((await appStorageDirectory()).path, 'caldav_free.json');
-    final store = LocalStore._(File(filePath));
+    final legacy = p.extension(requested) == '.json' ? File(requested) : null;
+    final dbPath = '${p.withoutExtension(requested)}.db';
+    // An explicit path (tests) gets a private connection; the app's data
+    // directory uses the process-wide one shared with the write queues.
+    final store = LocalStore._(
+      path == null ? sharedAppDatabase(dbPath) : AppDatabase.file(dbPath),
+      legacy,
+      path != null,
+    );
     await store._load();
     return store;
   }
 
-  final File? _file;
+  final AppDatabase? _db;
+  final File? _legacyFile;
+  final bool _ownsDatabase;
 
   final Map<String, TaskItem> _tasks = {};
   final Set<String> _dirtyTasks = {};
@@ -156,6 +174,17 @@ class LocalStore {
   final Map<String, FolderItem> _folders = {};
   final Map<String, OutboxRecord> _outbox = {};
   final Map<String, ConflictRecord> _conflicts = {};
+
+  /// Ids written or deleted since the last flush. Rows are read back from the
+  /// maps at flush time, so a batch only persists its final state.
+  final Set<String> _wTasks = {};
+  final Set<String> _wLists = {};
+  final Set<String> _wSections = {};
+  final Set<String> _wFolders = {};
+  final Set<String> _wOutbox = {};
+  final Set<String> _wConflicts = {};
+  bool _wMeta = false;
+  bool _wipe = false;
 
   final StreamController<void> _changes = StreamController<void>.broadcast();
   Future<void> _tail = Future<void>.value();
@@ -366,6 +395,7 @@ class LocalStore {
       } else {
         _dirtyTasks.remove(task.id);
       }
+      _wTasks.add(task.id);
     });
   }
 
@@ -373,42 +403,49 @@ class LocalStore {
     return _mutate(() {
       _tasks.remove(id);
       _dirtyTasks.remove(id);
+      _wTasks.add(id);
     });
   }
 
   Future<void> saveList(TaskListItem list, {bool dirty = false}) {
     return _mutate(() {
       _lists[list.id] = list;
+      _wLists.add(list.id);
     });
   }
 
   Future<void> hardDeleteList(String id) {
     return _mutate(() {
       _lists.remove(id);
+      _wLists.add(id);
     });
   }
 
   Future<void> saveFolder(FolderItem folder) {
     return _mutate(() {
       _folders[folder.id] = folder;
+      _wFolders.add(folder.id);
     });
   }
 
   Future<void> saveSection(TaskSection section) {
     return _mutate(() {
       _sections[section.id] = section;
+      _wSections.add(section.id);
     });
   }
 
   Future<void> hardDeleteSection(String id) {
     return _mutate(() {
       _sections.remove(id);
+      _wSections.add(id);
     });
   }
 
   Future<void> hardDeleteFolder(String id) {
     return _mutate(() {
       _folders.remove(id);
+      _wFolders.add(id);
     });
   }
 
@@ -416,6 +453,7 @@ class LocalStore {
     return _mutate(() {
       _cursor = cursor.isEmpty ? '0' : cursor;
       _syncedAt = DateTime.now().toUtc();
+      _wMeta = true;
     });
   }
 
@@ -443,20 +481,24 @@ class LocalStore {
         nextTryAt: nextTryAt ?? now,
         createdAt: createdAt ?? now,
       );
+      _wOutbox.add(opId);
     });
   }
 
   Future<void> removeOp(String opId) {
     return _mutate(() {
       _outbox.remove(opId);
+      _wOutbox.add(opId);
     });
   }
 
   Future<void> removeOpsForEntity(String entity, String entityId) {
     return _mutate(() {
-      _outbox.removeWhere(
-        (key, op) => op.entity == entity && op.entityId == entityId,
-      );
+      _outbox.removeWhere((key, op) {
+        final match = op.entity == entity && op.entityId == entityId;
+        if (match) _wOutbox.add(key);
+        return match;
+      });
     });
   }
 
@@ -469,6 +511,7 @@ class LocalStore {
       final op = _outbox[opId];
       if (op == null) return;
       _outbox[opId] = op.copyWith(attempts: attempts, nextTryAt: nextTryAt);
+      _wOutbox.add(opId);
     });
   }
 
@@ -479,6 +522,9 @@ class LocalStore {
     return _mutate(() {
       _outbox.remove(oldOpId);
       _outbox[replacement.opId] = replacement;
+      _wOutbox
+        ..add(oldOpId)
+        ..add(replacement.opId);
     });
   }
 
@@ -496,17 +542,22 @@ class LocalStore {
         remote: remote,
         createdAt: DateTime.now().toUtc(),
       );
+      _wConflicts.add('$entity:$entityId');
     });
   }
 
   Future<void> clearConflict(String entity, String entityId) {
     return _mutate(() {
       _conflicts.remove('$entity:$entityId');
+      _wConflicts.add('$entity:$entityId');
     });
   }
 
   Future<void> setAccent(String value) {
-    return _mutate(() => _accent = value);
+    return _mutate(() {
+      _accent = value;
+      _wMeta = true;
+    });
   }
 
   Future<void> clearAll() {
@@ -520,80 +571,71 @@ class LocalStore {
       _conflicts.clear();
       _cursor = '0';
       _syncedAt = null;
+      _wTasks.clear();
+      _wLists.clear();
+      _wSections.clear();
+      _wFolders.clear();
+      _wOutbox.clear();
+      _wConflicts.clear();
+      _wMeta = false;
+      _wipe = true;
     });
   }
 
   Future<void> dispose() async {
     unawaited(_changes.close());
+    final db = _db;
+    // The in-memory store has nothing to flush; awaiting here would stall the
+    // fake-async zone that widget tests run their teardown in.
+    if (db == null) return;
+    await _tail;
+    if (!_ownsDatabase) {
+      await closeSharedAppDatabase();
+      return;
+    }
+    await db.close();
   }
 
   // ------------------------------------------------------------ persistence
 
   Future<void> _load() async {
-    final file = _file;
-    if (file == null || !await file.exists()) return;
+    final db = _db;
+    if (db == null) return;
+    _cursor = await db.metaValue(cursorKey) ?? '0';
+    _syncedAt = _date(await db.metaValue(syncedAtKey));
+    _accent = await db.metaValue(accentKey) ?? '#3563F0';
+    for (final row in await db.select(db.tasks).get()) {
+      _tasks[row.syncId] = row.toModel();
+      if (row.dirty) _dirtyTasks.add(row.syncId);
+    }
+    for (final row in await db.select(db.taskLists).get()) {
+      _lists[row.syncId] = row.toModel();
+    }
+    for (final row in await db.select(db.taskSections).get()) {
+      _sections[row.syncId] = row.toModel();
+    }
+    for (final row in await db.select(db.folders).get()) {
+      _folders[row.syncId] = row.toModel();
+    }
+    for (final row in await db.select(db.outbox).get()) {
+      _outbox[row.opId] = _outboxFrom(row);
+    }
+    for (final row in await db.select(db.conflicts).get()) {
+      _conflicts['${row.entity}:${row.entityId}'] = _conflictFrom(row);
+    }
+    await _importLegacyJson();
+  }
+
+  /// One-time upgrade from the pre-SQLite JSON file. The imported rows are
+  /// flushed into the database and the JSON is kept aside as a backup.
+  Future<void> _importLegacyJson() async {
+    final file = _legacyFile;
+    if (file == null || _hasData() || !await file.exists()) return;
+    Map<String, dynamic> decoded;
     try {
-      final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map<String, dynamic>) return;
-      _cursor = (decoded['cursor'] ?? '0').toString();
-      _syncedAt = _date(decoded['syncedAt']);
-      _accent = (decoded['accent'] ?? '#3563F0').toString();
-      final tasks = decoded['tasks'];
-      if (tasks is Map<String, dynamic>) {
-        for (final entry in tasks.entries) {
-          final value = entry.value;
-          if (value is! Map<String, dynamic>) continue;
-          final data = value['data'];
-          if (data is! Map<String, dynamic>) continue;
-          _tasks[entry.key] = TaskItem.fromWireJson(data);
-          if (value['dirty'] == true) _dirtyTasks.add(entry.key);
-        }
-      }
-      final lists = decoded['lists'];
-      if (lists is Map<String, dynamic>) {
-        for (final entry in lists.entries) {
-          final value = entry.value;
-          if (value is Map<String, dynamic>) {
-            _lists[entry.key] = TaskListItem.fromWireJson(value);
-          }
-        }
-      }
-      final sections = decoded['sections'];
-      if (sections is Map<String, dynamic>) {
-        for (final entry in sections.entries) {
-          final value = entry.value;
-          if (value is Map<String, dynamic>) {
-            _sections[entry.key] = TaskSection.fromWireJson(value);
-          }
-        }
-      }
-      final folders = decoded['folders'];
-      if (folders is Map<String, dynamic>) {
-        for (final entry in folders.entries) {
-          final value = entry.value;
-          if (value is Map<String, dynamic>) {
-            _folders[entry.key] = FolderItem.fromWireJson(value);
-          }
-        }
-      }
-      final outbox = decoded['outbox'];
-      if (outbox is Map<String, dynamic>) {
-        for (final entry in outbox.entries) {
-          final value = entry.value;
-          if (value is Map<String, dynamic>) {
-            _outbox[entry.key] = OutboxRecord.fromJson(value);
-          }
-        }
-      }
-      final conflicts = decoded['conflicts'];
-      if (conflicts is Map<String, dynamic>) {
-        for (final entry in conflicts.entries) {
-          final value = entry.value;
-          if (value is Map<String, dynamic>) {
-            _conflicts[entry.key] = ConflictRecord.fromJson(value);
-          }
-        }
-      }
+      final raw = jsonDecode(await file.readAsString());
+      if (raw is! Map<String, dynamic>) return;
+      decoded = raw;
     } on FormatException {
       // Keep the damaged file for inspection and start clean.
       try {
@@ -603,30 +645,119 @@ class LocalStore {
       } on FileSystemException {
         // Ignore; a clean start is still better than failing to boot.
       }
+      return;
+    }
+    _cursor = (decoded['cursor'] ?? '0').toString();
+    _syncedAt = _date(decoded['syncedAt']);
+    _accent = (decoded['accent'] ?? '#3563F0').toString();
+    final tasks = decoded['tasks'];
+    if (tasks is Map<String, dynamic>) {
+      for (final entry in tasks.entries) {
+        final value = entry.value;
+        if (value is! Map<String, dynamic>) continue;
+        final data = value['data'];
+        if (data is! Map<String, dynamic>) continue;
+        _tasks[entry.key] = TaskItem.fromWireJson(data);
+        if (value['dirty'] == true) _dirtyTasks.add(entry.key);
+      }
+    }
+    for (final key in const ['lists', 'sections', 'folders']) {
+      final raw = decoded[key];
+      if (raw is! Map<String, dynamic>) continue;
+      for (final entry in raw.entries) {
+        final value = entry.value;
+        if (value is! Map<String, dynamic>) continue;
+        switch (key) {
+          case 'lists':
+            _lists[entry.key] = TaskListItem.fromWireJson(value);
+          case 'sections':
+            _sections[entry.key] = TaskSection.fromWireJson(value);
+          default:
+            _folders[entry.key] = FolderItem.fromWireJson(value);
+        }
+      }
+    }
+    final outbox = decoded['outbox'];
+    if (outbox is Map<String, dynamic>) {
+      for (final entry in outbox.entries) {
+        final value = entry.value;
+        if (value is Map<String, dynamic>) {
+          _outbox[entry.key] = OutboxRecord.fromJson(value);
+        }
+      }
+    }
+    final conflicts = decoded['conflicts'];
+    if (conflicts is Map<String, dynamic>) {
+      for (final entry in conflicts.entries) {
+        final value = entry.value;
+        if (value is Map<String, dynamic>) {
+          _conflicts[entry.key] = ConflictRecord.fromJson(value);
+        }
+      }
+    }
+    _wTasks.addAll(_tasks.keys);
+    _wLists.addAll(_lists.keys);
+    _wSections.addAll(_sections.keys);
+    _wFolders.addAll(_folders.keys);
+    _wOutbox.addAll(_outbox.keys);
+    _wConflicts.addAll(_conflicts.keys);
+    _wMeta = true;
+    await _persist();
+    try {
+      await file.rename('${file.path}.migrated.bak');
+    } on FileSystemException {
+      // Another process beat us to it; the data is already in SQLite.
     }
   }
 
-  Map<String, dynamic> _toJson() => {
-    'schema': 1,
-    'cursor': _cursor,
-    if (_syncedAt != null) 'syncedAt': _syncedAt!.toUtc().toIso8601String(),
-    'accent': _accent,
-    'tasks': _tasks.map(
-      (id, task) => MapEntry(id, {
-        'dirty': _dirtyTasks.contains(id),
-        'data': task.toWireJson(),
-      }),
-    ),
-    'lists': _lists.map((id, list) => MapEntry(id, list.toWireJson())),
-    'sections': _sections.map(
-      (id, section) => MapEntry(id, section.toWireJson()),
-    ),
-    'folders': _folders.map((id, folder) => MapEntry(id, folder.toWireJson())),
-    'outbox': _outbox.map((id, op) => MapEntry(id, op.toJson())),
-    'conflicts': _conflicts.map(
-      (id, conflict) => MapEntry(id, conflict.toJson()),
-    ),
-  };
+  bool _hasData() =>
+      _tasks.isNotEmpty ||
+      _lists.isNotEmpty ||
+      _sections.isNotEmpty ||
+      _folders.isNotEmpty ||
+      _outbox.isNotEmpty ||
+      _conflicts.isNotEmpty ||
+      _cursor != '0';
+
+  OutboxRecord _outboxFrom(OutboxRow row) => OutboxRecord(
+    opId: row.opId,
+    entity: row.entity,
+    entityId: row.entityId,
+    action: row.op,
+    patch: decodeJsonObject(row.patch) ?? const {},
+    baseEtag: row.baseEtag,
+    attempts: row.attempts,
+    nextTryAt: row.nextTryAt,
+    createdAt: row.createdAt,
+  );
+
+  OutboxRow _outboxRow(OutboxRecord op) => OutboxRow(
+    opId: op.opId,
+    entity: op.entity,
+    entityId: op.entityId,
+    op: op.action,
+    patch: encodeJsonObject(op.patch),
+    baseEtag: op.baseEtag,
+    attempts: op.attempts,
+    nextTryAt: op.nextTryAt,
+    createdAt: op.createdAt,
+  );
+
+  ConflictRecord _conflictFrom(ConflictRow row) => ConflictRecord(
+    entity: row.entity,
+    entityId: row.entityId,
+    localPatch: decodeJsonObject(row.localPatch) ?? const {},
+    remote: decodeJsonObject(row.remote) ?? const {},
+    createdAt: row.createdAt,
+  );
+
+  ConflictRow _conflictRow(ConflictRecord record) => ConflictRow(
+    entity: record.entity,
+    entityId: record.entityId,
+    localPatch: encodeJsonObject(record.localPatch),
+    remote: encodeJsonObject(record.remote),
+    createdAt: record.createdAt,
+  );
 
   Future<T> _mutate<T>(FutureOr<T> Function() action) {
     if (_batching) {
@@ -669,13 +800,148 @@ class LocalStore {
   }
 
   Future<void> _persist() async {
-    final file = _file;
-    if (file == null) return;
-    await file.parent.create(recursive: true);
-    final temp = File('${file.path}.tmp');
-    await temp.writeAsString(jsonEncode(_toJson()), flush: true);
-    if (await file.exists()) await file.delete();
-    await temp.rename(file.path);
+    final db = _db;
+    if (db == null) {
+      _wipe = false;
+      _wTasks.clear();
+      _wLists.clear();
+      _wSections.clear();
+      _wFolders.clear();
+      _wOutbox.clear();
+      _wConflicts.clear();
+      _wMeta = false;
+      return;
+    }
+    final wipe = _wipe;
+    final taskIds = _wTasks.toList();
+    final listIds = _wLists.toList();
+    final sectionIds = _wSections.toList();
+    final folderIds = _wFolders.toList();
+    final opIds = _wOutbox.toList();
+    final conflictKeys = _wConflicts.toList();
+    final writeMeta = _wMeta;
+    _wipe = false;
+    _wTasks.clear();
+    _wLists.clear();
+    _wSections.clear();
+    _wFolders.clear();
+    _wOutbox.clear();
+    _wConflicts.clear();
+    _wMeta = false;
+    if (!wipe &&
+        !writeMeta &&
+        taskIds.isEmpty &&
+        listIds.isEmpty &&
+        sectionIds.isEmpty &&
+        folderIds.isEmpty &&
+        opIds.isEmpty &&
+        conflictKeys.isEmpty) {
+      return;
+    }
+    await db.transaction(() async {
+      if (wipe) {
+        await db.delete(db.tasks).go();
+        await db.delete(db.taskLists).go();
+        await db.delete(db.taskSections).go();
+        await db.delete(db.folders).go();
+        await db.delete(db.outbox).go();
+        await db.delete(db.conflicts).go();
+        await db.delete(db.meta).go();
+      }
+      for (final id in taskIds) {
+        final item = _tasks[id];
+        if (item == null) {
+          await (db.delete(db.tasks)
+                ..where((row) => row.syncId.equals(id)))
+              .go();
+          continue;
+        }
+        final row = item.toRow(dirty: _dirtyTasks.contains(id));
+        await db
+            .into(db.tasks)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      for (final id in listIds) {
+        final item = _lists[id];
+        if (item == null) {
+          await (db.delete(db.taskLists)
+                ..where((row) => row.syncId.equals(id)))
+              .go();
+          continue;
+        }
+        final row = item.toRow();
+        await db
+            .into(db.taskLists)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      for (final id in sectionIds) {
+        final item = _sections[id];
+        if (item == null) {
+          await (db.delete(db.taskSections)
+                ..where((row) => row.syncId.equals(id)))
+              .go();
+          continue;
+        }
+        final row = item.toRow();
+        await db
+            .into(db.taskSections)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      for (final id in folderIds) {
+        final item = _folders[id];
+        if (item == null) {
+          await (db.delete(db.folders)
+                ..where((row) => row.syncId.equals(id)))
+              .go();
+          continue;
+        }
+        final row = item.toRow();
+        await db
+            .into(db.folders)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      for (final id in opIds) {
+        final op = _outbox[id];
+        if (op == null) {
+          await (db.delete(db.outbox)
+                ..where((row) => row.opId.equals(id)))
+              .go();
+          continue;
+        }
+        final row = _outboxRow(op);
+        await db
+            .into(db.outbox)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      for (final key in conflictKeys) {
+        final record = _conflicts[key];
+        if (record == null) {
+          final sep = key.indexOf(':');
+          final entity = sep < 0 ? key : key.substring(0, sep);
+          final entityId = sep < 0 ? '' : key.substring(sep + 1);
+          await (db.delete(db.conflicts)
+                ..where(
+                  (row) =>
+                      row.entity.equals(entity) & row.entityId.equals(entityId),
+                ))
+              .go();
+          continue;
+        }
+        final row = _conflictRow(record);
+        await db
+            .into(db.conflicts)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      if (writeMeta) {
+        await db.putMeta(cursorKey, _cursor);
+        if (_syncedAt == null) {
+          await db.deleteMeta(syncedAtKey);
+        } else {
+          await db.putMeta(syncedAtKey, _syncedAt!.toUtc().toIso8601String());
+        }
+        await db.putMeta(accentKey, _accent);
+      }
+    });
   }
 }
 

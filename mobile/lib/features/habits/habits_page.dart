@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../data/habits/habit_api.dart';
+import '../../data/habits/habit_store.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
@@ -17,91 +18,51 @@ class HabitsPage extends StatefulWidget {
 }
 
 class _HabitsPageState extends State<HabitsPage> {
-  HabitApi? _api;
-  HabitSnapshot? _snapshot;
-  bool _loading = false;
+  HabitStore? _store;
+  HabitSnapshot _snapshot = const HabitSnapshot(
+    habits: [],
+    checkins: [],
+    sections: [],
+    preferences: {},
+  );
   int _selectedStamp = _stampFor(DateTime.now());
-  bool _connected = false;
-  Timer? _retryTimer;
 
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session;
-    if (session != null) {
-      _api = HabitApi(
-        baseUrl: session.baseUrl,
-        username: session.username,
-        password: session.password,
-      );
-    }
+    _attach(context.read<AppState>().habits);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final connected = context.watch<AppState>().connected;
-    if (connected == _connected && _api != null) return;
-    _connected = connected;
-    _api?.close();
-    final session = context.read<AppState>().session;
-    _api = connected && session != null
-        ? HabitApi(
-            baseUrl: session.baseUrl,
-            username: session.username,
-            password: session.password,
-          )
-        : null;
-    if (_api != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_load());
-      });
-    } else if (mounted) {
-      setState(() {
-        _snapshot = null;
-        _loading = false;
-      });
-    }
+    _attach(context.read<AppState>().habits);
+  }
+
+  /// The page renders the local mirror only. The sync thread pushes queued
+  /// edits and refreshes the mirror in the background; this listener is how
+  /// those silent updates reach the screen.
+  void _attach(HabitStore store) {
+    if (identical(_store, store)) return;
+    _store?.removeListener(_onStoreChanged);
+    _store = store..addListener(_onStoreChanged);
+    _snapshot = store.snapshot;
+  }
+
+  void _onStoreChanged() {
+    final store = _store;
+    if (store == null || !mounted) return;
+    setState(() => _snapshot = store.snapshot);
   }
 
   @override
   void dispose() {
-    _retryTimer?.cancel();
-    _api?.close();
+    _store?.removeListener(_onStoreChanged);
+    _store = null;
     super.dispose();
   }
 
-  Future<void> _load({bool showLoading = true}) async {
-    if (_api == null) return;
-    if (showLoading && mounted) {
-      setState(() {
-        _loading = true;
-      });
-    }
-    try {
-      final snapshot = await _api!.load();
-      _retryTimer?.cancel();
-      _retryTimer = null;
-      if (!mounted) return;
-      setState(() {
-        _snapshot = snapshot;
-        _loading = false;
-      });
-    } catch (_) {
-      _scheduleRetry();
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-      });
-    }
-  }
-
-  void _scheduleRetry() {
-    if (_retryTimer != null || _api == null) return;
-    _retryTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      unawaited(_load(showLoading: false));
-    });
-  }
+  Future<void> _sync() => context.read<AppState>().syncNow();
 
   int get _todayStamp => _stampFor(DateTime.now());
 
@@ -110,9 +71,7 @@ class _HabitsPageState extends State<HabitsPage> {
   bool get _selectedIsToday => _selectedStamp == _todayStamp;
 
   HabitCheckinItem? _checkinFor(HabitItem habit, int stamp) {
-    final snapshot = _snapshot;
-    if (snapshot == null) return null;
-    for (final checkin in snapshot.checkins) {
+    for (final checkin in _snapshot.checkins) {
       if (checkin.habitId == habit.id && checkin.stamp == stamp) {
         return checkin;
       }
@@ -120,85 +79,10 @@ class _HabitsPageState extends State<HabitsPage> {
     return null;
   }
 
-  void _fail(String title, Object error) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$title：$error')),
-    );
-  }
-
-  HabitSnapshot get _baseSnapshot =>
-      _snapshot ??
-      const HabitSnapshot(
-        habits: [],
-        checkins: [],
-        sections: [],
-        preferences: {},
-      );
-
-  void _applyHabitUpsert(HabitItem item) {
-    final base = _baseSnapshot;
-    final habits = base.habits.where((h) => h.id != item.id).toList();
-    habits.add(item);
-    setState(() {
-      _snapshot = HabitSnapshot(
-        habits: habits,
-        checkins: base.checkins,
-        sections: base.sections,
-        preferences: base.preferences,
-      );
-    });
-  }
-
-  void _applyHabitDelete(int id) {
-    final base = _baseSnapshot;
-    setState(() {
-      _snapshot = HabitSnapshot(
-        habits: base.habits.where((h) => h.id != id).toList(),
-        checkins: base.checkins.where((c) => c.habitId != id).toList(),
-        sections: base.sections,
-        preferences: base.preferences,
-      );
-    });
-  }
-
-  void _applyCheckin(HabitItem habit, int stamp) {
-    final base = _baseSnapshot;
-    setState(() {
-      _snapshot = HabitSnapshot(
-        habits: [
-          for (final h in base.habits)
-            if (h.id == habit.id)
-              h.copyWith(doneToday: true, currentStreak: h.currentStreak + 1)
-            else
-              h,
-        ],
-        checkins: [
-          ...base.checkins.where(
-            (c) => !(c.habitId == habit.id && c.stamp == stamp),
-          ),
-          HabitCheckinItem(
-            habitId: habit.id,
-            stamp: stamp,
-            value: habit.goal,
-            goal: habit.goal,
-            status: 2,
-          ),
-        ],
-        sections: base.sections,
-        preferences: base.preferences,
-      );
-    });
-  }
-
   Future<void> _checkin(HabitItem habit) async {
     if (_selectedIsFuture) return;
     try {
-      await _api!.checkin(habit.id, _selectedStamp);
-      _applyCheckin(habit, _selectedStamp);
-      await _load(showLoading: false);
-    } on HabitApiException catch (error) {
-      _fail('打卡失败', error);
+      await _store?.checkin(habit.id, _selectedStamp);
     } catch (error, stack) {
       debugPrint('习惯打卡本地处理失败: $error\n$stack');
     }
@@ -217,11 +101,7 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      final item = await _api!.create(draft);
-      _applyHabitUpsert(item);
-      await _load(showLoading: false);
-    } on HabitApiException catch (error) {
-      _fail('创建习惯失败', error);
+      await _store?.create(draft);
     } catch (error, stack) {
       debugPrint('习惯创建本地处理失败: $error\n$stack');
     }
@@ -236,11 +116,7 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (draft == null || !mounted) return;
     try {
-      final item = await _api!.update(habit.id, draft);
-      _applyHabitUpsert(item);
-      await _load(showLoading: false);
-    } on HabitApiException catch (error) {
-      _fail('保存习惯失败', error);
+      await _store?.update(habit.id, draft);
     } catch (error, stack) {
       debugPrint('习惯保存本地处理失败: $error\n$stack');
     }
@@ -269,11 +145,7 @@ class _HabitsPageState extends State<HabitsPage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _api!.delete(habit.id);
-      _applyHabitDelete(habit.id);
-      await _load(showLoading: false);
-    } on HabitApiException catch (error) {
-      _fail('删除失败', error);
+      await _store?.delete(habit.id);
     } catch (error, stack) {
       debugPrint('习惯删除本地处理失败: $error\n$stack');
     }
@@ -281,7 +153,6 @@ class _HabitsPageState extends State<HabitsPage> {
 
   void _openDetail(HabitItem habit) {
     final snapshot = _snapshot;
-    if (snapshot == null) return;
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -304,21 +175,10 @@ class _HabitsPageState extends State<HabitsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_api == null) {
-      return const Scaffold(
-        body: Center(
-          child: AppEmptyState(
-            icon: Icons.wifi_off_rounded,
-            title: '服务未连接',
-            message: '请先连接服务器后再查看习惯',
-          ),
-        ),
-      );
-    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final snapshot = _snapshot;
-    final active = (snapshot?.habits ?? const <HabitItem>[])
+    final active = snapshot.habits
         .where((habit) => !habit.archived)
         .toList(growable: false);
     final due = active.where((habit) => habit.dueToday).toList();
@@ -333,7 +193,7 @@ class _HabitsPageState extends State<HabitsPage> {
         : '${_selectedDate.month}月${_selectedDate.day}日 · '
               '完成 $selectedDone / ${active.length}';
     final sections = <int, String>{};
-    for (final section in snapshot?.sections ?? const []) {
+    for (final section in snapshot.sections) {
       final id = section['id'];
       final name = (section['name'] ?? '').toString().trim();
       if (id is num && name.isNotEmpty) sections[id.toInt()] = name;
@@ -379,9 +239,9 @@ class _HabitsPageState extends State<HabitsPage> {
               icon: const Icon(Icons.today_rounded),
             ),
           IconButton(
-            tooltip: '刷新习惯',
-            onPressed: _loading ? null : () => _load(),
-            icon: const Icon(Icons.refresh_rounded),
+            tooltip: '同步习惯',
+            onPressed: _sync,
+            icon: const Icon(Icons.sync_rounded),
           ),
           const SizedBox(width: 6),
         ],
@@ -394,17 +254,13 @@ class _HabitsPageState extends State<HabitsPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_loading) const LinearProgressIndicator(minHeight: 2),
-          if (snapshot != null)
-            _HabitWeekStrip(
-              today: DateTime.now(),
-              selectedStamp: _selectedStamp,
-              onSelected: (stamp) => setState(() => _selectedStamp = stamp),
-            ),
+          _HabitWeekStrip(
+            today: DateTime.now(),
+            selectedStamp: _selectedStamp,
+            onSelected: (stamp) => setState(() => _selectedStamp = stamp),
+          ),
           Expanded(
-            child: snapshot == null && _loading
-                ? const Center(child: CircularProgressIndicator())
-                : active.isEmpty
+            child: active.isEmpty
                 ? Center(
                     child: AppEmptyState(
                       icon: Icons.local_fire_department_outlined,
@@ -417,7 +273,7 @@ class _HabitsPageState extends State<HabitsPage> {
                     ),
                   )
                 : RefreshIndicator(
-                    onRefresh: () => _load(showLoading: false),
+                    onRefresh: _sync,
                     child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(20, 4, 20, 108),

@@ -30,8 +30,6 @@ class _SearchPageState extends State<SearchPage> {
   StreamSubscription<List<TaskItem>>? _openSub;
   StreamSubscription<List<TaskItem>>? _doneSub;
   CalendarApi? _calendarApi;
-  HabitApi? _habitApi;
-  CountdownApi? _countdownApi;
 
   List<TaskItem> _tasks = const [];
   List<CalendarEvent> _events = const [];
@@ -63,18 +61,12 @@ class _SearchPageState extends State<SearchPage> {
         _tasks = [..._tasks.where((task) => !task.completed), ...tasks];
       });
     });
+    // Habit and countdown results come from the local mirrors, so search is
+    // complete offline as well.
+    _habits = app.habits.snapshot.habits;
+    _countdowns = app.countdowns.items;
     if (session != null) {
       _calendarApi = CalendarApi(
-        baseUrl: session.baseUrl,
-        username: session.username,
-        password: session.password,
-      );
-      _habitApi = HabitApi(
-        baseUrl: session.baseUrl,
-        username: session.username,
-        password: session.password,
-      );
-      _countdownApi = CountdownApi(
         baseUrl: session.baseUrl,
         username: session.username,
         password: session.password,
@@ -88,8 +80,6 @@ class _SearchPageState extends State<SearchPage> {
     _openSub?.cancel();
     _doneSub?.cancel();
     _calendarApi?.close();
-    _habitApi?.close();
-    _countdownApi?.close();
     _query.dispose();
     _queryFocus.dispose();
     super.dispose();
@@ -97,9 +87,8 @@ class _SearchPageState extends State<SearchPage> {
 
   Future<void> _loadRemote() async {
     final calendar = _calendarApi;
-    final habits = _habitApi;
-    final countdowns = _countdownApi;
-    if (calendar == null || habits == null || countdowns == null) return;
+    if (calendar == null) return;
+    // Only calendar events are a live date-range query.
     setState(() {
       _remoteLoading = true;
       _remoteError = null;
@@ -108,8 +97,6 @@ class _SearchPageState extends State<SearchPage> {
     final from = DateTime(now.year, now.month - 1, 1);
     final to = DateTime(now.year, now.month + 2, 1);
     List<CalendarEvent> events = const [];
-    List<HabitItem> habitItems = const [];
-    List<CountdownItem> countdownItems = const [];
     String? error;
     Future<void> loadEvents() async {
       try {
@@ -122,33 +109,10 @@ class _SearchPageState extends State<SearchPage> {
       }
     }
 
-    Future<void> loadHabits() async {
-      try {
-        final snapshot = await habits.fetch().timeout(
-          const Duration(seconds: 8),
-        );
-        habitItems = snapshot.habits;
-      } catch (value) {
-        error ??= value.toString();
-      }
-    }
-
-    Future<void> loadCountdowns() async {
-      try {
-        countdownItems = await countdowns.fetch().timeout(
-          const Duration(seconds: 8),
-        );
-      } catch (value) {
-        error ??= value.toString();
-      }
-    }
-
-    await Future.wait([loadEvents(), loadHabits(), loadCountdowns()]);
+    await loadEvents();
     if (!mounted) return;
     setState(() {
       _events = events;
-      _habits = habitItems;
-      _countdowns = countdownItems;
       _remoteLoading = false;
       _remoteError = error;
     });

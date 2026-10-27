@@ -167,6 +167,10 @@ class LocalStore {
   final File? _legacyFile;
   final bool _ownsDatabase;
 
+  /// The database behind this store, or null in memory-only mode. Habit and
+  /// countdown mirrors open their tables on the same connection.
+  AppDatabase? get database => _db;
+
   final Map<String, TaskItem> _tasks = {};
   final Set<String> _dirtyTasks = {};
   final Map<String, TaskListItem> _lists = {};

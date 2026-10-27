@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caldav_free/data/habits/habit_api.dart';
+import 'package:caldav_free/data/habits/habit_store.dart';
 import 'package:caldav_free/data/habits/habit_write_queue.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -90,15 +91,17 @@ void main() {
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
     });
+    final queue = HabitWriteQueue.inMemory();
     final api = HabitApi(
       baseUrl: 'http://example.test',
       username: 'demo',
       password: 'secret',
       client: client,
-      writeQueue: HabitWriteQueue.inMemory(),
+      writeQueue: queue,
     );
-    await api.checkin(1, 20261025);
-    final created = await api.create(
+    final store = HabitStore.inMemory(queue: queue);
+    await store.checkin(1, 20261025);
+    final created = await store.create(
       const HabitDraft(name: '早起', color: '#22c55e'),
     );
     expect(created.id, lessThan(0));

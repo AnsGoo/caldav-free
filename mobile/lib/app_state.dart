@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import 'data/countdowns/countdown_api.dart';
+import 'data/countdowns/countdown_store.dart';
 import 'data/db/local_store.dart';
 import 'data/engine/sync_controller.dart';
 import 'data/engine/sync_engine.dart';
 import 'data/habits/habit_api.dart';
+import 'data/habits/habit_store.dart';
 import 'data/reminders/reminder_scheduler.dart';
 import 'data/remote/sync_api.dart';
 import 'data/session/credentials.dart';
@@ -19,17 +21,28 @@ class AppState extends ChangeNotifier {
     required this.store,
     required this.credentials,
     required this.repository,
-  });
+    HabitStore? habits,
+    CountdownStore? countdowns,
+  }) : habits = habits ?? HabitStore.inMemory(),
+       countdowns = countdowns ?? CountdownStore.inMemory();
 
   final LocalStore store;
   final CredentialsStore credentials;
   final TaskRepository repository;
+
+  /// Habit and countdown read mirrors. Pages render from these, never from the
+  /// network; the sync thread fills them in the background.
+  final HabitStore habits;
+  final CountdownStore countdowns;
 
   Session? session;
   SyncController? syncController;
   ReminderScheduler? reminders;
   bool busy = false;
   String? error;
+
+  HabitApi? _habitApi;
+  CountdownApi? _countdownApi;
 
   VoidCallback? _syncListener;
 
@@ -96,6 +109,8 @@ class AppState extends ChangeNotifier {
           previous.baseUrl != normalized ||
           previous.username != user) {
         await store.clearAll();
+        await habits.clearMirror();
+        await countdowns.clearMirror();
       }
 
       final next = Session(
@@ -142,18 +157,18 @@ class AppState extends ChangeNotifier {
     final current = session!;
     // Local-only write queues (habits, countdowns) are replayed here, in the
     // background sync pass. Pages never touch the network for writes.
-    final queueFlushers = <Future<void> Function()>{
-      HabitApi(
-        baseUrl: current.baseUrl,
-        username: current.username,
-        password: current.password,
-      ).flush,
-      CountdownApi(
-        baseUrl: current.baseUrl,
-        username: current.username,
-        password: current.password,
-      ).flush,
-    }.toList();
+    final habitApi = HabitApi(
+      baseUrl: current.baseUrl,
+      username: current.username,
+      password: current.password,
+    );
+    final countdownApi = CountdownApi(
+      baseUrl: current.baseUrl,
+      username: current.username,
+      password: current.password,
+    );
+    _habitApi = habitApi;
+    _countdownApi = countdownApi;
     final engine = SyncEngine(
       store: store,
       api: HttpSyncApi(
@@ -162,10 +177,16 @@ class AppState extends ChangeNotifier {
         password: current.password,
       ),
       deviceId: current.deviceId,
-      queueFlushers: queueFlushers,
+      queueFlushers: [habitApi.flush, countdownApi.flush],
+      mirrorPullers: [
+        () async => habits.replaceMirror(await habitApi.fetch()),
+        () async => countdowns.replaceMirror(await countdownApi.fetch()),
+      ],
     );
     final controller = SyncController(engine: engine, store: store);
     repository.onLocalChange = controller.requestSync;
+    habits.onLocalWrite = controller.requestSync;
+    countdowns.onLocalWrite = controller.requestSync;
     syncController = controller;
     _syncListener = notifyListeners;
     controller.addListener(_syncListener!);
@@ -182,6 +203,12 @@ class AppState extends ChangeNotifier {
       syncController?.removeListener(listener);
       _syncListener = null;
     }
+    habits.onLocalWrite = null;
+    countdowns.onLocalWrite = null;
+    _habitApi?.close();
+    _habitApi = null;
+    _countdownApi?.close();
+    _countdownApi = null;
   }
 
   @override
@@ -189,6 +216,8 @@ class AppState extends ChangeNotifier {
     _detachSync();
     syncController?.dispose();
     unawaited(reminders?.stop());
+    habits.dispose();
+    countdowns.dispose();
     super.dispose();
   }
 }

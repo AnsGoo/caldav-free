@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:caldav_free/core/ids.dart';
 import 'package:caldav_free/data/countdowns/countdown_api.dart';
+import 'package:caldav_free/data/countdowns/countdown_store.dart';
 import 'package:caldav_free/data/countdowns/countdown_write_queue.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -122,15 +123,16 @@ void main() {
       client: client,
       writeQueue: queue,
     );
+    final store = CountdownStore.inMemory(queue: queue);
 
-    final created = await api.create(_draft());
+    final created = await store.create(_draft());
     expect(created.id, lessThan(0));
     expect(created.name, '新年');
     expect(queue.isEmpty, isFalse);
     // Local saves never touch the network; only the background sync pass does.
     expect(calls, isEmpty);
 
-    final updated = await api.update(created.id, _draft());
+    final updated = await store.update(created.id, _draft());
     expect(updated.name, '新年');
     expect(calls, isEmpty);
     // Temp-id edits rewrite the pending create instead of adding an update.
@@ -138,7 +140,8 @@ void main() {
 
     await api.flush();
     expect(queue.isEmpty, isTrue);
-    final items = await api.load();
+    await store.replaceMirror(await api.fetch());
+    final items = store.items;
     expect(items.single.id, 2);
     expect(items.single.name, '新年');
     expect(
@@ -190,22 +193,22 @@ void main() {
       client: client,
       writeQueue: queue,
     );
+    final store = CountdownStore.inMemory(queue: queue);
 
-    final created = await api.create(_draft());
-    final items = await api.load();
+    final created = await store.create(_draft());
+    await store.replaceMirror(await api.fetch());
+    final items = store.items;
     expect(items.map((item) => item.name), containsAll(['旅行', '新年']));
     expect(items.firstWhere((item) => item.id == created.id).days, isNonNegative);
-    // Overlaying repeatedly (background retries) must stay idempotent.
-    final overlaid = await api.overlayPending(items);
-    expect(overlaid.length, items.length);
-    final twice = await api.overlayPending(overlaid);
-    expect(twice.where((item) => item.id < 0).length, 1);
+    // Reading repeatedly (background retries) must stay idempotent.
+    expect(store.items.length, items.length);
+    expect(store.items.where((item) => item.id < 0).length, 1);
     // Nothing has been pushed yet: only the background sync pass replays.
     expect((await queue.items()).length, 1);
 
-    await api.delete(created.id);
+    await store.delete(created.id);
     expect(queue.isEmpty, isTrue);
-    final afterDelete = await api.load();
+    final afterDelete = store.items;
     expect(afterDelete.map((item) => item.id), isNot(contains(created.id)));
     expect(calls.where((call) => call.startsWith('DELETE')), isEmpty);
     await api.flush();
@@ -251,11 +254,13 @@ void main() {
       client: client,
       writeQueue: queue,
     );
+    final store = CountdownStore.inMemory(queue: queue);
 
-    await api.create(_draft());
+    await store.create(_draft());
     await api.flush();
     expect(queue.isEmpty, isTrue);
-    final items = await api.load();
+    await store.replaceMirror(await api.fetch());
+    final items = store.items;
     expect(items.single.id, 7);
     expect(
       calls.where((call) => call.startsWith('POST')),

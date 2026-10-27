@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:http/http.dart' as http;
 
-import '../../core/ids.dart';
 import 'habit_write_queue.dart';
 
 class HabitItem {
@@ -231,83 +229,8 @@ class HabitApi {
     'Accept': 'application/json',
   };
 
-  /// Server snapshot plus local habits/check-ins still queued, so an offline
-  /// create keeps showing after a refresh instead of blinking out.
-  Future<HabitSnapshot> load() async {
-    final snapshot = await fetch();
-    return _overlayPending(snapshot);
-  }
-
-  Future<HabitSnapshot> _overlayPending(HabitSnapshot snapshot) async {
-    final queue = await _queue;
-    if (queue.isEmpty) return snapshot;
-    final ops = await queue.items();
-    final byId = <int, HabitItem>{for (final h in snapshot.habits) h.id: h};
-    final checkinPatch = <String, double>{};
-    final removed = <int>{};
-    for (final op in ops) {
-      switch (op.action) {
-        case 'create':
-          final payload = op.payload;
-          if (payload != null) {
-            byId[op.habitId] = _optimisticItem(op.habitId, HabitDraft.fromJson(payload));
-          }
-        case 'update':
-          final payload = op.payload;
-          final existing = byId[op.habitId];
-          if (payload != null && existing != null) {
-            byId[op.habitId] = _optimisticItem(
-              op.habitId,
-              HabitDraft.fromJson(payload),
-            ).copyWith(
-              currentStreak: existing.currentStreak,
-              maxStreak: existing.maxStreak,
-              totalCheckIns: existing.totalCheckIns,
-              dueToday: existing.dueToday,
-              doneToday: existing.doneToday,
-            );
-          }
-        case 'delete':
-          byId.remove(op.habitId);
-          removed.add(op.habitId);
-        case 'checkin':
-          final stamp = op.stamp;
-          if (stamp != null && !removed.contains(op.habitId)) {
-            checkinPatch['${op.habitId}:$stamp'] = 1;
-          }
-        default:
-          continue;
-      }
-    }
-    final checkins = [
-      for (final c in snapshot.checkins)
-        if (!checkinPatch.containsKey('${c.habitId}:${c.stamp}')) c,
-    ];
-    for (final key in checkinPatch.keys) {
-      final parts = key.split(':');
-      checkins.add(
-        HabitCheckinItem(
-          habitId: int.parse(parts[0]),
-          stamp: int.parse(parts[1]),
-          value: 1,
-          goal: byId[int.parse(parts[0])]?.goal ?? 1,
-          status: 2,
-        ),
-      );
-    }
-    final habits = byId.values.toList()
-      ..sort((a, b) {
-        final order = a.sectionId.compareTo(b.sectionId);
-        return order != 0 ? order : a.name.compareTo(b.name);
-      });
-    return HabitSnapshot(
-      habits: habits,
-      checkins: checkins,
-      sections: snapshot.sections,
-      preferences: snapshot.preferences,
-    );
-  }
-
+  /// Server snapshot for the background sync pass. Pages read the local
+  /// mirror in `HabitStore` instead of calling this.
   Future<HabitSnapshot> fetch() async {
     final body = await _request('GET', '/api/sync/habits');
     final rawCheckins = body['checkins'];
@@ -335,79 +258,6 @@ class HabitApi {
       preferences: body['preferences'] is Map<String, dynamic>
           ? body['preferences'] as Map<String, dynamic>
           : const {},
-    );
-  }
-
-  Future<HabitItem> create(HabitDraft draft) async {
-    final queue = await _queue;
-    final tempId = _newTempId();
-    await queue.add(
-      HabitPendingOp(
-        opId: newSyncId(),
-        action: 'create',
-        habitId: tempId,
-        payload: draft.toJson(),
-        createdAt: DateTime.now().toUtc(),
-      ),
-    );
-    return _optimisticItem(tempId, draft);
-  }
-
-  Future<HabitItem> update(int id, HabitDraft draft) async {
-    final queue = await _queue;
-    if (id < 0) {
-      final rewritten = await queue.replaceCreatePayload(id, draft.toJson());
-      if (!rewritten) {
-        await queue.add(
-          HabitPendingOp(
-            opId: newSyncId(),
-            action: 'create',
-            habitId: id,
-            payload: draft.toJson(),
-            createdAt: DateTime.now().toUtc(),
-          ),
-        );
-      }
-    } else {
-      await queue.add(
-        HabitPendingOp(
-          opId: newSyncId(),
-          action: 'update',
-          habitId: id,
-          payload: draft.toJson(),
-          createdAt: DateTime.now().toUtc(),
-        ),
-      );
-    }
-    return _optimisticItem(id, draft);
-  }
-
-  Future<void> delete(int id) async {
-    final queue = await _queue;
-    if (id < 0) {
-      await queue.cancelTemp(id);
-      return;
-    }
-    await queue.add(
-      HabitPendingOp(
-        opId: newSyncId(),
-        action: 'delete',
-        habitId: id,
-        createdAt: DateTime.now().toUtc(),
-      ),
-    );
-  }
-
-  Future<void> checkin(int id, int stamp) async {
-    final queue = await _queue;
-    await queue.add(
-      HabitPendingOp(
-        opId: newSyncId(),
-        action: 'checkin',
-        habitId: id,
-        stamp: stamp,
-        createdAt: DateTime.now().toUtc(),
-      ),
     );
   }
 
@@ -480,30 +330,6 @@ class HabitApi {
       error is http.ClientException ||
       error is TimeoutException ||
       error is SocketException;
-
-  static int _newTempId() =>
-      -(DateTime.now().microsecondsSinceEpoch * 10 + Random.secure().nextInt(10));
-
-  static HabitItem _optimisticItem(int id, HabitDraft draft) => HabitItem(
-    id: id,
-    name: draft.name,
-    icon: draft.icon,
-    color: draft.color,
-    sectionId: draft.sectionId,
-    goal: draft.goal,
-    step: draft.step,
-    unit: draft.unit,
-    frequency: draft.frequency,
-    status: draft.status,
-    dueToday: true,
-    doneToday: false,
-    currentStreak: 0,
-    maxStreak: 0,
-    totalCheckIns: 0,
-    targetDays: draft.targetDays,
-    completedCycles: 0,
-    startDate: 0,
-  );
 
   Future<Map<String, dynamic>> _request(
     String method,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:caldav_free/data/habits/habit_api.dart';
+import 'package:caldav_free/data/habits/habit_store.dart';
 import 'package:caldav_free/data/habits/habit_write_queue.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -18,6 +19,9 @@ HabitApi buildApi(
       writeQueue: queue,
     );
 
+HabitStore buildStore(HabitWriteQueue queue) =>
+    HabitStore.inMemory(queue: queue);
+
 http.Response jsonResponse(Map<String, Object?> body) =>
     http.Response(jsonEncode(body), 200,
         headers: {'content-type': 'application/json'});
@@ -27,11 +31,8 @@ void main() {
 
   test('offline create returns temp item and queues the op', () async {
     final queue = HabitWriteQueue.inMemory();
-    final api = buildApi(
-      MockClient((_) async => throw http.ClientException('refused')),
-      queue,
-    );
-    final item = await api.create(draft);
+    final store = buildStore(queue);
+    final item = await store.create(draft);
     expect(item.id, lessThan(0));
     expect(item.name, '跑步');
     final ops = await queue.items();
@@ -65,10 +66,11 @@ void main() {
       }
     });
     final api = buildApi(client, queue);
+    final store = buildStore(queue);
 
-    final tempItem = await api.create(draft);
+    final tempItem = await store.create(draft);
     expect(tempItem.id, lessThan(0));
-    await api.checkin(tempItem.id, 20261026);
+    await store.checkin(tempItem.id, 20261026);
     expect((await queue.items()).map((op) => op.action), [
       'create',
       'checkin',
@@ -91,23 +93,17 @@ void main() {
 
   test('deleting an unsynced temp habit cancels its queued create', () async {
     final queue = HabitWriteQueue.inMemory();
-    final api = buildApi(
-      MockClient((_) async => throw http.ClientException('refused')),
-      queue,
-    );
-    final item = await api.create(draft);
-    await api.delete(item.id);
+    final store = buildStore(queue);
+    final item = await store.create(draft);
+    await store.delete(item.id);
     expect(await queue.items(), isEmpty);
   });
 
   test('editing an unsynced temp habit rewrites the queued create', () async {
     final queue = HabitWriteQueue.inMemory();
-    final api = buildApi(
-      MockClient((_) async => throw http.ClientException('refused')),
-      queue,
-    );
-    final item = await api.create(draft);
-    await api.update(item.id, const HabitDraft(name: '游泳', color: '#00FF00'));
+    final store = buildStore(queue);
+    final item = await store.create(draft);
+    await store.update(item.id, const HabitDraft(name: '游泳', color: '#00FF00'));
     final ops = await queue.items();
     expect(ops, hasLength(1));
     expect(ops.single.payload!['name'], '游泳');

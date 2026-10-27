@@ -61,22 +61,20 @@ class CountdownPendingOp {
 class CountdownWriteQueue {
   CountdownWriteQueue._(this._db, [this._legacyFile]);
 
-  /// Memory-only queue for tests.
-  factory CountdownWriteQueue.inMemory() =>
-      CountdownWriteQueue._(AppDatabase.memory());
+  /// Memory-only queue for tests: ops live in the map, no database, no IO.
+  factory CountdownWriteQueue.inMemory() => CountdownWriteQueue._(null);
 
   /// Database-backed queue at an explicit path for tests.
   factory CountdownWriteQueue.forPath(
     String dbPath, {
     File? legacyFile,
     bool ownsDatabase = true,
-  }) =>
-      CountdownWriteQueue._(
-        ownsDatabase ? AppDatabase.file(dbPath) : sharedAppDatabase(dbPath),
-        legacyFile,
-      );
+  }) => CountdownWriteQueue._(
+    ownsDatabase ? AppDatabase.file(dbPath) : sharedAppDatabase(dbPath),
+    legacyFile,
+  );
 
-  Future<void> close() => _db.close();
+  Future<void> close() async => _db?.close();
 
   static CountdownWriteQueue? _shared;
 
@@ -93,7 +91,7 @@ class CountdownWriteQueue {
     return queue;
   }
 
-  final AppDatabase _db;
+  final AppDatabase? _db;
   final File? _legacyFile;
   final List<CountdownPendingOp> _ops = [];
   Future<void>? _loading;
@@ -101,11 +99,13 @@ class CountdownWriteQueue {
   bool get isEmpty => _ops.isEmpty;
 
   Future<void> _ensureLoaded() async {
+    if (_db == null) return;
     final inFlight = _loading;
     if (inFlight != null) return inFlight;
     _loading = () async {
-      for (final row in await (_db.select(
-        _db.countdownOutbox,
+      final db = _db;
+      for (final row in await (db.select(
+        db.countdownOutbox,
       )..orderBy([(t) => OrderingTerm.asc(t.seq)])).get()) {
         final op = _opFrom(row);
         if (op.opId.isNotEmpty && op.action.isNotEmpty) _ops.add(op);
@@ -153,18 +153,22 @@ class CountdownWriteQueue {
     createdAt: row.createdAt,
   );
 
-  Future<void> _insert(CountdownPendingOp op) => _db
-      .into(_db.countdownOutbox)
-      .insert(
-        CountdownOutboxCompanion.insert(
-          opId: op.opId,
-          action: Value(op.action),
-          countdownId: op.countdownId,
-          payload: Value(encodeJsonObject(op.payload)),
-          createdAt: Value(op.createdAt),
-        ),
-        onConflict: DoNothing(),
-      );
+  Future<void> _insert(CountdownPendingOp op) async {
+    final db = _db;
+    if (db == null) return;
+    await db
+        .into(db.countdownOutbox)
+        .insert(
+          CountdownOutboxCompanion.insert(
+            opId: op.opId,
+            action: Value(op.action),
+            countdownId: op.countdownId,
+            payload: Value(encodeJsonObject(op.payload)),
+            createdAt: Value(op.createdAt),
+          ),
+          onConflict: DoNothing(),
+        );
+  }
 
   Future<void> add(CountdownPendingOp op) async {
     await _ensureLoaded();
@@ -182,9 +186,11 @@ class CountdownWriteQueue {
     final before = _ops.length;
     _ops.removeWhere((op) => op.opId == opId);
     if (_ops.length == before) return;
-    await (_db.delete(_db.countdownOutbox)
-          ..where((row) => row.opId.equals(opId)))
-        .go();
+    final db = _db;
+    if (db == null) return;
+    await (db.delete(
+      db.countdownOutbox,
+    )..where((row) => row.opId.equals(opId))).go();
   }
 
   Future<void> replaceCountdownId(int tempId, int realId) async {
@@ -203,7 +209,9 @@ class CountdownWriteQueue {
       changed = true;
     }
     if (!changed) return;
-    await (_db.update(_db.countdownOutbox)
+    final db = _db;
+    if (db == null) return;
+    await (db.update(db.countdownOutbox)
           ..where((row) => row.countdownId.equals(tempId)))
         .write(CountdownOutboxCompanion(countdownId: Value(realId)));
   }
@@ -215,9 +223,11 @@ class CountdownWriteQueue {
     final before = _ops.length;
     _ops.removeWhere((op) => op.countdownId == tempId);
     if (_ops.length == before) return;
-    await (_db.delete(_db.countdownOutbox)
-          ..where((row) => row.countdownId.equals(tempId)))
-        .go();
+    final db = _db;
+    if (db == null) return;
+    await (db.delete(
+      db.countdownOutbox,
+    )..where((row) => row.countdownId.equals(tempId))).go();
   }
 
   /// Rewrites the payload of the pending create for a temp countdown.
@@ -237,13 +247,14 @@ class CountdownWriteQueue {
         payload: payload,
         createdAt: op.createdAt,
       );
-      await (_db.update(_db.countdownOutbox)
-            ..where((row) => row.opId.equals(op.opId)))
-          .write(
-            CountdownOutboxCompanion(
-              payload: Value(encodeJsonObject(payload)),
-            ),
-          );
+      final db = _db;
+      if (db != null) {
+        await (db.update(
+          db.countdownOutbox,
+        )..where((row) => row.opId.equals(op.opId))).write(
+          CountdownOutboxCompanion(payload: Value(encodeJsonObject(payload))),
+        );
+      }
       return true;
     }
     return false;

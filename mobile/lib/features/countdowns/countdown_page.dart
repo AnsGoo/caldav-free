@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ui_utils.dart';
 import '../../data/countdowns/countdown_api.dart';
+import '../../data/countdowns/countdown_store.dart';
 import '../../design/components.dart';
 
 class CountdownPage extends StatefulWidget {
@@ -16,85 +17,44 @@ class CountdownPage extends StatefulWidget {
 }
 
 class _CountdownPageState extends State<CountdownPage> {
-  CountdownApi? _api;
+  CountdownStore? _store;
   List<CountdownItem> _items = const [];
-  bool _loading = false;
-  bool _connected = false;
 
   @override
   void initState() {
     super.initState();
-    final session = context.read<AppState>().session;
-    if (session != null) {
-      _api = CountdownApi(
-        baseUrl: session.baseUrl,
-        username: session.username,
-        password: session.password,
-      );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_load());
-      });
-    }
+    _attach(context.read<AppState>().countdowns);
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final app = context.watch<AppState>();
-    if (_api == null && app.session != null) {
-      final session = app.session!;
-      _api = CountdownApi(
-        baseUrl: session.baseUrl,
-        username: session.username,
-        password: session.password,
-      );
-    }
-    // The api instance intentionally survives disconnects: writes are
-    // local-first and replay from the durable queue once connectivity is
-    // back, so the page must stay usable offline.
-    final connected = app.connected;
-    if (connected == _connected) return;
-    _connected = connected;
-    if (connected && _api != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_load());
-      });
-    }
+    _attach(context.read<AppState>().countdowns);
+  }
+
+  /// Renders the local mirror only; the sync thread refreshes it in the
+  /// background and this listener repaints the page.
+  void _attach(CountdownStore store) {
+    if (identical(_store, store)) return;
+    _store?.removeListener(_onStoreChanged);
+    _store = store..addListener(_onStoreChanged);
+    _items = store.items;
+  }
+
+  void _onStoreChanged() {
+    final store = _store;
+    if (store == null || !mounted) return;
+    setState(() => _items = store.items);
   }
 
   @override
   void dispose() {
-    _api?.close();
+    _store?.removeListener(_onStoreChanged);
+    _store = null;
     super.dispose();
   }
 
-  Future<void> _load({bool showLoading = true}) async {
-    if (_api == null) return;
-    if (showLoading && mounted) {
-      setState(() => _loading = true);
-    }
-    try {
-      final items = await _api!.load();
-      if (!mounted) return;
-      setState(() {
-        _items = items;
-        _loading = false;
-      });
-    } catch (_) {
-      // Server unreachable: keep showing local data plus queued writes.
-      // The background sync thread replays the queue silently; the page
-      // itself never retries the network.
-      List<CountdownItem> merged = _items;
-      try {
-        merged = await _api!.overlayPending(_items);
-      } catch (_) {}
-      if (!mounted) return;
-      setState(() {
-        _items = merged;
-        _loading = false;
-      });
-    }
-  }
+  Future<void> _sync() => context.read<AppState>().syncNow();
 
   Future<void> _create() async {
     final draft = await showModalBottomSheet<CountdownDraft>(
@@ -103,11 +63,8 @@ class _CountdownPageState extends State<CountdownPage> {
       showDragHandle: true,
       builder: (context) => const _CountdownEditorSheet(),
     );
-    if (draft == null || !mounted || _api == null) return;
-    final item = await _api!.create(draft);
-    if (!mounted) return;
-    setState(() => _items = [..._items, item]);
-    unawaited(_load(showLoading: false));
+    if (draft == null || !mounted) return;
+    await _store?.create(draft);
   }
 
   Future<void> _edit(CountdownItem item) async {
@@ -117,16 +74,8 @@ class _CountdownPageState extends State<CountdownPage> {
       showDragHandle: true,
       builder: (context) => _CountdownEditorSheet(initial: item),
     );
-    if (draft == null || !mounted || _api == null) return;
-    final updated = await _api!.update(item.id, draft);
-    if (!mounted) return;
-    setState(() {
-      _items = [
-        for (final existing in _items)
-          if (existing.id == item.id) updated else existing,
-      ];
-    });
-    unawaited(_load(showLoading: false));
+    if (draft == null || !mounted) return;
+    await _store?.update(item.id, draft);
   }
 
   Future<void> _delete(CountdownItem item) async {
@@ -147,26 +96,12 @@ class _CountdownPageState extends State<CountdownPage> {
         ],
       ),
     );
-    if (confirmed != true || !mounted || _api == null) return;
-    await _api!.delete(item.id);
-    if (!mounted) return;
-    setState(() => _items = _items.where((e) => e.id != item.id).toList());
-    unawaited(_load(showLoading: false));
+    if (confirmed != true || !mounted) return;
+    await _store?.delete(item.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_api == null) {
-      return const Scaffold(
-        body: Center(
-          child: AppEmptyState(
-            icon: Icons.wifi_off_rounded,
-            title: '尚未配置服务器',
-            message: '请先在"连接服务器"中配置后，再使用倒数日',
-          ),
-        ),
-      );
-    }
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Scaffold(
@@ -188,9 +123,9 @@ class _CountdownPageState extends State<CountdownPage> {
         ),
         actions: [
           IconButton(
-            tooltip: '刷新倒数日',
-            onPressed: _loading ? null : () => _load(),
-            icon: const Icon(Icons.refresh_rounded),
+            tooltip: '同步倒数日',
+            onPressed: () => unawaited(_sync()),
+            icon: const Icon(Icons.sync_rounded),
           ),
           const SizedBox(width: 6),
         ],
@@ -201,14 +136,13 @@ class _CountdownPageState extends State<CountdownPage> {
         child: const Icon(Icons.add_rounded),
       ),
       body: RefreshIndicator(
-        onRefresh: () => _load(showLoading: false),
+        onRefresh: _sync,
         child: LayoutBuilder(
           builder: (context, constraints) => ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
             children: [
-              if (_loading) const LinearProgressIndicator(minHeight: 2),
-              if (_items.isEmpty && !_loading)
+              if (_items.isEmpty)
                 SizedBox(
                   height: constraints.maxHeight - 40,
                   child: const Center(

@@ -4663,6 +4663,2445 @@ class CountdownOutboxCompanion extends UpdateCompanion<CountdownOutboxRow> {
   }
 }
 
+class $HabitsTable extends Habits with TableInfo<$HabitsTable, HabitRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HabitsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
+  @override
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+    'icon',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('#97E38B'),
+  );
+  static const VerificationMeta _sectionIdMeta = const VerificationMeta(
+    'sectionId',
+  );
+  @override
+  late final GeneratedColumn<int> sectionId = GeneratedColumn<int>(
+    'section_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _goalMeta = const VerificationMeta('goal');
+  @override
+  late final GeneratedColumn<double> goal = GeneratedColumn<double>(
+    'goal',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _stepMeta = const VerificationMeta('step');
+  @override
+  late final GeneratedColumn<double> step = GeneratedColumn<double>(
+    'step',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _unitMeta = const VerificationMeta('unit');
+  @override
+  late final GeneratedColumn<String> unit = GeneratedColumn<String>(
+    'unit',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('Count'),
+  );
+  static const VerificationMeta _frequencyMeta = const VerificationMeta(
+    'frequency',
+  );
+  @override
+  late final GeneratedColumn<String> frequency = GeneratedColumn<String>(
+    'frequency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _startDateMeta = const VerificationMeta(
+    'startDate',
+  );
+  @override
+  late final GeneratedColumn<int> startDate = GeneratedColumn<int>(
+    'start_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _targetDaysMeta = const VerificationMeta(
+    'targetDays',
+  );
+  @override
+  late final GeneratedColumn<int> targetDays = GeneratedColumn<int>(
+    'target_days',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _completedCyclesMeta = const VerificationMeta(
+    'completedCycles',
+  );
+  @override
+  late final GeneratedColumn<int> completedCycles = GeneratedColumn<int>(
+    'completed_cycles',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalCheckInsMeta = const VerificationMeta(
+    'totalCheckIns',
+  );
+  @override
+  late final GeneratedColumn<int> totalCheckIns = GeneratedColumn<int>(
+    'total_check_ins',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _currentStreakMeta = const VerificationMeta(
+    'currentStreak',
+  );
+  @override
+  late final GeneratedColumn<int> currentStreak = GeneratedColumn<int>(
+    'current_streak',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _maxStreakMeta = const VerificationMeta(
+    'maxStreak',
+  );
+  @override
+  late final GeneratedColumn<int> maxStreak = GeneratedColumn<int>(
+    'max_streak',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _dueTodayMeta = const VerificationMeta(
+    'dueToday',
+  );
+  @override
+  late final GeneratedColumn<bool> dueToday = GeneratedColumn<bool>(
+    'due_today',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("due_today" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _doneTodayMeta = const VerificationMeta(
+    'doneToday',
+  );
+  @override
+  late final GeneratedColumn<bool> doneToday = GeneratedColumn<bool>(
+    'done_today',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("done_today" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    icon,
+    color,
+    sectionId,
+    status,
+    goal,
+    step,
+    unit,
+    frequency,
+    startDate,
+    targetDays,
+    completedCycles,
+    totalCheckIns,
+    currentStreak,
+    maxStreak,
+    dueToday,
+    doneToday,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'habits';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HabitRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('icon')) {
+      context.handle(
+        _iconMeta,
+        icon.isAcceptableOrUnknown(data['icon']!, _iconMeta),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('section_id')) {
+      context.handle(
+        _sectionIdMeta,
+        sectionId.isAcceptableOrUnknown(data['section_id']!, _sectionIdMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('goal')) {
+      context.handle(
+        _goalMeta,
+        goal.isAcceptableOrUnknown(data['goal']!, _goalMeta),
+      );
+    }
+    if (data.containsKey('step')) {
+      context.handle(
+        _stepMeta,
+        step.isAcceptableOrUnknown(data['step']!, _stepMeta),
+      );
+    }
+    if (data.containsKey('unit')) {
+      context.handle(
+        _unitMeta,
+        unit.isAcceptableOrUnknown(data['unit']!, _unitMeta),
+      );
+    }
+    if (data.containsKey('frequency')) {
+      context.handle(
+        _frequencyMeta,
+        frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
+    }
+    if (data.containsKey('start_date')) {
+      context.handle(
+        _startDateMeta,
+        startDate.isAcceptableOrUnknown(data['start_date']!, _startDateMeta),
+      );
+    }
+    if (data.containsKey('target_days')) {
+      context.handle(
+        _targetDaysMeta,
+        targetDays.isAcceptableOrUnknown(data['target_days']!, _targetDaysMeta),
+      );
+    }
+    if (data.containsKey('completed_cycles')) {
+      context.handle(
+        _completedCyclesMeta,
+        completedCycles.isAcceptableOrUnknown(
+          data['completed_cycles']!,
+          _completedCyclesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_check_ins')) {
+      context.handle(
+        _totalCheckInsMeta,
+        totalCheckIns.isAcceptableOrUnknown(
+          data['total_check_ins']!,
+          _totalCheckInsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('current_streak')) {
+      context.handle(
+        _currentStreakMeta,
+        currentStreak.isAcceptableOrUnknown(
+          data['current_streak']!,
+          _currentStreakMeta,
+        ),
+      );
+    }
+    if (data.containsKey('max_streak')) {
+      context.handle(
+        _maxStreakMeta,
+        maxStreak.isAcceptableOrUnknown(data['max_streak']!, _maxStreakMeta),
+      );
+    }
+    if (data.containsKey('due_today')) {
+      context.handle(
+        _dueTodayMeta,
+        dueToday.isAcceptableOrUnknown(data['due_today']!, _dueTodayMeta),
+      );
+    }
+    if (data.containsKey('done_today')) {
+      context.handle(
+        _doneTodayMeta,
+        doneToday.isAcceptableOrUnknown(data['done_today']!, _doneTodayMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HabitRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HabitRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      icon: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      sectionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}section_id'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}status'],
+      )!,
+      goal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}goal'],
+      )!,
+      step: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}step'],
+      )!,
+      unit: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}unit'],
+      )!,
+      frequency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}frequency'],
+      )!,
+      startDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}start_date'],
+      )!,
+      targetDays: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}target_days'],
+      )!,
+      completedCycles: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}completed_cycles'],
+      )!,
+      totalCheckIns: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_check_ins'],
+      )!,
+      currentStreak: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}current_streak'],
+      )!,
+      maxStreak: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}max_streak'],
+      )!,
+      dueToday: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}due_today'],
+      )!,
+      doneToday: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}done_today'],
+      )!,
+    );
+  }
+
+  @override
+  $HabitsTable createAlias(String alias) {
+    return $HabitsTable(attachedDatabase, alias);
+  }
+}
+
+class HabitRow extends DataClass implements Insertable<HabitRow> {
+  final int id;
+  final String name;
+  final String icon;
+  final String color;
+  final int sectionId;
+  final int status;
+  final double goal;
+  final double step;
+  final String unit;
+  final String frequency;
+  final int startDate;
+  final int targetDays;
+  final int completedCycles;
+
+  /// Values the server derives per request (streaks, today state). Cached so
+  /// the mirror can render the same numbers offline.
+  final int totalCheckIns;
+  final int currentStreak;
+  final int maxStreak;
+  final bool dueToday;
+  final bool doneToday;
+  const HabitRow({
+    required this.id,
+    required this.name,
+    required this.icon,
+    required this.color,
+    required this.sectionId,
+    required this.status,
+    required this.goal,
+    required this.step,
+    required this.unit,
+    required this.frequency,
+    required this.startDate,
+    required this.targetDays,
+    required this.completedCycles,
+    required this.totalCheckIns,
+    required this.currentStreak,
+    required this.maxStreak,
+    required this.dueToday,
+    required this.doneToday,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['icon'] = Variable<String>(icon);
+    map['color'] = Variable<String>(color);
+    map['section_id'] = Variable<int>(sectionId);
+    map['status'] = Variable<int>(status);
+    map['goal'] = Variable<double>(goal);
+    map['step'] = Variable<double>(step);
+    map['unit'] = Variable<String>(unit);
+    map['frequency'] = Variable<String>(frequency);
+    map['start_date'] = Variable<int>(startDate);
+    map['target_days'] = Variable<int>(targetDays);
+    map['completed_cycles'] = Variable<int>(completedCycles);
+    map['total_check_ins'] = Variable<int>(totalCheckIns);
+    map['current_streak'] = Variable<int>(currentStreak);
+    map['max_streak'] = Variable<int>(maxStreak);
+    map['due_today'] = Variable<bool>(dueToday);
+    map['done_today'] = Variable<bool>(doneToday);
+    return map;
+  }
+
+  HabitsCompanion toCompanion(bool nullToAbsent) {
+    return HabitsCompanion(
+      id: Value(id),
+      name: Value(name),
+      icon: Value(icon),
+      color: Value(color),
+      sectionId: Value(sectionId),
+      status: Value(status),
+      goal: Value(goal),
+      step: Value(step),
+      unit: Value(unit),
+      frequency: Value(frequency),
+      startDate: Value(startDate),
+      targetDays: Value(targetDays),
+      completedCycles: Value(completedCycles),
+      totalCheckIns: Value(totalCheckIns),
+      currentStreak: Value(currentStreak),
+      maxStreak: Value(maxStreak),
+      dueToday: Value(dueToday),
+      doneToday: Value(doneToday),
+    );
+  }
+
+  factory HabitRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HabitRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      icon: serializer.fromJson<String>(json['icon']),
+      color: serializer.fromJson<String>(json['color']),
+      sectionId: serializer.fromJson<int>(json['sectionId']),
+      status: serializer.fromJson<int>(json['status']),
+      goal: serializer.fromJson<double>(json['goal']),
+      step: serializer.fromJson<double>(json['step']),
+      unit: serializer.fromJson<String>(json['unit']),
+      frequency: serializer.fromJson<String>(json['frequency']),
+      startDate: serializer.fromJson<int>(json['startDate']),
+      targetDays: serializer.fromJson<int>(json['targetDays']),
+      completedCycles: serializer.fromJson<int>(json['completedCycles']),
+      totalCheckIns: serializer.fromJson<int>(json['totalCheckIns']),
+      currentStreak: serializer.fromJson<int>(json['currentStreak']),
+      maxStreak: serializer.fromJson<int>(json['maxStreak']),
+      dueToday: serializer.fromJson<bool>(json['dueToday']),
+      doneToday: serializer.fromJson<bool>(json['doneToday']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'icon': serializer.toJson<String>(icon),
+      'color': serializer.toJson<String>(color),
+      'sectionId': serializer.toJson<int>(sectionId),
+      'status': serializer.toJson<int>(status),
+      'goal': serializer.toJson<double>(goal),
+      'step': serializer.toJson<double>(step),
+      'unit': serializer.toJson<String>(unit),
+      'frequency': serializer.toJson<String>(frequency),
+      'startDate': serializer.toJson<int>(startDate),
+      'targetDays': serializer.toJson<int>(targetDays),
+      'completedCycles': serializer.toJson<int>(completedCycles),
+      'totalCheckIns': serializer.toJson<int>(totalCheckIns),
+      'currentStreak': serializer.toJson<int>(currentStreak),
+      'maxStreak': serializer.toJson<int>(maxStreak),
+      'dueToday': serializer.toJson<bool>(dueToday),
+      'doneToday': serializer.toJson<bool>(doneToday),
+    };
+  }
+
+  HabitRow copyWith({
+    int? id,
+    String? name,
+    String? icon,
+    String? color,
+    int? sectionId,
+    int? status,
+    double? goal,
+    double? step,
+    String? unit,
+    String? frequency,
+    int? startDate,
+    int? targetDays,
+    int? completedCycles,
+    int? totalCheckIns,
+    int? currentStreak,
+    int? maxStreak,
+    bool? dueToday,
+    bool? doneToday,
+  }) => HabitRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    icon: icon ?? this.icon,
+    color: color ?? this.color,
+    sectionId: sectionId ?? this.sectionId,
+    status: status ?? this.status,
+    goal: goal ?? this.goal,
+    step: step ?? this.step,
+    unit: unit ?? this.unit,
+    frequency: frequency ?? this.frequency,
+    startDate: startDate ?? this.startDate,
+    targetDays: targetDays ?? this.targetDays,
+    completedCycles: completedCycles ?? this.completedCycles,
+    totalCheckIns: totalCheckIns ?? this.totalCheckIns,
+    currentStreak: currentStreak ?? this.currentStreak,
+    maxStreak: maxStreak ?? this.maxStreak,
+    dueToday: dueToday ?? this.dueToday,
+    doneToday: doneToday ?? this.doneToday,
+  );
+  HabitRow copyWithCompanion(HabitsCompanion data) {
+    return HabitRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      icon: data.icon.present ? data.icon.value : this.icon,
+      color: data.color.present ? data.color.value : this.color,
+      sectionId: data.sectionId.present ? data.sectionId.value : this.sectionId,
+      status: data.status.present ? data.status.value : this.status,
+      goal: data.goal.present ? data.goal.value : this.goal,
+      step: data.step.present ? data.step.value : this.step,
+      unit: data.unit.present ? data.unit.value : this.unit,
+      frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      startDate: data.startDate.present ? data.startDate.value : this.startDate,
+      targetDays: data.targetDays.present
+          ? data.targetDays.value
+          : this.targetDays,
+      completedCycles: data.completedCycles.present
+          ? data.completedCycles.value
+          : this.completedCycles,
+      totalCheckIns: data.totalCheckIns.present
+          ? data.totalCheckIns.value
+          : this.totalCheckIns,
+      currentStreak: data.currentStreak.present
+          ? data.currentStreak.value
+          : this.currentStreak,
+      maxStreak: data.maxStreak.present ? data.maxStreak.value : this.maxStreak,
+      dueToday: data.dueToday.present ? data.dueToday.value : this.dueToday,
+      doneToday: data.doneToday.present ? data.doneToday.value : this.doneToday,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('icon: $icon, ')
+          ..write('color: $color, ')
+          ..write('sectionId: $sectionId, ')
+          ..write('status: $status, ')
+          ..write('goal: $goal, ')
+          ..write('step: $step, ')
+          ..write('unit: $unit, ')
+          ..write('frequency: $frequency, ')
+          ..write('startDate: $startDate, ')
+          ..write('targetDays: $targetDays, ')
+          ..write('completedCycles: $completedCycles, ')
+          ..write('totalCheckIns: $totalCheckIns, ')
+          ..write('currentStreak: $currentStreak, ')
+          ..write('maxStreak: $maxStreak, ')
+          ..write('dueToday: $dueToday, ')
+          ..write('doneToday: $doneToday')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    icon,
+    color,
+    sectionId,
+    status,
+    goal,
+    step,
+    unit,
+    frequency,
+    startDate,
+    targetDays,
+    completedCycles,
+    totalCheckIns,
+    currentStreak,
+    maxStreak,
+    dueToday,
+    doneToday,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HabitRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.icon == this.icon &&
+          other.color == this.color &&
+          other.sectionId == this.sectionId &&
+          other.status == this.status &&
+          other.goal == this.goal &&
+          other.step == this.step &&
+          other.unit == this.unit &&
+          other.frequency == this.frequency &&
+          other.startDate == this.startDate &&
+          other.targetDays == this.targetDays &&
+          other.completedCycles == this.completedCycles &&
+          other.totalCheckIns == this.totalCheckIns &&
+          other.currentStreak == this.currentStreak &&
+          other.maxStreak == this.maxStreak &&
+          other.dueToday == this.dueToday &&
+          other.doneToday == this.doneToday);
+}
+
+class HabitsCompanion extends UpdateCompanion<HabitRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> icon;
+  final Value<String> color;
+  final Value<int> sectionId;
+  final Value<int> status;
+  final Value<double> goal;
+  final Value<double> step;
+  final Value<String> unit;
+  final Value<String> frequency;
+  final Value<int> startDate;
+  final Value<int> targetDays;
+  final Value<int> completedCycles;
+  final Value<int> totalCheckIns;
+  final Value<int> currentStreak;
+  final Value<int> maxStreak;
+  final Value<bool> dueToday;
+  final Value<bool> doneToday;
+  const HabitsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.color = const Value.absent(),
+    this.sectionId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.step = const Value.absent(),
+    this.unit = const Value.absent(),
+    this.frequency = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.targetDays = const Value.absent(),
+    this.completedCycles = const Value.absent(),
+    this.totalCheckIns = const Value.absent(),
+    this.currentStreak = const Value.absent(),
+    this.maxStreak = const Value.absent(),
+    this.dueToday = const Value.absent(),
+    this.doneToday = const Value.absent(),
+  });
+  HabitsCompanion.insert({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.color = const Value.absent(),
+    this.sectionId = const Value.absent(),
+    this.status = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.step = const Value.absent(),
+    this.unit = const Value.absent(),
+    this.frequency = const Value.absent(),
+    this.startDate = const Value.absent(),
+    this.targetDays = const Value.absent(),
+    this.completedCycles = const Value.absent(),
+    this.totalCheckIns = const Value.absent(),
+    this.currentStreak = const Value.absent(),
+    this.maxStreak = const Value.absent(),
+    this.dueToday = const Value.absent(),
+    this.doneToday = const Value.absent(),
+  });
+  static Insertable<HabitRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? icon,
+    Expression<String>? color,
+    Expression<int>? sectionId,
+    Expression<int>? status,
+    Expression<double>? goal,
+    Expression<double>? step,
+    Expression<String>? unit,
+    Expression<String>? frequency,
+    Expression<int>? startDate,
+    Expression<int>? targetDays,
+    Expression<int>? completedCycles,
+    Expression<int>? totalCheckIns,
+    Expression<int>? currentStreak,
+    Expression<int>? maxStreak,
+    Expression<bool>? dueToday,
+    Expression<bool>? doneToday,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (icon != null) 'icon': icon,
+      if (color != null) 'color': color,
+      if (sectionId != null) 'section_id': sectionId,
+      if (status != null) 'status': status,
+      if (goal != null) 'goal': goal,
+      if (step != null) 'step': step,
+      if (unit != null) 'unit': unit,
+      if (frequency != null) 'frequency': frequency,
+      if (startDate != null) 'start_date': startDate,
+      if (targetDays != null) 'target_days': targetDays,
+      if (completedCycles != null) 'completed_cycles': completedCycles,
+      if (totalCheckIns != null) 'total_check_ins': totalCheckIns,
+      if (currentStreak != null) 'current_streak': currentStreak,
+      if (maxStreak != null) 'max_streak': maxStreak,
+      if (dueToday != null) 'due_today': dueToday,
+      if (doneToday != null) 'done_today': doneToday,
+    });
+  }
+
+  HabitsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? icon,
+    Value<String>? color,
+    Value<int>? sectionId,
+    Value<int>? status,
+    Value<double>? goal,
+    Value<double>? step,
+    Value<String>? unit,
+    Value<String>? frequency,
+    Value<int>? startDate,
+    Value<int>? targetDays,
+    Value<int>? completedCycles,
+    Value<int>? totalCheckIns,
+    Value<int>? currentStreak,
+    Value<int>? maxStreak,
+    Value<bool>? dueToday,
+    Value<bool>? doneToday,
+  }) {
+    return HabitsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      color: color ?? this.color,
+      sectionId: sectionId ?? this.sectionId,
+      status: status ?? this.status,
+      goal: goal ?? this.goal,
+      step: step ?? this.step,
+      unit: unit ?? this.unit,
+      frequency: frequency ?? this.frequency,
+      startDate: startDate ?? this.startDate,
+      targetDays: targetDays ?? this.targetDays,
+      completedCycles: completedCycles ?? this.completedCycles,
+      totalCheckIns: totalCheckIns ?? this.totalCheckIns,
+      currentStreak: currentStreak ?? this.currentStreak,
+      maxStreak: maxStreak ?? this.maxStreak,
+      dueToday: dueToday ?? this.dueToday,
+      doneToday: doneToday ?? this.doneToday,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (sectionId.present) {
+      map['section_id'] = Variable<int>(sectionId.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (goal.present) {
+      map['goal'] = Variable<double>(goal.value);
+    }
+    if (step.present) {
+      map['step'] = Variable<double>(step.value);
+    }
+    if (unit.present) {
+      map['unit'] = Variable<String>(unit.value);
+    }
+    if (frequency.present) {
+      map['frequency'] = Variable<String>(frequency.value);
+    }
+    if (startDate.present) {
+      map['start_date'] = Variable<int>(startDate.value);
+    }
+    if (targetDays.present) {
+      map['target_days'] = Variable<int>(targetDays.value);
+    }
+    if (completedCycles.present) {
+      map['completed_cycles'] = Variable<int>(completedCycles.value);
+    }
+    if (totalCheckIns.present) {
+      map['total_check_ins'] = Variable<int>(totalCheckIns.value);
+    }
+    if (currentStreak.present) {
+      map['current_streak'] = Variable<int>(currentStreak.value);
+    }
+    if (maxStreak.present) {
+      map['max_streak'] = Variable<int>(maxStreak.value);
+    }
+    if (dueToday.present) {
+      map['due_today'] = Variable<bool>(dueToday.value);
+    }
+    if (doneToday.present) {
+      map['done_today'] = Variable<bool>(doneToday.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('icon: $icon, ')
+          ..write('color: $color, ')
+          ..write('sectionId: $sectionId, ')
+          ..write('status: $status, ')
+          ..write('goal: $goal, ')
+          ..write('step: $step, ')
+          ..write('unit: $unit, ')
+          ..write('frequency: $frequency, ')
+          ..write('startDate: $startDate, ')
+          ..write('targetDays: $targetDays, ')
+          ..write('completedCycles: $completedCycles, ')
+          ..write('totalCheckIns: $totalCheckIns, ')
+          ..write('currentStreak: $currentStreak, ')
+          ..write('maxStreak: $maxStreak, ')
+          ..write('dueToday: $dueToday, ')
+          ..write('doneToday: $doneToday')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HabitCheckinsTable extends HabitCheckins
+    with TableInfo<$HabitCheckinsTable, HabitCheckinRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HabitCheckinsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _habitIdMeta = const VerificationMeta(
+    'habitId',
+  );
+  @override
+  late final GeneratedColumn<int> habitId = GeneratedColumn<int>(
+    'habit_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _checkinStampMeta = const VerificationMeta(
+    'checkinStamp',
+  );
+  @override
+  late final GeneratedColumn<int> checkinStamp = GeneratedColumn<int>(
+    'checkin_stamp',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<double> value = GeneratedColumn<double>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _goalMeta = const VerificationMeta('goal');
+  @override
+  late final GeneratedColumn<double> goal = GeneratedColumn<double>(
+    'goal',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    habitId,
+    checkinStamp,
+    value,
+    goal,
+    status,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'habit_checkins';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HabitCheckinRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('habit_id')) {
+      context.handle(
+        _habitIdMeta,
+        habitId.isAcceptableOrUnknown(data['habit_id']!, _habitIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_habitIdMeta);
+    }
+    if (data.containsKey('checkin_stamp')) {
+      context.handle(
+        _checkinStampMeta,
+        checkinStamp.isAcceptableOrUnknown(
+          data['checkin_stamp']!,
+          _checkinStampMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_checkinStampMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    }
+    if (data.containsKey('goal')) {
+      context.handle(
+        _goalMeta,
+        goal.isAcceptableOrUnknown(data['goal']!, _goalMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {habitId, checkinStamp};
+  @override
+  HabitCheckinRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HabitCheckinRow(
+      habitId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}habit_id'],
+      )!,
+      checkinStamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}checkin_stamp'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}value'],
+      )!,
+      goal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}goal'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}status'],
+      )!,
+    );
+  }
+
+  @override
+  $HabitCheckinsTable createAlias(String alias) {
+    return $HabitCheckinsTable(attachedDatabase, alias);
+  }
+}
+
+class HabitCheckinRow extends DataClass implements Insertable<HabitCheckinRow> {
+  final int habitId;
+  final int checkinStamp;
+  final double value;
+  final double goal;
+  final int status;
+  const HabitCheckinRow({
+    required this.habitId,
+    required this.checkinStamp,
+    required this.value,
+    required this.goal,
+    required this.status,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['habit_id'] = Variable<int>(habitId);
+    map['checkin_stamp'] = Variable<int>(checkinStamp);
+    map['value'] = Variable<double>(value);
+    map['goal'] = Variable<double>(goal);
+    map['status'] = Variable<int>(status);
+    return map;
+  }
+
+  HabitCheckinsCompanion toCompanion(bool nullToAbsent) {
+    return HabitCheckinsCompanion(
+      habitId: Value(habitId),
+      checkinStamp: Value(checkinStamp),
+      value: Value(value),
+      goal: Value(goal),
+      status: Value(status),
+    );
+  }
+
+  factory HabitCheckinRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HabitCheckinRow(
+      habitId: serializer.fromJson<int>(json['habitId']),
+      checkinStamp: serializer.fromJson<int>(json['checkinStamp']),
+      value: serializer.fromJson<double>(json['value']),
+      goal: serializer.fromJson<double>(json['goal']),
+      status: serializer.fromJson<int>(json['status']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'habitId': serializer.toJson<int>(habitId),
+      'checkinStamp': serializer.toJson<int>(checkinStamp),
+      'value': serializer.toJson<double>(value),
+      'goal': serializer.toJson<double>(goal),
+      'status': serializer.toJson<int>(status),
+    };
+  }
+
+  HabitCheckinRow copyWith({
+    int? habitId,
+    int? checkinStamp,
+    double? value,
+    double? goal,
+    int? status,
+  }) => HabitCheckinRow(
+    habitId: habitId ?? this.habitId,
+    checkinStamp: checkinStamp ?? this.checkinStamp,
+    value: value ?? this.value,
+    goal: goal ?? this.goal,
+    status: status ?? this.status,
+  );
+  HabitCheckinRow copyWithCompanion(HabitCheckinsCompanion data) {
+    return HabitCheckinRow(
+      habitId: data.habitId.present ? data.habitId.value : this.habitId,
+      checkinStamp: data.checkinStamp.present
+          ? data.checkinStamp.value
+          : this.checkinStamp,
+      value: data.value.present ? data.value.value : this.value,
+      goal: data.goal.present ? data.goal.value : this.goal,
+      status: data.status.present ? data.status.value : this.status,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitCheckinRow(')
+          ..write('habitId: $habitId, ')
+          ..write('checkinStamp: $checkinStamp, ')
+          ..write('value: $value, ')
+          ..write('goal: $goal, ')
+          ..write('status: $status')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(habitId, checkinStamp, value, goal, status);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HabitCheckinRow &&
+          other.habitId == this.habitId &&
+          other.checkinStamp == this.checkinStamp &&
+          other.value == this.value &&
+          other.goal == this.goal &&
+          other.status == this.status);
+}
+
+class HabitCheckinsCompanion extends UpdateCompanion<HabitCheckinRow> {
+  final Value<int> habitId;
+  final Value<int> checkinStamp;
+  final Value<double> value;
+  final Value<double> goal;
+  final Value<int> status;
+  final Value<int> rowid;
+  const HabitCheckinsCompanion({
+    this.habitId = const Value.absent(),
+    this.checkinStamp = const Value.absent(),
+    this.value = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  HabitCheckinsCompanion.insert({
+    required int habitId,
+    required int checkinStamp,
+    this.value = const Value.absent(),
+    this.goal = const Value.absent(),
+    this.status = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : habitId = Value(habitId),
+       checkinStamp = Value(checkinStamp);
+  static Insertable<HabitCheckinRow> custom({
+    Expression<int>? habitId,
+    Expression<int>? checkinStamp,
+    Expression<double>? value,
+    Expression<double>? goal,
+    Expression<int>? status,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (habitId != null) 'habit_id': habitId,
+      if (checkinStamp != null) 'checkin_stamp': checkinStamp,
+      if (value != null) 'value': value,
+      if (goal != null) 'goal': goal,
+      if (status != null) 'status': status,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  HabitCheckinsCompanion copyWith({
+    Value<int>? habitId,
+    Value<int>? checkinStamp,
+    Value<double>? value,
+    Value<double>? goal,
+    Value<int>? status,
+    Value<int>? rowid,
+  }) {
+    return HabitCheckinsCompanion(
+      habitId: habitId ?? this.habitId,
+      checkinStamp: checkinStamp ?? this.checkinStamp,
+      value: value ?? this.value,
+      goal: goal ?? this.goal,
+      status: status ?? this.status,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (habitId.present) {
+      map['habit_id'] = Variable<int>(habitId.value);
+    }
+    if (checkinStamp.present) {
+      map['checkin_stamp'] = Variable<int>(checkinStamp.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<double>(value.value);
+    }
+    if (goal.present) {
+      map['goal'] = Variable<double>(goal.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitCheckinsCompanion(')
+          ..write('habitId: $habitId, ')
+          ..write('checkinStamp: $checkinStamp, ')
+          ..write('value: $value, ')
+          ..write('goal: $goal, ')
+          ..write('status: $status, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $HabitSectionsTable extends HabitSections
+    with TableInfo<$HabitSectionsTable, HabitSectionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HabitSectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta(
+    'sortOrder',
+  );
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, sortOrder];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'habit_sections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<HabitSectionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(
+        _sortOrderMeta,
+        sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  HabitSectionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HabitSectionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      sortOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sort_order'],
+      )!,
+    );
+  }
+
+  @override
+  $HabitSectionsTable createAlias(String alias) {
+    return $HabitSectionsTable(attachedDatabase, alias);
+  }
+}
+
+class HabitSectionRow extends DataClass implements Insertable<HabitSectionRow> {
+  final int id;
+  final String name;
+  final int sortOrder;
+  const HabitSectionRow({
+    required this.id,
+    required this.name,
+    required this.sortOrder,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['sort_order'] = Variable<int>(sortOrder);
+    return map;
+  }
+
+  HabitSectionsCompanion toCompanion(bool nullToAbsent) {
+    return HabitSectionsCompanion(
+      id: Value(id),
+      name: Value(name),
+      sortOrder: Value(sortOrder),
+    );
+  }
+
+  factory HabitSectionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HabitSectionRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+    };
+  }
+
+  HabitSectionRow copyWith({int? id, String? name, int? sortOrder}) =>
+      HabitSectionRow(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        sortOrder: sortOrder ?? this.sortOrder,
+      );
+  HabitSectionRow copyWithCompanion(HabitSectionsCompanion data) {
+    return HabitSectionRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitSectionRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, sortOrder);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is HabitSectionRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.sortOrder == this.sortOrder);
+}
+
+class HabitSectionsCompanion extends UpdateCompanion<HabitSectionRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<int> sortOrder;
+  const HabitSectionsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+  });
+  HabitSectionsCompanion.insert({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+  });
+  static Insertable<HabitSectionRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<int>? sortOrder,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (sortOrder != null) 'sort_order': sortOrder,
+    });
+  }
+
+  HabitSectionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<int>? sortOrder,
+  }) {
+    return HabitSectionsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      sortOrder: sortOrder ?? this.sortOrder,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HabitSectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('sortOrder: $sortOrder')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $CountdownsTable extends Countdowns
+    with TableInfo<$CountdownsTable, CountdownRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CountdownsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _typeMeta = const VerificationMeta('type');
+  @override
+  late final GeneratedColumn<String> type = GeneratedColumn<String>(
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('countdown'),
+  );
+  static const VerificationMeta _dateMeta = const VerificationMeta('date');
+  @override
+  late final GeneratedColumn<int> date = GeneratedColumn<int>(
+    'date',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _repeatMeta = const VerificationMeta('repeat');
+  @override
+  late final GeneratedColumn<String> repeat = GeneratedColumn<String>(
+    'repeat',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('none'),
+  );
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<int> status = GeneratedColumn<int>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('#92D0FF'),
+  );
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
+  @override
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+    'icon',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('⏳'),
+  );
+  static const VerificationMeta _remarkMeta = const VerificationMeta('remark');
+  @override
+  late final GeneratedColumn<String> remark = GeneratedColumn<String>(
+    'remark',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _daysMeta = const VerificationMeta('days');
+  @override
+  late final GeneratedColumn<int> days = GeneratedColumn<int>(
+    'days',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _hoursMeta = const VerificationMeta('hours');
+  @override
+  late final GeneratedColumn<int> hours = GeneratedColumn<int>(
+    'hours',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _minutesMeta = const VerificationMeta(
+    'minutes',
+  );
+  @override
+  late final GeneratedColumn<int> minutes = GeneratedColumn<int>(
+    'minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _secondsMeta = const VerificationMeta(
+    'seconds',
+  );
+  @override
+  late final GeneratedColumn<int> seconds = GeneratedColumn<int>(
+    'seconds',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _stateMeta = const VerificationMeta('state');
+  @override
+  late final GeneratedColumn<String> state = GeneratedColumn<String>(
+    'state',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('future'),
+  );
+  static const VerificationMeta _occurrenceDateMeta = const VerificationMeta(
+    'occurrenceDate',
+  );
+  @override
+  late final GeneratedColumn<int> occurrenceDate = GeneratedColumn<int>(
+    'occurrence_date',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ageMeta = const VerificationMeta('age');
+  @override
+  late final GeneratedColumn<int> age = GeneratedColumn<int>(
+    'age',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    type,
+    date,
+    repeat,
+    pinned,
+    status,
+    color,
+    icon,
+    remark,
+    days,
+    hours,
+    minutes,
+    seconds,
+    state,
+    occurrenceDate,
+    age,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'countdowns';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CountdownRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('type')) {
+      context.handle(
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
+    }
+    if (data.containsKey('date')) {
+      context.handle(
+        _dateMeta,
+        date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    }
+    if (data.containsKey('repeat')) {
+      context.handle(
+        _repeatMeta,
+        repeat.isAcceptableOrUnknown(data['repeat']!, _repeatMeta),
+      );
+    }
+    if (data.containsKey('pinned')) {
+      context.handle(
+        _pinnedMeta,
+        pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('icon')) {
+      context.handle(
+        _iconMeta,
+        icon.isAcceptableOrUnknown(data['icon']!, _iconMeta),
+      );
+    }
+    if (data.containsKey('remark')) {
+      context.handle(
+        _remarkMeta,
+        remark.isAcceptableOrUnknown(data['remark']!, _remarkMeta),
+      );
+    }
+    if (data.containsKey('days')) {
+      context.handle(
+        _daysMeta,
+        days.isAcceptableOrUnknown(data['days']!, _daysMeta),
+      );
+    }
+    if (data.containsKey('hours')) {
+      context.handle(
+        _hoursMeta,
+        hours.isAcceptableOrUnknown(data['hours']!, _hoursMeta),
+      );
+    }
+    if (data.containsKey('minutes')) {
+      context.handle(
+        _minutesMeta,
+        minutes.isAcceptableOrUnknown(data['minutes']!, _minutesMeta),
+      );
+    }
+    if (data.containsKey('seconds')) {
+      context.handle(
+        _secondsMeta,
+        seconds.isAcceptableOrUnknown(data['seconds']!, _secondsMeta),
+      );
+    }
+    if (data.containsKey('state')) {
+      context.handle(
+        _stateMeta,
+        state.isAcceptableOrUnknown(data['state']!, _stateMeta),
+      );
+    }
+    if (data.containsKey('occurrence_date')) {
+      context.handle(
+        _occurrenceDateMeta,
+        occurrenceDate.isAcceptableOrUnknown(
+          data['occurrence_date']!,
+          _occurrenceDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('age')) {
+      context.handle(
+        _ageMeta,
+        age.isAcceptableOrUnknown(data['age']!, _ageMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  CountdownRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CountdownRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
+      date: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}date'],
+      )!,
+      repeat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}repeat'],
+      )!,
+      pinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}status'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      icon: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}icon'],
+      )!,
+      remark: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remark'],
+      )!,
+      days: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}days'],
+      )!,
+      hours: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}hours'],
+      )!,
+      minutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}minutes'],
+      )!,
+      seconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}seconds'],
+      )!,
+      state: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}state'],
+      )!,
+      occurrenceDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}occurrence_date'],
+      )!,
+      age: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}age'],
+      )!,
+    );
+  }
+
+  @override
+  $CountdownsTable createAlias(String alias) {
+    return $CountdownsTable(attachedDatabase, alias);
+  }
+}
+
+class CountdownRow extends DataClass implements Insertable<CountdownRow> {
+  final int id;
+  final String name;
+  final String type;
+  final int date;
+  final String repeat;
+  final bool pinned;
+  final int status;
+  final String color;
+  final String icon;
+  final String remark;
+  final int days;
+  final int hours;
+  final int minutes;
+  final int seconds;
+  final String state;
+  final int occurrenceDate;
+  final int age;
+  const CountdownRow({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.date,
+    required this.repeat,
+    required this.pinned,
+    required this.status,
+    required this.color,
+    required this.icon,
+    required this.remark,
+    required this.days,
+    required this.hours,
+    required this.minutes,
+    required this.seconds,
+    required this.state,
+    required this.occurrenceDate,
+    required this.age,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['type'] = Variable<String>(type);
+    map['date'] = Variable<int>(date);
+    map['repeat'] = Variable<String>(repeat);
+    map['pinned'] = Variable<bool>(pinned);
+    map['status'] = Variable<int>(status);
+    map['color'] = Variable<String>(color);
+    map['icon'] = Variable<String>(icon);
+    map['remark'] = Variable<String>(remark);
+    map['days'] = Variable<int>(days);
+    map['hours'] = Variable<int>(hours);
+    map['minutes'] = Variable<int>(minutes);
+    map['seconds'] = Variable<int>(seconds);
+    map['state'] = Variable<String>(state);
+    map['occurrence_date'] = Variable<int>(occurrenceDate);
+    map['age'] = Variable<int>(age);
+    return map;
+  }
+
+  CountdownsCompanion toCompanion(bool nullToAbsent) {
+    return CountdownsCompanion(
+      id: Value(id),
+      name: Value(name),
+      type: Value(type),
+      date: Value(date),
+      repeat: Value(repeat),
+      pinned: Value(pinned),
+      status: Value(status),
+      color: Value(color),
+      icon: Value(icon),
+      remark: Value(remark),
+      days: Value(days),
+      hours: Value(hours),
+      minutes: Value(minutes),
+      seconds: Value(seconds),
+      state: Value(state),
+      occurrenceDate: Value(occurrenceDate),
+      age: Value(age),
+    );
+  }
+
+  factory CountdownRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CountdownRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      type: serializer.fromJson<String>(json['type']),
+      date: serializer.fromJson<int>(json['date']),
+      repeat: serializer.fromJson<String>(json['repeat']),
+      pinned: serializer.fromJson<bool>(json['pinned']),
+      status: serializer.fromJson<int>(json['status']),
+      color: serializer.fromJson<String>(json['color']),
+      icon: serializer.fromJson<String>(json['icon']),
+      remark: serializer.fromJson<String>(json['remark']),
+      days: serializer.fromJson<int>(json['days']),
+      hours: serializer.fromJson<int>(json['hours']),
+      minutes: serializer.fromJson<int>(json['minutes']),
+      seconds: serializer.fromJson<int>(json['seconds']),
+      state: serializer.fromJson<String>(json['state']),
+      occurrenceDate: serializer.fromJson<int>(json['occurrenceDate']),
+      age: serializer.fromJson<int>(json['age']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'type': serializer.toJson<String>(type),
+      'date': serializer.toJson<int>(date),
+      'repeat': serializer.toJson<String>(repeat),
+      'pinned': serializer.toJson<bool>(pinned),
+      'status': serializer.toJson<int>(status),
+      'color': serializer.toJson<String>(color),
+      'icon': serializer.toJson<String>(icon),
+      'remark': serializer.toJson<String>(remark),
+      'days': serializer.toJson<int>(days),
+      'hours': serializer.toJson<int>(hours),
+      'minutes': serializer.toJson<int>(minutes),
+      'seconds': serializer.toJson<int>(seconds),
+      'state': serializer.toJson<String>(state),
+      'occurrenceDate': serializer.toJson<int>(occurrenceDate),
+      'age': serializer.toJson<int>(age),
+    };
+  }
+
+  CountdownRow copyWith({
+    int? id,
+    String? name,
+    String? type,
+    int? date,
+    String? repeat,
+    bool? pinned,
+    int? status,
+    String? color,
+    String? icon,
+    String? remark,
+    int? days,
+    int? hours,
+    int? minutes,
+    int? seconds,
+    String? state,
+    int? occurrenceDate,
+    int? age,
+  }) => CountdownRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    type: type ?? this.type,
+    date: date ?? this.date,
+    repeat: repeat ?? this.repeat,
+    pinned: pinned ?? this.pinned,
+    status: status ?? this.status,
+    color: color ?? this.color,
+    icon: icon ?? this.icon,
+    remark: remark ?? this.remark,
+    days: days ?? this.days,
+    hours: hours ?? this.hours,
+    minutes: minutes ?? this.minutes,
+    seconds: seconds ?? this.seconds,
+    state: state ?? this.state,
+    occurrenceDate: occurrenceDate ?? this.occurrenceDate,
+    age: age ?? this.age,
+  );
+  CountdownRow copyWithCompanion(CountdownsCompanion data) {
+    return CountdownRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      type: data.type.present ? data.type.value : this.type,
+      date: data.date.present ? data.date.value : this.date,
+      repeat: data.repeat.present ? data.repeat.value : this.repeat,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
+      status: data.status.present ? data.status.value : this.status,
+      color: data.color.present ? data.color.value : this.color,
+      icon: data.icon.present ? data.icon.value : this.icon,
+      remark: data.remark.present ? data.remark.value : this.remark,
+      days: data.days.present ? data.days.value : this.days,
+      hours: data.hours.present ? data.hours.value : this.hours,
+      minutes: data.minutes.present ? data.minutes.value : this.minutes,
+      seconds: data.seconds.present ? data.seconds.value : this.seconds,
+      state: data.state.present ? data.state.value : this.state,
+      occurrenceDate: data.occurrenceDate.present
+          ? data.occurrenceDate.value
+          : this.occurrenceDate,
+      age: data.age.present ? data.age.value : this.age,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CountdownRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('type: $type, ')
+          ..write('date: $date, ')
+          ..write('repeat: $repeat, ')
+          ..write('pinned: $pinned, ')
+          ..write('status: $status, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('remark: $remark, ')
+          ..write('days: $days, ')
+          ..write('hours: $hours, ')
+          ..write('minutes: $minutes, ')
+          ..write('seconds: $seconds, ')
+          ..write('state: $state, ')
+          ..write('occurrenceDate: $occurrenceDate, ')
+          ..write('age: $age')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    type,
+    date,
+    repeat,
+    pinned,
+    status,
+    color,
+    icon,
+    remark,
+    days,
+    hours,
+    minutes,
+    seconds,
+    state,
+    occurrenceDate,
+    age,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CountdownRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.type == this.type &&
+          other.date == this.date &&
+          other.repeat == this.repeat &&
+          other.pinned == this.pinned &&
+          other.status == this.status &&
+          other.color == this.color &&
+          other.icon == this.icon &&
+          other.remark == this.remark &&
+          other.days == this.days &&
+          other.hours == this.hours &&
+          other.minutes == this.minutes &&
+          other.seconds == this.seconds &&
+          other.state == this.state &&
+          other.occurrenceDate == this.occurrenceDate &&
+          other.age == this.age);
+}
+
+class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> type;
+  final Value<int> date;
+  final Value<String> repeat;
+  final Value<bool> pinned;
+  final Value<int> status;
+  final Value<String> color;
+  final Value<String> icon;
+  final Value<String> remark;
+  final Value<int> days;
+  final Value<int> hours;
+  final Value<int> minutes;
+  final Value<int> seconds;
+  final Value<String> state;
+  final Value<int> occurrenceDate;
+  final Value<int> age;
+  const CountdownsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.type = const Value.absent(),
+    this.date = const Value.absent(),
+    this.repeat = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.status = const Value.absent(),
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.remark = const Value.absent(),
+    this.days = const Value.absent(),
+    this.hours = const Value.absent(),
+    this.minutes = const Value.absent(),
+    this.seconds = const Value.absent(),
+    this.state = const Value.absent(),
+    this.occurrenceDate = const Value.absent(),
+    this.age = const Value.absent(),
+  });
+  CountdownsCompanion.insert({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.type = const Value.absent(),
+    this.date = const Value.absent(),
+    this.repeat = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.status = const Value.absent(),
+    this.color = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.remark = const Value.absent(),
+    this.days = const Value.absent(),
+    this.hours = const Value.absent(),
+    this.minutes = const Value.absent(),
+    this.seconds = const Value.absent(),
+    this.state = const Value.absent(),
+    this.occurrenceDate = const Value.absent(),
+    this.age = const Value.absent(),
+  });
+  static Insertable<CountdownRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? type,
+    Expression<int>? date,
+    Expression<String>? repeat,
+    Expression<bool>? pinned,
+    Expression<int>? status,
+    Expression<String>? color,
+    Expression<String>? icon,
+    Expression<String>? remark,
+    Expression<int>? days,
+    Expression<int>? hours,
+    Expression<int>? minutes,
+    Expression<int>? seconds,
+    Expression<String>? state,
+    Expression<int>? occurrenceDate,
+    Expression<int>? age,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (type != null) 'type': type,
+      if (date != null) 'date': date,
+      if (repeat != null) 'repeat': repeat,
+      if (pinned != null) 'pinned': pinned,
+      if (status != null) 'status': status,
+      if (color != null) 'color': color,
+      if (icon != null) 'icon': icon,
+      if (remark != null) 'remark': remark,
+      if (days != null) 'days': days,
+      if (hours != null) 'hours': hours,
+      if (minutes != null) 'minutes': minutes,
+      if (seconds != null) 'seconds': seconds,
+      if (state != null) 'state': state,
+      if (occurrenceDate != null) 'occurrence_date': occurrenceDate,
+      if (age != null) 'age': age,
+    });
+  }
+
+  CountdownsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? type,
+    Value<int>? date,
+    Value<String>? repeat,
+    Value<bool>? pinned,
+    Value<int>? status,
+    Value<String>? color,
+    Value<String>? icon,
+    Value<String>? remark,
+    Value<int>? days,
+    Value<int>? hours,
+    Value<int>? minutes,
+    Value<int>? seconds,
+    Value<String>? state,
+    Value<int>? occurrenceDate,
+    Value<int>? age,
+  }) {
+    return CountdownsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      date: date ?? this.date,
+      repeat: repeat ?? this.repeat,
+      pinned: pinned ?? this.pinned,
+      status: status ?? this.status,
+      color: color ?? this.color,
+      icon: icon ?? this.icon,
+      remark: remark ?? this.remark,
+      days: days ?? this.days,
+      hours: hours ?? this.hours,
+      minutes: minutes ?? this.minutes,
+      seconds: seconds ?? this.seconds,
+      state: state ?? this.state,
+      occurrenceDate: occurrenceDate ?? this.occurrenceDate,
+      age: age ?? this.age,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (type.present) {
+      map['type'] = Variable<String>(type.value);
+    }
+    if (date.present) {
+      map['date'] = Variable<int>(date.value);
+    }
+    if (repeat.present) {
+      map['repeat'] = Variable<String>(repeat.value);
+    }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<int>(status.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
+    if (remark.present) {
+      map['remark'] = Variable<String>(remark.value);
+    }
+    if (days.present) {
+      map['days'] = Variable<int>(days.value);
+    }
+    if (hours.present) {
+      map['hours'] = Variable<int>(hours.value);
+    }
+    if (minutes.present) {
+      map['minutes'] = Variable<int>(minutes.value);
+    }
+    if (seconds.present) {
+      map['seconds'] = Variable<int>(seconds.value);
+    }
+    if (state.present) {
+      map['state'] = Variable<String>(state.value);
+    }
+    if (occurrenceDate.present) {
+      map['occurrence_date'] = Variable<int>(occurrenceDate.value);
+    }
+    if (age.present) {
+      map['age'] = Variable<int>(age.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CountdownsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('type: $type, ')
+          ..write('date: $date, ')
+          ..write('repeat: $repeat, ')
+          ..write('pinned: $pinned, ')
+          ..write('status: $status, ')
+          ..write('color: $color, ')
+          ..write('icon: $icon, ')
+          ..write('remark: $remark, ')
+          ..write('days: $days, ')
+          ..write('hours: $hours, ')
+          ..write('minutes: $minutes, ')
+          ..write('seconds: $seconds, ')
+          ..write('state: $state, ')
+          ..write('occurrenceDate: $occurrenceDate, ')
+          ..write('age: $age')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $MetaTable extends Meta with TableInfo<$MetaTable, MetaRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -4881,6 +7320,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $CountdownOutboxTable countdownOutbox = $CountdownOutboxTable(
     this,
   );
+  late final $HabitsTable habits = $HabitsTable(this);
+  late final $HabitCheckinsTable habitCheckins = $HabitCheckinsTable(this);
+  late final $HabitSectionsTable habitSections = $HabitSectionsTable(this);
+  late final $CountdownsTable countdowns = $CountdownsTable(this);
   late final $MetaTable meta = $MetaTable(this);
   late final Index idxTaskList = Index(
     'idx_task_list',
@@ -4922,6 +7365,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_countdownoutbox_op',
     'CREATE UNIQUE INDEX idx_countdownoutbox_op ON countdown_outbox (op_id)',
   );
+  late final Index idxHabitSection = Index(
+    'idx_habit_section',
+    'CREATE INDEX idx_habit_section ON habits (section_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4935,6 +7382,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     conflicts,
     habitOutbox,
     countdownOutbox,
+    habits,
+    habitCheckins,
+    habitSections,
+    countdowns,
     meta,
     idxTaskList,
     idxTaskSection,
@@ -4946,6 +7397,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxOutboxNextTry,
     idxHabitoutboxOp,
     idxCountdownoutboxOp,
+    idxHabitSection,
   ];
 }
 
@@ -7342,6 +9794,1263 @@ typedef $$CountdownOutboxTableProcessedTableManager =
       CountdownOutboxRow,
       PrefetchHooks Function()
     >;
+typedef $$HabitsTableCreateCompanionBuilder = HabitsCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> icon,
+  Value<String> color,
+  Value<int> sectionId,
+  Value<int> status,
+  Value<double> goal,
+  Value<double> step,
+  Value<String> unit,
+  Value<String> frequency,
+  Value<int> startDate,
+  Value<int> targetDays,
+  Value<int> completedCycles,
+  Value<int> totalCheckIns,
+  Value<int> currentStreak,
+  Value<int> maxStreak,
+  Value<bool> dueToday,
+  Value<bool> doneToday,
+});
+typedef $$HabitsTableUpdateCompanionBuilder = HabitsCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> icon,
+  Value<String> color,
+  Value<int> sectionId,
+  Value<int> status,
+  Value<double> goal,
+  Value<double> step,
+  Value<String> unit,
+  Value<String> frequency,
+  Value<int> startDate,
+  Value<int> targetDays,
+  Value<int> completedCycles,
+  Value<int> totalCheckIns,
+  Value<int> currentStreak,
+  Value<int> maxStreak,
+  Value<bool> dueToday,
+  Value<bool> doneToday,
+});
+
+class $$HabitsTableFilterComposer
+    extends Composer<_$AppDatabase, $HabitsTable> {
+  $$HabitsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sectionId => $composableBuilder(
+    column: $table.sectionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get goal => $composableBuilder(
+    column: $table.goal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get step => $composableBuilder(
+    column: $table.step,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get unit => $composableBuilder(
+    column: $table.unit,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get targetDays => $composableBuilder(
+    column: $table.targetDays,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get completedCycles => $composableBuilder(
+    column: $table.completedCycles,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalCheckIns => $composableBuilder(
+    column: $table.totalCheckIns,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get currentStreak => $composableBuilder(
+    column: $table.currentStreak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get maxStreak => $composableBuilder(
+    column: $table.maxStreak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dueToday => $composableBuilder(
+    column: $table.dueToday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get doneToday => $composableBuilder(
+    column: $table.doneToday,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HabitsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HabitsTable> {
+  $$HabitsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sectionId => $composableBuilder(
+    column: $table.sectionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get goal => $composableBuilder(
+    column: $table.goal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get step => $composableBuilder(
+    column: $table.step,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get unit => $composableBuilder(
+    column: $table.unit,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get startDate => $composableBuilder(
+    column: $table.startDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get targetDays => $composableBuilder(
+    column: $table.targetDays,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get completedCycles => $composableBuilder(
+    column: $table.completedCycles,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalCheckIns => $composableBuilder(
+    column: $table.totalCheckIns,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get currentStreak => $composableBuilder(
+    column: $table.currentStreak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get maxStreak => $composableBuilder(
+    column: $table.maxStreak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get dueToday => $composableBuilder(
+    column: $table.dueToday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get doneToday => $composableBuilder(
+    column: $table.doneToday,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HabitsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HabitsTable> {
+  $$HabitsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get icon =>
+      $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<int> get sectionId =>
+      $composableBuilder(column: $table.sectionId, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<double> get goal =>
+      $composableBuilder(column: $table.goal, builder: (column) => column);
+
+  GeneratedColumn<double> get step =>
+      $composableBuilder(column: $table.step, builder: (column) => column);
+
+  GeneratedColumn<String> get unit =>
+      $composableBuilder(column: $table.unit, builder: (column) => column);
+
+  GeneratedColumn<String> get frequency =>
+      $composableBuilder(column: $table.frequency, builder: (column) => column);
+
+  GeneratedColumn<int> get startDate =>
+      $composableBuilder(column: $table.startDate, builder: (column) => column);
+
+  GeneratedColumn<int> get targetDays => $composableBuilder(
+    column: $table.targetDays,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get completedCycles => $composableBuilder(
+    column: $table.completedCycles,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalCheckIns => $composableBuilder(
+    column: $table.totalCheckIns,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get currentStreak => $composableBuilder(
+    column: $table.currentStreak,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get maxStreak =>
+      $composableBuilder(column: $table.maxStreak, builder: (column) => column);
+
+  GeneratedColumn<bool> get dueToday =>
+      $composableBuilder(column: $table.dueToday, builder: (column) => column);
+
+  GeneratedColumn<bool> get doneToday =>
+      $composableBuilder(column: $table.doneToday, builder: (column) => column);
+}
+
+class $$HabitsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HabitsTable,
+          HabitRow,
+          $$HabitsTableFilterComposer,
+          $$HabitsTableOrderingComposer,
+          $$HabitsTableAnnotationComposer,
+          $$HabitsTableCreateCompanionBuilder,
+          $$HabitsTableUpdateCompanionBuilder,
+          (HabitRow, BaseReferences<_$AppDatabase, $HabitsTable, HabitRow>),
+          HabitRow,
+          PrefetchHooks Function()
+        > {
+  $$HabitsTableTableManager(_$AppDatabase db, $HabitsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HabitsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HabitsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HabitsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<int> sectionId = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<double> goal = const Value.absent(),
+                Value<double> step = const Value.absent(),
+                Value<String> unit = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
+                Value<int> startDate = const Value.absent(),
+                Value<int> targetDays = const Value.absent(),
+                Value<int> completedCycles = const Value.absent(),
+                Value<int> totalCheckIns = const Value.absent(),
+                Value<int> currentStreak = const Value.absent(),
+                Value<int> maxStreak = const Value.absent(),
+                Value<bool> dueToday = const Value.absent(),
+                Value<bool> doneToday = const Value.absent(),
+              }) => HabitsCompanion(
+                id: id,
+                name: name,
+                icon: icon,
+                color: color,
+                sectionId: sectionId,
+                status: status,
+                goal: goal,
+                step: step,
+                unit: unit,
+                frequency: frequency,
+                startDate: startDate,
+                targetDays: targetDays,
+                completedCycles: completedCycles,
+                totalCheckIns: totalCheckIns,
+                currentStreak: currentStreak,
+                maxStreak: maxStreak,
+                dueToday: dueToday,
+                doneToday: doneToday,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<int> sectionId = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<double> goal = const Value.absent(),
+                Value<double> step = const Value.absent(),
+                Value<String> unit = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
+                Value<int> startDate = const Value.absent(),
+                Value<int> targetDays = const Value.absent(),
+                Value<int> completedCycles = const Value.absent(),
+                Value<int> totalCheckIns = const Value.absent(),
+                Value<int> currentStreak = const Value.absent(),
+                Value<int> maxStreak = const Value.absent(),
+                Value<bool> dueToday = const Value.absent(),
+                Value<bool> doneToday = const Value.absent(),
+              }) => HabitsCompanion.insert(
+                id: id,
+                name: name,
+                icon: icon,
+                color: color,
+                sectionId: sectionId,
+                status: status,
+                goal: goal,
+                step: step,
+                unit: unit,
+                frequency: frequency,
+                startDate: startDate,
+                targetDays: targetDays,
+                completedCycles: completedCycles,
+                totalCheckIns: totalCheckIns,
+                currentStreak: currentStreak,
+                maxStreak: maxStreak,
+                dueToday: dueToday,
+                doneToday: doneToday,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HabitsTable, HabitRow>(table),
+                  BaseReferences<_$AppDatabase, $HabitsTable, HabitRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HabitsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HabitsTable,
+      HabitRow,
+      $$HabitsTableFilterComposer,
+      $$HabitsTableOrderingComposer,
+      $$HabitsTableAnnotationComposer,
+      $$HabitsTableCreateCompanionBuilder,
+      $$HabitsTableUpdateCompanionBuilder,
+      (HabitRow, BaseReferences<_$AppDatabase, $HabitsTable, HabitRow>),
+      HabitRow,
+      PrefetchHooks Function()
+    >;
+typedef $$HabitCheckinsTableCreateCompanionBuilder =
+    HabitCheckinsCompanion Function({
+      required int habitId,
+      required int checkinStamp,
+      Value<double> value,
+      Value<double> goal,
+      Value<int> status,
+      Value<int> rowid,
+    });
+typedef $$HabitCheckinsTableUpdateCompanionBuilder =
+    HabitCheckinsCompanion Function({
+      Value<int> habitId,
+      Value<int> checkinStamp,
+      Value<double> value,
+      Value<double> goal,
+      Value<int> status,
+      Value<int> rowid,
+    });
+
+class $$HabitCheckinsTableFilterComposer
+    extends Composer<_$AppDatabase, $HabitCheckinsTable> {
+  $$HabitCheckinsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get habitId => $composableBuilder(
+    column: $table.habitId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get checkinStamp => $composableBuilder(
+    column: $table.checkinStamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get goal => $composableBuilder(
+    column: $table.goal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HabitCheckinsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HabitCheckinsTable> {
+  $$HabitCheckinsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get habitId => $composableBuilder(
+    column: $table.habitId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get checkinStamp => $composableBuilder(
+    column: $table.checkinStamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get goal => $composableBuilder(
+    column: $table.goal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HabitCheckinsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HabitCheckinsTable> {
+  $$HabitCheckinsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get habitId =>
+      $composableBuilder(column: $table.habitId, builder: (column) => column);
+
+  GeneratedColumn<int> get checkinStamp => $composableBuilder(
+    column: $table.checkinStamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+
+  GeneratedColumn<double> get goal =>
+      $composableBuilder(column: $table.goal, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+}
+
+class $$HabitCheckinsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HabitCheckinsTable,
+          HabitCheckinRow,
+          $$HabitCheckinsTableFilterComposer,
+          $$HabitCheckinsTableOrderingComposer,
+          $$HabitCheckinsTableAnnotationComposer,
+          $$HabitCheckinsTableCreateCompanionBuilder,
+          $$HabitCheckinsTableUpdateCompanionBuilder,
+          (
+            HabitCheckinRow,
+            BaseReferences<_$AppDatabase, $HabitCheckinsTable, HabitCheckinRow>,
+          ),
+          HabitCheckinRow,
+          PrefetchHooks Function()
+        > {
+  $$HabitCheckinsTableTableManager(_$AppDatabase db, $HabitCheckinsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HabitCheckinsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HabitCheckinsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HabitCheckinsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> habitId = const Value.absent(),
+                Value<int> checkinStamp = const Value.absent(),
+                Value<double> value = const Value.absent(),
+                Value<double> goal = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HabitCheckinsCompanion(
+                habitId: habitId,
+                checkinStamp: checkinStamp,
+                value: value,
+                goal: goal,
+                status: status,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required int habitId,
+                required int checkinStamp,
+                Value<double> value = const Value.absent(),
+                Value<double> goal = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => HabitCheckinsCompanion.insert(
+                habitId: habitId,
+                checkinStamp: checkinStamp,
+                value: value,
+                goal: goal,
+                status: status,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HabitCheckinsTable, HabitCheckinRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $HabitCheckinsTable,
+                    HabitCheckinRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HabitCheckinsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HabitCheckinsTable,
+      HabitCheckinRow,
+      $$HabitCheckinsTableFilterComposer,
+      $$HabitCheckinsTableOrderingComposer,
+      $$HabitCheckinsTableAnnotationComposer,
+      $$HabitCheckinsTableCreateCompanionBuilder,
+      $$HabitCheckinsTableUpdateCompanionBuilder,
+      (
+        HabitCheckinRow,
+        BaseReferences<_$AppDatabase, $HabitCheckinsTable, HabitCheckinRow>,
+      ),
+      HabitCheckinRow,
+      PrefetchHooks Function()
+    >;
+typedef $$HabitSectionsTableCreateCompanionBuilder =
+    HabitSectionsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<int> sortOrder,
+    });
+typedef $$HabitSectionsTableUpdateCompanionBuilder =
+    HabitSectionsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<int> sortOrder,
+    });
+
+class $$HabitSectionsTableFilterComposer
+    extends Composer<_$AppDatabase, $HabitSectionsTable> {
+  $$HabitSectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$HabitSectionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $HabitSectionsTable> {
+  $$HabitSectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(
+    column: $table.sortOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$HabitSectionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $HabitSectionsTable> {
+  $$HabitSectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder =>
+      $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+}
+
+class $$HabitSectionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HabitSectionsTable,
+          HabitSectionRow,
+          $$HabitSectionsTableFilterComposer,
+          $$HabitSectionsTableOrderingComposer,
+          $$HabitSectionsTableAnnotationComposer,
+          $$HabitSectionsTableCreateCompanionBuilder,
+          $$HabitSectionsTableUpdateCompanionBuilder,
+          (
+            HabitSectionRow,
+            BaseReferences<_$AppDatabase, $HabitSectionsTable, HabitSectionRow>,
+          ),
+          HabitSectionRow,
+          PrefetchHooks Function()
+        > {
+  $$HabitSectionsTableTableManager(_$AppDatabase db, $HabitSectionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$HabitSectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$HabitSectionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$HabitSectionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+              }) => HabitSectionsCompanion(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+              }) => HabitSectionsCompanion.insert(
+                id: id,
+                name: name,
+                sortOrder: sortOrder,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$HabitSectionsTable, HabitSectionRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $HabitSectionsTable,
+                    HabitSectionRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HabitSectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HabitSectionsTable,
+      HabitSectionRow,
+      $$HabitSectionsTableFilterComposer,
+      $$HabitSectionsTableOrderingComposer,
+      $$HabitSectionsTableAnnotationComposer,
+      $$HabitSectionsTableCreateCompanionBuilder,
+      $$HabitSectionsTableUpdateCompanionBuilder,
+      (
+        HabitSectionRow,
+        BaseReferences<_$AppDatabase, $HabitSectionsTable, HabitSectionRow>,
+      ),
+      HabitSectionRow,
+      PrefetchHooks Function()
+    >;
+typedef $$CountdownsTableCreateCompanionBuilder = CountdownsCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> type,
+  Value<int> date,
+  Value<String> repeat,
+  Value<bool> pinned,
+  Value<int> status,
+  Value<String> color,
+  Value<String> icon,
+  Value<String> remark,
+  Value<int> days,
+  Value<int> hours,
+  Value<int> minutes,
+  Value<int> seconds,
+  Value<String> state,
+  Value<int> occurrenceDate,
+  Value<int> age,
+});
+typedef $$CountdownsTableUpdateCompanionBuilder = CountdownsCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> type,
+  Value<int> date,
+  Value<String> repeat,
+  Value<bool> pinned,
+  Value<int> status,
+  Value<String> color,
+  Value<String> icon,
+  Value<String> remark,
+  Value<int> days,
+  Value<int> hours,
+  Value<int> minutes,
+  Value<int> seconds,
+  Value<String> state,
+  Value<int> occurrenceDate,
+  Value<int> age,
+});
+
+class $$CountdownsTableFilterComposer
+    extends Composer<_$AppDatabase, $CountdownsTable> {
+  $$CountdownsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get repeat => $composableBuilder(
+    column: $table.repeat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remark => $composableBuilder(
+    column: $table.remark,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get days => $composableBuilder(
+    column: $table.days,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hours => $composableBuilder(
+    column: $table.hours,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minutes => $composableBuilder(
+    column: $table.minutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get seconds => $composableBuilder(
+    column: $table.seconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get occurrenceDate => $composableBuilder(
+    column: $table.occurrenceDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get age => $composableBuilder(
+    column: $table.age,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CountdownsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CountdownsTable> {
+  $$CountdownsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get date => $composableBuilder(
+    column: $table.date,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get repeat => $composableBuilder(
+    column: $table.repeat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get icon => $composableBuilder(
+    column: $table.icon,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get remark => $composableBuilder(
+    column: $table.remark,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get days => $composableBuilder(
+    column: $table.days,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hours => $composableBuilder(
+    column: $table.hours,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minutes => $composableBuilder(
+    column: $table.minutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get seconds => $composableBuilder(
+    column: $table.seconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get state => $composableBuilder(
+    column: $table.state,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get occurrenceDate => $composableBuilder(
+    column: $table.occurrenceDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get age => $composableBuilder(
+    column: $table.age,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CountdownsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CountdownsTable> {
+  $$CountdownsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<int> get date =>
+      $composableBuilder(column: $table.date, builder: (column) => column);
+
+  GeneratedColumn<String> get repeat =>
+      $composableBuilder(column: $table.repeat, builder: (column) => column);
+
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  GeneratedColumn<int> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get icon =>
+      $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumn<String> get remark =>
+      $composableBuilder(column: $table.remark, builder: (column) => column);
+
+  GeneratedColumn<int> get days =>
+      $composableBuilder(column: $table.days, builder: (column) => column);
+
+  GeneratedColumn<int> get hours =>
+      $composableBuilder(column: $table.hours, builder: (column) => column);
+
+  GeneratedColumn<int> get minutes =>
+      $composableBuilder(column: $table.minutes, builder: (column) => column);
+
+  GeneratedColumn<int> get seconds =>
+      $composableBuilder(column: $table.seconds, builder: (column) => column);
+
+  GeneratedColumn<String> get state =>
+      $composableBuilder(column: $table.state, builder: (column) => column);
+
+  GeneratedColumn<int> get occurrenceDate => $composableBuilder(
+    column: $table.occurrenceDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get age =>
+      $composableBuilder(column: $table.age, builder: (column) => column);
+}
+
+class $$CountdownsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CountdownsTable,
+          CountdownRow,
+          $$CountdownsTableFilterComposer,
+          $$CountdownsTableOrderingComposer,
+          $$CountdownsTableAnnotationComposer,
+          $$CountdownsTableCreateCompanionBuilder,
+          $$CountdownsTableUpdateCompanionBuilder,
+          (
+            CountdownRow,
+            BaseReferences<_$AppDatabase, $CountdownsTable, CountdownRow>,
+          ),
+          CountdownRow,
+          PrefetchHooks Function()
+        > {
+  $$CountdownsTableTableManager(_$AppDatabase db, $CountdownsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CountdownsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CountdownsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CountdownsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<int> date = const Value.absent(),
+                Value<String> repeat = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<String> remark = const Value.absent(),
+                Value<int> days = const Value.absent(),
+                Value<int> hours = const Value.absent(),
+                Value<int> minutes = const Value.absent(),
+                Value<int> seconds = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> occurrenceDate = const Value.absent(),
+                Value<int> age = const Value.absent(),
+              }) => CountdownsCompanion(
+                id: id,
+                name: name,
+                type: type,
+                date: date,
+                repeat: repeat,
+                pinned: pinned,
+                status: status,
+                color: color,
+                icon: icon,
+                remark: remark,
+                days: days,
+                hours: hours,
+                minutes: minutes,
+                seconds: seconds,
+                state: state,
+                occurrenceDate: occurrenceDate,
+                age: age,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<int> date = const Value.absent(),
+                Value<String> repeat = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<int> status = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<String> remark = const Value.absent(),
+                Value<int> days = const Value.absent(),
+                Value<int> hours = const Value.absent(),
+                Value<int> minutes = const Value.absent(),
+                Value<int> seconds = const Value.absent(),
+                Value<String> state = const Value.absent(),
+                Value<int> occurrenceDate = const Value.absent(),
+                Value<int> age = const Value.absent(),
+              }) => CountdownsCompanion.insert(
+                id: id,
+                name: name,
+                type: type,
+                date: date,
+                repeat: repeat,
+                pinned: pinned,
+                status: status,
+                color: color,
+                icon: icon,
+                remark: remark,
+                days: days,
+                hours: hours,
+                minutes: minutes,
+                seconds: seconds,
+                state: state,
+                occurrenceDate: occurrenceDate,
+                age: age,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$CountdownsTable, CountdownRow>(table),
+                  BaseReferences<_$AppDatabase, $CountdownsTable, CountdownRow>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CountdownsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CountdownsTable,
+      CountdownRow,
+      $$CountdownsTableFilterComposer,
+      $$CountdownsTableOrderingComposer,
+      $$CountdownsTableAnnotationComposer,
+      $$CountdownsTableCreateCompanionBuilder,
+      $$CountdownsTableUpdateCompanionBuilder,
+      (
+        CountdownRow,
+        BaseReferences<_$AppDatabase, $CountdownsTable, CountdownRow>,
+      ),
+      CountdownRow,
+      PrefetchHooks Function()
+    >;
 typedef $$MetaTableCreateCompanionBuilder = MetaCompanion Function({
   required String key,
   required String value,
@@ -7494,5 +11203,13 @@ class $AppDatabaseManager {
       $$HabitOutboxTableTableManager(_db, _db.habitOutbox);
   $$CountdownOutboxTableTableManager get countdownOutbox =>
       $$CountdownOutboxTableTableManager(_db, _db.countdownOutbox);
+  $$HabitsTableTableManager get habits =>
+      $$HabitsTableTableManager(_db, _db.habits);
+  $$HabitCheckinsTableTableManager get habitCheckins =>
+      $$HabitCheckinsTableTableManager(_db, _db.habitCheckins);
+  $$HabitSectionsTableTableManager get habitSections =>
+      $$HabitSectionsTableTableManager(_db, _db.habitSections);
+  $$CountdownsTableTableManager get countdowns =>
+      $$CountdownsTableTableManager(_db, _db.countdowns);
   $$MetaTableTableManager get meta => $$MetaTableTableManager(_db, _db.meta);
 }

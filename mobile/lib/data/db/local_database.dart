@@ -256,6 +256,135 @@ class CountdownOutbox extends Table {
   Set<Column> get primaryKey => {seq};
 }
 
+/// Local mirror of the server habit workspace (`internal/store/habits.go`).
+/// The background sync pass replaces these rows; the habits page reads only
+/// them, so it renders offline without a network round-trip.
+@TableIndex(name: 'idx_habit_section', columns: {#sectionId})
+@DataClassName('HabitRow')
+class Habits extends Table {
+  IntColumn get id => integer()();
+
+  TextColumn get name => text().withDefault(const Constant(''))();
+
+  TextColumn get icon => text().withDefault(const Constant(''))();
+
+  TextColumn get color => text().withDefault(const Constant('#97E38B'))();
+
+  IntColumn get sectionId =>
+      integer().named('section_id').withDefault(const Constant(0))();
+
+  IntColumn get status => integer().withDefault(const Constant(0))();
+
+  RealColumn get goal => real().withDefault(const Constant(1))();
+
+  RealColumn get step => real().withDefault(const Constant(1))();
+
+  TextColumn get unit => text().withDefault(const Constant('Count'))();
+
+  TextColumn get frequency => text().withDefault(const Constant('{}'))();
+
+  IntColumn get startDate =>
+      integer().named('start_date').withDefault(const Constant(0))();
+
+  IntColumn get targetDays =>
+      integer().named('target_days').withDefault(const Constant(0))();
+
+  IntColumn get completedCycles =>
+      integer().named('completed_cycles').withDefault(const Constant(0))();
+
+  /// Values the server derives per request (streaks, today state). Cached so
+  /// the mirror can render the same numbers offline.
+  IntColumn get totalCheckIns =>
+      integer().named('total_check_ins').withDefault(const Constant(0))();
+
+  IntColumn get currentStreak =>
+      integer().named('current_streak').withDefault(const Constant(0))();
+
+  IntColumn get maxStreak =>
+      integer().named('max_streak').withDefault(const Constant(0))();
+
+  BoolColumn get dueToday =>
+      boolean().named('due_today').withDefault(const Constant(false))();
+
+  BoolColumn get doneToday =>
+      boolean().named('done_today').withDefault(const Constant(false))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('HabitCheckinRow')
+class HabitCheckins extends Table {
+  IntColumn get habitId => integer().named('habit_id')();
+
+  IntColumn get checkinStamp => integer().named('checkin_stamp')();
+
+  RealColumn get value => real().withDefault(const Constant(0))();
+
+  RealColumn get goal => real().withDefault(const Constant(0))();
+
+  IntColumn get status => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {habitId, checkinStamp};
+}
+
+@DataClassName('HabitSectionRow')
+class HabitSections extends Table {
+  IntColumn get id => integer()();
+
+  TextColumn get name => text().withDefault(const Constant(''))();
+
+  IntColumn get sortOrder =>
+      integer().named('sort_order').withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+/// Local mirror of `internal/store/countdown.go:CountdownEvent`, plus the
+/// derived fields the server computes per request.
+@DataClassName('CountdownRow')
+class Countdowns extends Table {
+  IntColumn get id => integer()();
+
+  TextColumn get name => text().withDefault(const Constant(''))();
+
+  TextColumn get type => text().withDefault(const Constant('countdown'))();
+
+  IntColumn get date => integer().withDefault(const Constant(0))();
+
+  TextColumn get repeat => text().withDefault(const Constant('none'))();
+
+  BoolColumn get pinned => boolean().withDefault(const Constant(false))();
+
+  IntColumn get status => integer().withDefault(const Constant(0))();
+
+  TextColumn get color => text().withDefault(const Constant('#92D0FF'))();
+
+  TextColumn get icon => text().withDefault(const Constant('⏳'))();
+
+  TextColumn get remark => text().withDefault(const Constant(''))();
+
+  IntColumn get days => integer().withDefault(const Constant(0))();
+
+  IntColumn get hours => integer().withDefault(const Constant(0))();
+
+  IntColumn get minutes => integer().withDefault(const Constant(0))();
+
+  IntColumn get seconds => integer().withDefault(const Constant(0))();
+
+  TextColumn get state => text().withDefault(const Constant('future'))();
+
+  IntColumn get occurrenceDate =>
+      integer().named('occurrence_date').withDefault(const Constant(0))();
+
+  IntColumn get age => integer().withDefault(const Constant(0))();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 /// Key/value store for the sync cursor and UI preferences.
 @DataClassName('MetaRow')
 class Meta extends Table {
@@ -271,6 +400,10 @@ const String cursorKey = 'cursor';
 const String syncedAtKey = 'synced_at';
 const String accentKey = 'accent';
 
+/// Habit display preferences (server `HabitPreference`, a single row per user)
+/// are cached as one JSON value rather than a table of scalars.
+const String habitPreferencesKey = 'habit_preferences';
+
 @DriftDatabase(
   tables: [
     Tasks,
@@ -281,6 +414,10 @@ const String accentKey = 'accent';
     Conflicts,
     HabitOutbox,
     CountdownOutbox,
+    Habits,
+    HabitCheckins,
+    HabitSections,
+    Countdowns,
     Meta,
   ],
 )
@@ -292,11 +429,21 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
-  MigrationStrategy get migration =>
-      MigrationStrategy(onCreate: (details) => details.createAll());
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (details) => details.createAll(),
+    onUpgrade: (migrator, from, to) async {
+      if (from < 2) {
+        // v2: habit/countdown read mirrors.
+        await migrator.createTable(habits);
+        await migrator.createTable(habitCheckins);
+        await migrator.createTable(habitSections);
+        await migrator.createTable(countdowns);
+      }
+    },
+  );
 
   Future<String?> metaValue(String key) async {
     final row = await (select(
@@ -310,9 +457,8 @@ class AppDatabase extends _$AppDatabase {
     onConflict: DoUpdate((_) => MetaRow(key: key, value: value)),
   );
 
-  Future<void> deleteMeta(String key) => (delete(
-    meta,
-  )..where((t) => t.key.equals(key))).go();
+  Future<void> deleteMeta(String key) =>
+      (delete(meta)..where((t) => t.key.equals(key))).go();
 }
 
 LazyDatabase _openFile(String path) {

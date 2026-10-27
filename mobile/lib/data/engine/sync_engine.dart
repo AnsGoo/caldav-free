@@ -47,6 +47,7 @@ class SyncEngine {
     required this.deviceId,
     Duration Function(int attempts)? backoff,
     this.queueFlushers = const [],
+    this.mirrorPullers = const [],
   }) : _backoffOverride = backoff;
 
   final LocalStore store;
@@ -57,6 +58,10 @@ class SyncEngine {
   /// Durable local-only write queues (habits, countdowns, ...) replayed by
   /// this background pass instead of by the pages that enqueued them.
   final List<Future<void> Function()> queueFlushers;
+
+  /// Refreshes the read mirrors (habits, countdowns) the pages render from,
+  /// after [queueFlushers] pushed local writes so the pull sees their result.
+  final List<Future<void> Function()> mirrorPullers;
 
   Future<SyncRunResult>? _current;
 
@@ -91,6 +96,15 @@ class SyncEngine {
     }
 
     pulled += await _pull(full: full);
+
+    for (final pull in mirrorPullers) {
+      try {
+        await pull();
+      } on Object {
+        // A side mirror keeps its previous rows when the pull fails; the next
+        // background pass retries. It must not fail the main sync.
+      }
+    }
 
     // Conflicts produce replacements due immediately; a couple of rounds
     // usually converge in the same sync call.

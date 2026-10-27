@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:http/http.dart' as http;
 
-import '../../core/ids.dart';
 import 'countdown_write_queue.dart';
 
 class CountdownItem {
@@ -137,15 +135,8 @@ class CountdownApi {
     'Accept': 'application/json',
   };
 
-  /// Server countdowns plus any local writes still waiting to sync, so
-  /// pending edits show up immediately even before the round-trip lands.
-  /// Throws when the server is unreachable; callers keep their cached list
-  /// and can overlay [overlayPending] on top of it.
-  Future<List<CountdownItem>> load() async {
-    final remote = await fetch();
-    return _applyPending(remote);
-  }
-
+  /// Server countdowns for the background sync pass. Pages read the local
+  /// mirror in `CountdownStore` instead of calling this.
   Future<List<CountdownItem>> fetch() async {
     final body = await _request('GET', '/api/sync/countdowns');
     return (body['countdowns'] as List<dynamic>? ?? const [])
@@ -154,58 +145,15 @@ class CountdownApi {
         .toList(growable: false);
   }
 
-  /// Re-applies queued local writes over a previously loaded list, used when
-  /// a refresh fails and the page keeps its stale snapshot.
-  Future<List<CountdownItem>> overlayPending(List<CountdownItem> items) async =>
-      _applyPending(items);
-
-  Future<List<CountdownItem>> _applyPending(List<CountdownItem> remote) async {
-    final queue = await _queue;
-    if (queue.isEmpty) return remote;
-    final ops = await queue.items();
-    final byId = <int, CountdownItem>{
-      for (final item in remote)
-        if (!item.id.isNegative) item.id: item,
-    };
-    // Queue ops are replayed in FIFO order onto the map so overlaying an
-    // already-overlaid list (e.g. repeated background retries) is idempotent
-    // and never duplicates the pending item.
-    for (final op in ops) {
-      switch (op.action) {
-        case 'delete':
-          byId.remove(op.countdownId);
-        case 'update':
-          final payload = op.payload;
-          final existing = byId[op.countdownId];
-          if (payload == null) continue;
-          if (existing != null) {
-            byId[op.countdownId] = _patched(existing, payload);
-          } else if (!op.countdownId.isNegative) {
-            byId[op.countdownId] = buildOptimisticItem(
-              op.countdownId,
-              payload,
-            );
-          }
-        case 'create':
-          final payload = op.payload;
-          if (payload == null) continue;
-          byId[op.countdownId] = buildOptimisticItem(op.countdownId, payload);
-      }
-    }
-    final merged = byId.values.toList();
-    merged.sort((a, b) {
-      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
-      return a.occurrenceDate.compareTo(b.occurrenceDate);
-    });
-    return merged;
-  }
-
-  static CountdownItem _patched(CountdownItem item, Map<String, dynamic> p) {
+  /// Re-applies a queued patch over a mirrored item, preserving the fields
+  /// only the server can compute (hours, age).
+  static CountdownItem patchedItem(
+    CountdownItem item,
+    Map<String, dynamic> p,
+  ) {
     final date = _int(p['date'], item.date);
     final repeat = (p['repeat'] ?? item.repeat).toString();
-    final occurrence = repeat == 'yearly'
-        ? _nextYearly(date)
-        : date;
+    final occurrence = repeat == 'yearly' ? _nextYearly(date) : date;
     final days = _daysUntil(occurrence);
     return CountdownItem(
       id: item.id,
@@ -283,66 +231,6 @@ class CountdownApi {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     return _dayFromStamp(occurrenceStamp).difference(today).inDays;
-  }
-
-  Future<CountdownItem> create(CountdownDraft draft) async {
-    final queue = await _queue;
-    final tempId = _newTempId();
-    await queue.add(
-      CountdownPendingOp(
-        opId: newSyncId(),
-        action: 'create',
-        countdownId: tempId,
-        payload: draft.toJson(),
-        createdAt: DateTime.now().toUtc(),
-      ),
-    );
-    return buildOptimisticItem(tempId, draft.toJson());
-  }
-
-  Future<CountdownItem> update(int id, CountdownDraft draft) async {
-    final queue = await _queue;
-    if (id < 0) {
-      final rewritten = await queue.replaceCreatePayload(id, draft.toJson());
-      if (!rewritten) {
-        await queue.add(
-          CountdownPendingOp(
-            opId: newSyncId(),
-            action: 'create',
-            countdownId: id,
-            payload: draft.toJson(),
-            createdAt: DateTime.now().toUtc(),
-          ),
-        );
-      }
-    } else {
-      await queue.add(
-        CountdownPendingOp(
-          opId: newSyncId(),
-          action: 'update',
-          countdownId: id,
-          payload: draft.toJson(),
-          createdAt: DateTime.now().toUtc(),
-        ),
-      );
-    }
-    return buildOptimisticItem(id, draft.toJson());
-  }
-
-  Future<void> delete(int id) async {
-    final queue = await _queue;
-    if (id < 0) {
-      await queue.cancelTemp(id);
-      return;
-    }
-    await queue.add(
-      CountdownPendingOp(
-        opId: newSyncId(),
-        action: 'delete',
-        countdownId: id,
-        createdAt: DateTime.now().toUtc(),
-      ),
-    );
   }
 
   Future<void>? _flushing;
@@ -454,10 +342,6 @@ class CountdownApi {
       error is SocketException;
 
   static bool _timedOut(Object error) => error is TimeoutException;
-
-  static int _newTempId() =>
-      -(DateTime.now().microsecondsSinceEpoch * 10 +
-        Random.secure().nextInt(10));
 
   Future<Map<String, dynamic>> _request(
     String method,

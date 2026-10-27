@@ -58,22 +58,20 @@ class HabitPendingOp {
 class HabitWriteQueue {
   HabitWriteQueue._(this._db, [this._legacyFile]);
 
-  /// Memory-only queue for tests.
-  factory HabitWriteQueue.inMemory() =>
-      HabitWriteQueue._(AppDatabase.memory());
+  /// Memory-only queue for tests: ops live in the map, no database, no IO.
+  factory HabitWriteQueue.inMemory() => HabitWriteQueue._(null);
 
   /// Database-backed queue at an explicit path for tests.
   factory HabitWriteQueue.forPath(
     String dbPath, {
     File? legacyFile,
     bool ownsDatabase = true,
-  }) =>
-      HabitWriteQueue._(
-        ownsDatabase ? AppDatabase.file(dbPath) : sharedAppDatabase(dbPath),
-        legacyFile,
-      );
+  }) => HabitWriteQueue._(
+    ownsDatabase ? AppDatabase.file(dbPath) : sharedAppDatabase(dbPath),
+    legacyFile,
+  );
 
-  Future<void> close() => _db.close();
+  Future<void> close() async => _db?.close();
 
   static HabitWriteQueue? _shared;
 
@@ -90,7 +88,7 @@ class HabitWriteQueue {
     return queue;
   }
 
-  final AppDatabase _db;
+  final AppDatabase? _db;
   final File? _legacyFile;
   final List<HabitPendingOp> _ops = [];
   Future<void>? _loading;
@@ -98,11 +96,13 @@ class HabitWriteQueue {
   bool get isEmpty => _ops.isEmpty;
 
   Future<void> _ensureLoaded() async {
+    if (_db == null) return;
     final inFlight = _loading;
     if (inFlight != null) return inFlight;
     _loading = () async {
-      for (final row in await (_db.select(
-        _db.habitOutbox,
+      final db = _db;
+      for (final row in await (db.select(
+        db.habitOutbox,
       )..orderBy([(t) => OrderingTerm.asc(t.seq)])).get()) {
         final op = _opFrom(row);
         if (op.opId.isNotEmpty && op.action.isNotEmpty) _ops.add(op);
@@ -151,19 +151,23 @@ class HabitWriteQueue {
     createdAt: row.createdAt,
   );
 
-  Future<void> _insert(HabitPendingOp op) => _db
-      .into(_db.habitOutbox)
-      .insert(
-        HabitOutboxCompanion.insert(
-          opId: op.opId,
-          action: Value(op.action),
-          habitId: op.habitId,
-          payload: Value(encodeJsonObject(op.payload)),
-          stamp: Value(op.stamp),
-          createdAt: Value(op.createdAt),
-        ),
-        onConflict: DoNothing(),
-      );
+  Future<void> _insert(HabitPendingOp op) async {
+    final db = _db;
+    if (db == null) return;
+    await db
+        .into(db.habitOutbox)
+        .insert(
+          HabitOutboxCompanion.insert(
+            opId: op.opId,
+            action: Value(op.action),
+            habitId: op.habitId,
+            payload: Value(encodeJsonObject(op.payload)),
+            stamp: Value(op.stamp),
+            createdAt: Value(op.createdAt),
+          ),
+          onConflict: DoNothing(),
+        );
+  }
 
   Future<void> add(HabitPendingOp op) async {
     await _ensureLoaded();
@@ -181,9 +185,11 @@ class HabitWriteQueue {
     final before = _ops.length;
     _ops.removeWhere((op) => op.opId == opId);
     if (_ops.length == before) return;
-    await (_db.delete(_db.habitOutbox)
-          ..where((row) => row.opId.equals(opId)))
-        .go();
+    final db = _db;
+    if (db == null) return;
+    await (db.delete(
+      db.habitOutbox,
+    )..where((row) => row.opId.equals(opId))).go();
   }
 
   Future<void> replaceHabitId(int tempId, int realId) async {
@@ -203,7 +209,9 @@ class HabitWriteQueue {
       changed = true;
     }
     if (!changed) return;
-    await (_db.update(_db.habitOutbox)
+    final db = _db;
+    if (db == null) return;
+    await (db.update(db.habitOutbox)
           ..where((row) => row.habitId.equals(tempId)))
         .write(HabitOutboxCompanion(habitId: Value(realId)));
   }
@@ -215,9 +223,11 @@ class HabitWriteQueue {
     final before = _ops.length;
     _ops.removeWhere((op) => op.habitId == tempId);
     if (_ops.length == before) return;
-    await (_db.delete(_db.habitOutbox)
-          ..where((row) => row.habitId.equals(tempId)))
-        .go();
+    final db = _db;
+    if (db == null) return;
+    await (db.delete(
+      db.habitOutbox,
+    )..where((row) => row.habitId.equals(tempId))).go();
   }
 
   /// Rewrites the payload of the pending create for a temp habit. Returns
@@ -238,11 +248,14 @@ class HabitWriteQueue {
         stamp: op.stamp,
         createdAt: op.createdAt,
       );
-      await (_db.update(_db.habitOutbox)
-            ..where((row) => row.opId.equals(op.opId)))
-          .write(
-            HabitOutboxCompanion(payload: Value(encodeJsonObject(payload))),
-          );
+      final db = _db;
+      if (db != null) {
+        await (db.update(
+          db.habitOutbox,
+        )..where((row) => row.opId.equals(op.opId))).write(
+          HabitOutboxCompanion(payload: Value(encodeJsonObject(payload))),
+        );
+      }
       return true;
     }
     return false;

@@ -2570,6 +2570,7 @@ class _YearView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final today = _dateOnly(DateTime.now());
+    final scheme = Theme.of(context).colorScheme;
     // One screen, no scrolling: the four rows split the available height and
     // each mini month squeezes its week rows into whatever is left.
     return Padding(
@@ -2587,9 +2588,14 @@ class _YearView extends StatelessWidget {
                       Expanded(
                         child: Padding(
                           padding: EdgeInsets.only(left: column == 0 ? 0 : 8),
-                          child: AppCard(
-                            radius: 14,
+                          // PC frames each month with the canvas showing
+                          // through and a hairline border, not a filled card.
+                          child: Container(
                             padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: scheme.outline),
+                            ),
                             child: _MiniMonth(
                               year: anchor.year,
                               month: row * 3 + column + 1,

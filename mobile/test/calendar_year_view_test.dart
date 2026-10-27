@@ -3,6 +3,7 @@ import 'package:caldav_free/core/models.dart';
 import 'package:caldav_free/data/db/local_store.dart';
 import 'package:caldav_free/data/session/credentials.dart';
 import 'package:caldav_free/data/tasks_repository.dart';
+import 'package:caldav_free/design/components.dart';
 import 'package:caldav_free/features/calendar/calendar_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,6 +56,8 @@ void main() {
       expect(find.text('$month月'), findsOneWidget, reason: '$month月 表头');
     }
     expect(find.text('0 项'), findsNWidgets(12));
+    // PC parity: months are hairline-outlined, not filled cards.
+    expect(find.byType(AppCard), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

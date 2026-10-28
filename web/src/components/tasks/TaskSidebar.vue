@@ -72,76 +72,6 @@
     <div class="tw-side-scroll">
       <section class="tw-side-section">
         <header class="tw-section-head">
-          <span>笔记</span>
-          <span class="tw-section-actions">
-            <button class="tw-icon-button" aria-label="新建笔记清单" title="新建笔记清单" @click="startAddNoteList">
-              <TaskIcon name="note" :size="16" />
-            </button>
-            <button class="tw-icon-button" aria-label="新建笔记" title="新建笔记" @click="$emit('create-note')">
-              <TaskIcon name="plus" :size="16" />
-            </button>
-          </span>
-        </header>
-
-        <form v-if="addingNoteList" class="tw-new-list" @submit.prevent="submitNoteList">
-          <input
-            ref="noteNameInput"
-            v-model="newNoteListName"
-            class="tw-inline-input"
-            maxlength="40"
-            placeholder="笔记清单名称，回车创建"
-            @keydown.enter.prevent="submitNoteList"
-            @keydown.esc="cancelAddNoteList"
-            @blur="maybeCancelNoteList"
-          />
-        </form>
-
-        <ul v-if="customNoteLists.length" class="tw-list-nav">
-          <li v-for="list in customNoteLists" :key="`note-${list.id}`">
-            <button
-              class="tw-nav-item tw-list-item tw-list-note-item"
-              :class="{ active: activeListId === list.id }"
-              @click="$emit('select-list', list.id)"
-            >
-              <span class="tw-note-list-mark"><TaskIcon name="note" :size="14" /></span>
-              <span class="tw-nav-label">{{ list.name }}</span>
-              <span v-if="list.count" class="tw-nav-count">{{ list.count }}</span>
-            </button>
-            <div class="tw-list-actions">
-              <button
-                class="tw-icon-button"
-                :class="{ 'is-pinned': list.pinned }"
-                :title="list.pinned ? '取消置顶笔记清单' : '置顶笔记清单'"
-                @click.stop="$emit('pin-list', list)"
-              >
-                <TaskIcon name="pin" :size="14" />
-              </button>
-              <button class="tw-icon-button" title="共享笔记清单" @click.stop="$emit('share-list', list)">
-                <TaskIcon name="share" :size="14" />
-              </button>
-              <button class="tw-icon-button" title="编辑笔记清单" @click.stop="$emit('edit-list', list)">
-                <TaskIcon name="edit" :size="14" />
-              </button>
-              <button class="tw-icon-button" title="删除笔记清单" @click.stop="$emit('delete-list', list)">
-                <TaskIcon name="trash" :size="14" />
-              </button>
-            </div>
-          </li>
-        </ul>
-
-        <p v-else-if="hasPinnedNoteLists" class="tw-side-hint">笔记清单已置顶到顶部图标条。</p>
-
-        <template v-else-if="!hasNoteLists">
-          <p class="tw-side-hint">新建笔记清单后，就可以开始记录想法和灵感。</p>
-          <button class="tw-side-note-create" @click="startAddNoteList">
-            <TaskIcon name="plus" :size="13" />
-            新建笔记清单
-          </button>
-        </template>
-      </section>
-
-      <section class="tw-side-section">
-        <header class="tw-section-head">
           <span>任务清单</span>
           <span class="tw-section-actions">
             <button class="tw-icon-button" aria-label="新建文件夹" title="新建文件夹" @click="$emit('create-folder')">
@@ -307,27 +237,6 @@
         </ul>
       </section>
 
-      <section v-if="sharedNotes.length" class="tw-side-section">
-        <header class="tw-section-head">
-          <span>共享笔记</span>
-          <span class="tw-shared-readonly">共享</span>
-        </header>
-        <ul class="tw-list-nav">
-          <li v-for="note in sharedNotes" :key="`shared-note-${note.task.id}`">
-            <button
-              class="tw-nav-item tw-list-item tw-shared-note-item"
-              :class="{ active: activeSharedNoteId === note.task.id }"
-              :title="`来自 ${note.ownerDisplay || note.ownerUsername}`"
-              @click="$emit('select-shared-note', note)"
-            >
-              <span class="tw-note-list-mark"><TaskIcon name="note" :size="14" /></span>
-              <span class="tw-nav-label">{{ note.task.title || '无标题笔记' }}</span>
-            </button>
-            <p class="tw-shared-owner">{{ note.ownerDisplay || note.ownerUsername }}</p>
-          </li>
-        </ul>
-      </section>
-
       <section class="tw-side-section">
         <header class="tw-section-head">
           <span>标签</span>
@@ -441,29 +350,21 @@ const emit = defineEmits<{
 }>()
 
 const adding = ref(false)
-const addingNoteList = ref(false)
 const newListName = ref('')
-const newNoteListName = ref('')
 const nameInput = ref<HTMLInputElement | null>(null)
-const noteNameInput = ref<HTMLInputElement | null>(null)
 const collapsedFolders = ref(new Set<number>())
 const draggingFolderId = ref(0)
 const draggingListId = ref(0)
 const draggingFilterId = ref(0)
 
 const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
-const pinnedLists = computed(() => props.lists.filter((list) => list.pinned))
+const pinnedLists = computed(() => props.lists.filter((list) => list.pinned && list.kind !== 'NOTE'))
 const pinnedFilters = computed(() => props.filters.filter((filter) => filter.pinned))
 const unpinnedFilters = computed(() => props.filters.filter((filter) => !filter.pinned))
 const inboxList = computed(() => props.lists.find((list) => list.isInbox && list.kind !== 'NOTE'))
 const customTaskLists = computed(() =>
   props.lists.filter((list) => !list.isInbox && !list.pinned && list.kind !== 'NOTE'),
 )
-const customNoteLists = computed(() =>
-  props.lists.filter((list) => !list.isInbox && !list.pinned && list.kind === 'NOTE'),
-)
-const hasNoteLists = computed(() => props.lists.some((list) => !list.isInbox && list.kind === 'NOTE'))
-const hasPinnedNoteLists = computed(() => props.lists.some((list) => !list.isInbox && list.pinned && list.kind === 'NOTE'))
 
 type ListRow =
   | { kind: 'folder'; key: string; folder: TaskFolder; count: number }
@@ -514,7 +415,6 @@ function toggleFolder(id: number) {
 
 async function toggleAdd() {
   adding.value = true
-  addingNoteList.value = false
   newListName.value = ''
   await nextTick()
   nameInput.value?.focus()
@@ -534,30 +434,6 @@ function submitList() {
   if (!name) return cancelAdd()
   emit('create-list', { name, kind: 'TASK' })
   cancelAdd()
-}
-
-async function startAddNoteList() {
-  addingNoteList.value = true
-  adding.value = false
-  newNoteListName.value = ''
-  await nextTick()
-  noteNameInput.value?.focus()
-}
-
-function cancelAddNoteList() {
-  addingNoteList.value = false
-  newNoteListName.value = ''
-}
-
-function maybeCancelNoteList() {
-  if (!newNoteListName.value.trim()) cancelAddNoteList()
-}
-
-function submitNoteList() {
-  const name = newNoteListName.value.trim()
-  if (!name) return cancelAddNoteList()
-  emit('create-list', { name, kind: 'NOTE' })
-  cancelAddNoteList()
 }
 
 function startFolderDrag(id: number, event: DragEvent) {

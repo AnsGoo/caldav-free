@@ -82,9 +82,9 @@
                   :key="day.stamp"
                   class="tw-habit-day"
                   :style="{ '--habit-progress': checkinPercent(habit, day.stamp) }"
-                  :class="{ done: isDone(habit.id, day.stamp), partial: isPartial(habit.id, day.stamp), today: day.isToday, future: day.future, blocked: isHabitBlocked(habit, day.stamp) }"
-                  :disabled="isHabitBlocked(habit, day.stamp)"
-                  :title="isHabitBlocked(habit, day.stamp) ? '该日期不可打卡' : `${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
+                  :class="{ done: isDone(habit.id, day.stamp), partial: isPartial(habit.id, day.stamp), today: day.isToday, future: day.future, past: day.stamp < todayStamp, blocked: isHabitBlocked(habit, day.stamp) }"
+                  :disabled="isHabitBlocked(habit, day.stamp) || day.stamp < todayStamp"
+                  :title="day.stamp < todayStamp ? '过去的日期不能补卡' : isHabitBlocked(habit, day.stamp) ? '该日期不可打卡' : `${day.dateLabel} ${checkinValue(habit.id, day.stamp)}/${habit.goal}`"
                   @click.stop="startCheckin(habit, day.stamp)"
                 >
                   <TaskIcon v-if="isDone(habit.id, day.stamp) && habit.style !== 'icon'" name="check" :size="11" />
@@ -152,9 +152,10 @@
               v-for="cell in calendarCells"
               :key="cell.stamp"
               class="tw-habit-calendar-day"
-              :class="{ muted: !cell.currentMonth, done: cell.done, partial: cell.partial, today: cell.isToday, future: cell.future, blocked: cell.blocked }"
-              :title="cell.blocked ? `${cell.dateLabel} · 不可打卡` : cell.dateLabel"
-              @click="!cell.blocked && startCheckin(selectedHabit, cell.stamp)"
+              :class="{ muted: !cell.currentMonth, done: cell.done, partial: cell.partial, today: cell.isToday, past: cell.past, future: cell.future, blocked: cell.blocked }"
+              :disabled="cell.past || cell.blocked"
+              :title="cell.past ? `${cell.dateLabel} · 过去的日期不能补卡` : cell.blocked ? `${cell.dateLabel} · 不可打卡` : cell.dateLabel"
+              @click="!cell.past && !cell.blocked && startCheckin(selectedHabit, cell.stamp)"
             >
               <span v-if="cell.done && selectedHabit.style === 'icon'" class="tw-habit-day-emoji">{{ selectedHabit.icon }}</span>
               <template v-else>{{ cell.day }}</template>
@@ -625,6 +626,7 @@ const calendarCells = computed(() => {
       done: isCheckinDone(checkin),
       partial: Boolean(checkin && checkin.value > 0 && !isCheckinDone(checkin)),
       isToday: stamp === today,
+      past: stamp < today,
       future: stamp > today,
       blocked: !selectedHabit.value || isHabitBlocked(selectedHabit.value, stamp),
     }
@@ -842,6 +844,10 @@ function isHabitBlocked(habit: HabitItem, stamp: number) {
 }
 
 function startCheckin(habit: HabitItem, stamp: number) {
+  if (stamp < todayStamp) {
+    Message.info('过去的日期不能补卡')
+    return
+  }
   if (isHabitBlocked(habit, stamp)) {
     Message.info('该日期不可打卡')
     return

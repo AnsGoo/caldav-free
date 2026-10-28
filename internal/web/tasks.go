@@ -449,9 +449,9 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 	})
 }
 
-// taskTags collects the distinct tags used by a user's open tasks.
+// taskTags collects the distinct tags used by a user's live tasks and notes.
 func (s *Server) taskTags(ctx context.Context, userID int64) []string {
-	tasks, err := s.store.ListTasks(ctx, userID, store.TaskFilter{View: "all", Limit: 500})
+	tasks, err := s.store.ListAllTasks(ctx, userID, 5000)
 	if err != nil {
 		return []string{}
 	}

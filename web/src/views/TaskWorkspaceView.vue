@@ -32,6 +32,9 @@
         <button class="tw-rail-button" :class="{ active: view === 'countdown' }" title="倒数纪念日" @click="selectView('countdown')">
           <TaskIcon name="countdown" :size="21" />
         </button>
+        <button class="tw-rail-button" :class="{ active: view === 'notes' }" title="笔记" @click="selectView('notes')">
+          <TaskIcon name="note" :size="20" />
+        </button>
         <button class="tw-rail-button" :class="{ active: view === 'stats' }" title="统计" @click="openStats">
           <TaskIcon name="chart" :size="21" />
         </button>
@@ -64,7 +67,7 @@
     </aside>
 
     <TaskSidebar
-      v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown'"
+      v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'"
       :lists="lists"
       :shared-lists="sharedLists"
       :shared-notes="sharedNotes"
@@ -115,7 +118,7 @@
     <div v-if="sidebarOpen" class="tw-scrim" @click="sidebarOpen = false" />
 
     <main class="tw-main">
-      <header v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown'" class="tw-toolbar">
+      <header v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-toolbar">
         <button class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
           <TaskIcon name="list" :size="20" />
         </button>
@@ -180,7 +183,7 @@
         </div>
       </header>
 
-      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown'" class="tw-search-bar">
+      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-search-bar">
         <TaskIcon name="search" :size="17" />
         <input
           ref="searchInputEl"
@@ -198,6 +201,19 @@
       <FocusStatsPanel v-else-if="view === 'focus' && focusStatsPage" @back="router.push('/tasks/focus')" />
       <FocusPanel v-else-if="view === 'focus'" :tasks="tasks" />
       <CountdownPanel v-else-if="view === 'countdown'" />
+      <NotesPanel
+        v-else-if="view === 'notes'"
+        :notes="noteTasks"
+        :lists="lists"
+        :shared-notes="sharedNotes"
+        :tag-colors="tagColorMap"
+        :selected-id="selectedId"
+        @open="openTask"
+        @pin="toggleTaskPin"
+        @remove="confirmRemoveTask"
+        @open-shared="selectSharedNote"
+        @reload="loadWorkspace(true)"
+      />
       <TaskMatrixPanel
         v-else-if="view === 'matrix'"
         :tasks="matrixTasks"
@@ -1156,6 +1172,7 @@ import HabitPanel from '../components/tasks/HabitPanel.vue'
 import FocusPanel from '../components/tasks/FocusPanel.vue'
 import FocusStatsPanel from '../components/tasks/FocusStatsPanel.vue'
 import CountdownPanel from '../components/tasks/CountdownPanel.vue'
+import NotesPanel from '../components/tasks/NotesPanel.vue'
 import HabitTodayStrip from '../components/tasks/HabitTodayStrip.vue'
 import MatrixViewManagerDialog from '../components/tasks/MatrixViewManagerDialog.vue'
 import MatrixRulesDialog from '../components/tasks/MatrixRulesDialog.vue'
@@ -1370,6 +1387,7 @@ const heading = computed(() => {
   if (view.value === 'habit') return '习惯'
   if (view.value === 'focus') return '专注'
   if (view.value === 'countdown') return '倒数纪念日'
+  if (view.value === 'notes') return '笔记'
   if (sharedNote.value) return sharedNote.value.task.title || '共享笔记'
   if (view.value === 'shared') return activeSharedList.value?.name || '共享清单'
   if (view.value === 'list') {
@@ -1391,6 +1409,7 @@ const headingIcon = computed(() => {
   if (view.value === 'habit') return 'habit'
   if (view.value === 'focus') return 'clock'
   if (view.value === 'countdown') return 'countdown'
+  if (view.value === 'notes') return 'note'
   if (view.value === 'filter') return 'filter'
   return 'list'
 })
@@ -3715,7 +3734,7 @@ function routeParamID(value: unknown) {
 
 function hydrateFromRoute() {
   const q = route.query
-  const validViews: TaskView[] = ['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix', 'habit', 'focus', 'countdown']
+  const validViews: TaskView[] = ['all', 'today', 'next7', 'inbox', 'completed', 'trash', 'stats', 'summary', 'ai', 'filter', 'list', 'shared', 'matrix', 'habit', 'focus', 'countdown', 'notes']
   const queryView = typeof q.view === 'string' && validViews.includes(q.view as TaskView) ? q.view as TaskView : null
   const metaView = typeof route.meta.view === 'string' && validViews.includes(route.meta.view as TaskView) ? route.meta.view as TaskView : null
   view.value = queryView || metaView || 'all'

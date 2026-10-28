@@ -94,6 +94,7 @@ function taskWorkspaceRoutes() {
     { path: '/tasks/focus', name: 'tasks-focus', component, meta: { view: 'focus' } },
     { path: '/tasks/focus/stats', name: 'tasks-focus-stats', component, meta: { view: 'focus' } },
     { path: '/tasks/countdown', name: 'tasks-countdown', component, meta: { view: 'countdown' } },
+    { path: '/tasks/notes', name: 'tasks-notes', component, meta: { view: 'notes' } },
     { path: '/tasks/stats', name: 'tasks-stats', component, meta: { view: 'stats' } },
     { path: '/tasks/summary', name: 'tasks-summary', component, meta: { view: 'summary' } },
     { path: '/tasks/ai', name: 'tasks-ai', component, meta: { view: 'ai' } },

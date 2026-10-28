@@ -203,7 +203,7 @@ func (s *Store) ListSharedTasks(ctx context.Context, userID, listID int64) ([]*T
 	if err != nil {
 		return nil, err
 	}
-	return s.ListTasks(ctx, list.UserID, TaskFilter{View: "all", ListID: listID})
+	return s.ListTasks(ctx, list.UserID, TaskFilter{View: "list", ListID: listID})
 }
 
 func (s *Store) deleteTaskListSharesTx(tx *gorm.DB, listID int64) error {

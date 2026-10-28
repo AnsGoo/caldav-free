@@ -1,7 +1,7 @@
 import { api, apiForm, getCSRFToken, notifyUnauthorized } from './api'
 import type { AIChatReply, AISettings, AppNotification, CalendarEvent, CalendarSource, CalendarSubscription, ChecklistItem, CommentAttachment, CountdownDraft, CountdownItem, FocusDashboard, FocusPreference, FocusRangeStats, FocusSession, FocusSessionDraft, FocusTimerDraft, FocusTimerView, HabitCalendarEntry, HabitDetail, HabitFocusSession, HabitItem, HabitListData, HabitPreference, HabitPublicShare, HabitRecord, HabitSection, HabitShareLink, MatrixRuleMode, MatrixRuleTemplate, MatrixView, MatrixViewRules, SavedFilter, SharedTaskList, SummaryDocument, TaskActivity, TaskAttachment, TaskComment, TaskFolder, TaskItem, TaskList, TaskListMember, TaskListShare, TaskRecurrenceInstance, TaskSection, TaskShare, TaskStats, TaskSummaryData, TaskTagCount, TaskTemplate, TaskWorkspaceData } from './types'
 
-export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown'
+export type TaskView = 'all' | 'today' | 'next7' | 'inbox' | 'completed' | 'trash' | 'stats' | 'summary' | 'ai' | 'list' | 'filter' | 'shared' | 'matrix' | 'habit' | 'focus' | 'countdown' | 'notes'
 
 export function browserTimezone() {
   try {

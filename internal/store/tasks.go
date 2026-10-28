@@ -415,12 +415,21 @@ func (s *Store) taskQuery(ctx context.Context, userID int64, filter TaskFilter, 
 		Where("user_id = ? AND deleted = ? AND completed = ?", userID, false, completed)
 	todayStart := taskTodayStart(time.Now())
 	switch filter.View {
+	case "notes":
+		query = query.Where("kind = ?", "NOTE")
 	case "today":
-		query = query.Where("(due_at IS NOT NULL AND due_at < ?)", todayStart.Add(24*time.Hour))
+		query = query.Where("(due_at IS NOT NULL AND due_at < ?)", todayStart.Add(24*time.Hour)).
+			Where("kind <> ?", "NOTE")
 	case "next7":
-		query = query.Where("(due_at IS NOT NULL AND due_at >= ? AND due_at < ?)", todayStart, todayStart.AddDate(0, 0, 7))
-	case "inbox", "list":
+		query = query.Where("(due_at IS NOT NULL AND due_at >= ? AND due_at < ?)", todayStart, todayStart.AddDate(0, 0, 7)).
+			Where("kind <> ?", "NOTE")
+	case "inbox":
+		query = query.Where("list_id = ?", filter.ListID).Where("kind <> ?", "NOTE")
+	case "list":
 		query = query.Where("list_id = ?", filter.ListID)
+	default:
+		// 笔记有独立入口，不再混进任务视图。
+		query = query.Where("kind <> ?", "NOTE")
 	}
 	if filter.Query != "" {
 		like := "%" + strings.ReplaceAll(strings.ReplaceAll(filter.Query, "%", `\%`), "_", `\_`) + "%"
@@ -435,6 +444,10 @@ func (s *Store) ListTasks(ctx context.Context, userID int64, filter TaskFilter) 
 	limit := filter.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 200
+	}
+	if filter.View == "notes" {
+		// 笔记页需要一次展示足够多的笔记。
+		limit = 500
 	}
 	if filter.View == "trash" {
 		var deleted []*Task
@@ -475,7 +488,7 @@ func (s *Store) TaskCounts(ctx context.Context, userID int64) (TaskCounts, error
 	if err != nil {
 		return counts, err
 	}
-	base := s.db.WithContext(ctx).Model(&Task{}).Where("user_id = ? AND deleted = ?", userID, false)
+	base := s.db.WithContext(ctx).Model(&Task{}).Where("user_id = ? AND deleted = ? AND kind <> ?", userID, false, "NOTE")
 	if err := base.Where("completed = ?", false).Count(&counts.All).Error; err != nil {
 		return counts, err
 	}

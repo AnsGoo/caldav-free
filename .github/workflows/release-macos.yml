@@ -1,0 +1,51 @@
+# 与 Android 发布流水线同样刻意不带任何缓存（无 actions/cache，flutter-action cache: false）。
+# 本机没有 Xcode，macOS 端只在 GitHub 的 macos-14 runner 上构建。
+name: Release macOS
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.8"
+          channel: stable
+          cache: false
+
+      - name: Build release app
+        working-directory: mobile
+        run: |
+          command -v pod || brew install cocoapods
+          flutter pub get
+          flutter build macos --release
+
+      - name: Package app
+        run: |
+          cd mobile/build/macos/Build/Products/Release
+          ditto -c -k --keepParent caldav-free.app caldav-free-macos-arm64.zip
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          gh release upload "$TAG" \
+            mobile/build/macos/Build/Products/Release/caldav-free-macos-arm64.zip \
+            --clobber
+
+      - uses: actions/upload-artifact@v4
+        if: github.event_name != 'release'
+        with:
+          name: macos-release
+          path: mobile/build/macos/Build/Products/Release/caldav-free-macos-arm64.zip

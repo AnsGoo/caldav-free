@@ -1,12 +1,6 @@
 <template>
   <section class="tw-detail" :class="{ 'is-readonly': readonly }">
     <header class="tw-detail-head">
-      <div class="tw-detail-list">
-        <i :style="{ background: currentList?.color || '#4772fa' }" />
-        <a-select v-model.number="draft.listId" class="tw-detail-list-select" size="small" :disabled="readonly || listLocked" @change="save">
-          <a-option v-for="list in taskListOptions" :key="list.id" :value="list.id">{{ list.name }}</a-option>
-        </a-select>
-      </div>
       <div class="tw-detail-head-actions">
         <span class="tw-save-state">{{ readonly ? '只读共享' : saving ? '保存中…' : saved ? '已保存' : '' }}</span>
         <button v-if="!readonly" class="tw-icon-button" title="保存为任务模板" @click="saveAsTemplate"><TaskIcon name="copy" :size="17" /></button>
@@ -246,6 +240,21 @@
         <p class="tw-field-hint">
           重复任务完成后会自动滚到下一次。提醒会写入 CalDAV VALARM；页面打开时可同时使用浏览器通知。
         </p>
+      </section>
+
+      <section class="tw-detail-section">
+        <header class="tw-detail-section-head"><span>清单</span></header>
+        <a-select
+          v-model.number="draft.listId"
+          class="tw-field-select tw-list-picker"
+          :disabled="readonly || listLocked"
+          @change="save"
+        >
+          <template #prefix>
+            <i class="tw-list-picker-dot" :style="{ background: currentList?.color || '#4772fa' }" />
+          </template>
+          <a-option v-for="list in taskListOptions" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+        </a-select>
       </section>
 
       <section class="tw-detail-section">

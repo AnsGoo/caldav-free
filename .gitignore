@@ -15,6 +15,10 @@ node_modules/
 
 /app/
 
+# Web 构建产物（`make web-build` / Docker 前端阶段生成，不提交）
+/internal/web/dist/*
+!/internal/web/dist/.gitkeep
+
 # Local tooling & editor state
 /.qoder/
 /.idea/

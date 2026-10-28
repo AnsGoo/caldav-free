@@ -128,7 +128,7 @@ make test           # 运行全部测试
 make run            # 本地启动
 ```
 
-> `go build` 需要 `internal/web/dist` 存在；仓库已包含一次构建产物。修改前端后请先执行 `make web-build`。
+> `internal/web/dist` 是构建产物，已加入 `.gitignore`，不会提交到仓库（仅保留占位的 `.gitkeep`）。首次构建或修改前端后请先执行 `make web-build`，否则 `/admin` 会返回 `admin UI is not built`。
 
 前端开发模式：
 

@@ -1,8 +1,7 @@
-gradle-wrapper.jar
+# Gradle wrapper（gradlew / gradlew.bat / gradle-wrapper.jar）刻意保持被跟踪，
+# 避免依赖 Flutter 模板在构建时重新生成，所以这里不再忽略它们。
 /.gradle
 /captures/
-/gradlew
-/gradlew.bat
 /local.properties
 GeneratedPluginRegistrant.java
 .cxx/

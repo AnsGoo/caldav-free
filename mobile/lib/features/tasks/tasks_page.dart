@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
+import '../../core/recurrence.dart';
 import '../../core/ui_utils.dart';
 import '../../data/db/local_store.dart';
 import '../../data/engine/sync_controller.dart';
@@ -3146,11 +3147,14 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
                 ),
               ],
             ),
-            if (_dueAt == null && _recurrence.isNotEmpty)
+            if (_recurrence.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
-                  '设置截止日期后重复任务才会推进',
+                  _dueAt == null
+                      ? '设置截止日期后重复任务才会推进'
+                      : '截止日期就是第一次的日期：从 ${formatDue(_dueAt!, allDay: _allDay)} 起'
+                            '${recurrenceLabel(_recurrence)}重复',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),

@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/models.dart';
+import '../../core/recurrence.dart';
 import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
 import '../../design/app_theme.dart';
@@ -282,9 +283,14 @@ class _CalendarPageState extends State<CalendarPage> {
 
   /// Offline fallback: the calendar is rendered from the local task store so
   /// scheduled tasks stay visible while the server is unreachable.
+  ///
+  /// Recurring tasks follow internal/web/calendar.go: the due date is the first
+  /// occurrence and every later one is a virtual entry, so a finished or
+  /// undated repeat does not reach the calendar at all.
   CalendarSnapshot _localSnapshot() {
     final store = context.read<AppState>().store;
     final lists = {for (final l in store.listsSnapshot()) l.id: l};
+    final (from, to) = _rangeFor(_view, _anchor);
     final tasks = <CalendarTask>[];
     for (final t in store.allTasks()) {
       if (t.deleted || t.kind != TaskKind.task) continue;
@@ -292,28 +298,37 @@ class _CalendarPageState extends State<CalendarPage> {
       final start = t.startAt?.toLocal();
       if (due == null && start == null) continue;
       final list = lists[t.listId];
-      tasks.add(
-        CalendarTask(
-          id: 0,
-          syncId: t.id,
-          title: t.title,
-          listName: list?.name ?? '',
-          listColor: list?.color ?? '',
-          start: start,
-          due: due,
-          allDay: t.allDay,
-          completed: t.completed,
-          priority: t.priority,
-          recurring: t.recurrence.isNotEmpty,
-        ),
+      CalendarTask entry(DateTime when, {bool virtual = false}) => CalendarTask(
+        id: 0,
+        syncId: t.id,
+        title: t.title,
+        listName: list?.name ?? '',
+        listColor: list?.color ?? '',
+        start: start,
+        due: when,
+        allDay: t.allDay,
+        completed: t.completed,
+        priority: t.priority,
+        occurrence: virtual ? when.toIso8601String() : '',
+        virtual: virtual,
+        recurring: t.recurrence.isNotEmpty,
       );
+      if (t.recurrence.isNotEmpty) {
+        if (due == null || t.completed) continue;
+        for (final when in occurrencesBetween(t.recurrence, due, from, to)) {
+          tasks.add(entry(when, virtual: true));
+        }
+        continue;
+      }
+      final when = due ?? start!;
+      if (!when.isBefore(from) && when.isBefore(to)) tasks.add(entry(when));
     }
     return CalendarSnapshot(
       sources: const [],
       events: const [],
       tasks: tasks,
-      from: _anchor,
-      to: _anchor,
+      from: from,
+      to: to,
     );
   }
 

@@ -409,6 +409,10 @@
   padding-right: 58px;
 }
 
+.tw-list-nav li:hover .tw-inbox-item .tw-nav-count {
+  opacity: 1;
+}
+
 .tw-list-dot {
   width: 18px;
   height: 18px;
@@ -479,6 +483,14 @@
 
 .tw-list-nav li:hover .tw-nav-count {
   opacity: 0;
+}
+
+/* 数量统一贴到侧栏右边缘，不受各行悬停操作留白的影响 */
+.tw-list-nav .tw-nav-count {
+  position: absolute;
+  right: 9px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .tw-new-list {
@@ -3141,7 +3153,7 @@ button.tw-side-link {
   gap: 6px;
   width: 100%;
   height: 32px;
-  padding: 0 8px;
+  padding: 0 58px 0 8px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -7319,6 +7331,16 @@ button.tw-side-link {
 .tw-focus-secondary:hover { background: var(--tw-surface); color: var(--tw-text); }
 .tw-focus-hint { margin-top: 14px; color: var(--tw-text-3); font-size: 10px; text-align: center; }
 
+/* 计时进行中：暂停/结束收缩为紧凑按钮，避免抢占计时环的视觉重心（行高保持不变，避免开始/暂停时布局跳动） */
+.tw-focus.is-running .tw-focus-controls { min-height: 46px; }
+.tw-focus.is-running .tw-focus-primary {
+  width: auto; min-width: 96px; height: 38px; padding: 0 22px;
+  font-size: 13px; box-shadow: none;
+}
+.tw-focus.is-running .tw-focus-secondary {
+  height: 38px; padding: 0 16px; font-size: 12.5px;
+}
+
 .tw-focus-note { width: min(560px, 100%); margin-top: 28px; }
 .tw-focus-note header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; color: var(--tw-text-2); font-size: 11px; }
 .tw-focus-note header small { color: var(--tw-text-3); font-size: 9px; }
@@ -9026,6 +9048,32 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   color: var(--tw-text-3);
 }
 
+.tw-note-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.tw-note-card-tag {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tw-note-card-tag.is-more {
+  color: var(--tw-text-3);
+  background: var(--tw-surface);
+}
+
 .tw-note-card-list {
   display: inline-flex;
   align-items: center;
@@ -9115,6 +9163,55 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
 .tw-note-status {
   font-size: 11px;
   color: var(--tw-text-3);
+}
+
+.tw-note-config {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tw-border);
+}
+
+.tw-note-config-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--tw-text-3);
+  letter-spacing: 0.02em;
+}
+
+.tw-note-config-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--tw-text-2);
+}
+
+.tw-note-config-row > span:first-child {
+  flex: none;
+  min-width: 48px;
+  font-size: 11.5px;
+  color: var(--tw-text-3);
+}
+
+.tw-note-config-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.tw-note-config-tags {
+  align-items: flex-start;
+}
+
+.tw-note-config-tags > span:first-child {
+  padding-top: 4px;
+}
+
+.tw-note-config-tags .tw-detail-tags {
+  flex: 1;
+  min-width: 0;
 }
 
 .tw-note-foot {

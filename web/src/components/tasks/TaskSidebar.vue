@@ -167,6 +167,17 @@
         </form>
 
         <ul class="tw-list-nav">
+          <li v-if="inboxList && !inboxList.pinned">
+            <button
+              class="tw-nav-item tw-list-item tw-inbox-item"
+              :class="{ active: activeListId === inboxList.id || view === 'inbox' }"
+              @click="$emit('select-list', inboxList.id)"
+            >
+              <span class="tw-list-dot" :style="{ background: inboxList.color || '#4772fa' }" />
+              <span class="tw-nav-label">{{ inboxList.name }}</span>
+              <span v-if="inboxList.count" class="tw-nav-count">{{ inboxList.count }}</span>
+            </button>
+          </li>
           <template v-for="row in listRows" :key="row.key">
             <li v-if="row.kind === 'folder'" class="tw-folder-row" draggable="true" @dragstart="startFolderDrag(row.folder!.id, $event)" @dragover.prevent @drop.prevent="dropFolder(row.folder!.id)" @dragend="endSidebarDrag">
               <button class="tw-folder-head" @click="toggleFolder(row.folder!.id)">
@@ -444,6 +455,7 @@ const initial = computed(() => (props.displayName || props.userName || '?').slic
 const pinnedLists = computed(() => props.lists.filter((list) => list.pinned))
 const pinnedFilters = computed(() => props.filters.filter((filter) => filter.pinned))
 const unpinnedFilters = computed(() => props.filters.filter((filter) => !filter.pinned))
+const inboxList = computed(() => props.lists.find((list) => list.isInbox && list.kind !== 'NOTE'))
 const customTaskLists = computed(() =>
   props.lists.filter((list) => !list.isInbox && !list.pinned && list.kind !== 'NOTE'),
 )
@@ -477,7 +489,6 @@ const smartItems = computed(() => [
   { view: 'all', label: '所有', icon: 'list', count: props.counts.all },
   { view: 'today', label: '今天', icon: 'today', count: props.counts.today },
   { view: 'next7', label: '最近 7 天', icon: 'next7', count: props.counts.next7 },
-  { view: 'inbox', label: '收集箱', icon: 'inbox', count: props.counts.inbox },
   { view: 'completed', label: '已完成', icon: 'check', count: props.counts.completed },
   { view: 'trash', label: '垃圾桶', icon: 'trash', count: props.counts.trash },
   { view: 'summary', label: '摘要', icon: 'note', count: 0 },

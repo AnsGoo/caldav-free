@@ -14,6 +14,17 @@
     </header>
     <h3 class="tw-note-card-title">{{ task.title || '无标题笔记' }}</h3>
     <p v-if="preview" class="tw-note-card-preview">{{ preview }}</p>
+    <div v-if="visibleTags.length" class="tw-note-card-tags">
+      <span
+        v-for="tag in visibleTags"
+        :key="tag"
+        class="tw-note-card-tag"
+        :style="{ color: tagColor(tag, tagColors?.[tag]), background: tagTint(tagColor(tag, tagColors?.[tag])) }"
+      >
+        #{{ tag }}
+      </span>
+      <span v-if="hiddenTagCount" class="tw-note-card-tag is-more">+{{ hiddenTagCount }}</span>
+    </div>
     <footer class="tw-note-card-foot">
       <span v-if="showList" class="tw-note-card-list">
         <i :style="{ background: task.listColor || '#4772fa' }" />
@@ -31,6 +42,7 @@
 import { computed } from 'vue'
 import type { TaskItem } from '../../types'
 import { markdownToPlain } from '../../markdown'
+import { tagColor, tagTint } from '../../tag-colors'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{
@@ -38,6 +50,7 @@ const props = defineProps<{
   selected?: boolean
   showList?: boolean
   readonly?: boolean
+  tagColors?: Record<string, string>
 }>()
 
 defineEmits<{
@@ -45,6 +58,9 @@ defineEmits<{
   (event: 'pin', task: TaskItem): void
   (event: 'remove', task: TaskItem): void
 }>()
+
+const visibleTags = computed(() => (props.task.tags || []).slice(0, 3))
+const hiddenTagCount = computed(() => Math.max(0, (props.task.tags || []).length - visibleTags.value.length))
 
 const preview = computed(() => {
   const raw =

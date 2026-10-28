@@ -328,6 +328,7 @@
                 :task="task"
                 :selected="selectedId === task.id"
                 :readonly="sharedReadonly"
+                :tag-colors="tagColorMap"
                 @open="openTask"
                 @pin="toggleTaskPin"
                 @remove="confirmRemoveTask"
@@ -556,6 +557,7 @@
       :readonly="sharedNote ? sharedNote.role === 'viewer' : sharedReadonly"
       :shareable="!sharedNote"
       :move-locked="!!sharedNote"
+      :tag-colors="tagColorMap"
       @close="closeTaskDetail"
       @changed="onTaskChanged"
       @pin="toggleTaskPin"
@@ -1355,6 +1357,7 @@ const noteTargetListId = computed(() => (sharedNoteView.value ? activeSharedList
 const noteTasks = computed(() =>
   tasks.value
     .filter((task) => task.kind === 'NOTE')
+    .filter((task) => !activeTag.value || (task.tags || []).includes(activeTag.value))
     .slice()
     .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
 )
@@ -3105,7 +3108,7 @@ function runShortcut(id: string) {
     case 'navNext7':
       return selectView('next7')
     case 'navInbox':
-      return selectView('inbox')
+      return inboxId.value ? selectList(inboxId.value) : selectView('inbox')
     case 'navCompleted':
       return selectView('completed')
     case 'navSummary':

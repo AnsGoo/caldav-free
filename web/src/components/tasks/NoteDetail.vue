@@ -13,12 +13,6 @@
     />
     <header class="tw-detail-head">
       <div class="tw-detail-title">
-        <div class="tw-detail-list" title="移动到笔记清单">
-          <i :style="{ background: currentList?.color || task.listColor || '#4772fa' }" />
-          <a-select v-model.number="listId" class="tw-detail-list-select" size="small" :disabled="readonly || moveLocked" @change="moveToList">
-            <a-option v-for="list in noteListOptions" :key="list.id" :value="list.id">{{ list.name }}</a-option>
-          </a-select>
-        </div>
         <span class="tw-note-status">{{ saving ? '保存中…' : '已保存' }}</span>
       </div>
       <div class="tw-detail-actions">
@@ -60,6 +54,47 @@
         :readonly="readonly"
         @update:model-value="scheduleSave"
       />
+      <section class="tw-note-config">
+        <span class="tw-note-config-title">笔记配置</span>
+        <div class="tw-note-config-row">
+          <span>所在清单</span>
+          <a-select
+            v-model.number="listId"
+            class="tw-field-select tw-note-config-select"
+            :disabled="readonly || moveLocked"
+            @change="moveToList"
+          >
+            <template #prefix>
+              <i class="tw-list-picker-dot" :style="{ background: currentList?.color || task.listColor || '#4772fa' }" />
+            </template>
+            <a-option v-for="list in noteListOptions" :key="list.id" :value="list.id">{{ list.name }}</a-option>
+          </a-select>
+        </div>
+        <div class="tw-note-config-row tw-note-config-tags">
+          <span>标签</span>
+          <div class="tw-detail-tags">
+            <span
+              v-for="tag in tags"
+              :key="tag"
+              class="tw-detail-tag"
+              :style="{ color: tagColor(tag, tagColors?.[tag]), background: tagTint(tagColor(tag, tagColors?.[tag])) }"
+              @click="removeTag(tag)"
+            >
+              #{{ tag }}
+              <TaskIcon name="close" :size="11" />
+            </span>
+            <input
+              v-model="tagInput"
+              class="tw-tag-input"
+              placeholder="+ 添加标签"
+              maxlength="30"
+              :disabled="readonly"
+              @keydown.enter="onTagEnter"
+              @blur="addTag"
+            />
+          </div>
+        </div>
+      </section>
     </div>
 
     <div class="tw-note-discussion">
@@ -74,22 +109,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { TaskItem, TaskList } from '../../types'
 import { updateTask } from '../../tasks-api'
 import { htmlToMarkdown, markdownToPlain } from '../../markdown'
+import { tagColor, tagTint } from '../../tag-colors'
 import MarkdownEditor from './MarkdownEditor.vue'
 import NoteDiscussion from './NoteDiscussion.vue'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{
-  task: TaskItem
-  lists: TaskList[]
-  readonly?: boolean
-  shareable?: boolean
-  moveLocked?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    task: TaskItem
+    lists: TaskList[]
+    readonly?: boolean
+    shareable?: boolean
+    moveLocked?: boolean
+    tagColors?: Record<string, string>
+  }>(),
+  { tagColors: () => ({}) },
+)
 
 const emit = defineEmits<{
   (event: 'close'): void
@@ -158,6 +198,8 @@ function startResize(event: PointerEvent) {
 }
 
 const listId = ref(props.task.listId)
+const tags = ref<string[]>([...(props.task.tags || [])])
+const tagInput = ref('')
 const currentList = computed(() => props.lists.find((list) => list.id === listId.value))
 const noteListOptions = computed(() => {
   const noteLists = props.lists.filter((list) => list.kind === 'NOTE')
@@ -177,6 +219,48 @@ function scheduleSave() {
   if (timer) clearTimeout(timer)
   saving.value = true
   timer = setTimeout(() => void flush(), 600)
+}
+
+watch(
+  () => props.task.tags,
+  (next) => {
+    tags.value = [...(next || [])]
+  },
+)
+
+function onTagEnter(event: KeyboardEvent) {
+  if (event.isComposing) return
+  event.preventDefault()
+  addTag()
+}
+
+function addTag() {
+  const tag = tagInput.value.replace(/^#/, '').trim()
+  if (!tag) return
+  tagInput.value = ''
+  if (tags.value.includes(tag)) return
+  void persistTags([...tags.value, tag].slice(0, 20))
+}
+
+function removeTag(tag: string) {
+  void persistTags(tags.value.filter((item) => item !== tag))
+}
+
+async function persistTags(next: string[]) {
+  if (props.readonly) return
+  const previous = tags.value
+  tags.value = next
+  saving.value = true
+  try {
+    const { task } = await updateTask(props.task.id, { tags: next })
+    tags.value = [...(task.tags || [])]
+    emit('changed', task)
+  } catch (error) {
+    tags.value = previous
+    Message.error(error instanceof Error ? error.message : '保存标签失败')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function flush() {
@@ -205,8 +289,7 @@ async function flush() {
   }
 }
 
-async function moveToList() {
-  if (props.readonly || listId.value === props.task.listId) return
+async function moveToList() {  if (props.readonly || listId.value === props.task.listId) return
   const target = props.lists.find((list) => list.id === listId.value)
   if (!target) {
     listId.value = props.task.listId

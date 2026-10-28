@@ -389,6 +389,16 @@ func (s *Store) ToggleHabitCheckin(ctx context.Context, userID, habitID int64, s
 	var existing HabitCheckin
 	found := s.db.WithContext(ctx).Where("user_id = ? AND habit_id = ? AND checkin_stamp = ?", userID, habitID, stamp).
 		First(&existing).Error == nil
+	if stamp < habitTodayStamp() {
+		// 过去的日期不允许补卡：只保留“取消/下调已有打卡”的能力。
+		if value == nil {
+			if !(found && (existing.Status == 2 || existing.Value >= existing.Goal)) {
+				return nil, nil, fmt.Errorf("不能给过去日期补卡")
+			}
+		} else if !found || *value > existing.Value {
+			return nil, nil, fmt.Errorf("不能给过去日期补卡")
+		}
+	}
 	if value == nil {
 		if found && (existing.Status == 2 || existing.Value >= existing.Goal) {
 			if err := s.db.WithContext(ctx).Delete(&existing).Error; err != nil {

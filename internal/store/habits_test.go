@@ -168,8 +168,23 @@ func TestHabitCheckinDateRules(t *testing.T) {
 	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, start-1, nil); err == nil {
 		t.Fatal("check-in before start date was accepted")
 	}
+	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, start, nil); err == nil {
+		t.Fatal("past make-up check-in was accepted")
+	}
+
+	// A legacy check-in from before this rule must still be removable.
+	legacy := &HabitCheckin{
+		UserID: userID, HabitID: habit.ID, Stamp: start, Value: 1, Goal: habit.Goal, Status: 2,
+	}
+	if err := s.db.WithContext(ctx).Create(legacy).Error; err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, start, nil); err != nil {
-		t.Fatalf("past make-up check-in failed: %v", err)
+		t.Fatalf("removing a past check-in failed: %v", err)
+	}
+	value := 2.0
+	if _, _, err := s.ToggleHabitCheckin(ctx, userID, habit.ID, start, &value); err == nil {
+		t.Fatal("past check-in value increase was accepted")
 	}
 
 	exDate := today - 1

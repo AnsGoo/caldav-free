@@ -78,7 +78,7 @@ class _HabitsPageState extends State<HabitsPage> {
   }
 
   Future<void> _checkin(HabitItem habit) async {
-    if (_selectedIsFuture) return;
+    if (_selectedIsFuture || _selectedIsPast) return;
     try {
       await _store?.checkin(habit.id, _selectedStamp);
     } catch (error, stack) {
@@ -89,6 +89,9 @@ class _HabitsPageState extends State<HabitsPage> {
   bool get _selectedIsFuture =>
       _selectedDate.isAfter(DateTime.now().subtract(const Duration(days: 0))) &&
       _selectedStamp != _todayStamp;
+
+  /// 过去的日期只用于查看历史，不允许补卡。
+  bool get _selectedIsPast => _selectedStamp < _todayStamp;
 
   Future<void> _create() async {
     final draft = await showModalBottomSheet<HabitDraft>(
@@ -161,7 +164,7 @@ class _HabitsPageState extends State<HabitsPage> {
             .where((checkin) => checkin.habitId == habit.id)
             .toList(growable: false),
         stamp: _selectedStamp,
-        onCheckin: _selectedIsFuture
+        onCheckin: (_selectedIsFuture || _selectedIsPast)
             ? null
             : () {
                 Navigator.pop(context);
@@ -295,7 +298,7 @@ class _HabitsPageState extends State<HabitsPage> {
                                     groups[g].habits[i],
                                     _selectedStamp,
                                   ),
-                                  onCheckin: _selectedIsFuture
+                                  onCheckin: (_selectedIsFuture || _selectedIsPast)
                                       ? null
                                       : () => _checkin(groups[g].habits[i]),
                                   onOpen: () =>

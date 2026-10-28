@@ -362,6 +362,94 @@ void main() {
     expect(find.text('以后任务'), findsNothing);
   });
 
+  testWidgets('completed and trash quick filters scope the task list', (
+    tester,
+  ) async {
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
+    );
+    for (final task in [
+      TaskItem(id: 'task-open', listId: 'inbox-1', title: '未完成任务', updatedAt: now),
+      TaskItem(
+        id: 'task-done',
+        listId: 'inbox-1',
+        title: '已完成任务',
+        updatedAt: now,
+        completedAt: now,
+      ),
+      TaskItem(
+        id: 'task-trashed',
+        listId: 'inbox-1',
+        title: '回收站任务',
+        updatedAt: now,
+        deleted: true,
+        deletedAt: now,
+      ),
+    ]) {
+      await store.saveTask(task, dirty: false);
+    }
+    final app =
+        AppState(
+            store: store,
+            credentials: MemoryCredentialsStore(),
+            repository: TaskRepository(store),
+          )
+          ..session = Session(
+            baseUrl: 'http://example.test',
+            username: 'demo',
+            password: 'secret',
+            deviceId: 'device-test',
+          );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('未完成任务'), findsOneWidget);
+    expect(find.text('已完成任务'), findsNothing);
+    expect(find.text('回收站任务'), findsNothing);
+
+    await tester.ensureVisible(find.text('已完成').first);
+    await tester.tap(find.text('已完成').first);
+    await tester.pumpAndSettle();
+    expect(find.text('已完成任务'), findsOneWidget);
+    expect(find.text('未完成任务'), findsNothing);
+
+    // 全部 clears the completed scope again.
+    await tester.tap(find.text('全部').first);
+    await tester.pumpAndSettle();
+    expect(find.text('未完成任务'), findsOneWidget);
+    expect(find.text('已完成任务'), findsNothing);
+
+    await tester.tap(find.text('已完成').first);
+    await tester.pumpAndSettle();
+    // Selecting a list leaves the completed scope too. The completed tile
+    // carries a 收集箱 list badge, so target the pane row (.first) explicitly.
+    await tester.ensureVisible(find.text('收集箱').first);
+    await tester.tap(find.text('收集箱').first);
+    await tester.pumpAndSettle();
+    expect(find.text('未完成任务'), findsOneWidget);
+    expect(find.text('已完成任务'), findsNothing);
+
+    await tester.ensureVisible(find.text('回收站').first);
+    await tester.tap(find.text('回收站').first);
+    await tester.pumpAndSettle();
+    expect(find.text('回收站任务'), findsOneWidget);
+
+    Navigator.of(tester.element(find.text('回收站任务'))).pop();
+    await tester.pumpAndSettle();
+    expect(find.text('未完成任务'), findsOneWidget);
+  });
+
   testWidgets('create a list from the management page', (tester) async {
     final store = LocalStore.memory();
     final app = AppState(

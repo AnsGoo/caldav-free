@@ -149,6 +149,46 @@ class _TasksPageState extends State<TasksPage> {
     _subscribeTasks();
   }
 
+  void _selectListScope(String? listId) {
+    setState(() {
+      _selectedListId = listId;
+      _view = 'all';
+      _completed = false;
+      _manualSort = false;
+    });
+    _subscribeTasks();
+  }
+
+  void _selectViewScope(String view) {
+    setState(() {
+      _selectedListId = null;
+      _view = view;
+      _completed = false;
+      _manualSort = false;
+    });
+    _subscribeTasks();
+  }
+
+  void _selectCompletedScope() {
+    setState(() {
+      // Completed is a list-layout scope, mirroring _setLayout's reset.
+      _layout = _TaskLayout.list;
+      _selectedListId = null;
+      _view = 'all';
+      _completed = true;
+      _manualSort = false;
+      _selecting = false;
+      _selectedIds.clear();
+    });
+    _subscribeTasks();
+  }
+
+  void _openTrash() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TrashPage()));
+  }
+
   void _toggleManualSort() {
     if (_manualSort) {
       setState(() => _manualSort = false);
@@ -559,6 +599,8 @@ class _TasksPageState extends State<TasksPage> {
                   : '任务'));
     final listsById = {for (final list in _lists) list.id: list};
     final visible = _filteredTasks;
+    final completedCount = app.store.tasksSnapshot(completed: true).length;
+    final trashCount = app.store.trashSnapshot().length;
     final wide = isWideLayout(context);
 
     return Scaffold(
@@ -662,15 +704,6 @@ class _TasksPageState extends State<TasksPage> {
                       child: _menuRow(Icons.sync_alt_rounded, '全量同步'),
                     ),
                     PopupMenuItem(
-                      value: 'completed',
-                      child: _menuRow(
-                        _completed
-                            ? Icons.check_circle_outline_rounded
-                            : Icons.check_circle_rounded,
-                        _completed ? '查看未完成' : '查看已完成',
-                      ),
-                    ),
-                    PopupMenuItem(
                       value: 'sort',
                       child: _menuRow(
                         Icons.swap_vert_rounded,
@@ -685,10 +718,6 @@ class _TasksPageState extends State<TasksPage> {
                     PopupMenuItem(
                       value: 'lists',
                       child: _menuRow(Icons.folder_outlined, '清单管理'),
-                    ),
-                    PopupMenuItem(
-                      value: 'trash',
-                      child: _menuRow(Icons.delete_outline_rounded, '回收站'),
                     ),
                     PopupMenuItem(
                       value: 'diagnostics',
@@ -722,22 +751,13 @@ class _TasksPageState extends State<TasksPage> {
               lists: _lists,
               selectedId: _selectedListId,
               selectedView: _view,
-              onSelected: (id) {
-                setState(() {
-                  _view = 'all';
-                  _selectedListId = id;
-                  _manualSort = false;
-                });
-                _subscribeTasks();
-              },
-              onViewSelected: (view) {
-                setState(() {
-                  _selectedListId = null;
-                  _view = view;
-                  _manualSort = false;
-                });
-                _subscribeTasks();
-              },
+              completed: _completed,
+              completedCount: completedCount,
+              trashCount: trashCount,
+              onSelected: _selectListScope,
+              onViewSelected: _selectViewScope,
+              onCompleted: _selectCompletedScope,
+              onTrash: _openTrash,
               onManage: _openLists,
             ),
           Expanded(
@@ -767,22 +787,13 @@ class _TasksPageState extends State<TasksPage> {
                     lists: _lists,
                     selectedId: _selectedListId,
                     selectedView: _view,
-                    onSelected: (id) {
-                      setState(() {
-                        _view = 'all';
-                        _selectedListId = id;
-                        _manualSort = false;
-                      });
-                      _subscribeTasks();
-                    },
-                    onViewSelected: (view) {
-                      setState(() {
-                        _selectedListId = null;
-                        _view = view;
-                        _manualSort = false;
-                      });
-                      _subscribeTasks();
-                    },
+                    completed: _completed,
+                    completedCount: completedCount,
+                    trashCount: trashCount,
+                    onSelected: _selectListScope,
+                    onViewSelected: _selectViewScope,
+                    onCompleted: _selectCompletedScope,
+                    onTrash: _openTrash,
                     onManage: _openLists,
                   ),
                   Expanded(
@@ -1010,13 +1021,6 @@ class _TasksPageState extends State<TasksPage> {
       case 'full':
         app.syncNow(full: true);
         break;
-      case 'completed':
-        setState(() {
-          _completed = !_completed;
-          _manualSort = false;
-        });
-        _subscribeTasks();
-        break;
       case 'sort':
         _toggleManualSort();
         break;
@@ -1025,10 +1029,6 @@ class _TasksPageState extends State<TasksPage> {
         break;
       case 'lists':
         _openLists();
-        break;
-      case 'trash':
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const TrashPage()));
         break;
       case 'diagnostics':
         Navigator.of(
@@ -1553,16 +1553,26 @@ class _ListSelector extends StatelessWidget {
     required this.lists,
     required this.selectedId,
     required this.selectedView,
+    required this.completed,
+    required this.completedCount,
+    required this.trashCount,
     required this.onSelected,
     required this.onViewSelected,
+    required this.onCompleted,
+    required this.onTrash,
     required this.onManage,
   });
 
   final List<TaskListItem> lists;
   final String? selectedId;
   final String selectedView;
+  final bool completed;
+  final int completedCount;
+  final int trashCount;
   final ValueChanged<String?> onSelected;
   final ValueChanged<String> onViewSelected;
+  final VoidCallback onCompleted;
+  final VoidCallback onTrash;
   final VoidCallback onManage;
 
   @override
@@ -1573,13 +1583,13 @@ class _ListSelector extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: lists.length + 4,
+        itemCount: lists.length + 6,
         separatorBuilder: (_, _) => const SizedBox(width: 6),
         itemBuilder: (context, index) {
           if (index == 0) {
             return _SelectorChip(
               label: '全部',
-              selected: selectedId == null && selectedView == 'all',
+              selected: selectedId == null && selectedView == 'all' && !completed,
               color: scheme.primary,
               onTap: () => onViewSelected('all'),
             );
@@ -1600,7 +1610,27 @@ class _ListSelector extends StatelessWidget {
               onTap: () => onViewSelected('next7'),
             );
           }
-          if (index == lists.length + 3) {
+          if (index == 3) {
+            return _SelectorChip(
+              label: '已完成',
+              selected: completed,
+              color: const Color(0xFF10B981),
+              icon: Icons.check_circle_outline_rounded,
+              count: completedCount,
+              onTap: onCompleted,
+            );
+          }
+          if (index == 4) {
+            return _SelectorChip(
+              label: '回收站',
+              selected: false,
+              color: scheme.onSurfaceVariant,
+              icon: Icons.delete_outline_rounded,
+              count: trashCount,
+              onTap: onTrash,
+            );
+          }
+          if (index == lists.length + 5) {
             return _SelectorChip(
               label: '管理',
               selected: false,
@@ -1609,7 +1639,7 @@ class _ListSelector extends StatelessWidget {
               onTap: onManage,
             );
           }
-          final list = lists[index - 3];
+          final list = lists[index - 5];
           final color = colorFromHex(list.color);
           return _SelectorChip(
             label: list.name,
@@ -1630,6 +1660,7 @@ class _SelectorChip extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.icon,
+    this.count,
   });
 
   final String label;
@@ -1637,6 +1668,7 @@ class _SelectorChip extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final IconData? icon;
+  final int? count;
 
   @override
   Widget build(BuildContext context) {
@@ -1673,6 +1705,15 @@ class _SelectorChip extends StatelessWidget {
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                 ),
               ),
+              if (count != null && count! > 0) ...[
+                const SizedBox(width: 5),
+                Text(
+                  '$count',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: foreground,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1686,16 +1727,26 @@ class _ListPane extends StatelessWidget {
     required this.lists,
     required this.selectedId,
     required this.selectedView,
+    required this.completed,
+    required this.completedCount,
+    required this.trashCount,
     required this.onSelected,
     required this.onViewSelected,
+    required this.onCompleted,
+    required this.onTrash,
     required this.onManage,
   });
 
   final List<TaskListItem> lists;
   final String? selectedId;
   final String selectedView;
+  final bool completed;
+  final int completedCount;
+  final int trashCount;
   final ValueChanged<String?> onSelected;
   final ValueChanged<String> onViewSelected;
+  final VoidCallback onCompleted;
+  final VoidCallback onTrash;
   final VoidCallback onManage;
 
   @override
@@ -1723,7 +1774,8 @@ class _ListPane extends StatelessWidget {
               _PaneRow(
                 label: '全部',
                 dot: scheme.primary,
-                selected: selectedId == null && selectedView == 'all',
+                selected:
+                    selectedId == null && selectedView == 'all' && !completed,
                 onTap: () => onViewSelected('all'),
               ),
               _PaneRow(
@@ -1737,6 +1789,20 @@ class _ListPane extends StatelessWidget {
                 dot: const Color(0xFF3B82F6),
                 selected: selectedId == null && selectedView == 'next7',
                 onTap: () => onViewSelected('next7'),
+              ),
+              _PaneRow(
+                label: '已完成',
+                icon: Icons.check_circle_outline_rounded,
+                count: completedCount,
+                selected: completed,
+                onTap: onCompleted,
+              ),
+              _PaneRow(
+                label: '回收站',
+                icon: Icons.delete_outline_rounded,
+                count: trashCount,
+                selected: false,
+                onTap: onTrash,
               ),
               _PaneLabel(text: '清单'),
               for (final list in ungrouped)

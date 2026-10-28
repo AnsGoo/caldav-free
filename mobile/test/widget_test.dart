@@ -616,4 +616,90 @@ void main() {
     final added = store.tasksSnapshot(listId: 'work-1', completed: false);
     expect(added.single.title, '写周报');
   });
+
+  testWidgets('the wide list layout keeps only the scope filter', (
+    tester,
+  ) async {
+    addTearDown(tester.view.reset);
+    Future<void> pumpTasks(Size size) async {
+      tester.view
+        ..devicePixelRatio = 1
+        ..physicalSize = size;
+      final store = LocalStore.memory();
+      await store.saveList(
+        TaskListItem(
+          id: 'work-1',
+          name: '工作',
+          updatedAt: DateTime.now().toUtc(),
+        ),
+      );
+      final app = AppState(
+        store: store,
+        credentials: MemoryCredentialsStore(),
+        repository: TaskRepository(store),
+      );
+      addTearDown(() async {
+        app.dispose();
+        await store.dispose();
+      });
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppState>.value(
+          value: app,
+          child: const MaterialApp(home: TasksPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    // 宽屏的侧栏已经有一份视图列表，主区不再重复一遍筛选 chips。
+    await pumpTasks(const Size(1200, 900));
+    expect(find.text('范围'), findsOneWidget);
+    expect(find.text('今天'), findsOneWidget);
+
+    // 窄屏没有侧栏，chips 是唯一的入口，保持原样。
+    await pumpTasks(const Size(390, 844));
+    expect(find.text('范围'), findsNothing);
+    expect(find.text('今天'), findsOneWidget);
+  });
+
+  testWidgets('the mobile filter chips keep a compact highlight', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    await store.saveList(
+      TaskListItem(
+        id: 'work-1',
+        name: '工作',
+        updatedAt: DateTime.now().toUtc(),
+      ),
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 高亮只包住文字，不再撑满 44 的筛选条。
+    final chip = find
+        .ancestor(of: find.text('全部'), matching: find.byType(InkWell))
+        .first;
+    final size = tester.getSize(chip);
+    expect(size.height, lessThan(36));
+    expect(size.height, greaterThanOrEqualTo(28));
+  });
 }

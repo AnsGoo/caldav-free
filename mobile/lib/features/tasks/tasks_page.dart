@@ -786,19 +786,29 @@ class _TasksPageState extends State<TasksPage> {
                     onNotes: _batchNotes,
                   ),
                 if (_layout == _TaskLayout.list) ...[
-                  _ListSelector(
-                    lists: _lists,
-                    selectedId: _selectedListId,
-                    selectedView: _view,
-                    completed: _completed,
-                    completedCount: completedCount,
-                    trashCount: trashCount,
-                    onSelected: _selectListScope,
-                    onViewSelected: _selectViewScope,
-                    onCompleted: _selectCompletedScope,
-                    onTrash: _openTrash,
-                    onManage: _openLists,
-                  ),
+                  // The wide layout already lists 全部/今天/最近 7 天/已完成/回收站 in
+                  // the side pane, so the main column only keeps the list scope.
+                  if (wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      includeAll: true,
+                      onChanged: _selectListScope,
+                    )
+                  else
+                    _ListSelector(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      selectedView: _view,
+                      completed: _completed,
+                      completedCount: completedCount,
+                      trashCount: trashCount,
+                      onSelected: _selectListScope,
+                      onViewSelected: _selectViewScope,
+                      onCompleted: _selectCompletedScope,
+                      onTrash: _openTrash,
+                      onManage: _openLists,
+                    ),
                   Expanded(
                     child: visible.isEmpty
                         ? RefreshIndicator(
@@ -1676,47 +1686,51 @@ class _SelectorChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final foreground = selected ? scheme.primary : scheme.onSurfaceVariant;
-    return Material(
-      color: selected ? scheme.primaryContainer : Colors.transparent,
-      borderRadius: BorderRadius.circular(999),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+    // The row is 44 tall for the touch target; Center keeps the highlight a
+    // pill instead of stretching it across the whole strip.
+    return Center(
+      child: Material(
+        color: selected ? scheme.primaryContainer : Colors.transparent,
         borderRadius: BorderRadius.circular(999),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null)
-                Icon(icon, size: 14, color: foreground)
-              else
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: selected ? scheme.primary : color,
-                    shape: BoxShape.circle,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(999),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null)
+                  Icon(icon, size: 14, color: foreground)
+                else
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: selected ? scheme.primary : color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-              const SizedBox(width: 7),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: foreground,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              if (count != null && count! > 0) ...[
-                const SizedBox(width: 5),
+                const SizedBox(width: 7),
                 Text(
-                  '$count',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  label,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
                     color: foreground,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
+                if (count != null && count! > 0) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    '$count',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: foreground,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

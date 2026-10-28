@@ -21,6 +21,23 @@
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
       "toolArgs": ["-d", "android"]
+    },
+    {
+      "name": "Flutter (macOS)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "program": "${workspaceFolder}/mobile/lib/main.dart",
+      "toolArgs": ["-d", "macos"]
+    },
+    {
+      "name": "Flutter (macOS, Profile)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "program": "${workspaceFolder}/mobile/lib/main.dart",
+      "flutterMode": "profile",
+      "toolArgs": ["-d", "macos"]
     }
   ]
 }

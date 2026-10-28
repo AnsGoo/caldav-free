@@ -1,0 +1,7 @@
+#include "../../Flutter/Flutter-Release.xcconfig"
+#include "Warnings.xcconfig"
+
+// No Developer ID certificate in this repo yet: ad-hoc signing keeps both local
+// and CI `.app` builds runnable. Switch to a Developer ID identity for notarized
+// distribution.
+CODE_SIGN_IDENTITY = -

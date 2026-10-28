@@ -164,7 +164,7 @@
 
 ### 跨端客户端
 
-- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现，并完成五轮 UI 重构与全局搜索第一批（`mobile/`）；iOS/macOS/Windows/HarmonyOS 待接入
+- Flutter Android P0/P1/P2/P3 与 P4 前三批已实现，并完成五轮 UI 重构与全局搜索第一批（`mobile/`）；macOS/Windows 已接入工程（macOS 无本机 Xcode，改由 GitHub Actions `macos-14` 在 release 时构建）；iOS/HarmonyOS 待接入
 - Android 模拟器安装与双向同步、通知、回收站、重复任务、看板/矩阵/时间线回归已完成（API 36 arm64 AVD `p0`）；真机与后台同步待做
 - 本地 drift/SQLite 迁移（P0 暂用原子 JSON 文件）
 - Keystore/Keychain 凭据迁移（P0 为应用私有目录明文）

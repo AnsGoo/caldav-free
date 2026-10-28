@@ -113,7 +113,7 @@ class _TasksPageState extends State<TasksPage> {
     return null;
   }
 
-  String? get _targetListId => _selectedListId ?? _inbox?.id;
+  String? get _targetListId => _defaultList?.id;
 
   TaskListItem? get _selectedList {
     final id = _selectedListId;
@@ -124,7 +124,9 @@ class _TasksPageState extends State<TasksPage> {
     return null;
   }
 
-  TaskListItem? get _boardList =>
+  /// 当前选中 > 收集箱 > 第一个清单。快速添加与手动排序都靠它兜底，
+  /// 免得服务端还没把 isInbox 同步下来时输入框被禁用。
+  TaskListItem? get _defaultList =>
       _selectedList ?? _inbox ?? (_lists.isNotEmpty ? _lists.first : null);
 
   void _setLayout(_TaskLayout layout) {
@@ -195,7 +197,7 @@ class _TasksPageState extends State<TasksPage> {
       _subscribeTasks();
       return;
     }
-    final listId = _selectedListId ?? _boardList?.id;
+    final listId = _selectedListId ?? _defaultList?.id;
     if (listId == null) {
       _snack('请先选择一个清单');
       return;
@@ -811,7 +813,6 @@ class _TasksPageState extends State<TasksPage> {
                                         completed: _completed,
                                         hasLists: _lists.isNotEmpty,
                                         searching: _searching && _query.isNotEmpty,
-                                        onSync: () => app.syncNow(),
                                       ),
                                     ),
                                   ),
@@ -977,7 +978,7 @@ class _TasksPageState extends State<TasksPage> {
               controller: _quickAdd,
               focusNode: _quickAddFocus,
               enabled: _targetListId != null && !_adding,
-              listName: _selectedList?.name ?? _inbox?.name ?? '收集箱',
+              listName: _defaultList?.name,
               onAdd: _addTask,
             )
           : null,
@@ -2283,13 +2284,11 @@ class _EmptyState extends StatelessWidget {
     required this.completed,
     required this.hasLists,
     required this.searching,
-    required this.onSync,
   });
 
   final bool completed;
   final bool hasLists;
   final bool searching;
-  final VoidCallback onSync;
 
   @override
   Widget build(BuildContext context) {
@@ -2301,17 +2300,14 @@ class _EmptyState extends StatelessWidget {
           : Icons.checklist_rounded,
       title: searching
           ? '没有匹配的任务'
-          : (completed ? '还没有已完成任务' : (hasLists ? '这里还没有任务' : '正在获取清单…')),
+          : (completed ? '还没有已完成任务' : '这里还没有任务'),
       message: searching
           ? '试试标题、备注、标签或子任务里的关键词'
-          : (completed ? '完成的任务会出现在这里' : '在下方输入框添加第一条任务，离线也能记录'),
-      action: !hasLists
-          ? TextButton.icon(
-              onPressed: onSync,
-              icon: const Icon(Icons.sync_rounded, size: 18),
-              label: const Text('立即同步'),
-            )
-          : null,
+          : (completed
+                ? '完成的任务会出现在这里'
+                : (hasLists
+                      ? '在下方输入框添加第一条任务，离线也能记录'
+                      : '清单和任务会在后台自动同步，也可以先新建一个清单')),
     );
   }
 }
@@ -2328,7 +2324,7 @@ class _QuickAddBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool enabled;
-  final String listName;
+  final String? listName;
   final VoidCallback onAdd;
 
   @override
@@ -2366,7 +2362,9 @@ class _QuickAddBar extends StatelessWidget {
                   style: Theme.of(context).textTheme.bodyMedium,
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: enabled ? '添加到「$listName」' : '等待清单同步…',
+                    hintText: listName == null
+                        ? '暂无清单，请先新建清单'
+                        : '添加到「$listName」',
                     filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,

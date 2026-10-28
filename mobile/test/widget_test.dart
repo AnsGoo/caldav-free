@@ -544,4 +544,76 @@ void main() {
     expect(find.text('新任务'), findsOneWidget);
     expect(store.pendingCount, 1);
   });
+
+  testWidgets('empty task page shows an empty state instead of a sync prompt', (
+    tester,
+  ) async {
+    final store = LocalStore.memory();
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('这里还没有任务'), findsOneWidget);
+    expect(find.text('正在获取清单…'), findsNothing);
+    expect(find.text('立即同步'), findsNothing);
+    expect(find.text('等待清单同步…'), findsNothing);
+    expect(find.text('暂无清单，请先新建清单'), findsOneWidget);
+  });
+
+  testWidgets('quick add falls back to the first list without an inbox', (
+    tester,
+  ) async {
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    final app =
+        AppState(
+            store: store,
+            credentials: MemoryCredentialsStore(),
+            repository: TaskRepository(store),
+          )
+          ..session = Session(
+            baseUrl: 'http://example.test',
+            username: 'demo',
+            password: 'secret',
+            deviceId: 'device-test',
+          );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('添加到「工作」'), findsOneWidget);
+    await tester.enterText(find.byType(TextField).last, '写周报');
+    await tester.tap(find.byIcon(Icons.arrow_upward_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('写周报'), findsOneWidget);
+    final added = store.tasksSnapshot(listId: 'work-1', completed: false);
+    expect(added.single.title, '写周报');
+  });
 }

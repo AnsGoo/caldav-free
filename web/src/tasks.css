@@ -10161,12 +10161,22 @@ html[data-theme] .tw-recurrence-popup .arco-select-option {
 
 .tw-occurrence-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.tw-occurrence-actions > button {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  margin-top: 0;
+  padding: 0 8px;
+  font-size: 12.5px;
 }
 
 .tw-occurrence-actions .tw-link-button {
   grid-column: 1 / -1;
+  height: 30px;
 }
 
 .tw-recurrence-history-row small {

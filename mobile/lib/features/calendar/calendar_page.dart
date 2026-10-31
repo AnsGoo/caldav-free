@@ -1639,12 +1639,14 @@ class _WeekHeaderRow extends StatelessWidget {
     required this.today,
     required this.almanac,
     required this.onSelectDay,
+    this.selectedDay,
   });
 
   final List<DateTime> days;
   final DateTime today;
   final Map<String, CalendarAlmanacDay> almanac;
   final void Function(DateTime day) onSelectDay;
+  final DateTime? selectedDay;
 
   @override
   Widget build(BuildContext context) {
@@ -1666,6 +1668,7 @@ class _WeekHeaderRow extends StatelessWidget {
                 child: _DayHeaderCell(
                   day: days[i],
                   today: today,
+                  selected: days[i] == selectedDay,
                   label: almanac[_dateKey(days[i])]?.label ?? '',
                   special: almanac[_dateKey(days[i])]?.special ?? false,
                   onTap: () => onSelectDay(days[i]),
@@ -1682,6 +1685,7 @@ class _DayHeaderCell extends StatelessWidget {
   const _DayHeaderCell({
     required this.day,
     required this.today,
+    required this.selected,
     required this.label,
     required this.special,
     required this.onTap,
@@ -1689,6 +1693,7 @@ class _DayHeaderCell extends StatelessWidget {
 
   final DateTime day;
   final DateTime today;
+  final bool selected;
   final String label;
   final bool special;
   final VoidCallback onTap;
@@ -1708,7 +1713,8 @@ class _DayHeaderCell extends StatelessWidget {
             Text(
               const ['日', '一', '二', '三', '四', '五', '六'][day.weekday % 7],
               style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
             const SizedBox(height: 2),
@@ -1717,15 +1723,27 @@ class _DayHeaderCell extends StatelessWidget {
               height: 30,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: isToday ? scheme.primary : null,
+                color: selected ? scheme.primary : null,
                 shape: BoxShape.circle,
+                border: !selected && isToday
+                    ? Border.all(
+                        color: scheme.primary.withValues(alpha: 0.5),
+                        width: 1.2,
+                      )
+                    : null,
               ),
               child: Text(
                 '${day.day}',
                 style: theme.textTheme.labelLarge?.copyWith(
                   fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: isToday ? scheme.onPrimary : scheme.onSurface,
+                  fontWeight: selected || isToday
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                  color: selected
+                      ? scheme.onPrimary
+                      : isToday
+                      ? scheme.primary
+                      : scheme.onSurface,
                 ),
               ),
             ),
@@ -1822,133 +1840,8 @@ class _DayViewState extends State<_DayView> {
     final scheme = theme.colorScheme;
     final today = _dateOnly(DateTime.now());
     final visibleDay = _visibleDay;
-    final weekStart = _sundayOf(visibleDay);
     return Column(
       children: [
-        SizedBox(
-          height: 92,
-          child: Row(
-            children: [
-              for (var i = 0; i < 7; i++)
-                Expanded(
-                  child: () {
-                    final day = weekStart.add(Duration(days: i));
-                    final isSelected = day == visibleDay;
-                    final isToday = day == today;
-                    final almanac = widget.almanac[_dateKey(day)];
-                    final label = almanac?.label ?? '';
-                    final special = almanac?.special ?? false;
-                    return Padding(
-                      padding: const EdgeInsets.fromLTRB(3, 4, 3, 2),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 160),
-                        curve: Curves.easeOutCubic,
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? Color.alphaBlend(
-                                  scheme.primary.withValues(alpha: 0.10),
-                                  scheme.surface,
-                                )
-                              : isToday
-                              ? Color.alphaBlend(
-                                  scheme.primary.withValues(alpha: 0.05),
-                                  scheme.surface,
-                                )
-                              : scheme.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSelected
-                                ? scheme.primary
-                                : isToday
-                                ? scheme.primary.withValues(alpha: 0.42)
-                                : scheme.outlineVariant,
-                          ),
-                        ),
-                        child: Material(
-                          type: MaterialType.transparency,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => widget.onSelectedDate(day),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 6,
-                              ),
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    const [
-                                      '日',
-                                      '一',
-                                      '二',
-                                      '三',
-                                      '四',
-                                      '五',
-                                      '六',
-                                    ][day.weekday % 7],
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: scheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Container(
-                                    width: 30,
-                                    height: 30,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: isSelected ? scheme.primary : null,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Text(
-                                      '${day.day}',
-                                      style: theme.textTheme.labelLarge
-                                          ?.copyWith(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            color: isSelected
-                                                ? scheme.onPrimary
-                                                : isToday
-                                                ? scheme.primary
-                                                : scheme.onSurface,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  SizedBox(
-                                    width: 40,
-                                    child: Text(
-                                      label,
-                                      textAlign: TextAlign.center,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            fontSize: 8.5,
-                                            height: 1.1,
-                                            fontWeight: special
-                                                ? FontWeight.w600
-                                                : FontWeight.w500,
-                                            color: special
-                                                ? AppColors.festivalFor(
-                                                    theme.brightness,
-                                                  )
-                                                : scheme.onSurfaceVariant,
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }(),
-                ),
-            ],
-          ),
-        ),
         Expanded(
           child: PageView.builder(
             controller: _controller,
@@ -1961,16 +1854,54 @@ class _DayViewState extends State<_DayView> {
             },
             itemBuilder: (context, page) {
               final day = _baseDay.add(Duration(days: page - _kPagerOrigin));
-              if (_entriesForDay(widget.snapshot, day).isEmpty) {
-                return _EmptyDaySheet(day: day);
-              }
-              return _TimeGrid(
-                days: [day],
-                snapshot: widget.snapshot,
-                selectedDay: null,
-                onOpenEvent: widget.onOpenEvent,
-                onOpenTask: widget.onOpenTask,
-                onToggleTask: widget.onToggleTask,
+              final weekStart = _sundayOf(day);
+              final weekDays = List.generate(
+                7,
+                (index) => weekStart.add(Duration(days: index)),
+              );
+              final empty = _entriesForDay(widget.snapshot, day).isEmpty;
+              return Stack(
+                children: [
+                  _TimeGrid(
+                    days: [day],
+                    header: _WeekHeaderRow(
+                      days: weekDays,
+                      today: today,
+                      almanac: widget.almanac,
+                      selectedDay: day,
+                      onSelectDay: widget.onSelectedDate,
+                    ),
+                    snapshot: widget.snapshot,
+                    selectedDay: null,
+                    onOpenEvent: widget.onOpenEvent,
+                    onOpenTask: widget.onOpenTask,
+                    onToggleTask: widget.onToggleTask,
+                  ),
+                  if (empty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: scheme.surface.withValues(alpha: 0.94),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: scheme.outlineVariant),
+                            ),
+                            child: Text(
+                              '暂无安排',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               );
             },
           ),
@@ -2082,32 +2013,6 @@ class _DayTaskComposerState extends State<_DayTaskComposer> {
 }
 
 /// Day view keeps the spec's empty state instead of an all-day empty grid.
-class _EmptyDaySheet extends StatelessWidget {
-  const _EmptyDaySheet({required this.day});
-
-  final DateTime day;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(10, 4, 10, 0),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
-      ),
-      child: Center(
-        child: AppEmptyState(
-          icon: Icons.event_note_outlined,
-          title: '暂无安排',
-          message: '${day.month} 月 ${day.day} 日没有日程和任务，左右滑动可以换一天。',
-          compact: true,
-        ),
-      ),
-    );
-  }
-}
-
 const double _kHourSlotHeight = 52;
 const double _kTimeGutterWidth = 44;
 

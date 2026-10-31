@@ -27,22 +27,20 @@
           <button v-if="activeViewId" :class="{ active: rule === 'custom' }" @click="$emit('change-rule', 'custom')">自定义</button>
         </div>
         <button
-          class="tw-matrix-completed-toggle"
+          class="tw-icon-button"
           :class="{ active: selectionMode }"
           :title="selectionMode ? '退出多选' : '多选任务'"
           @click="$emit('toggle-selection')"
         >
-          <TaskIcon name="select" :size="11" />
-          多选
+          <TaskIcon name="select" :size="16" />
         </button>
         <button
-          class="tw-matrix-completed-toggle"
+          class="tw-icon-button"
           :class="{ active: manualSort }"
           :title="manualSort ? '关闭手动排序' : '开启手动排序（拖动任务调整顺序）'"
           @click="$emit('toggle-manual-sort')"
         >
-          <TaskIcon name="sort" :size="11" />
-          手动排序
+          <TaskIcon name="sort" :size="16" />
         </button>
         <span class="tw-matrix-total">{{ tasks.length }} 项</span>
       </div>

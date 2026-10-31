@@ -8,11 +8,14 @@
         </svg>
       </button>
       <nav class="tw-rail-nav">
-        <button class="tw-rail-button" :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
+        <button class="tw-rail-button" :class="{ active: mode === 'list' && view !== 'matrix' }" title="清单" @click="switchMode('list')">
           <TaskIcon name="list" :size="21" />
         </button>
         <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="switchMode('calendar')">
           <TaskIcon name="calendar" :size="21" />
+        </button>
+        <button class="tw-rail-button" :class="{ active: view === 'matrix' }" title="矩阵" @click="selectView('matrix')">
+          <TaskIcon name="matrix" :size="21" />
         </button>
         <button class="tw-rail-button" :class="{ active: view === 'focus' }" title="专注" @click="selectView('focus')">
           <TaskIcon name="clock" :size="21" />
@@ -73,7 +76,7 @@
     </aside>
 
     <TaskSidebar
-      v-if="mode !== 'calendar' && view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'"
+      v-if="sidebarVisible"
       :lists="lists"
       :shared-lists="sharedLists"
       :shared-notes="sharedNotes"
@@ -117,11 +120,11 @@
       @logout="handleLogout"
     />
 
-    <div v-if="sidebarOpen && mode !== 'calendar'" class="tw-scrim" @click="sidebarOpen = false" />
+    <div v-if="sidebarOpen && sidebarVisible" class="tw-scrim" @click="sidebarOpen = false" />
 
     <main class="tw-main">
       <header v-if="view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-toolbar">
-        <button v-if="mode !== 'calendar'" class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
+        <button v-if="sidebarVisible" class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
           <TaskIcon name="list" :size="20" />
         </button>
         <div class="tw-heading">
@@ -138,22 +141,19 @@
             <TaskIcon name="plus" :size="15" />
             新建日程
           </button>
-          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView && mode !== 'calendar'" class="tw-mode-switch" role="group" aria-label="视图模式">
-            <button :class="{ active: mode === 'list' && view !== 'matrix' }" title="清单" @click="switchMode('list')">
+          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && !noteView && mode !== 'calendar'" class="tw-mode-switch" role="group" aria-label="视图模式">
+            <button :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
-            <button :class="{ active: mode === 'board' && view !== 'matrix' }" title="看板" @click="switchMode('board')">
+            <button :class="{ active: mode === 'board' }" title="看板" @click="switchMode('board')">
               <TaskIcon name="board" :size="16" />
             </button>
-            <button :class="{ active: mode === 'timeline' && view !== 'matrix' }" title="时间线" @click="switchMode('timeline')">
+            <button :class="{ active: mode === 'timeline' }" title="时间线" @click="switchMode('timeline')">
               <TaskIcon name="timeline" :size="16" />
-            </button>
-            <button :class="{ active: view === 'matrix' }" title="矩阵" @click="selectView('matrix')">
-              <TaskIcon name="matrix" :size="16" />
             </button>
           </div>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView && mode !== 'calendar'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && !noteView && mode !== 'calendar'"
             class="tw-icon-button"
             :class="{ active: splitView }"
             :title="splitView ? '关闭日历并列显示' : '任务与日历并列显示'"
@@ -222,11 +222,7 @@
         @select-shared-list="selectSharedNoteList"
         @reload="loadWorkspace(true)"
       />
-      <div
-        v-else-if="view === 'matrix'"
-        class="tw-main-body"
-        :class="{ 'is-split': splitView && !selectedTask }"
-      >
+      <div v-else-if="view === 'matrix'" class="tw-main-body">
       <div class="tw-scroll tw-scroll-matrix">
       <TaskMatrixPanel
         :tasks="matrixTasks"
@@ -248,30 +244,6 @@
         @quick-add="quickAddMatrixTask"
       />
       </div>
-      <aside
-        v-if="splitView && !selectedTask"
-        class="tw-split-calendar"
-        :style="{ width: `${splitWidth}px` }"
-      >
-        <div class="tw-split-resizer" title="拖动调整宽度" @pointerdown="startSplitResize"></div>
-        <TaskCalendar
-          :cursor="splitCursor"
-          :view-mode="splitViewMode"
-          :reload-key="calendarReload"
-          @open="openTask"
-          @open-event="openCalendarEvent"
-          @open-habit="openHabitFromCalendar"
-          @calendars="calendarSources = $event"
-          @reschedule-task="rescheduleTask"
-          @reschedule-event="rescheduleEvent"
-          @occurrence-changed="onOccurrenceChanged"
-          @create="createFromCalendar"
-          @change-view="splitViewMode = $event"
-          @prev="stepSplitCalendar(-1)"
-          @next="stepSplitCalendar(1)"
-          @today="splitCursor = new Date()"
-        />
-      </aside>
       </div>
       <div v-else class="tw-main-body" :class="{ 'is-split': splitView && mode !== 'calendar' }">
       <div class="tw-scroll" :class="{ 'tw-scroll-calendar': mode === 'calendar', 'tw-scroll-timeline': mode === 'timeline' }">
@@ -1257,6 +1229,9 @@ const searchInput = ref('')
 const selectedId = ref(0)
 const loading = ref(true)
 const sidebarOpen = ref(false)
+const sidebarVisible = computed(
+  () => mode.value !== 'calendar' && !['matrix', 'habit', 'focus', 'countdown', 'notes'].includes(view.value),
+)
 const quickText = ref('')
 const quickBusy = ref(false)
 const taskTemplatesOpen = ref(false)

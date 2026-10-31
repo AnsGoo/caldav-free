@@ -83,6 +83,23 @@ class BoardView extends StatelessWidget {
       }
       return LayoutBuilder(
         builder: (context, constraints) {
+          if (constraints.maxWidth < 600) {
+            return _BoardPager(
+              itemCount: lists.length,
+              builder: (context, index, width) {
+                final item = lists[index];
+                return _ListBoardColumn(
+                  key: ValueKey('list-board-${item.id}'),
+                  width: width,
+                  margin: EdgeInsets.zero,
+                  list: item,
+                  tasks: byList[item.id] ?? const [],
+                  onOpenTask: onOpenTask,
+                  onToggleTask: onToggleTask,
+                );
+              },
+            );
+          }
           final width = _boardColumnWidth(constraints.maxWidth, lists.length);
           return ListView(
             scrollDirection: Axis.horizontal,
@@ -130,76 +147,106 @@ class BoardView extends StatelessWidget {
         }
         return LayoutBuilder(
           builder: (context, constraints) {
-            final width = _boardColumnWidth(
-              constraints.maxWidth,
-              sections.length + 1,
-              reserved: 160,
-            );
-            return ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              children: [
-                for (var index = 0; index < sections.length; index++)
-                  _BoardColumn(
-                    key: ValueKey(sections[index].id),
-                    width: width,
-                    list: list,
-                    section: sections[index],
-                    tasks: bySection[sections[index].id] ?? const [],
-                    manualSort: manualSort,
-                    onOpenTask: onOpenTask,
-                    onToggleTask: onToggleTask,
-                    onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
-                      context,
-                      scoped,
-                      bySection[sections[index].id] ?? const [],
-                      oldIndex,
-                      newIndex,
-                    ),
-                    onReorderSection: (draggedId, targetId) =>
-                        _reorderSectionByIds(
-                          context,
-                          list.id,
-                          sections,
-                          draggedId,
-                          targetId,
-                        ),
-                    onMoveLeft: index > 0
-                        ? () => _reorderSections(
-                            context,
-                            list.id,
-                            sections,
-                            index,
-                            index - 1,
-                          )
-                        : null,
-                    onMoveRight: index < sections.length - 1
-                        ? () => _reorderSections(
-                            context,
-                            list.id,
-                            sections,
-                            index,
-                            index + 1,
-                          )
-                        : null,
-                  ),
-                _BoardColumn(
-                  key: const ValueKey('unassigned'),
+            Widget columnAt(int index, double width, EdgeInsetsGeometry margin) {
+              if (index < sections.length) {
+                final section = sections[index];
+                return _BoardColumn(
+                  key: ValueKey(section.id),
                   width: width,
+                  margin: margin,
                   list: list,
-                  section: null,
-                  tasks: bySection[null] ?? const [],
+                  section: section,
+                  tasks: bySection[section.id] ?? const [],
                   manualSort: manualSort,
                   onOpenTask: onOpenTask,
                   onToggleTask: onToggleTask,
                   onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
                     context,
                     scoped,
-                    bySection[null] ?? const [],
+                    bySection[section.id] ?? const [],
                     oldIndex,
                     newIndex,
                   ),
+                  onReorderSection: (draggedId, targetId) =>
+                      _reorderSectionByIds(
+                        context,
+                        list.id,
+                        sections,
+                        draggedId,
+                        targetId,
+                      ),
+                  onMoveLeft: index > 0
+                      ? () => _reorderSections(
+                          context,
+                          list.id,
+                          sections,
+                          index,
+                          index - 1,
+                        )
+                      : null,
+                  onMoveRight: index < sections.length - 1
+                      ? () => _reorderSections(
+                          context,
+                          list.id,
+                          sections,
+                          index,
+                          index + 1,
+                        )
+                      : null,
+                );
+              }
+              return _BoardColumn(
+                key: const ValueKey('unassigned'),
+                width: width,
+                margin: margin,
+                list: list,
+                section: null,
+                tasks: bySection[null] ?? const [],
+                manualSort: manualSort,
+                onOpenTask: onOpenTask,
+                onToggleTask: onToggleTask,
+                onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
+                  context,
+                  scoped,
+                  bySection[null] ?? const [],
+                  oldIndex,
+                  newIndex,
                 ),
+              );
+            }
+
+            final count = sections.length + 1;
+            if (constraints.maxWidth < 600) {
+              return _BoardPager(
+                key: ValueKey('board-pages-${list.id}'),
+                itemCount: count,
+                trailing: IconButton(
+                  tooltip: '添加列',
+                  onPressed: () => _createSection(context, list.id),
+                  icon: const Icon(
+                    Icons.view_column_outlined,
+                    size: 20,
+                  ),
+                ),
+                builder: (context, index, width) =>
+                    columnAt(index, width, EdgeInsets.zero),
+              );
+            }
+            final width = _boardColumnWidth(
+              constraints.maxWidth,
+              count,
+              reserved: 160,
+            );
+            return ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                for (var index = 0; index < count; index++)
+                  columnAt(
+                    index,
+                    width,
+                    const EdgeInsets.only(right: 10),
+                  ),
                 _AddColumnButton(listId: list.id),
               ],
             );
@@ -214,6 +261,7 @@ class _BoardColumn extends StatelessWidget {
   const _BoardColumn({
     super.key,
     required this.width,
+    this.margin = const EdgeInsets.only(right: 10),
     required this.list,
     required this.section,
     required this.tasks,
@@ -227,6 +275,7 @@ class _BoardColumn extends StatelessWidget {
   });
 
   final double width;
+  final EdgeInsetsGeometry margin;
   final TaskListItem list;
   final TaskSection? section;
   final List<TaskItem> tasks;
@@ -274,7 +323,7 @@ class _BoardColumn extends StatelessWidget {
     final accent = _columnColor(section?.id ?? 'unassigned');
     return Container(
       width: width,
-      margin: const EdgeInsets.only(right: 10),
+      margin: margin,
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
@@ -520,6 +569,7 @@ class _ListBoardColumn extends StatelessWidget {
   const _ListBoardColumn({
     super.key,
     required this.width,
+    this.margin = const EdgeInsets.only(right: 10),
     required this.list,
     required this.tasks,
     required this.onOpenTask,
@@ -527,6 +577,7 @@ class _ListBoardColumn extends StatelessWidget {
   });
 
   final double width;
+  final EdgeInsetsGeometry margin;
   final TaskListItem list;
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
@@ -538,7 +589,7 @@ class _ListBoardColumn extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Container(
       width: width,
-      margin: const EdgeInsets.only(right: 10),
+      margin: margin,
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
@@ -914,23 +965,42 @@ class _GroupedBoardView extends StatelessWidget {
     final columns = _columns();
     return LayoutBuilder(
       builder: (context, constraints) {
+        Widget groupColumn(
+          _GroupColumnSpec column,
+          double width,
+          EdgeInsetsGeometry margin,
+        ) => _GroupBoardColumn(
+          key: ValueKey('group-board-${column.id}'),
+          width: width,
+          margin: margin,
+          title: column.title,
+          color: column.color,
+          tasks: column.tasks,
+          onOpenTask: onOpenTask,
+          onToggleTask: onToggleTask,
+          onAcceptTask: (taskId) =>
+              _applyGroupChange(context, column, taskId),
+          onAddTask: () => _addTask(context, column),
+        );
+
+        if (constraints.maxWidth < 600) {
+          return _BoardPager(
+            key: ValueKey('board-pages-${group.name}'),
+            itemCount: columns.length,
+            builder: (context, index, width) =>
+                groupColumn(columns[index], width, EdgeInsets.zero),
+          );
+        }
         final width = _boardColumnWidth(constraints.maxWidth, columns.length);
         return ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
             for (final column in columns)
-              _GroupBoardColumn(
-                key: ValueKey('group-board-${column.id}'),
-                width: width,
-                title: column.title,
-                color: column.color,
-                tasks: column.tasks,
-                onOpenTask: onOpenTask,
-                onToggleTask: onToggleTask,
-                onAcceptTask: (taskId) =>
-                    _applyGroupChange(context, column, taskId),
-                onAddTask: () => _addTask(context, column),
+              groupColumn(
+                column,
+                width,
+                const EdgeInsets.only(right: 10),
               ),
           ],
         );
@@ -1015,6 +1085,7 @@ class _GroupBoardColumn extends StatelessWidget {
   const _GroupBoardColumn({
     super.key,
     required this.width,
+    this.margin = const EdgeInsets.only(right: 10),
     required this.title,
     required this.color,
     required this.tasks,
@@ -1025,6 +1096,7 @@ class _GroupBoardColumn extends StatelessWidget {
   });
 
   final double width;
+  final EdgeInsetsGeometry margin;
   final String title;
   final Color color;
   final List<TaskItem> tasks;
@@ -1059,7 +1131,7 @@ class _GroupBoardColumn extends StatelessWidget {
     final scheme = theme.colorScheme;
     return Container(
       width: width,
-      margin: const EdgeInsets.only(right: 10),
+      margin: margin,
       padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
@@ -1174,6 +1246,107 @@ class _GroupBoardColumn extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Swipeable full-width board pages used on phones. One column per page with a
+/// "current/total" indicator shown above the group.
+class _BoardPager extends StatefulWidget {
+  const _BoardPager({
+    super.key,
+    required this.itemCount,
+    required this.builder,
+    this.trailing,
+  });
+
+  final int itemCount;
+  final Widget Function(BuildContext context, int index, double width) builder;
+  final Widget? trailing;
+
+  @override
+  State<_BoardPager> createState() => _BoardPagerState();
+}
+
+class _BoardPagerState extends State<_BoardPager> {
+  final PageController _controller = PageController();
+  int _index = 0;
+
+  @override
+  void didUpdateWidget(covariant _BoardPager oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.itemCount <= 0 || _index < widget.itemCount) return;
+    _index = widget.itemCount - 1;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _controller.hasClients) {
+        _controller.jumpToPage(_index);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    if (widget.itemCount <= 0) return const SizedBox.shrink();
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${_index + 1}/${widget.itemCount}',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    color: scheme.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '左右滑动切换分组',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              if (widget.trailing != null) widget.trailing!,
+            ],
+          ),
+        ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth - 32;
+              return PageView.builder(
+                controller: _controller,
+                itemCount: widget.itemCount,
+                onPageChanged: (index) => setState(() => _index = index),
+                itemBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: widget.builder(context, index, width),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

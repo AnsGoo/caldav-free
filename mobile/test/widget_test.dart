@@ -166,6 +166,10 @@ void main() {
   testWidgets('layout switcher renders board and matrix', (
     tester,
   ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
     final store = LocalStore.memory();
     final now = DateTime.now().toUtc();
     await store.saveList(
@@ -265,6 +269,62 @@ void main() {
 
     // 时间线视图已移除，布局切换只保留列表 / 看板 / 矩阵。
     expect(find.text('时间线'), findsNothing);
+  });
+
+  testWidgets('narrow board pages groups and shows the page index', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(390, 844);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'high-task',
+        listId: 'inbox-1',
+        title: '高优先任务',
+        priority: 3,
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('看板'));
+    await tester.pumpAndSettle();
+    expect(find.text('1/1'), findsOneWidget);
+
+    await tester.tap(find.text('按清单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('按优先级'));
+    await tester.pumpAndSettle();
+    expect(find.text('1/4'), findsOneWidget);
+    expect(find.text('高优先任务'), findsOneWidget);
+
+    await tester.fling(find.byType(PageView), const Offset(-320, 0), 1200);
+    await tester.pumpAndSettle();
+    expect(find.text('2/4'), findsOneWidget);
   });
 
   testWidgets('the matrix buckets by priority and hides completed', (

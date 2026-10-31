@@ -530,18 +530,61 @@ class _CalendarPageState extends State<CalendarPage> {
               builder: (context) {
                 final effective = _mergeLocalTasks(snapshot);
                 return switch (_view) {
-                  CalendarView.month => _MonthView(
-                    anchor: _anchor,
-                    snapshot: effective,
-                    almanac: _almanac,
-                    composingDay: _composingDay,
-                    onSelectDay: _selectDay,
-                    onOpenEvent: _openEvent,
-                    onOpenTask: _openTask,
-                    onToggleTask: _toggleTask,
-                    onStartCompose: _startCompose,
-                    onCommitCompose: _commitCompose,
-                    onCancelCompose: _cancelCompose,
+                  CalendarView.month => LayoutBuilder(
+                    builder: (context, constraints) {
+                      // 只保留本月实际需要的周数，月历随行数自然变矮，
+                      // 把更多空间留给下方的当月任务列表。
+                      final firstOfMonth = DateTime(
+                        _anchor.year,
+                        _anchor.month,
+                        1,
+                      );
+                      final daysInMonth = DateTime(
+                        _anchor.year,
+                        _anchor.month + 1,
+                        0,
+                      ).day;
+                      final weeks =
+                          ((firstOfMonth.weekday - 1 + daysInMonth) / 7).ceil();
+                      final preferred = constraints.maxHeight * 0.46;
+                      final compact = 36.0 + weeks * 78.0;
+                      final gridHeight = math
+                          .min(preferred, compact)
+                          .clamp(260.0, 500.0)
+                          .clamp(
+                            0.0,
+                            math.max(0.0, constraints.maxHeight - 120),
+                          )
+                          .toDouble();
+                      return Column(
+                        children: [
+                          SizedBox(
+                            height: gridHeight,
+                            child: _MonthView(
+                              anchor: _anchor,
+                              snapshot: effective,
+                              almanac: _almanac,
+                              composingDay: _composingDay,
+                              onSelectDay: _selectDay,
+                              onOpenEvent: _openEvent,
+                              onOpenTask: _openTask,
+                              onToggleTask: _toggleTask,
+                              onStartCompose: _startCompose,
+                              onCommitCompose: _commitCompose,
+                              onCancelCompose: _cancelCompose,
+                            ),
+                          ),
+                          Expanded(
+                            child: _MonthTaskList(
+                              anchor: _anchor,
+                              snapshot: effective,
+                              onOpenTask: _openTask,
+                              onToggleTask: _toggleTask,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   CalendarView.week => _WeekView(
                     anchor: _anchor,
@@ -1005,6 +1048,10 @@ class _MonthViewState extends State<_MonthView> {
     final almanac = widget.almanac;
     final first = DateTime(anchor.year, anchor.month, 1);
     final gridStart = first.subtract(Duration(days: first.weekday - 1));
+    final firstIndex = first.weekday - 1;
+    final daysInMonth = DateTime(anchor.year, anchor.month + 1, 0).day;
+    final weeks = ((firstIndex + daysInMonth) / 7).ceil();
+    final lastIndex = firstIndex + daysInMonth - 1;
     final today = _dateOnly(DateTime.now());
     final scheme = Theme.of(context).colorScheme;
     return Column(
@@ -1024,29 +1071,24 @@ class _MonthViewState extends State<_MonthView> {
           ],
         ),
         Expanded(
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(8, 2, 8, 12),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              border: Border.all(color: scheme.outline),
-              borderRadius: BorderRadius.circular(14),
-            ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
             child: LayoutBuilder(
               builder: (context, constraints) => GridView.builder(
                 padding: EdgeInsets.zero,
                 physics: const NeverScrollableScrollPhysics(),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 7,
-                  // Six week rows have to stay on screen whatever the aspect
-                  // ratio is; a fixed child aspect ratio pushes most of the
-                  // month off-screen as soon as the device turns landscape.
-                  mainAxisExtent: constraints.maxHeight / 6,
+                  // 只渲染本月实际占用的周数，不再补足 6 行。
+                  mainAxisExtent: constraints.maxHeight / weeks,
                 ),
-                itemCount: 42,
+                itemCount: weeks * 7,
                 itemBuilder: (context, index) {
                   final day = gridStart.add(Duration(days: index));
-                  final entries = _entriesForDay(snapshot, day);
                   final inMonth = day.month == anchor.month;
+                  // 前后补位的日期不展示，也不画边框。
+                  if (!inMonth) return const SizedBox.shrink();
+                  final entries = _entriesForDay(snapshot, day);
                   final isToday = day == today;
                   final hovered = _hoveredCell == index;
                   final dayAlmanac = almanac[_dateKey(day)];
@@ -1055,29 +1097,35 @@ class _MonthViewState extends State<_MonthView> {
                   final special =
                       dayAlmanac?.special == true || holiday != null;
                   final composing = day == widget.composingDay;
-                  final lastColumn = index % 7 == 6;
-                  final lastRow = index >= 35;
+                  final corner = Radius.circular(12);
+                  final isTopLeft = index == firstIndex;
+                  final isTopRight = index == 6;
+                  final isBottomLeft = index == lastIndex - (lastIndex % 7);
+                  final isBottomRight = index == lastIndex;
                   return Container(
                     decoration: BoxDecoration(
+                      // 与年视图一致：画布透出，仅用细线勾勒，而不是填充卡片。
                       color: isToday
-                          ? Color.alphaBlend(
-                              scheme.primary.withValues(alpha: 0.08),
-                              scheme.surface,
-                            )
+                          ? scheme.primary.withValues(alpha: 0.07)
                           : hovered
-                          ? Color.alphaBlend(
-                              scheme.primary.withValues(alpha: 0.04),
-                              scheme.surface,
-                            )
-                          : scheme.surface,
-                      // 网格线让相邻日期有明确边界，PC 大窗口下更容易分辨。
+                          ? scheme.primary.withValues(alpha: 0.035)
+                          : null,
+                      borderRadius: BorderRadius.only(
+                        topLeft: isTopLeft ? corner : Radius.zero,
+                        topRight: isTopRight ? corner : Radius.zero,
+                        bottomLeft: isBottomLeft ? corner : Radius.zero,
+                        bottomRight: isBottomRight ? corner : Radius.zero,
+                      ),
+                      // 只给本月日期绘制边框，四个最外角做圆润处理。
                       border: Border(
-                        right: lastColumn
-                            ? BorderSide.none
-                            : BorderSide(color: scheme.outline),
-                        bottom: lastRow
-                            ? BorderSide.none
-                            : BorderSide(color: scheme.outline),
+                        top: index - 7 < firstIndex
+                            ? BorderSide(color: scheme.outline)
+                            : BorderSide.none,
+                        left: index == firstIndex || index % 7 == 0
+                            ? BorderSide(color: scheme.outline)
+                            : BorderSide.none,
+                        right: BorderSide(color: scheme.outline),
+                        bottom: BorderSide(color: scheme.outline),
                       ),
                     ),
                     child: Material(
@@ -1235,6 +1283,155 @@ class _MonthViewState extends State<_MonthView> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 月视图下方的当月任务列表：按日期分组，可直接勾选完成或打开详情。
+class _MonthTaskList extends StatelessWidget {
+  const _MonthTaskList({
+    required this.anchor,
+    required this.snapshot,
+    required this.onOpenTask,
+    required this.onToggleTask,
+  });
+
+  final DateTime anchor;
+  final CalendarSnapshot snapshot;
+  final Future<void> Function(CalendarTask task) onOpenTask;
+  final Future<void> Function(CalendarTask task) onToggleTask;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final today = _dateOnly(DateTime.now());
+    final byDay = <DateTime, List<_Entry>>{};
+    for (final task in snapshot.tasks) {
+      final when = task.when?.toLocal();
+      if (when == null ||
+          when.year != anchor.year ||
+          when.month != anchor.month) {
+        continue;
+      }
+      byDay
+          .putIfAbsent(_dateOnly(when), () => <_Entry>[])
+          .add(_Entry.task(task));
+    }
+    final days = byDay.keys.toList()..sort();
+    for (final day in days) {
+      byDay[day]!.sort((a, b) {
+        if (a.allDay != b.allDay) return a.allDay ? -1 : 1;
+        final time = a.start.compareTo(b.start);
+        if (time != 0) return time;
+        return a.title.compareTo(b.title);
+      });
+    }
+    final total = days.fold<int>(0, (sum, day) => sum + byDay[day]!.length);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(8, 6, 8, 12),
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outline),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Row(
+              children: [
+                Text(
+                  '${anchor.month}月任务',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$total 项',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: scheme.outline),
+          Expanded(
+            child: total == 0
+                ? Center(
+                    child: Text(
+                      '${anchor.month}月还没有任务',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 12),
+                    children: [
+                      for (final day in days) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(4, 8, 4, 6),
+                          child: Row(
+                            children: [
+                              Text(
+                                '${day.month}月${day.day}日 ${_weekday(day)}',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: day == today
+                                      ? scheme.primary
+                                      : scheme.onSurfaceVariant,
+                                ),
+                              ),
+                              if (day == today) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: Text(
+                                    '今天',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      fontSize: 9,
+                                      color: scheme.primary,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              const Spacer(),
+                              Text(
+                                '${byDay[day]!.length}',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: scheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        for (final entry in byDay[day]!) ...[
+                          _EntryTile(
+                            entry: entry,
+                            onOpenEvent: (_) async {},
+                            onOpenTask: onOpenTask,
+                            onToggleTask: onToggleTask,
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                      ],
+                    ],
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

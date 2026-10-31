@@ -240,7 +240,6 @@
         @move="moveTaskToQuadrant"
         @move-custom="moveTaskToCustomQuadrant"
         @move-sorted="moveTaskCrossQuadrant"
-        @change-rule="setMatrixRule"
         @select-view="selectMatrixView"
         @create-view="openMatrixViewDialog"
         @manage-views="matrixViewManagerOpen = true"
@@ -945,6 +944,8 @@
     <MatrixViewManagerDialog
       v-if="matrixViewManagerOpen"
       :views="matrixViews"
+      :default-mode="matrixDefaultRule"
+      @change-default-mode="setDefaultMatrixRule"
       @changed="onMatrixViewsChanged"
       @edit-rules="openMatrixRulesFor"
       @close="matrixViewManagerOpen = false"
@@ -1252,6 +1253,7 @@ const calendarReload = ref(0)
 const eventDialogOpen = ref(false)
 const editingEvent = ref<CalendarEvent | null>(null)
 const calendarFocus = ref<{ calendarId: number; href: string; occurrence: string } | null>(null)
+const matrixDefaultRule = ref<MatrixRuleMode>('simple')
 const matrixRule = ref<MatrixRuleMode>('simple')
 const matrixViews = ref<MatrixView[]>([])
 const activeMatrixViewId = ref(0)
@@ -1265,6 +1267,11 @@ const matrixSelectionMode = ref(false)
 const matrixSelectedIds = ref(new Set<number>())
 try {
   matrixManualSort.value = localStorage.getItem('caldav-matrix-manual-sort') === '1'
+  const savedRule = localStorage.getItem('caldav-matrix-rule')
+  if (savedRule === 'simple' || savedRule === 'complex' || savedRule === 'custom') {
+    matrixDefaultRule.value = savedRule
+    matrixRule.value = savedRule
+  }
 } catch {
   /* ignore */
 }
@@ -1612,6 +1619,7 @@ async function loadWorkspace(silent = false) {
           matrixRule.value = found.mode
         } else {
           activeMatrixViewId.value = 0
+          matrixRule.value = matrixDefaultRule.value
         }
       } else {
         const active = matrixViews.value.find((view) => view.id === activeMatrixViewId.value)
@@ -2826,30 +2834,23 @@ function onMatrixRulesSaved(view: MatrixView) {
   Message.success('自定义规则已保存')
 }
 
-async function setMatrixRule(rule: MatrixRuleMode) {
-  clearMatrixSelection()
-  matrixRule.value = rule
+function setDefaultMatrixRule(rule: MatrixRuleMode) {
+  matrixDefaultRule.value = rule
   try {
     localStorage.setItem('caldav-matrix-rule', rule)
   } catch {
     /* ignore */
   }
-  if (!activeMatrixViewId.value) return
-  const hadRules = Boolean(activeMatrixView.value?.rules)
-  try {
-    const { view } = await updateMatrixView(activeMatrixViewId.value, { mode: rule })
-    matrixViews.value = matrixViews.value.map((item) => item.id === view.id ? view : item)
-    if (rule === 'custom' && !hadRules) matrixRulesDialogOpen.value = true
-  } catch (error) {
-    Message.error(error instanceof Error ? error.message : '保存矩阵规则失败')
-  }
+  if (activeMatrixViewId.value) return
+  clearMatrixSelection()
+  matrixRule.value = rule
 }
 
 function selectMatrixView(id: number) {
   clearMatrixSelection()
   activeMatrixViewId.value = id
   const view = matrixViews.value.find((item) => item.id === id)
-  matrixRule.value = view?.mode || 'simple'
+  matrixRule.value = view?.mode || matrixDefaultRule.value
   try {
     localStorage.setItem('caldav-matrix-view', String(id))
   } catch {

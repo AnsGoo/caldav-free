@@ -6288,6 +6288,22 @@ button.tw-side-link {
   display: inline-flex;
 }
 
+.tw-matrix-manager-default {
+  border-style: dashed;
+}
+
+.tw-matrix-manager-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tw-text-2);
+}
+
+.tw-matrix-drag.is-fixed {
+  cursor: default;
+}
+
 .tw-matrix-manager-row .tw-dialog-input {
   flex: 1;
   min-width: 0;

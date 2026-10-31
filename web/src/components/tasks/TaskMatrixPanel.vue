@@ -21,11 +21,6 @@
             <TaskIcon name="filter" :size="13" />
           </button>
         </div>
-        <div class="tw-matrix-rule">
-          <button :class="{ active: rule === 'simple' }" @click="$emit('change-rule', 'simple')">按优先级</button>
-          <button :class="{ active: rule === 'complex' }" @click="$emit('change-rule', 'complex')">优先级 + 日期</button>
-          <button v-if="activeViewId" :class="{ active: rule === 'custom' }" @click="$emit('change-rule', 'custom')">自定义</button>
-        </div>
         <button
           class="tw-icon-button"
           :class="{ active: selectionMode }"
@@ -194,7 +189,6 @@ const emit = defineEmits<{
   (event: 'move', payload: { task: TaskItem; priority: number }): void
   (event: 'move-custom', payload: { task: TaskItem; quadrant: MatrixQuadrantKey }): void
   (event: 'move-sorted', payload: { task: TaskItem; quadrant: MatrixQuadrantKey; orderedIds: number[] }): void
-  (event: 'change-rule', rule: MatrixRuleMode): void
   (event: 'select-view', id: number): void
   (event: 'create-view'): void
   (event: 'manage-views'): void

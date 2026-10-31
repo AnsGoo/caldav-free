@@ -9,6 +9,21 @@
       </header>
       <div class="tw-dialog-body tw-matrix-manager-body">
         <p class="tw-matrix-manager-hint">拖动行调整顺序；名称失焦或规则变化后自动保存。</p>
+        <div class="tw-matrix-manager-row tw-matrix-manager-default">
+          <span class="tw-matrix-drag is-fixed" aria-hidden="true">
+            <TaskIcon name="matrix" :size="14" />
+          </span>
+          <span class="tw-matrix-manager-name">默认矩阵</span>
+          <a-select
+            :model-value="defaultMode"
+            class="tw-field-select tw-matrix-mode-select"
+            @change="(value) => $emit('change-default-mode', value as MatrixRuleMode)"
+          >
+            <a-option value="simple">按优先级</a-option>
+            <a-option value="complex">优先级 + 日期</a-option>
+            <a-option value="custom">自定义规则（默认）</a-option>
+          </a-select>
+        </div>
         <div
           v-for="(view, index) in items"
           :key="view.id"
@@ -53,15 +68,16 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { MatrixView } from '../../types'
+import type { MatrixRuleMode, MatrixView } from '../../types'
 import { deleteMatrixView, updateMatrixView } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
-const props = defineProps<{ views: MatrixView[] }>()
+const props = defineProps<{ views: MatrixView[]; defaultMode: MatrixRuleMode }>()
 const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', views: MatrixView[]): void
   (event: 'edit-rules', view: MatrixView): void
+  (event: 'change-default-mode', mode: MatrixRuleMode): void
 }>()
 
 const items = ref(props.views.map((view) => ({ ...view })))

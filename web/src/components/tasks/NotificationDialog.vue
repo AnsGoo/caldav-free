@@ -70,9 +70,9 @@
             </button>
           </span>
         </div>
-        <div v-if="!loading && !notifications.length" class="tw-notification-empty">
+        <div v-if="!loading && !visibleNotifications.length" class="tw-notification-empty">
           <TaskIcon name="bell" :size="24" />
-          <p>暂时没有新通知</p>
+          <p>{{ filter === 'unread' ? '没有未读通知' : '暂时没有新通知' }}</p>
         </div>
         <p v-if="error" class="tw-reminder-warning">{{ error }}</p>
       </div>
@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { AppNotification } from '../../types'
 import { deleteNotification, fetchNotifications, markAllNotificationsRead, markNotificationRead, snoozeEventNotification, updateTask } from '../../tasks-api'
@@ -119,8 +119,8 @@ function formatTime(value: string) {
   return new Date(value).toLocaleDateString('zh-CN')
 }
 
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   try {
     const data = await fetchNotifications()
     notifications.value = data.notifications
@@ -141,7 +141,8 @@ async function open(item: AppNotification) {
       unread.value = result.unread
       emit('changed', result.unread)
     } catch {
-      /* opening the task is more important than the read marker */
+      // 标记失败时仍然打开任务，但把问题暴露出来，避免刷新后又显示未读。
+      Message.warning('未能标记通知为已读，请检查网络或登录状态')
     }
   }
   if (item.url) emit('open', item.url)
@@ -221,5 +222,25 @@ async function readAll() {
   }
 }
 
-onMounted(load)
+let refreshTimer: ReturnType<typeof setInterval> | undefined
+
+function reloadIfVisible() {
+  if (document.visibilityState === 'hidden') return
+  void load(true)
+}
+
+onMounted(() => {
+  void load()
+  // 其它标签页读完通知后，这里也要同步，避免刷新后仍显示未读。
+  window.addEventListener('focus', reloadIfVisible)
+  document.addEventListener('visibilitychange', reloadIfVisible)
+  refreshTimer = setInterval(reloadIfVisible, 15000)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('focus', reloadIfVisible)
+  document.removeEventListener('visibilitychange', reloadIfVisible)
+  if (refreshTimer) clearInterval(refreshTimer)
+  refreshTimer = undefined
+})
 </script>

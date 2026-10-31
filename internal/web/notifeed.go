@@ -99,6 +99,7 @@ func (s *Server) apiSnoozeNotification(w http.ResponseWriter, r *http.Request, c
 		return
 	}
 	_ = s.store.MarkNotificationRead(r.Context(), current.ID, notificationID)
+	s.notifications.publish(current.ID)
 	unread, _ := s.store.CountUnreadNotifications(r.Context(), current.ID)
 	writeAPIJSON(w, http.StatusOK, map[string]any{
 		"snooze": map[string]any{"id": snooze.ID, "remindAt": snooze.RemindAt.Format(time.RFC3339)},
@@ -120,6 +121,7 @@ func (s *Server) apiDeleteNotification(w http.ResponseWriter, r *http.Request, c
 		s.apiServerError(w, err)
 		return
 	}
+	s.notifications.publish(current.ID)
 	unread, _ := s.store.CountUnreadNotifications(r.Context(), current.ID)
 	writeAPIJSON(w, http.StatusOK, map[string]any{"unread": unread})
 }
@@ -146,6 +148,7 @@ func (s *Server) apiNotificationsRead(w http.ResponseWriter, r *http.Request, cu
 		writeAPIError(w, http.StatusBadRequest, "通知 ID 无效")
 		return
 	}
+	s.notifications.publish(current.ID)
 	unread, _ := s.store.CountUnreadNotifications(r.Context(), current.ID)
 	writeAPIJSON(w, http.StatusOK, map[string]any{"unread": unread})
 }

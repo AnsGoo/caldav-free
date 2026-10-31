@@ -85,6 +85,7 @@ const emit = defineEmits<{
   (event: 'close'): void
   (event: 'changed', unread: number): void
   (event: 'open', url: string): void
+  (event: 'task-completed', taskId: number): void
 }>()
 
 const notifications = ref<AppNotification[]>([])
@@ -154,6 +155,7 @@ async function completeTask(item: AppNotification) {
     await markNotificationRead(item.id)
     unread.value = Math.max(0, unread.value - 1)
     emit('changed', unread.value)
+    emit('task-completed', item.taskId)
     Message.success('任务已完成')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '完成任务失败'

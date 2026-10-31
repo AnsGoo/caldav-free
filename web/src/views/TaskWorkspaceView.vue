@@ -995,6 +995,7 @@
       v-if="notificationDialogOpen"
       @changed="unreadNotifications = $event"
       @open="openNotification"
+      @task-completed="onNotificationTaskCompleted"
       @close="notificationDialogOpen = false"
     />
 
@@ -3718,6 +3719,11 @@ function startTaskStream() {
       /* ignore malformed SSE frames */
     }
   }
+}
+
+function onNotificationTaskCompleted() {
+  // 通知里完成任务后，背景任务列表/计数需要立即刷新。
+  void loadWorkspace(true)
 }
 
 async function openNotification(url: string) {

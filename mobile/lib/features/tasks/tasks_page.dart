@@ -13,11 +13,7 @@ import '../../data/engine/sync_controller.dart';
 import '../../data/reminders/reminder_plan.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
-import '../auth/login_page.dart';
 import '../lists/lists_page.dart';
-import '../settings/sync_diagnostics_page.dart';
-import '../search/search_page.dart';
-import '../settings/theme_sheet.dart';
 import 'board_view.dart';
 import 'matrix_view.dart';
 import 'timeline_view.dart';
@@ -154,11 +150,6 @@ class _TasksPageState extends State<TasksPage> {
     _subscribeTasks();
   }
 
-  void _setScope(String? listId) {
-    setState(() => _selectedListId = listId);
-    _subscribeTasks();
-  }
-
   void _selectListScope(String? listId) {
     setState(() {
       _selectedListId = listId;
@@ -196,36 +187,6 @@ class _TasksPageState extends State<TasksPage> {
   void _openTrash() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const TrashPage()));
-  }
-
-  void _toggleManualSort() {
-    if (_manualSort) {
-      setState(() => _manualSort = false);
-      _subscribeTasks();
-      return;
-    }
-    final listId = _selectedListId ?? _defaultList?.id;
-    if (listId == null) {
-      _snack('请先选择一个清单');
-      return;
-    }
-    final store = context.read<AppState>().store;
-    final ids = store
-        .tasksSnapshot(listId: listId, completed: false, view: 'all')
-        .map((task) => task.id)
-        .toList();
-    setState(() {
-      _manualSort = true;
-      _selectedListId = listId;
-      _view = 'all';
-      _completed = false;
-      _selecting = false;
-      _selectedIds.clear();
-    });
-    _subscribeTasks();
-    if (ids.isNotEmpty) {
-      unawaited(context.read<AppState>().repository.reorderTasks(ids));
-    }
   }
 
   Future<void> _reorderTasks(int oldIndex, int newIndex) async {
@@ -664,11 +625,13 @@ class _TasksPageState extends State<TasksPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
-                IconButton(
-                  tooltip: '主题颜色',
-                  onPressed: _openTheme,
-                  icon: const Icon(Icons.palette_outlined),
-                ),
+                // 清单筛选只在小屏放在顶部，大屏用侧栏；主题入口统一收进设置。
+                if (!wide)
+                  _ListFilterButton(
+                    lists: _lists,
+                    selectedId: _selectedListId,
+                    onSelected: _selectListScope,
+                  ),
                 IconButton(
                   tooltip: '搜索',
                   onPressed: () {
@@ -688,58 +651,12 @@ class _TasksPageState extends State<TasksPage> {
                 PopupMenuButton<String>(
                   tooltip: '更多',
                   icon: const Icon(Icons.more_vert_rounded),
-                  onSelected: _handleTaskMenu,
+                  onSelected: (_) => _openLists(),
                   itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: 'search',
-                      child: _menuRow(Icons.search_rounded, '全局搜索'),
-                    ),
-                    PopupMenuItem(
-                      value: 'sync',
-                      child: _menuRow(
-                        Icons.sync_rounded,
-                        sync?.phase == SyncPhase.syncing ? '正在同步…' : '立即同步',
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'full',
-                      child: _menuRow(Icons.sync_alt_rounded, '全量同步'),
-                    ),
-                    PopupMenuItem(
-                      value: 'sort',
-                      child: _menuRow(
-                        Icons.swap_vert_rounded,
-                        _manualSort ? '按截止时间排序' : '手动排序',
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'theme',
-                      child: _menuRow(Icons.palette_outlined, '主题颜色'),
-                    ),
-                    const PopupMenuDivider(),
                     PopupMenuItem(
                       value: 'lists',
                       child: _menuRow(Icons.folder_outlined, '清单管理'),
                     ),
-                    PopupMenuItem(
-                      value: 'diagnostics',
-                      child: _menuRow(Icons.troubleshoot_rounded, '同步诊断'),
-                    ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: 'connect',
-                      child: _menuRow(
-                        app.connected
-                            ? Icons.cloud_done_rounded
-                            : Icons.cloud_outlined,
-                        app.connected ? '已连接服务器' : '连接服务器',
-                      ),
-                    ),
-                    if (app.connected)
-                      PopupMenuItem(
-                        value: 'disconnect',
-                        child: _menuRow(Icons.cloud_off_rounded, '断开连接'),
-                      ),
                   ],
                 ),
                 const SizedBox(width: 6),
@@ -760,7 +677,6 @@ class _TasksPageState extends State<TasksPage> {
               onViewSelected: _selectViewScope,
               onCompleted: _selectCompletedScope,
               onTrash: _openTrash,
-              onManage: _openLists,
             ),
           Expanded(
             child: Column(
@@ -792,17 +708,14 @@ class _TasksPageState extends State<TasksPage> {
                   // 窄屏没有侧栏，chips 是唯一的筛选入口。
                   if (!wide)
                     _ListSelector(
-                      lists: _lists,
                       selectedId: _selectedListId,
                       selectedView: _view,
                       completed: _completed,
                       completedCount: completedCount,
                       trashCount: trashCount,
-                      onSelected: _selectListScope,
                       onViewSelected: _selectViewScope,
                       onCompleted: _selectCompletedScope,
                       onTrash: _openTrash,
-                      onManage: _openLists,
                     ),
                   Expanded(
                     child: visible.isEmpty
@@ -897,13 +810,6 @@ class _TasksPageState extends State<TasksPage> {
                           ),
                   ),
                 ] else if (_layout == _TaskLayout.board) ...[
-                  if (!wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      includeAll: true,
-                      onChanged: _setScope,
-                    ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -928,13 +834,6 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 ] else if (_layout == _TaskLayout.matrix) ...[
-                  if (!wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      includeAll: true,
-                      onChanged: _setScope,
-                    ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -949,13 +848,6 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 ] else ...[
-                  if (!wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      includeAll: true,
-                      onChanged: _setScope,
-                    ),
                   _TimelineScaleBar(
                     scale: _timelineScale,
                     anchor: _timelineAnchor,
@@ -1022,41 +914,6 @@ class _TasksPageState extends State<TasksPage> {
     });
   }
 
-  Future<void> _handleTaskMenu(String value) async {
-    final app = context.read<AppState>();
-    switch (value) {
-      case 'search':
-        await _openGlobalSearch();
-        break;
-      case 'sync':
-        app.syncNow();
-        break;
-      case 'full':
-        app.syncNow(full: true);
-        break;
-      case 'sort':
-        _toggleManualSort();
-        break;
-      case 'theme':
-        await _openTheme();
-        break;
-      case 'lists':
-        _openLists();
-        break;
-      case 'diagnostics':
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const SyncDiagnosticsPage()));
-        break;
-      case 'connect':
-        _openConnectSheet();
-        break;
-      case 'disconnect':
-        await _confirmDisconnect();
-        break;
-    }
-  }
-
   Future<void> _addTask() async {
     if (_adding) return;
     final title = _quickAdd.text.trim();
@@ -1114,23 +971,6 @@ class _TasksPageState extends State<TasksPage> {
     );
   }
 
-  Future<void> _openGlobalSearch() async {
-    final task = await Navigator.of(context)
-        .push<TaskItem>(MaterialPageRoute(builder: (_) => const SearchPage()));
-    if (task == null || !mounted) return;
-    final list = context.read<AppState>().store.list(task.listId);
-    _openEditor(task, list);
-  }
-
-  Future<void> _openTheme() async {
-    final selected = await showThemeSheet(
-      context,
-      current: context.read<AppState>().accent,
-    );
-    if (selected == null || !mounted) return;
-    await context.read<AppState>().setAccent(selected);
-  }
-
   void _openLists() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const ListsPage()));
@@ -1147,37 +987,6 @@ class _TasksPageState extends State<TasksPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _openConnectSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (_) => const ConnectServerSheet(),
-    );
-  }
-
-  Future<void> _confirmDisconnect() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('断开连接？'),
-        content: const Text('断开后仍可正常使用本地功能，凭据会被清除，本地数据保留。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('断开'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && mounted) {
-      await context.read<AppState>().disconnect();
-    }
-  }
 }
 
 class _LayoutSwitcher extends StatelessWidget {
@@ -1385,127 +1194,55 @@ class _TimelineScaleBar extends StatelessWidget {
   }
 }
 
-class _ViewScopeBar extends StatelessWidget {
-  const _ViewScopeBar({
+/// 移动端顶部的清单筛选：漏斗 + 下拉箭头，点开后选择清单。
+class _ListFilterButton extends StatelessWidget {
+  const _ListFilterButton({
     required this.lists,
     required this.selectedId,
-    required this.includeAll,
-    required this.onChanged,
+    required this.onSelected,
   });
 
   final List<TaskListItem> lists;
   final String? selectedId;
-  final bool includeAll;
-  final ValueChanged<String?> onChanged;
+  final ValueChanged<String?> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    if (lists.isEmpty) return const SizedBox.shrink();
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final valid = lists.any((list) => list.id == selectedId);
-    final value = valid ? selectedId : (includeAll ? null : lists.first.id);
-    final current = value == null
-        ? null
-        : lists.firstWhere((list) => list.id == value);
-    final currentName = current?.name ?? '全部清单';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 12, 10),
-      child: Row(
-        children: [
-          Icon(
-            Icons.filter_alt_outlined,
-            size: 16,
-            color: scheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '范围',
-            style: theme.textTheme.labelMedium?.copyWith(
-              color: scheme.onSurfaceVariant,
+    final value = valid ? selectedId : null;
+    final active = value != null;
+    final foreground = active ? scheme.primary : scheme.onSurfaceVariant;
+    return PopupMenuButton<String?>(
+      tooltip: '清单筛选',
+      color: scheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      onSelected: onSelected,
+      itemBuilder: (context) => [
+        PopupMenuItem<String?>(
+          value: null,
+          child: _ScopeItem(label: '全部清单', selected: !active),
+        ),
+        for (final list in lists)
+          PopupMenuItem<String?>(
+            value: list.id,
+            child: _ScopeItem(
+              label: list.name,
+              selected: list.id == value,
+              color: colorFromHex(list.color),
             ),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: PopupMenuButton<String?>(
-                tooltip: '范围',
-                color: scheme.surfaceContainerHigh,
-                surfaceTintColor: Colors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                onSelected: onChanged,
-                itemBuilder: (context) => [
-                  if (includeAll)
-                    PopupMenuItem<String?>(
-                      value: null,
-                      child: _ScopeItem(label: '全部清单', selected: value == null),
-                    ),
-                  for (final list in lists)
-                    PopupMenuItem<String?>(
-                      value: list.id,
-                      child: _ScopeItem(
-                        label: list.name,
-                        selected: list.id == value,
-                        color: colorFromHex(list.color),
-                      ),
-                    ),
-                ],
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 240),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: scheme.secondaryContainer.withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (current != null)
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: colorFromHex(current.color),
-                            shape: BoxShape.circle,
-                          ),
-                        )
-                      else
-                        Icon(
-                          Icons.filter_alt_rounded,
-                          size: 15,
-                          color: scheme.onSecondaryContainer,
-                        ),
-                      const SizedBox(width: 7),
-                      Flexible(
-                        child: Text(
-                          currentName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: scheme.onSecondaryContainer,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 18,
-                        color: scheme.onSecondaryContainer,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.filter_alt_outlined, size: 20, color: foreground),
+            Icon(Icons.arrow_drop_down_rounded, size: 18, color: foreground),
+          ],
+        ),
       ),
     );
   }
@@ -1556,105 +1293,74 @@ class _ScopeItem extends StatelessWidget {
 
 class _ListSelector extends StatelessWidget {
   const _ListSelector({
-    required this.lists,
     required this.selectedId,
     required this.selectedView,
     required this.completed,
     required this.completedCount,
     required this.trashCount,
-    required this.onSelected,
     required this.onViewSelected,
     required this.onCompleted,
     required this.onTrash,
-    required this.onManage,
   });
 
-  final List<TaskListItem> lists;
   final String? selectedId;
   final String selectedView;
   final bool completed;
   final int completedCount;
   final int trashCount;
-  final ValueChanged<String?> onSelected;
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
   final VoidCallback onTrash;
-  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // 清单筛选在顶部漏斗里，这里只保留视图筛选。
     return SizedBox(
       height: 44,
-      child: ListView.separated(
+      child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: lists.length + 6,
-        separatorBuilder: (_, _) => const SizedBox(width: 6),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _SelectorChip(
-              label: '全部',
-              selected:
-                  selectedId == null && selectedView == 'all' && !completed,
-              color: scheme.primary,
-              onTap: () => onViewSelected('all'),
-            );
-          }
-          if (index == 1) {
-            return _SelectorChip(
-              label: '今天',
-              selected: selectedId == null && selectedView == 'today',
-              color: const Color(0xFFF59E0B),
-              onTap: () => onViewSelected('today'),
-            );
-          }
-          if (index == 2) {
-            return _SelectorChip(
-              label: '最近 7 天',
-              selected: selectedId == null && selectedView == 'next7',
-              color: const Color(0xFF3B82F6),
-              onTap: () => onViewSelected('next7'),
-            );
-          }
-          if (index == 3) {
-            return _SelectorChip(
-              label: '已完成',
-              selected: completed,
-              color: const Color(0xFF10B981),
-              icon: Icons.check_circle_outline_rounded,
-              count: completedCount,
-              onTap: onCompleted,
-            );
-          }
-          if (index == 4) {
-            return _SelectorChip(
-              label: '回收站',
-              selected: false,
-              color: scheme.onSurfaceVariant,
-              icon: Icons.delete_outline_rounded,
-              count: trashCount,
-              onTap: onTrash,
-            );
-          }
-          if (index == lists.length + 5) {
-            return _SelectorChip(
-              label: '管理',
-              selected: false,
-              color: scheme.onSurfaceVariant,
-              icon: Icons.tune_rounded,
-              onTap: onManage,
-            );
-          }
-          final list = lists[index - 5];
-          final color = colorFromHex(list.color);
-          return _SelectorChip(
-            label: list.name,
-            selected: selectedId == list.id,
-            color: color,
-            onTap: () => onSelected(list.id),
-          );
-        },
+        children: [
+          _SelectorChip(
+            label: '全部',
+            selected: selectedId == null && selectedView == 'all' && !completed,
+            color: scheme.primary,
+            onTap: () => onViewSelected('all'),
+          ),
+          const SizedBox(width: 6),
+          _SelectorChip(
+            label: '今天',
+            selected: selectedId == null && selectedView == 'today',
+            color: const Color(0xFFF59E0B),
+            onTap: () => onViewSelected('today'),
+          ),
+          const SizedBox(width: 6),
+          _SelectorChip(
+            label: '最近 7 天',
+            selected: selectedId == null && selectedView == 'next7',
+            color: const Color(0xFF3B82F6),
+            onTap: () => onViewSelected('next7'),
+          ),
+          const SizedBox(width: 6),
+          _SelectorChip(
+            label: '已完成',
+            selected: completed,
+            color: const Color(0xFF10B981),
+            icon: Icons.check_circle_outline_rounded,
+            count: completedCount,
+            onTap: onCompleted,
+          ),
+          const SizedBox(width: 6),
+          _SelectorChip(
+            label: '回收站',
+            selected: false,
+            color: scheme.onSurfaceVariant,
+            icon: Icons.delete_outline_rounded,
+            count: trashCount,
+            onTap: onTrash,
+          ),
+        ],
       ),
     );
   }
@@ -1744,7 +1450,6 @@ class _ListPane extends StatelessWidget {
     required this.onViewSelected,
     required this.onCompleted,
     required this.onTrash,
-    required this.onManage,
   });
 
   final List<TaskListItem> lists;
@@ -1757,7 +1462,6 @@ class _ListPane extends StatelessWidget {
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
   final VoidCallback onTrash;
-  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -1824,13 +1528,6 @@ class _ListPane extends StatelessWidget {
                 ))
                   _listRow(context, store, list),
               ],
-              const SizedBox(height: 8),
-              _PaneRow(
-                label: '管理',
-                icon: Icons.tune_rounded,
-                selected: false,
-                onTap: onManage,
-              ),
             ],
           ),
         );

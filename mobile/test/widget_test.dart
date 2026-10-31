@@ -620,7 +620,7 @@ void main() {
     expect(added.single.title, '写周报');
   });
 
-  testWidgets('the wide list layout filters lists from the side pane only', (
+  testWidgets('list filtering uses the side pane on wide and a funnel on mobile', (
     tester,
   ) async {
     addTearDown(tester.view.reset);
@@ -659,12 +659,19 @@ void main() {
     expect(find.text('范围'), findsNothing);
     expect(find.text('清单'), findsOneWidget);
     expect(find.text('今天'), findsOneWidget);
+    expect(find.byTooltip('清单筛选'), findsNothing);
+    expect(find.byTooltip('主题颜色'), findsNothing);
+    expect(find.text('管理'), findsNothing);
 
-    // 窄屏没有侧栏，chips 保留清单与视图筛选入口。
+    // 窄屏没有侧栏，顶部漏斗负责清单筛选，chips 只保留视图。
     await pumpTasks(const Size(390, 844));
     expect(find.text('范围'), findsNothing);
     expect(find.text('今天'), findsOneWidget);
-    await tester.drag(find.text('今天'), const Offset(-320, 0));
+    expect(find.byTooltip('清单筛选'), findsOneWidget);
+    await tester.tap(find.byTooltip('清单筛选'));
+    await tester.pumpAndSettle();
+    expect(find.text('全部清单'), findsOneWidget);
+    await tester.tap(find.text('工作'));
     await tester.pumpAndSettle();
     expect(find.text('工作'), findsOneWidget);
   });

@@ -297,6 +297,7 @@ void main() {
     final task = await repo.createTask(title: '持久化', listId: 'list-1');
     await store.setAccent('#C23B5A');
     await store.writeCursor('42');
+    await store.setSidebarTags(const ['重点']);
     await store.dispose();
 
     final reopened = await LocalStore.open(path: path);
@@ -305,6 +306,7 @@ void main() {
     expect(reopened.pendingOp('task', task.id)?.patch['title'], '持久化');
     expect(reopened.accent, '#C23B5A');
     expect(reopened.cursor, '42');
+    expect(reopened.sidebarTagsSnapshot(), const ['重点']);
     await reopened.dispose();
     await directory.delete(recursive: true);
   });

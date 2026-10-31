@@ -290,6 +290,65 @@ void main() {
     expect(find.text('本月'), findsOneWidget);
   });
 
+  testWidgets('the matrix buckets by priority like the web', (tester) async {
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    Future<void> seed(String id, String title, int priority,
+        {bool completed = false, DateTime? due}) => store.saveTask(
+      TaskItem(
+        id: id,
+        listId: 'work-1',
+        title: title,
+        priority: priority,
+        completedAt: completed ? now : null,
+        dueAt: due,
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    await seed('p3', '高优先无日期', 3);
+    await seed('p2', '中优先今天到期', 2, due: now);
+    await seed('p1', '低优先任务', 1);
+    await seed('p0', '无优先任务', 0);
+    await seed('done', '已完成高优先', 3, completed: true);
+
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('矩阵'));
+    await tester.pumpAndSettle();
+
+    Finder inQuadrant(String quadrant, String title) => find.descendant(
+      of: find.byKey(ValueKey('matrix-q$quadrant')),
+      matching: find.text(title),
+    );
+
+    // Web 默认「按优先级」：3→Q1、2→Q2、1→Q3、0→Q4，且包含已完成任务。
+    expect(inQuadrant('0', '高优先无日期'), findsOneWidget);
+    expect(inQuadrant('0', '已完成高优先'), findsOneWidget);
+    expect(inQuadrant('1', '中优先今天到期'), findsOneWidget);
+    expect(inQuadrant('2', '低优先任务'), findsOneWidget);
+    expect(inQuadrant('3', '无优先任务'), findsOneWidget);
+  });
+
   testWidgets('smart views filter by due date', (tester) async {
     final store = LocalStore.memory();
     final now = DateTime.now();
@@ -840,22 +899,19 @@ void main() {
     );
 
     // 原地重命名：行内出现输入框，取消后恢复原样。
-    final renameRow = find.widgetWithText(ListTile, '# 项目');
+    final renameRow = find.byKey(const ValueKey('tag-row-项目'));
     await tester.tap(
       find.descendant(of: renameRow, matching: find.byTooltip('重命名')),
     );
     await tester.pumpAndSettle();
-    final inlineField = find.descendant(
-      of: dialog,
-      matching: find.byType(TextField),
-    );
+    final inlineField = find.byKey(const Key('tag-manager-rename'));
     expect(inlineField, findsOneWidget);
     await tester.tap(find.byTooltip('取消'));
     await tester.pumpAndSettle();
     expect(inlineField, findsNothing);
     expect(find.descendant(of: dialog, matching: find.text('# 项目')), findsOneWidget);
 
-    final importantRow = find.widgetWithText(ListTile, '# 重要');
+    final importantRow = find.byKey(const ValueKey('tag-row-重要'));
     await tester.tap(
       find.descendant(of: importantRow, matching: find.byTooltip('删除标签')),
     );
@@ -916,16 +972,13 @@ void main() {
     await tester.tap(find.byTooltip('管理标签'));
     await tester.pumpAndSettle();
     final dialog = find.byType(AlertDialog);
-    final row = find.widgetWithText(ListTile, '# 重要');
+    final row = find.byKey(const ValueKey('tag-row-重要'));
     await tester.tap(
       find.descendant(of: row, matching: find.byTooltip('重命名')),
     );
     await tester.pumpAndSettle();
 
-    final field = find.descendant(
-      of: dialog,
-      matching: find.byType(TextField),
-    );
+    final field = find.byKey(const Key('tag-manager-rename'));
     await tester.enterText(field, '紧急');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
@@ -936,6 +989,77 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('# 重要'), findsNothing);
+  });
+
+  testWidgets('the tag manager chooses which tags show in the sidebar', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'tagged',
+        listId: 'work-1',
+        title: '带标签任务',
+        tags: const ['重要', '项目'],
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 未设置时侧栏展示全部标签。
+    expect(find.text('# 重要'), findsOneWidget);
+    expect(find.text('# 项目'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('管理标签'));
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('tag-row-项目'));
+    await tester.tap(
+      find.descendant(of: row, matching: find.byTooltip('从侧栏移除')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('# 项目'), findsNothing);
+    expect(find.text('# 重要'), findsOneWidget);
+    expect(store.sidebarTagsSnapshot(), isNot(contains('项目')));
+
+    // 再勾选回来。
+    await tester.tap(find.byTooltip('管理标签'));
+    await tester.pumpAndSettle();
+    final hiddenRow = find.byKey(const ValueKey('tag-row-项目'));
+    await tester.tap(
+      find.descendant(of: hiddenRow, matching: find.byTooltip('添加到侧栏')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    expect(find.text('# 项目'), findsOneWidget);
   });
 
   testWidgets('the mobile filter chips keep a compact highlight', (

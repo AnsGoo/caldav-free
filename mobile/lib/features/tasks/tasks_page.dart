@@ -858,7 +858,7 @@ class _TasksPageState extends State<TasksPage> {
                     child: SafeArea(
                       top: false,
                       child: MatrixView(
-                        tasks: _taggedTasks,
+                        tasks: _matrixTasks,
                         lists: _lists,
                         groupByList: _selectedListId == null,
                         onOpenTask: (task) =>
@@ -916,6 +916,19 @@ class _TasksPageState extends State<TasksPage> {
     return _tasks
         .where((task) => task.tags.contains(tag))
         .toList(growable: false);
+  }
+
+  /// 与 Web 四象限一致：默认也展示已完成任务（最多 50 条）。
+  List<TaskItem> get _matrixTasks {
+    final tag = isWideLayout(context) ? _selectedTag : null;
+    final done = context
+        .read<AppState>()
+        .store
+        .tasksSnapshot(listId: _selectedListId, completed: true)
+        .where((task) => tag == null || task.tags.contains(tag))
+        .take(50)
+        .toList(growable: false);
+    return [..._taggedTasks, ...done];
   }
 
   List<TaskItem> get _filteredTasks {
@@ -1656,12 +1669,19 @@ class _ListPaneState extends State<_ListPane> {
             tagCounts[name] = (tagCounts[name] ?? 0) + 1;
           }
         }
-        final tags = tagCounts.entries.toList()
+        final allTags = tagCounts.entries.toList()
           ..sort(
             (a, b) => a.value == b.value
                 ? a.key.compareTo(b.key)
                 : b.value.compareTo(a.value),
           );
+        // 侧栏只展示用户在标签管理器里勾选的标签；没设置过则全部展示。
+        final selection = store.sidebarTagsSnapshot();
+        final tags = selection == null
+            ? allTags
+            : allTags
+                  .where((entry) => selection.contains(entry.key))
+                  .toList(growable: false);
         return Container(
           width: 232,
           color: scheme.surfaceContainerLow,
@@ -1769,7 +1789,9 @@ class _ListPaneState extends State<_ListPane> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                   child: Text(
-                    '在任务里添加标签后，可在这里筛选',
+                    allTags.isEmpty
+                        ? '在任务里添加标签后，可在这里筛选'
+                        : '在「管理标签」里勾选要显示的标签',
                     style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),
@@ -1835,6 +1857,52 @@ class _PaneSectionHeader extends StatelessWidget {
           ),
           ?action,
         ],
+      ),
+    );
+  }
+}
+
+/// Rounded checkbox used by the tag manager to pick sidebar tags.
+class _SidebarTagToggle extends StatelessWidget {
+  const _SidebarTagToggle({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: selected ? '从侧栏移除' : '添加到侧栏',
+      child: InkResponse(
+        onTap: onTap,
+        radius: 16,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              width: 17,
+              height: 17,
+              decoration: BoxDecoration(
+                color: selected ? scheme.primary : Colors.transparent,
+                borderRadius: BorderRadius.circular(5),
+                border: Border.all(
+                  color: selected ? scheme.primary : scheme.outline,
+                  width: 1.4,
+                ),
+              ),
+              child: selected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1982,6 +2050,16 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
     super.dispose();
   }
 
+  /// Adds or removes a tag from the PC sidebar without touching tasks.
+  Future<void> _toggleSidebarTag(String tag, List<String> allNames) async {
+    if (_busy) return;
+    final store = context.read<AppState>().store;
+    final next = Set<String>.of(store.sidebarTagsSnapshot() ?? allNames);
+    if (!next.remove(tag)) next.add(tag);
+    await store.setSidebarTags(next);
+    if (mounted) setState(() {});
+  }
+
   void _startRename(String tag) {
     if (_busy) return;
     setState(() {
@@ -2020,6 +2098,7 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
   }
 
   Future<void> _delete(String tag) async {
+    if (_busy) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -2073,15 +2152,17 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
             ? a.key.compareTo(b.key)
             : b.value.compareTo(a.value),
       );
+    final allNames = tags.map((entry) => entry.key).toList(growable: false);
+    final selection = store.sidebarTagsSnapshot();
     return AlertDialog(
       title: const Text('管理标签'),
       content: SizedBox(
         width: 360,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 420),
-          child: tags.isEmpty
-              ? const Text('暂无标签。新建任务时在标签输入里创建。')
-              : ListView.builder(
+        child: tags.isEmpty
+            ? const Text('暂无标签。新建任务时在标签输入里创建。')
+            : ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 400),
+                child: ListView.builder(
                   shrinkWrap: true,
                   itemCount: tags.length,
                   itemBuilder: (context, index) {
@@ -2103,6 +2184,7 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
                             const SizedBox(width: 10),
                             Expanded(
                               child: TextField(
+                                key: const Key('tag-manager-rename'),
                                 controller: _renameController,
                                 autofocus: true,
                                 enabled: !_busy,
@@ -2149,50 +2231,64 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
                         ),
                       );
                     }
-                    return ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      title: Text(
-                        '# ${entry.key}',
-                        style: TextStyle(
-                          color: color,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text('${entry.value} 个任务'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    final scheme = Theme.of(context).colorScheme;
+                    return SizedBox(
+                      key: ValueKey('tag-row-${entry.key}'),
+                      height: 34,
+                      child: Row(
                         children: [
-                          IconButton(
-                            tooltip: '重命名',
-                            onPressed: _busy
-                                ? null
-                                : () => _startRename(entry.key),
-                            icon: const Icon(Icons.edit_outlined, size: 16),
+                          _SidebarTagToggle(
+                            selected:
+                                selection == null ||
+                                selection.contains(entry.key),
+                            onTap: () =>
+                                _toggleSidebarTag(entry.key, allNames),
                           ),
-                          IconButton(
-                            tooltip: '删除标签',
-                            onPressed: _busy ? null : () => _delete(entry.key),
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 16,
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
                             ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '# ${entry.key}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            '${entry.value}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          _PaneAction(
+                            icon: Icons.edit_outlined,
+                            tooltip: '重命名',
+                            onTap: () => _startRename(entry.key),
+                          ),
+                          _PaneAction(
+                            icon: Icons.delete_outline_rounded,
+                            tooltip: '删除标签',
+                            onTap: () => _delete(entry.key),
                           ),
                         ],
                       ),
                     );
                   },
                 ),
-        ),
+              ),
       ),
       actions: [
         TextButton(

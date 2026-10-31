@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/models.dart';
 import '../../design/format.dart';
 
-/// Eisenhower matrix: important = priority 2/3, urgent = due within 2 days.
+/// Eisenhower matrix matching the web default rule ("按优先级"):
+/// priority 3 → Q1, 2 → Q2, 1 → Q3, 0 (or none) → Q4.
 class MatrixView extends StatelessWidget {
   const MatrixView({
     super.key,
@@ -22,14 +23,18 @@ class MatrixView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now().toUtc();
-    final urgentBefore = now.add(const Duration(days: 2));
     final quadrants = List.generate(4, (_) => <TaskItem>[]);
     for (final task in tasks) {
-      final important = task.priority >= 2;
-      final urgent =
-          task.dueAt != null && task.dueAt!.toUtc().isBefore(urgentBefore);
-      final index = important ? (urgent ? 0 : 1) : (urgent ? 2 : 3);
+      final priority = task.priority > 3 || task.priority < 0
+          ? 0
+          : task.priority;
+      final index = priority >= 3
+          ? 0
+          : priority == 2
+          ? 1
+          : priority == 1
+          ? 2
+          : 3;
       quadrants[index].add(task);
     }
     Widget quadrant({
@@ -39,6 +44,7 @@ class MatrixView extends StatelessWidget {
       required Color color,
       required int index,
     }) => _Quadrant(
+      key: ValueKey('matrix-q$index'),
       title: title,
       subtitle: subtitle,
       icon: icon,
@@ -114,6 +120,7 @@ class MatrixView extends StatelessWidget {
 
 class _Quadrant extends StatelessWidget {
   const _Quadrant({
+    super.key,
     required this.title,
     required this.subtitle,
     required this.icon,
@@ -355,6 +362,12 @@ class _MatrixTask extends StatelessWidget {
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         height: 1.25,
+                        color: task.completed
+                            ? scheme.onSurfaceVariant
+                            : null,
+                        decoration: task.completed
+                            ? TextDecoration.lineThrough
+                            : null,
                       ),
                     ),
                     if (due != null) ...[

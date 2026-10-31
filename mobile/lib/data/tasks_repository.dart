@@ -393,10 +393,16 @@ class TaskRepository {
       await _patch(task, {'tags': tags}, task.copyWith(tags: tags));
       changed++;
     }
+    final selection = store.sidebarTagsSnapshot();
+    if (selection != null) {
+      await store.setSidebarTags([
+        for (final name in selection) name == source ? target : name,
+      ]);
+    }
     return changed;
   }
 
-  /// Removes one tag from every live task.
+  /// Removes one tag from every live task and from the local registry.
   Future<int> deleteTag(String tag) async {
     final target = tag.trim();
     if (target.isEmpty) return 0;
@@ -408,6 +414,12 @@ class TaskRepository {
       );
       await _patch(task, {'tags': tags}, task.copyWith(tags: tags));
       changed++;
+    }
+    final selection = store.sidebarTagsSnapshot();
+    if (selection != null) {
+      await store.setSidebarTags(
+        selection.where((name) => name != target),
+      );
     }
     return changed;
   }

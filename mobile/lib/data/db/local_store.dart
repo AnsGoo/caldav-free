@@ -190,6 +190,9 @@ class LocalStore {
   bool _wMeta = false;
   bool _wipe = false;
 
+  /// Tags picked for the PC sidebar; `null` means every tag is shown.
+  Set<String>? _sidebarTags;
+
   final StreamController<void> _changes = StreamController<void>.broadcast();
   Future<void> _tail = Future<void>.value();
 
@@ -564,6 +567,22 @@ class LocalStore {
     });
   }
 
+  /// `null` means the user never customized the sidebar: show every tag.
+  List<String>? sidebarTagsSnapshot() => _sidebarTags == null
+      ? null
+      : List<String>.unmodifiable(_sidebarTags!);
+
+  Future<void> setSidebarTags(Iterable<String> names) {
+    final next = <String>{
+      for (final name in names)
+        if (name.trim().isNotEmpty) name.trim(),
+    };
+    return _mutate(() {
+      _sidebarTags = next;
+      _wMeta = true;
+    });
+  }
+
   Future<void> clearAll() {
     return _mutate(() {
       _tasks.clear();
@@ -581,6 +600,7 @@ class LocalStore {
       _wFolders.clear();
       _wOutbox.clear();
       _wConflicts.clear();
+      _sidebarTags = null;
       _wMeta = false;
       _wipe = true;
     });
@@ -608,6 +628,21 @@ class LocalStore {
     _cursor = await db.metaValue(cursorKey) ?? '0';
     _syncedAt = _date(await db.metaValue(syncedAtKey));
     _accent = await db.metaValue(accentKey) ?? '#3563F0';
+    final rawTags = await db.metaValue(sidebarTagsKey);
+    if (rawTags != null) {
+      try {
+        final decoded = jsonDecode(rawTags);
+        if (decoded is List) {
+          _sidebarTags = {
+            for (final item in decoded)
+              if (item?.toString().trim().isNotEmpty ?? false)
+                item.toString().trim(),
+          };
+        }
+      } catch (_) {
+        // Ignore a malformed selection; fall back to showing every tag.
+      }
+    }
     for (final row in await db.select(db.tasks).get()) {
       _tasks[row.syncId] = row.toModel();
       if (row.dirty) _dirtyTasks.add(row.syncId);
@@ -944,6 +979,13 @@ class LocalStore {
           await db.putMeta(syncedAtKey, _syncedAt!.toUtc().toIso8601String());
         }
         await db.putMeta(accentKey, _accent);
+        final sidebarTags = _sidebarTags;
+        if (sidebarTags == null) {
+          await db.deleteMeta(sidebarTagsKey);
+        } else {
+          final names = sidebarTags.toList()..sort();
+          await db.putMeta(sidebarTagsKey, jsonEncode(names));
+        }
       }
     });
   }

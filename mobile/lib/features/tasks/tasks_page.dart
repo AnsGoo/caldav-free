@@ -42,6 +42,7 @@ class _TasksPageState extends State<TasksPage> {
   bool _adding = false;
   bool _searching = false;
   String _query = '';
+  String? _selectedTag;
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
   TimelineScale _timelineScale = TimelineScale.day;
@@ -148,6 +149,10 @@ class _TasksPageState extends State<TasksPage> {
       }
     });
     _subscribeTasks();
+  }
+
+  void _selectTag(String tag) {
+    setState(() => _selectedTag = _selectedTag == tag ? null : tag);
   }
 
   void _selectListScope(String? listId) {
@@ -677,6 +682,8 @@ class _TasksPageState extends State<TasksPage> {
               onViewSelected: _selectViewScope,
               onCompleted: _selectCompletedScope,
               onTrash: _openTrash,
+              selectedTag: _selectedTag,
+              onTagSelected: _selectTag,
             ),
           Expanded(
             child: Column(
@@ -733,6 +740,7 @@ class _TasksPageState extends State<TasksPage> {
                                         hasLists: _lists.isNotEmpty,
                                         searching:
                                             _searching && _query.isNotEmpty,
+                                        tag: _selectedTag,
                                       ),
                                     ),
                                   ),
@@ -825,7 +833,7 @@ class _TasksPageState extends State<TasksPage> {
                           : BoardView(
                               list: _selectedList,
                               lists: _lists,
-                              tasks: _tasks,
+                              tasks: _taggedTasks,
                               manualSort: _manualSort,
                               onOpenTask: (task) =>
                                   _openEditor(task, listsById[task.listId]),
@@ -838,7 +846,7 @@ class _TasksPageState extends State<TasksPage> {
                     child: SafeArea(
                       top: false,
                       child: MatrixView(
-                        tasks: _tasks,
+                        tasks: _taggedTasks,
                         lists: _lists,
                         groupByList: _selectedListId == null,
                         onOpenTask: (task) =>
@@ -860,7 +868,7 @@ class _TasksPageState extends State<TasksPage> {
                     child: SafeArea(
                       top: false,
                       child: TimelineView(
-                        tasks: _tasks,
+                        tasks: _taggedTasks,
                         scale: _timelineScale,
                         anchor: _timelineAnchor,
                         onOpenTask: (task) =>
@@ -889,10 +897,20 @@ class _TasksPageState extends State<TasksPage> {
     );
   }
 
+  List<TaskItem> get _taggedTasks {
+    final tag = _selectedTag;
+    // 标签筛选只在宽屏侧栏提供；窄屏没有入口，保持完整列表避免筛选无法取消。
+    if (tag == null || !isWideLayout(context)) return _tasks;
+    return _tasks
+        .where((task) => task.tags.contains(tag))
+        .toList(growable: false);
+  }
+
   List<TaskItem> get _filteredTasks {
     final query = _query;
-    if (query.isEmpty) return _tasks;
-    return _tasks
+    final tasks = _taggedTasks;
+    if (query.isEmpty) return tasks;
+    return tasks
         .where((task) {
           if (task.title.toLowerCase().contains(query)) return true;
           if (task.notes.toLowerCase().contains(query)) return true;
@@ -1291,6 +1309,50 @@ class _ScopeItem extends StatelessWidget {
   }
 }
 
+/// Sidebar tag chip, styled after the web admin's `.tw-tag-chip`.
+class _TagChip extends StatelessWidget {
+  const _TagChip({
+    required this.tag,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String tag;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = tagColorForName(tag);
+    return Material(
+      color: color.withValues(alpha: selected ? 0.22 : 0.12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(999),
+        side: selected
+            ? BorderSide(color: color.withValues(alpha: 0.45))
+            : BorderSide.none,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+          child: Text(
+            '# $tag',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ListSelector extends StatelessWidget {
   const _ListSelector({
     required this.selectedId,
@@ -1450,6 +1512,8 @@ class _ListPane extends StatelessWidget {
     required this.onViewSelected,
     required this.onCompleted,
     required this.onTrash,
+    required this.selectedTag,
+    required this.onTagSelected,
   });
 
   final List<TaskListItem> lists;
@@ -1462,6 +1526,8 @@ class _ListPane extends StatelessWidget {
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
   final VoidCallback onTrash;
+  final String? selectedTag;
+  final ValueChanged<String> onTagSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -1478,6 +1544,22 @@ class _ListPane extends StatelessWidget {
                   list.folderId == null || !folderIds.contains(list.folderId),
             )
             .toList(growable: false);
+        // 与 Web 侧栏一致：统计所有未删除任务的标签，按数量倒序。
+        final tagCounts = <String, int>{};
+        for (final task in store.allTasks()) {
+          if (task.kind != TaskKind.task || task.deleted) continue;
+          for (final tag in task.tags) {
+            final name = tag.trim();
+            if (name.isEmpty) continue;
+            tagCounts[name] = (tagCounts[name] ?? 0) + 1;
+          }
+        }
+        final tags = tagCounts.entries.toList()
+          ..sort(
+            (a, b) => a.value == b.value
+                ? a.key.compareTo(b.key)
+                : b.value.compareTo(a.value),
+          );
         return Container(
           width: 232,
           color: scheme.surfaceContainerLow,
@@ -1528,6 +1610,33 @@ class _ListPane extends StatelessWidget {
                 ))
                   _listRow(context, store, list),
               ],
+              _PaneLabel(text: '标签'),
+              if (tags.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                  child: Text(
+                    '在任务里添加标签后，可在这里筛选',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      for (final entry in tags)
+                        _TagChip(
+                          tag: entry.key,
+                          selected: entry.key == selectedTag,
+                          onTap: () => onTagSelected(entry.key),
+                        ),
+                    ],
+                  ),
+                ),
             ],
           ),
         );
@@ -1986,23 +2095,34 @@ class _EmptyState extends StatelessWidget {
     required this.completed,
     required this.hasLists,
     required this.searching,
+    this.tag,
   });
 
   final bool completed;
   final bool hasLists;
   final bool searching;
+  final String? tag;
 
   @override
   Widget build(BuildContext context) {
+    final tag = this.tag;
     return AppEmptyState(
       icon: searching
           ? Icons.search_off_rounded
+          : tag != null
+          ? Icons.tag_rounded
           : completed
           ? Icons.task_alt_rounded
           : Icons.checklist_rounded,
-      title: searching ? '没有匹配的任务' : (completed ? '还没有已完成任务' : '这里还没有任务'),
+      title: searching
+          ? '没有匹配的任务'
+          : tag != null
+          ? '还没有带 #$tag 标签的任务'
+          : (completed ? '还没有已完成任务' : '这里还没有任务'),
       message: searching
           ? '试试标题、备注、标签或子任务里的关键词'
+          : tag != null
+          ? '点击侧栏里已选中的标签可以取消筛选'
           : (completed
                 ? '完成的任务会出现在这里'
                 : (hasLists

@@ -11,6 +11,32 @@ Color colorFromHex(String raw, {Color fallback = const Color(0xFF5B6CFF)}) {
   return Color(parsed);
 }
 
+/// Same palette as `web/src/tag-colors.ts`, so a tag keeps one color on every
+/// client.
+const _tagPalette = <Color>[
+  Color(0xFF4772FA),
+  Color(0xFFE5484D),
+  Color(0xFFF76B15),
+  Color(0xFFF5B301),
+  Color(0xFF30A46C),
+  Color(0xFF12A594),
+  Color(0xFF00A2C7),
+  Color(0xFF6E56CF),
+  Color(0xFFD6409F),
+  Color(0xFF8E4EC6),
+  Color(0xFF64748B),
+  Color(0xFFAB6400),
+];
+
+/// Stable color for a tag name, matching the web admin's hash.
+Color tagColorForName(String name) {
+  var hash = 0;
+  for (final code in name.codeUnits) {
+    hash = (hash * 31 + code) & 0xFFFFFFFF;
+  }
+  return _tagPalette[hash % _tagPalette.length];
+}
+
 String formatDue(DateTime? due, {required bool allDay}) {
   if (due == null) return '';
   final local = due.toLocal();

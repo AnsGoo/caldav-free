@@ -676,6 +676,70 @@ void main() {
     expect(find.text('工作'), findsOneWidget);
   });
 
+  testWidgets('the wide sidebar tag chips filter the task list', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'tagged',
+        listId: 'work-1',
+        title: '带标签任务',
+        tags: const ['重要'],
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'plain',
+        listId: 'work-1',
+        title: '普通任务',
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('# 重要'), findsOneWidget);
+    expect(find.text('带标签任务'), findsOneWidget);
+    expect(find.text('普通任务'), findsOneWidget);
+
+    await tester.tap(find.text('# 重要'));
+    await tester.pumpAndSettle();
+    expect(find.text('带标签任务'), findsOneWidget);
+    expect(find.text('普通任务'), findsNothing);
+
+    // Tapping the active chip again clears the tag filter.
+    await tester.tap(find.text('# 重要'));
+    await tester.pumpAndSettle();
+    expect(find.text('普通任务'), findsOneWidget);
+  });
+
   testWidgets('the mobile filter chips keep a compact highlight', (
     tester,
   ) async {

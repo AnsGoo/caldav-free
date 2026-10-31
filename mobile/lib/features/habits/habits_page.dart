@@ -245,10 +245,10 @@ class _HabitsPageState extends State<HabitsPage> {
           const SizedBox(width: 6),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.small(
         heroTag: 'habits-compose-fab',
         onPressed: _create,
-        child: const Icon(Icons.add_rounded),
+        child: const Icon(Icons.add_rounded, size: 18),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

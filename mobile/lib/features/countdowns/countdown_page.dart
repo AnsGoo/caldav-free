@@ -121,10 +121,10 @@ class _CountdownPageState extends State<CountdownPage> {
         ),
         actions: [const SizedBox(width: 6)],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.small(
         heroTag: 'countdown-compose-fab',
         onPressed: _create,
-        child: const Icon(Icons.add_rounded),
+        child: const Icon(Icons.add_rounded, size: 18),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) => ListView(

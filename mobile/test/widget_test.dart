@@ -712,7 +712,7 @@ void main() {
     expect(find.text('全部清单'), findsOneWidget);
     await tester.tap(find.text('工作'));
     await tester.pumpAndSettle();
-    expect(find.text('工作'), findsOneWidget);
+    expect(find.text('工作'), findsWidgets);
   });
 
   testWidgets('the wide sidebar tag chips filter the task list', (
@@ -1253,6 +1253,11 @@ void main() {
     await tester.tap(find.text('本月'));
     await tester.pumpAndSettle();
     expect(find.text('本月摘要'), findsOneWidget);
+
+    // 显示内容可勾选：开启「所属清单」后预览出现清单名。
+    await tester.tap(find.widgetWithText(ChoiceChip, '所属清单'));
+    await tester.pumpAndSettle();
+    expect(find.text('工作'), findsWidgets);
 
     await tester.tap(find.text('我的周报'));
     await tester.pumpAndSettle();

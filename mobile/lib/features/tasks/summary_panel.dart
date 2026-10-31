@@ -56,6 +56,7 @@ class _SummaryFilter {
     this.tag = '',
     this.includeNext = false,
     this.group = _SummaryGroup.status,
+    this.fields = const ['completedAt'],
   });
 
   final _SummaryRange range;
@@ -68,6 +69,9 @@ class _SummaryFilter {
   final bool includeNext;
   final _SummaryGroup group;
 
+  /// Which per-task fields the generated Markdown includes.
+  final List<String> fields;
+
   _SummaryFilter copyWith({
     _SummaryRange? range,
     DateTime? customFrom,
@@ -78,6 +82,7 @@ class _SummaryFilter {
     String? tag,
     bool? includeNext,
     _SummaryGroup? group,
+    List<String>? fields,
   }) => _SummaryFilter(
     range: range ?? this.range,
     customFrom: customFrom ?? this.customFrom,
@@ -88,6 +93,7 @@ class _SummaryFilter {
     tag: tag ?? this.tag,
     includeNext: includeNext ?? this.includeNext,
     group: group ?? this.group,
+    fields: fields ?? this.fields,
   );
 }
 
@@ -226,10 +232,14 @@ class _SummaryPanelState extends State<SummaryPanel> {
   }
 
   String _taskLine(TaskItem task) {
+    final fields = _filter.fields;
     final parts = <String>[];
-    final when = task.completed
-        ? task.completedAt
-        : (task.dueAt ?? task.createdAt);
+    final DateTime? when;
+    if (task.completed) {
+      when = fields.contains('completedAt') ? task.completedAt : null;
+    } else {
+      when = fields.contains('due') ? (task.dueAt ?? task.createdAt) : null;
+    }
     if (when != null) {
       final local = when.toLocal();
       parts.add(
@@ -238,14 +248,26 @@ class _SummaryPanelState extends State<SummaryPanel> {
       );
     }
     parts.add(task.title);
+    if (fields.contains('tags') && task.tags.isNotEmpty) {
+      parts.add('· ${task.tags.take(3).map((tag) => '#$tag').join(' ')}');
+    }
     final list = _listsById[task.listId];
-    if (list != null) parts.add('· ${list.name}');
-    if (task.priority > 0) {
+    if (fields.contains('list') && list != null) parts.add('· ${list.name}');
+    if (fields.contains('priority') && task.priority > 0) {
       parts.add(
         '· ${switch (task.priority) { 3 => '高优先级', 2 => '中优先级', _ => '低优先级' }}',
       );
     }
-    if (task.tags.isNotEmpty) parts.add('· ${task.tags.take(3).map((tag) => '#$tag').join(' ')}');
+    if (fields.contains('status')) {
+      parts.add('· ${task.completed ? '已完成' : '未完成'}');
+    }
+    if (fields.contains('progress') && task.checklist.isNotEmpty) {
+      final done = task.checklist.where((item) => item.done).length;
+      parts.add('· 进度 $done/${task.checklist.length}');
+    }
+    if (fields.contains('details') && task.notes.trim().isNotEmpty) {
+      parts.add('· ${task.notes.trim().replaceAll(RegExp(r'\s+'), ' ')}');
+    }
     return '- [${task.completed ? 'x' : ' '}] ${parts.join(' ')}';
   }
 
@@ -1348,6 +1370,32 @@ class _SummarySettingsForm extends StatelessWidget {
                 label: group.label,
                 selected: filter.group == group,
                 onTap: () => onChanged(filter.copyWith(group: group)),
+              ),
+          ],
+        ),
+        _label(context, '显示内容'),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final entry in const {
+              'completedAt': '完成时间',
+              'due': '任务时间',
+              'tags': '标签',
+              'list': '所属清单',
+              'priority': '优先级',
+              'status': '状态',
+              'progress': '进度',
+              'details': '详细内容',
+            }.entries)
+              _chip(
+                label: entry.value,
+                selected: filter.fields.contains(entry.key),
+                onTap: () {
+                  final next = [...filter.fields];
+                  if (!next.remove(entry.key)) next.add(entry.key);
+                  onChanged(filter.copyWith(fields: next));
+                },
               ),
           ],
         ),

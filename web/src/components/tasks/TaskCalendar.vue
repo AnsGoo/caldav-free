@@ -520,9 +520,11 @@ const rangeTitle = computed(() => {
 const visibleTasks = computed(() => {
   if (hiddenTasks.value) return []
   if (!taskOccurrences.value.length) return props.tasks
+  // `/tasks/calendar` already returns every dated task in range — including
+  // non-recurring ones — so drop the workspace copy of any task it expanded.
   const expandedIds = new Set(taskOccurrences.value.map((task) => task.id))
   return [
-    ...props.tasks.filter((task) => !task.recurrence || !expandedIds.has(task.id)),
+    ...props.tasks.filter((task) => !expandedIds.has(task.id)),
     ...taskOccurrences.value,
   ]
 })

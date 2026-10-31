@@ -52,50 +52,12 @@ void main() {
     return store;
   }
 
-  testWidgets('the day view FAB quick-adds an all-day task for that day', (
+  testWidgets('the day view no longer offers a task quick-add FAB', (
     tester,
   ) async {
-    final store = await pumpCalendar(
-      tester,
-      '日视图',
-      surface: const Size(390, 844),
-    );
-    final today = DateTime.now();
-    final day = DateTime(today.year, today.month, today.day);
+    await pumpCalendar(tester, '日视图', surface: const Size(390, 844));
 
-    await tester.tap(find.byIcon(Icons.playlist_add_rounded));
-    await tester.pumpAndSettle();
-    expect(find.byType(TextField), findsOneWidget);
-
-    await tester.enterText(find.byType(TextField), '看牙医');
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TextField), findsNothing);
-    final created = store.allTasks().single;
-    expect(created.title, '看牙医');
-    expect(created.listId, 'inbox-1');
-    expect(created.allDay, isTrue);
-    expect(created.dueAt, day);
-    expect(store.pendingCount, 1);
-    expect(
-      store.pendingOp('task', created.id)?.patch['due'],
-      day.toUtc().toIso8601String(),
-    );
-  });
-
-  testWidgets('cancelling the day composer writes nothing', (tester) async {
-    final store = await pumpCalendar(tester, '日视图');
-
-    await tester.tap(find.byIcon(Icons.playlist_add_rounded));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), '算了');
-    await tester.tap(find.byTooltip('取消'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TextField), findsNothing);
-    expect(store.allTasks(), isEmpty);
-    expect(store.pendingCount, 0);
+    expect(find.byIcon(Icons.playlist_add_rounded), findsNothing);
   });
 
   testWidgets('other views keep the event FAB only', (tester) async {

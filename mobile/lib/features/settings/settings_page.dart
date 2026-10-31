@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../data/calendar/calendar_api.dart';
 import '../../design/components.dart';
 import '../auth/login_page.dart';
+import '../calendar/calendar_page.dart';
+import '../calendar/calendar_subscription_sheet.dart';
 import 'sync_diagnostics_page.dart';
 import 'theme_sheet.dart';
 
@@ -154,6 +157,19 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
           ],
+          if (session != null) ...[
+            const SizedBox(height: 18),
+            const AppSectionLabel(title: '日历'),
+            AppCard(
+              padding: EdgeInsets.zero,
+              child: _SettingsTile(
+                icon: Icons.rss_feed_rounded,
+                title: 'iCal 订阅',
+                subtitle: '添加 http/https ICS 地址，事件会出现在日历中',
+                onTap: () => _subscriptions(context, app),
+              ),
+            ),
+          ],
           const SizedBox(height: 18),
           const AppSectionLabel(title: '外观'),
           AppCard(
@@ -230,6 +246,26 @@ class SettingsPage extends StatelessWidget {
     final selected = await showThemeSheet(context, current: app.accent);
     if (selected == null || !context.mounted) return;
     await app.setAccent(selected);
+  }
+
+  Future<void> _subscriptions(BuildContext context, AppState app) async {
+    final session = app.session;
+    if (session == null) {
+      _snack(context, '请先连接服务器');
+      return;
+    }
+    final api = CalendarApi(
+      baseUrl: session.baseUrl,
+      username: session.username,
+      password: session.password,
+    );
+    try {
+      await showCalendarSubscriptionSheet(context, api);
+    } finally {
+      api.close();
+      // 订阅增删后让日历页在后台刷新。
+      calendarRefreshSignal.value++;
+    }
   }
 
   void _snack(BuildContext context, String message) {

@@ -4844,6 +4844,28 @@ button.tw-side-link {
   color: var(--tw-text);
 }
 
+/* Read-only summary preview: reuse the wysiwyg typography without editing. */
+.tw-summary-preview {
+  cursor: default;
+  user-select: text;
+}
+
+.tw-summary-preview:empty::before {
+  content: '摘要会根据筛选条件自动生成';
+  color: var(--tw-text-3);
+}
+
+.tw-summary-preview li:has(> input[type='checkbox']) {
+  list-style: none;
+  margin-left: -20px;
+}
+
+.tw-summary-preview input[type='checkbox'] {
+  margin-right: 6px;
+  accent-color: var(--tw-accent);
+  vertical-align: -2px;
+}
+
 .tw-summary-editor-wrap {
   flex: 1;
   min-height: 0;

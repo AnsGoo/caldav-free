@@ -35,16 +35,16 @@
       </header>
 
       <div class="tw-summary-toolbar tw-summary-md-head">
-        <span class="tw-summary-format">Markdown</span>
+        <span class="tw-summary-format">Markdown 预览</span>
         <button title="刷新摘要" @click="load"><TaskIcon name="refresh" :size="15" /></button>
       </div>
 
       <div class="tw-summary-editor-wrap">
         <div v-if="loading || optimizing" class="tw-summary-loading">{{ optimizing ? 'AI 优化中…' : '生成摘要中…' }}</div>
-        <MarkdownEditor
-          v-model="summaryMarkdown"
-          class="tw-summary-md"
-          placeholder="用 Markdown 编辑摘要…"
+        <div
+          v-else
+          class="tw-md-wysiwyg tw-summary-preview"
+          v-html="renderedSummary"
         />
       </div>
 
@@ -210,13 +210,12 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { SummaryDocument, SummaryTask, TaskList, TaskSummaryData, TaskTagCount } from '../../types'
 import { createSummaryDocument, deleteSummaryDocument, fetchAISettings, fetchSummaryDocuments, fetchTaskSummary, optimizeSummary } from '../../tasks-api'
 import { PRIORITIES } from '../../tasks-utils'
 import { htmlToMarkdown, markdownToPlain, renderMarkdown } from '../../markdown'
-import MarkdownEditor from './MarkdownEditor.vue'
 import TaskIcon from './TaskIcon.vue'
 
 const props = defineProps<{ lists: TaskList[]; tags: TaskTagCount[] }>()
@@ -265,6 +264,7 @@ const fields = ref<string[]>(['completedAt'])
 const data = ref<TaskSummaryData | null>(null)
 const loading = ref(false)
 const summaryMarkdown = ref('')
+const renderedSummary = computed(() => renderMarkdown(summaryMarkdown.value))
 const asideOpen = ref(false)
 const historyOpen = ref(false)
 const saveMenuOpen = ref(false)

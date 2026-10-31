@@ -101,7 +101,7 @@
             </button>
             <div v-if="renamingId !== row.list.id" class="tw-list-actions">
               <button class="tw-icon-button" title="移动到文件夹" @click.stop="openMoveList(row.list)">
-                <TaskIcon name="folder" :size="14" />
+                <TaskIcon name="folder" :size="13" />
               </button>
               <button
                 class="tw-icon-button"
@@ -109,16 +109,16 @@
                 :title="row.list.pinned ? '取消置顶笔记清单' : '置顶笔记清单'"
                 @click.stop="togglePin(row.list)"
               >
-                <TaskIcon name="pin" :size="14" />
+                <TaskIcon name="pin" :size="13" />
               </button>
               <button class="tw-icon-button" title="共享笔记清单" @click.stop="shareTarget = row.list">
-                <TaskIcon name="share" :size="14" />
+                <TaskIcon name="share" :size="13" />
               </button>
               <button class="tw-icon-button" title="重命名笔记清单" @click.stop="startRename(row.list)">
-                <TaskIcon name="edit" :size="14" />
+                <TaskIcon name="edit" :size="13" />
               </button>
               <button class="tw-icon-button" title="删除笔记清单" @click.stop="removeList(row.list)">
-                <TaskIcon name="trash" :size="14" />
+                <TaskIcon name="trash" :size="13" />
               </button>
             </div>
           </li>

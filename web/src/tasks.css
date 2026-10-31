@@ -9380,6 +9380,21 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   flex-direction: column;
 }
 
+/* 笔记清单操作按钮：更紧凑的一排图标，悬停时整体贴住侧栏右缘 */
+.tw-notes-lists .tw-list-actions {
+  right: 3px;
+  gap: 0;
+  padding: 1px;
+  border-radius: 7px;
+  background: var(--tw-sidebar);
+}
+
+.tw-notes-lists .tw-list-actions .tw-icon-button {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}
+
 .tw-notes-side-head {
   display: flex;
   align-items: center;

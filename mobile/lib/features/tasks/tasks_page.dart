@@ -4198,6 +4198,13 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
 
   bool get _editing => widget.initial != null;
 
+  ButtonStyle get _dateButtonStyle => OutlinedButton.styleFrom(
+    minimumSize: const Size(0, 32),
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    visualDensity: VisualDensity.compact,
+    textStyle: const TextStyle(fontSize: 12),
+  );
+
   @override
   void dispose() {
     _name.dispose();
@@ -4249,7 +4256,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
 
   Widget _label(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.only(bottom: 3),
       child: Text(
         text,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
@@ -4280,9 +4287,13 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+      contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
       title: Text(_editing ? '编辑筛选器' : '新建筛选器'),
       content: SizedBox(
-        width: 440,
+        width: 360,
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -4293,25 +4304,37 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                 controller: _name,
                 autofocus: !_editing,
                 maxLength: 40,
+                style: const TextStyle(fontSize: 13),
                 decoration: const InputDecoration(
                   isDense: true,
+                  isCollapsed: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 9,
+                  ),
                   hintText: '例如：本周高优先级',
                   counterText: '',
                 ),
                 onSubmitted: (_) => _submit(),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _label('关键词'),
               TextField(
                 controller: _keyword,
                 maxLength: 100,
+                style: const TextStyle(fontSize: 13),
                 decoration: const InputDecoration(
                   isDense: true,
+                  isCollapsed: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 9,
+                  ),
                   hintText: '标题或备注包含',
                   counterText: '',
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _label('状态'),
               Wrap(
                 spacing: 6,
@@ -4328,7 +4351,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                     ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _label('优先级'),
               Wrap(
                 spacing: 6,
@@ -4350,24 +4373,51 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                     ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               _label('日期'),
-              DropdownButtonFormField<String>(
-                initialValue: _date,
-                isDense: true,
-                decoration: const InputDecoration(isDense: true),
-                items: [
+              PopupMenuButton<String>(
+                tooltip: '日期',
+                color: Theme.of(context).colorScheme.surfaceContainerHigh,
+                surfaceTintColor: Colors.transparent,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                onSelected: (value) => setState(() => _date = value),
+                itemBuilder: (context) => [
                   for (final entry in _dateOptions.entries)
-                    DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                    PopupMenuItem(value: entry.key, child: Text(entry.value)),
                 ],
-                onChanged: (value) => setState(() => _date = value ?? 'any'),
+                child: Container(
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: theme.colorScheme.outline),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _dateOptions[_date] ?? '不限',
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 18,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               if (_date == 'range') ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(
                   children: [
                     Expanded(
                       child: OutlinedButton(
+                        style: _dateButtonStyle,
                         onPressed: () => _pickDate(from: true),
                         child: Text(
                           _dateFrom == null ? '开始日期' : _filterDayKey(_dateFrom!),
@@ -4379,6 +4429,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: OutlinedButton(
+                        style: _dateButtonStyle,
                         onPressed: () => _pickDate(from: false),
                         child: Text(
                           _dateTo == null ? '结束日期' : _filterDayKey(_dateTo!),
@@ -4391,7 +4442,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                 ),
               ],
               if (widget.lists.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _label('清单'),
                 Wrap(
                   spacing: 6,
@@ -4409,7 +4460,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                 ),
               ],
               if (widget.tags.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 _label('标签'),
                 Wrap(
                   spacing: 6,
@@ -4450,7 +4501,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                 ),
               ],
               if (_error != null) ...[
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Text(
                   _error!,
                   style: TextStyle(color: theme.colorScheme.error, fontSize: 12),

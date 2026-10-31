@@ -215,12 +215,17 @@
         :lists="lists"
         :folders="noteFolders"
         :shared-notes="sharedNotes"
+        :shared-lists="sharedLists"
+        :active-shared-list-id="activeSharedListId"
+        :own-notes-count="notesTotal"
+        :readonly="sharedReadonly"
         :tag-colors="tagColorMap"
         :selected-id="selectedId"
         @open="openTask"
         @pin="toggleTaskPin"
         @remove="confirmRemoveTask"
         @open-shared="selectSharedNote"
+        @select-shared-list="selectSharedNoteList"
         @reload="loadWorkspace(true)"
       />
       <TaskMatrixPanel
@@ -1215,6 +1220,7 @@ const noteFolders = computed(() => folders.value.filter((folder) => folder.kind 
 const sections = ref<TaskSection[]>([])
 const filters = ref<SavedFilter[]>([])
 const tasks = ref<TaskItem[]>([])
+const notesTotal = ref(0)
 const tags = ref<string[]>([])
 const tagCounts = ref<TaskTagCount[]>([])
 const tagColorMap = computed<Record<string, string>>(() =>
@@ -1373,6 +1379,7 @@ const smartLabels: Record<string, string> = {
 const activeFilter = computed(() => filters.value.find((item) => item.id === activeFilterId.value))
 const activeList = computed(() => lists.value.find((item) => item.id === activeListId.value))
 const activeSharedList = computed(() => sharedLists.value.find((item) => item.listId === activeSharedListId.value))
+const notesSharedList = computed(() => (view.value === 'notes' && activeSharedListId.value ? activeSharedList.value : undefined))
 const sharedNoteView = computed(() => view.value === 'shared' && activeSharedList.value?.kind === 'NOTE')
 const noteView = computed(() => (view.value === 'list' && activeList.value?.kind === 'NOTE') || sharedNoteView.value)
 const noteTargetListId = computed(() => (sharedNoteView.value ? activeSharedList.value?.listId || 0 : activeListId.value))
@@ -1386,7 +1393,10 @@ const noteTasks = computed(() =>
 const timelineTasks = computed(() => tasks.value.filter((task) => task.kind !== 'NOTE'))
 
 const sharedEditable = computed(() => view.value === 'shared' && activeSharedList.value?.role === 'editor')
-const sharedReadonly = computed(() => view.value === 'shared' && !sharedEditable.value)
+const sharedReadonly = computed(() => {
+  const shared = notesSharedList.value || (view.value === 'shared' ? activeSharedList.value : undefined)
+  return !!shared && shared.role !== 'editor'
+})
 const heading = computed(() => {
   if (view.value === 'matrix') return '四象限'
   if (view.value === 'habit') return '习惯'
@@ -1467,7 +1477,7 @@ watch(
   },
 )
 const detailLists = computed<TaskList[]>(() => {
-  const shared = view.value === 'shared' ? activeSharedList.value : undefined
+  const shared = view.value === 'shared' ? activeSharedList.value : notesSharedList.value
   const extra: TaskList[] = []
   if (shared && !lists.value.some((list) => list.id === shared.listId)) {
     extra.push({
@@ -1589,9 +1599,10 @@ async function loadWorkspace(silent = false) {
   try {
     const data: TaskWorkspaceData = await fetchTaskWorkspace({
       view: view.value === 'shared' || view.value === 'matrix' || view.value === 'habit' || view.value === 'focus' || view.value === 'countdown' ? 'all' : view.value,
-      listId: view.value === 'shared' ? undefined : activeListId.value || undefined,
+      // 笔记页由侧栏自行筛选清单，搜索也由笔记页本地完成，这里始终拉取全部笔记。
+      listId: view.value === 'shared' || view.value === 'notes' ? undefined : activeListId.value || undefined,
       filterId: activeFilterId.value || undefined,
-      q: query.value || undefined,
+      q: view.value === 'notes' ? undefined : query.value || undefined,
     })
     lists.value = data.lists
     if (view.value === 'list' && lists.value.find((list) => list.id === activeListId.value)?.kind === 'NOTE') {
@@ -1619,7 +1630,20 @@ async function loadWorkspace(silent = false) {
     sections.value = data.sections || []
     filters.value = data.filters
     tasks.value = data.tasks
-    if (view.value === 'shared' && activeSharedListId.value) {
+    if (view.value === 'notes') notesTotal.value = data.tasks.length
+    if (view.value === 'notes' && activeSharedListId.value) {
+      try {
+        const shared = await fetchSharedTasks(activeSharedListId.value)
+        tasks.value = shared.tasks
+        sharedLists.value = sharedLists.value.map((item) =>
+          item.listId === shared.list.listId
+            ? { ...item, role: shared.list.role, count: shared.list.count, name: shared.list.name, color: shared.list.color, kind: shared.list.kind || item.kind }
+            : item,
+        )
+      } catch {
+        activeSharedListId.value = 0
+      }
+    } else if (view.value === 'shared' && activeSharedListId.value) {
       const shared = await fetchSharedTasks(activeSharedListId.value)
       tasks.value = shared.tasks
       sharedLists.value = sharedLists.value.map((item) =>
@@ -1858,6 +1882,16 @@ function toggleGroup(key: string) {
   }
 }
 
+function selectSharedNoteList(listId: number) {
+  activeSharedListId.value = listId
+  activeListId.value = 0
+  selectedId.value = 0
+  sharedNote.value = null
+  sidebarOpen.value = false
+  clearSelection()
+  void loadWorkspace(true)
+}
+
 function openTask(task: TaskItem) {
   sharedNote.value = null
   if (selectionMode.value) {
@@ -1865,6 +1899,16 @@ function openTask(task: TaskItem) {
     return
   }
   if (view.value === 'trash') return
+  const shared = notesSharedList.value
+  if (shared && task.listId === shared.listId) {
+    sharedNote.value = {
+      task,
+      role: shared.role,
+      ownerId: shared.ownerId,
+      ownerUsername: shared.ownerUsername,
+      ownerDisplay: shared.ownerDisplay,
+    }
+  }
   selectedId.value = task.id
   syncURL()
 }

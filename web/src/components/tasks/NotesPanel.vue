@@ -37,10 +37,10 @@
 
       <ul class="tw-list-nav tw-notes-lists">
         <li>
-          <button class="tw-nav-item tw-list-item tw-notes-all" :class="{ active: activeListId === 0 }" @click="selectAll">
+          <button class="tw-nav-item tw-list-item tw-notes-all" :class="{ active: activeListId === 0 && !activeSharedList }" @click="selectAll">
             <span class="tw-notes-all-mark"><TaskIcon name="note" :size="13" /></span>
             <span class="tw-nav-label">全部笔记</span>
-            <span class="tw-nav-count">{{ props.notes.length }}</span>
+            <span class="tw-nav-count">{{ ownNotesCount }}</span>
           </button>
         </li>
         <template v-for="row in noteRows" :key="row.key">
@@ -127,6 +127,25 @@
 
       <p v-if="!noteLists.length && !adding && !addingFolder" class="tw-side-hint">新建一个笔记清单，开始记录想法。</p>
 
+      <section v-if="sharedNoteLists.length" class="tw-notes-shared">
+        <header class="tw-notes-shared-head">共享给我</header>
+        <ul class="tw-list-nav">
+          <li v-for="shared in sharedNoteLists" :key="`shared-list-${shared.listId}`">
+            <button
+              class="tw-nav-item tw-list-item"
+              :class="{ active: activeSharedListId === shared.listId }"
+              :title="`来自 ${shared.ownerDisplay || shared.ownerUsername}`"
+              @click="selectSharedList(shared)"
+            >
+              <span class="tw-notes-all-mark"><TaskIcon name="note" :size="13" /></span>
+              <span class="tw-nav-label">{{ shared.name }}</span>
+              <span v-if="shared.count" class="tw-nav-count">{{ shared.count }}</span>
+            </button>
+            <p class="tw-shared-owner">{{ shared.ownerDisplay || shared.ownerUsername }} · {{ shared.role === 'editor' ? '可编辑' : '只读' }}</p>
+          </li>
+        </ul>
+      </section>
+
       <section v-if="sharedNotes.length" class="tw-notes-shared">
         <header class="tw-notes-shared-head">共享笔记</header>
         <ul class="tw-list-nav">
@@ -162,6 +181,8 @@
           :key="note.id"
           :task="note"
           :selected="selectedId === note.id"
+          :readonly="readonly"
+          :show-list="Boolean(keyword)"
           :tag-colors="tagColors"
           @open="$emit('open', $event)"
           @pin="$emit('pin', $event)"
@@ -215,7 +236,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue'
 import { Message, Modal } from '@arco-design/web-vue'
-import type { SharedNote, TaskFolder, TaskItem, TaskList } from '../../types'
+import type { SharedNote, SharedTaskList, TaskFolder, TaskItem, TaskList } from '../../types'
 import { createTask, createTaskFolder, createTaskList, deleteTaskFolder, deleteTaskList, updateTaskFolder, updateTaskList } from '../../tasks-api'
 import { LIST_COLORS } from '../../tasks-utils'
 import NoteCard from './NoteCard.vue'
@@ -227,6 +248,10 @@ const props = defineProps<{
   lists: TaskList[]
   folders: TaskFolder[]
   sharedNotes: SharedNote[]
+  sharedLists: SharedTaskList[]
+  activeSharedListId: number
+  ownNotesCount: number
+  readonly?: boolean
   tagColors: Record<string, string>
   selectedId: number
 }>()
@@ -236,6 +261,7 @@ const emit = defineEmits<{
   (event: 'pin', task: TaskItem): void
   (event: 'remove', task: TaskItem): void
   (event: 'open-shared', note: SharedNote): void
+  (event: 'select-shared-list', listId: number): void
   (event: 'reload'): void
 }>()
 
@@ -295,6 +321,9 @@ const noteLists = computed(() =>
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || a.order - b.order || a.id - b.id),
 )
 
+const sharedNoteLists = computed(() => props.sharedLists.filter((list) => list.kind === 'NOTE'))
+const activeSharedList = computed(() => sharedNoteLists.value.find((list) => list.listId === props.activeSharedListId))
+
 const noteRows = computed<NoteRow[]>(() => {
   const rows: NoteRow[] = []
   const folderIds = new Set(props.folders.map((folder) => folder.id))
@@ -313,16 +342,22 @@ const noteRows = computed<NoteRow[]>(() => {
 })
 
 const currentList = computed(() => noteLists.value.find((list) => list.id === activeListId.value))
-const heading = computed(() => (activeListId.value ? currentList.value?.name || '笔记' : '全部笔记'))
+const keyword = computed(() => query.value.trim())
+const heading = computed(() => {
+  if (keyword.value) return `搜索“${keyword.value}”`
+  if (activeSharedList.value) return activeSharedList.value.name
+  return activeListId.value ? currentList.value?.name || '笔记' : '全部笔记'
+})
 
 const filteredNotes = computed(() => {
-  const keyword = query.value.trim().toLowerCase()
+  const term = keyword.value.toLowerCase()
   return props.notes
-    .filter((note) => !activeListId.value || note.listId === activeListId.value)
+    // 有关键词时跨清单搜索，避免停留在某个清单时搜不到其他清单的笔记。
+    .filter((note) => term || !activeListId.value || note.listId === activeListId.value)
     .filter((note) => {
-      if (!keyword) return true
+      if (!term) return true
       const text = `${note.title}\n${note.notesText || note.notes || ''}`.toLowerCase()
-      return text.includes(keyword)
+      return text.includes(term)
     })
     .slice()
     .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || String(b.modifiedAt).localeCompare(String(a.modifiedAt)))
@@ -331,11 +366,23 @@ const filteredNotes = computed(() => {
 function selectAll() {
   activeListId.value = 0
   remember()
+  clearSharedList()
 }
 
 function selectList(id: number) {
   activeListId.value = id
   remember()
+  clearSharedList()
+}
+
+function selectSharedList(list: SharedTaskList) {
+  activeListId.value = 0
+  emit('select-shared-list', list.listId)
+}
+
+// 共享清单由工作区加载，切回自己的清单时通知父级恢复。
+function clearSharedList() {
+  if (props.activeSharedListId) emit('select-shared-list', 0)
 }
 
 function remember() {
@@ -373,6 +420,7 @@ async function submitList() {
     newName.value = ''
     activeListId.value = list.id
     remember()
+    clearSharedList()
     emit('reload')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建笔记清单失败')
@@ -527,6 +575,7 @@ async function createNote() {
     const { task } = await createTask({ title: '无标题笔记', kind: 'NOTE', listId: target.id })
     activeListId.value = target.id
     remember()
+    clearSharedList()
     emit('reload')
     emit('open', task)
   } catch (error) {

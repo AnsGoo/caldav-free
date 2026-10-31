@@ -364,6 +364,38 @@ class Countdowns extends Table {
 
   IntColumn get date => integer().withDefault(const Constant(0))();
 
+  TextColumn get calendar => text().withDefault(const Constant('solar'))();
+
+  IntColumn get lunarMonth => integer().withDefault(const Constant(0))();
+
+  IntColumn get lunarDay => integer().withDefault(const Constant(0))();
+
+  BoolColumn get lunarLeap => boolean().withDefault(const Constant(false))();
+
+  IntColumn get lunarYear => integer().withDefault(const Constant(0))();
+
+  TextColumn get style => text().withDefault(const Constant('normal'))();
+
+  TextColumn get background => text().withDefault(const Constant(''))();
+
+  TextColumn get reminders => text().withDefault(const Constant('[]'))();
+
+  TextColumn get reminderTime => text().withDefault(const Constant('09:00'))();
+
+  BoolColumn get ignoreYear => boolean().withDefault(const Constant(false))();
+
+  BoolColumn get showAge => boolean().withDefault(const Constant(false))();
+
+  TextColumn get dateDisplayFormat =>
+      text().withDefault(const Constant('day'))();
+
+  TextColumn get daysOption => text().withDefault(const Constant('day'))();
+
+  BoolColumn get hasBackground =>
+      boolean().withDefault(const Constant(false))();
+
+  TextColumn get backgroundUrl => text().withDefault(const Constant(''))();
+
   TextColumn get repeat => text().withDefault(const Constant('none'))();
 
   BoolColumn get pinned => boolean().withDefault(const Constant(false))();
@@ -494,7 +526,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -518,6 +550,24 @@ class AppDatabase extends _$AppDatabase {
         await migrator.addColumn(habits, habits.recordEnable);
         await migrator.addColumn(habits, habits.exDates);
         await migrator.addColumn(habits, habits.style);
+      }
+      if (from < 5) {
+        // v5: countdown form fields shared with the web editor.
+        await migrator.addColumn(countdowns, countdowns.calendar);
+        await migrator.addColumn(countdowns, countdowns.lunarMonth);
+        await migrator.addColumn(countdowns, countdowns.lunarDay);
+        await migrator.addColumn(countdowns, countdowns.lunarLeap);
+        await migrator.addColumn(countdowns, countdowns.lunarYear);
+        await migrator.addColumn(countdowns, countdowns.style);
+        await migrator.addColumn(countdowns, countdowns.background);
+        await migrator.addColumn(countdowns, countdowns.reminders);
+        await migrator.addColumn(countdowns, countdowns.reminderTime);
+        await migrator.addColumn(countdowns, countdowns.ignoreYear);
+        await migrator.addColumn(countdowns, countdowns.showAge);
+        await migrator.addColumn(countdowns, countdowns.dateDisplayFormat);
+        await migrator.addColumn(countdowns, countdowns.daysOption);
+        await migrator.addColumn(countdowns, countdowns.hasBackground);
+        await migrator.addColumn(countdowns, countdowns.backgroundUrl);
       }
     },
   );

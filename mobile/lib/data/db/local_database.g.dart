@@ -6456,6 +6456,197 @@ class $CountdownsTable extends Countdowns
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _calendarMeta = const VerificationMeta(
+    'calendar',
+  );
+  @override
+  late final GeneratedColumn<String> calendar = GeneratedColumn<String>(
+    'calendar',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('solar'),
+  );
+  static const VerificationMeta _lunarMonthMeta = const VerificationMeta(
+    'lunarMonth',
+  );
+  @override
+  late final GeneratedColumn<int> lunarMonth = GeneratedColumn<int>(
+    'lunar_month',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lunarDayMeta = const VerificationMeta(
+    'lunarDay',
+  );
+  @override
+  late final GeneratedColumn<int> lunarDay = GeneratedColumn<int>(
+    'lunar_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lunarLeapMeta = const VerificationMeta(
+    'lunarLeap',
+  );
+  @override
+  late final GeneratedColumn<bool> lunarLeap = GeneratedColumn<bool>(
+    'lunar_leap',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("lunar_leap" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _lunarYearMeta = const VerificationMeta(
+    'lunarYear',
+  );
+  @override
+  late final GeneratedColumn<int> lunarYear = GeneratedColumn<int>(
+    'lunar_year',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _styleMeta = const VerificationMeta('style');
+  @override
+  late final GeneratedColumn<String> style = GeneratedColumn<String>(
+    'style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('normal'),
+  );
+  static const VerificationMeta _backgroundMeta = const VerificationMeta(
+    'background',
+  );
+  @override
+  late final GeneratedColumn<String> background = GeneratedColumn<String>(
+    'background',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _remindersMeta = const VerificationMeta(
+    'reminders',
+  );
+  @override
+  late final GeneratedColumn<String> reminders = GeneratedColumn<String>(
+    'reminders',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _reminderTimeMeta = const VerificationMeta(
+    'reminderTime',
+  );
+  @override
+  late final GeneratedColumn<String> reminderTime = GeneratedColumn<String>(
+    'reminder_time',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('09:00'),
+  );
+  static const VerificationMeta _ignoreYearMeta = const VerificationMeta(
+    'ignoreYear',
+  );
+  @override
+  late final GeneratedColumn<bool> ignoreYear = GeneratedColumn<bool>(
+    'ignore_year',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("ignore_year" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _showAgeMeta = const VerificationMeta(
+    'showAge',
+  );
+  @override
+  late final GeneratedColumn<bool> showAge = GeneratedColumn<bool>(
+    'show_age',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_age" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _dateDisplayFormatMeta = const VerificationMeta(
+    'dateDisplayFormat',
+  );
+  @override
+  late final GeneratedColumn<String> dateDisplayFormat =
+      GeneratedColumn<String>(
+        'date_display_format',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('day'),
+      );
+  static const VerificationMeta _daysOptionMeta = const VerificationMeta(
+    'daysOption',
+  );
+  @override
+  late final GeneratedColumn<String> daysOption = GeneratedColumn<String>(
+    'days_option',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('day'),
+  );
+  static const VerificationMeta _hasBackgroundMeta = const VerificationMeta(
+    'hasBackground',
+  );
+  @override
+  late final GeneratedColumn<bool> hasBackground = GeneratedColumn<bool>(
+    'has_background',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_background" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _backgroundUrlMeta = const VerificationMeta(
+    'backgroundUrl',
+  );
+  @override
+  late final GeneratedColumn<String> backgroundUrl = GeneratedColumn<String>(
+    'background_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   static const VerificationMeta _repeatMeta = const VerificationMeta('repeat');
   @override
   late final GeneratedColumn<String> repeat = GeneratedColumn<String>(
@@ -6601,6 +6792,21 @@ class $CountdownsTable extends Countdowns
     name,
     type,
     date,
+    calendar,
+    lunarMonth,
+    lunarDay,
+    lunarLeap,
+    lunarYear,
+    style,
+    background,
+    reminders,
+    reminderTime,
+    ignoreYear,
+    showAge,
+    dateDisplayFormat,
+    daysOption,
+    hasBackground,
+    backgroundUrl,
     repeat,
     pinned,
     status,
@@ -6646,6 +6852,108 @@ class $CountdownsTable extends Countdowns
       context.handle(
         _dateMeta,
         date.isAcceptableOrUnknown(data['date']!, _dateMeta),
+      );
+    }
+    if (data.containsKey('calendar')) {
+      context.handle(
+        _calendarMeta,
+        calendar.isAcceptableOrUnknown(data['calendar']!, _calendarMeta),
+      );
+    }
+    if (data.containsKey('lunar_month')) {
+      context.handle(
+        _lunarMonthMeta,
+        lunarMonth.isAcceptableOrUnknown(data['lunar_month']!, _lunarMonthMeta),
+      );
+    }
+    if (data.containsKey('lunar_day')) {
+      context.handle(
+        _lunarDayMeta,
+        lunarDay.isAcceptableOrUnknown(data['lunar_day']!, _lunarDayMeta),
+      );
+    }
+    if (data.containsKey('lunar_leap')) {
+      context.handle(
+        _lunarLeapMeta,
+        lunarLeap.isAcceptableOrUnknown(data['lunar_leap']!, _lunarLeapMeta),
+      );
+    }
+    if (data.containsKey('lunar_year')) {
+      context.handle(
+        _lunarYearMeta,
+        lunarYear.isAcceptableOrUnknown(data['lunar_year']!, _lunarYearMeta),
+      );
+    }
+    if (data.containsKey('style')) {
+      context.handle(
+        _styleMeta,
+        style.isAcceptableOrUnknown(data['style']!, _styleMeta),
+      );
+    }
+    if (data.containsKey('background')) {
+      context.handle(
+        _backgroundMeta,
+        background.isAcceptableOrUnknown(data['background']!, _backgroundMeta),
+      );
+    }
+    if (data.containsKey('reminders')) {
+      context.handle(
+        _remindersMeta,
+        reminders.isAcceptableOrUnknown(data['reminders']!, _remindersMeta),
+      );
+    }
+    if (data.containsKey('reminder_time')) {
+      context.handle(
+        _reminderTimeMeta,
+        reminderTime.isAcceptableOrUnknown(
+          data['reminder_time']!,
+          _reminderTimeMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ignore_year')) {
+      context.handle(
+        _ignoreYearMeta,
+        ignoreYear.isAcceptableOrUnknown(data['ignore_year']!, _ignoreYearMeta),
+      );
+    }
+    if (data.containsKey('show_age')) {
+      context.handle(
+        _showAgeMeta,
+        showAge.isAcceptableOrUnknown(data['show_age']!, _showAgeMeta),
+      );
+    }
+    if (data.containsKey('date_display_format')) {
+      context.handle(
+        _dateDisplayFormatMeta,
+        dateDisplayFormat.isAcceptableOrUnknown(
+          data['date_display_format']!,
+          _dateDisplayFormatMeta,
+        ),
+      );
+    }
+    if (data.containsKey('days_option')) {
+      context.handle(
+        _daysOptionMeta,
+        daysOption.isAcceptableOrUnknown(data['days_option']!, _daysOptionMeta),
+      );
+    }
+    if (data.containsKey('has_background')) {
+      context.handle(
+        _hasBackgroundMeta,
+        hasBackground.isAcceptableOrUnknown(
+          data['has_background']!,
+          _hasBackgroundMeta,
+        ),
+      );
+    }
+    if (data.containsKey('background_url')) {
+      context.handle(
+        _backgroundUrlMeta,
+        backgroundUrl.isAcceptableOrUnknown(
+          data['background_url']!,
+          _backgroundUrlMeta,
+        ),
       );
     }
     if (data.containsKey('repeat')) {
@@ -6754,6 +7062,66 @@ class $CountdownsTable extends Countdowns
         DriftSqlType.int,
         data['${effectivePrefix}date'],
       )!,
+      calendar: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}calendar'],
+      )!,
+      lunarMonth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lunar_month'],
+      )!,
+      lunarDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lunar_day'],
+      )!,
+      lunarLeap: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}lunar_leap'],
+      )!,
+      lunarYear: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}lunar_year'],
+      )!,
+      style: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}style'],
+      )!,
+      background: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}background'],
+      )!,
+      reminders: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reminders'],
+      )!,
+      reminderTime: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reminder_time'],
+      )!,
+      ignoreYear: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}ignore_year'],
+      )!,
+      showAge: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_age'],
+      )!,
+      dateDisplayFormat: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}date_display_format'],
+      )!,
+      daysOption: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}days_option'],
+      )!,
+      hasBackground: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_background'],
+      )!,
+      backgroundUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}background_url'],
+      )!,
       repeat: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}repeat'],
@@ -6820,6 +7188,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
   final String name;
   final String type;
   final int date;
+  final String calendar;
+  final int lunarMonth;
+  final int lunarDay;
+  final bool lunarLeap;
+  final int lunarYear;
+  final String style;
+  final String background;
+  final String reminders;
+  final String reminderTime;
+  final bool ignoreYear;
+  final bool showAge;
+  final String dateDisplayFormat;
+  final String daysOption;
+  final bool hasBackground;
+  final String backgroundUrl;
   final String repeat;
   final bool pinned;
   final int status;
@@ -6838,6 +7221,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
     required this.name,
     required this.type,
     required this.date,
+    required this.calendar,
+    required this.lunarMonth,
+    required this.lunarDay,
+    required this.lunarLeap,
+    required this.lunarYear,
+    required this.style,
+    required this.background,
+    required this.reminders,
+    required this.reminderTime,
+    required this.ignoreYear,
+    required this.showAge,
+    required this.dateDisplayFormat,
+    required this.daysOption,
+    required this.hasBackground,
+    required this.backgroundUrl,
     required this.repeat,
     required this.pinned,
     required this.status,
@@ -6859,6 +7257,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
     map['name'] = Variable<String>(name);
     map['type'] = Variable<String>(type);
     map['date'] = Variable<int>(date);
+    map['calendar'] = Variable<String>(calendar);
+    map['lunar_month'] = Variable<int>(lunarMonth);
+    map['lunar_day'] = Variable<int>(lunarDay);
+    map['lunar_leap'] = Variable<bool>(lunarLeap);
+    map['lunar_year'] = Variable<int>(lunarYear);
+    map['style'] = Variable<String>(style);
+    map['background'] = Variable<String>(background);
+    map['reminders'] = Variable<String>(reminders);
+    map['reminder_time'] = Variable<String>(reminderTime);
+    map['ignore_year'] = Variable<bool>(ignoreYear);
+    map['show_age'] = Variable<bool>(showAge);
+    map['date_display_format'] = Variable<String>(dateDisplayFormat);
+    map['days_option'] = Variable<String>(daysOption);
+    map['has_background'] = Variable<bool>(hasBackground);
+    map['background_url'] = Variable<String>(backgroundUrl);
     map['repeat'] = Variable<String>(repeat);
     map['pinned'] = Variable<bool>(pinned);
     map['status'] = Variable<int>(status);
@@ -6881,6 +7294,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
       name: Value(name),
       type: Value(type),
       date: Value(date),
+      calendar: Value(calendar),
+      lunarMonth: Value(lunarMonth),
+      lunarDay: Value(lunarDay),
+      lunarLeap: Value(lunarLeap),
+      lunarYear: Value(lunarYear),
+      style: Value(style),
+      background: Value(background),
+      reminders: Value(reminders),
+      reminderTime: Value(reminderTime),
+      ignoreYear: Value(ignoreYear),
+      showAge: Value(showAge),
+      dateDisplayFormat: Value(dateDisplayFormat),
+      daysOption: Value(daysOption),
+      hasBackground: Value(hasBackground),
+      backgroundUrl: Value(backgroundUrl),
       repeat: Value(repeat),
       pinned: Value(pinned),
       status: Value(status),
@@ -6907,6 +7335,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
       name: serializer.fromJson<String>(json['name']),
       type: serializer.fromJson<String>(json['type']),
       date: serializer.fromJson<int>(json['date']),
+      calendar: serializer.fromJson<String>(json['calendar']),
+      lunarMonth: serializer.fromJson<int>(json['lunarMonth']),
+      lunarDay: serializer.fromJson<int>(json['lunarDay']),
+      lunarLeap: serializer.fromJson<bool>(json['lunarLeap']),
+      lunarYear: serializer.fromJson<int>(json['lunarYear']),
+      style: serializer.fromJson<String>(json['style']),
+      background: serializer.fromJson<String>(json['background']),
+      reminders: serializer.fromJson<String>(json['reminders']),
+      reminderTime: serializer.fromJson<String>(json['reminderTime']),
+      ignoreYear: serializer.fromJson<bool>(json['ignoreYear']),
+      showAge: serializer.fromJson<bool>(json['showAge']),
+      dateDisplayFormat: serializer.fromJson<String>(json['dateDisplayFormat']),
+      daysOption: serializer.fromJson<String>(json['daysOption']),
+      hasBackground: serializer.fromJson<bool>(json['hasBackground']),
+      backgroundUrl: serializer.fromJson<String>(json['backgroundUrl']),
       repeat: serializer.fromJson<String>(json['repeat']),
       pinned: serializer.fromJson<bool>(json['pinned']),
       status: serializer.fromJson<int>(json['status']),
@@ -6930,6 +7373,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
       'name': serializer.toJson<String>(name),
       'type': serializer.toJson<String>(type),
       'date': serializer.toJson<int>(date),
+      'calendar': serializer.toJson<String>(calendar),
+      'lunarMonth': serializer.toJson<int>(lunarMonth),
+      'lunarDay': serializer.toJson<int>(lunarDay),
+      'lunarLeap': serializer.toJson<bool>(lunarLeap),
+      'lunarYear': serializer.toJson<int>(lunarYear),
+      'style': serializer.toJson<String>(style),
+      'background': serializer.toJson<String>(background),
+      'reminders': serializer.toJson<String>(reminders),
+      'reminderTime': serializer.toJson<String>(reminderTime),
+      'ignoreYear': serializer.toJson<bool>(ignoreYear),
+      'showAge': serializer.toJson<bool>(showAge),
+      'dateDisplayFormat': serializer.toJson<String>(dateDisplayFormat),
+      'daysOption': serializer.toJson<String>(daysOption),
+      'hasBackground': serializer.toJson<bool>(hasBackground),
+      'backgroundUrl': serializer.toJson<String>(backgroundUrl),
       'repeat': serializer.toJson<String>(repeat),
       'pinned': serializer.toJson<bool>(pinned),
       'status': serializer.toJson<int>(status),
@@ -6951,6 +7409,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
     String? name,
     String? type,
     int? date,
+    String? calendar,
+    int? lunarMonth,
+    int? lunarDay,
+    bool? lunarLeap,
+    int? lunarYear,
+    String? style,
+    String? background,
+    String? reminders,
+    String? reminderTime,
+    bool? ignoreYear,
+    bool? showAge,
+    String? dateDisplayFormat,
+    String? daysOption,
+    bool? hasBackground,
+    String? backgroundUrl,
     String? repeat,
     bool? pinned,
     int? status,
@@ -6969,6 +7442,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
     name: name ?? this.name,
     type: type ?? this.type,
     date: date ?? this.date,
+    calendar: calendar ?? this.calendar,
+    lunarMonth: lunarMonth ?? this.lunarMonth,
+    lunarDay: lunarDay ?? this.lunarDay,
+    lunarLeap: lunarLeap ?? this.lunarLeap,
+    lunarYear: lunarYear ?? this.lunarYear,
+    style: style ?? this.style,
+    background: background ?? this.background,
+    reminders: reminders ?? this.reminders,
+    reminderTime: reminderTime ?? this.reminderTime,
+    ignoreYear: ignoreYear ?? this.ignoreYear,
+    showAge: showAge ?? this.showAge,
+    dateDisplayFormat: dateDisplayFormat ?? this.dateDisplayFormat,
+    daysOption: daysOption ?? this.daysOption,
+    hasBackground: hasBackground ?? this.hasBackground,
+    backgroundUrl: backgroundUrl ?? this.backgroundUrl,
     repeat: repeat ?? this.repeat,
     pinned: pinned ?? this.pinned,
     status: status ?? this.status,
@@ -6989,6 +7477,37 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
       name: data.name.present ? data.name.value : this.name,
       type: data.type.present ? data.type.value : this.type,
       date: data.date.present ? data.date.value : this.date,
+      calendar: data.calendar.present ? data.calendar.value : this.calendar,
+      lunarMonth: data.lunarMonth.present
+          ? data.lunarMonth.value
+          : this.lunarMonth,
+      lunarDay: data.lunarDay.present ? data.lunarDay.value : this.lunarDay,
+      lunarLeap: data.lunarLeap.present ? data.lunarLeap.value : this.lunarLeap,
+      lunarYear: data.lunarYear.present ? data.lunarYear.value : this.lunarYear,
+      style: data.style.present ? data.style.value : this.style,
+      background: data.background.present
+          ? data.background.value
+          : this.background,
+      reminders: data.reminders.present ? data.reminders.value : this.reminders,
+      reminderTime: data.reminderTime.present
+          ? data.reminderTime.value
+          : this.reminderTime,
+      ignoreYear: data.ignoreYear.present
+          ? data.ignoreYear.value
+          : this.ignoreYear,
+      showAge: data.showAge.present ? data.showAge.value : this.showAge,
+      dateDisplayFormat: data.dateDisplayFormat.present
+          ? data.dateDisplayFormat.value
+          : this.dateDisplayFormat,
+      daysOption: data.daysOption.present
+          ? data.daysOption.value
+          : this.daysOption,
+      hasBackground: data.hasBackground.present
+          ? data.hasBackground.value
+          : this.hasBackground,
+      backgroundUrl: data.backgroundUrl.present
+          ? data.backgroundUrl.value
+          : this.backgroundUrl,
       repeat: data.repeat.present ? data.repeat.value : this.repeat,
       pinned: data.pinned.present ? data.pinned.value : this.pinned,
       status: data.status.present ? data.status.value : this.status,
@@ -7014,6 +7533,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('date: $date, ')
+          ..write('calendar: $calendar, ')
+          ..write('lunarMonth: $lunarMonth, ')
+          ..write('lunarDay: $lunarDay, ')
+          ..write('lunarLeap: $lunarLeap, ')
+          ..write('lunarYear: $lunarYear, ')
+          ..write('style: $style, ')
+          ..write('background: $background, ')
+          ..write('reminders: $reminders, ')
+          ..write('reminderTime: $reminderTime, ')
+          ..write('ignoreYear: $ignoreYear, ')
+          ..write('showAge: $showAge, ')
+          ..write('dateDisplayFormat: $dateDisplayFormat, ')
+          ..write('daysOption: $daysOption, ')
+          ..write('hasBackground: $hasBackground, ')
+          ..write('backgroundUrl: $backgroundUrl, ')
           ..write('repeat: $repeat, ')
           ..write('pinned: $pinned, ')
           ..write('status: $status, ')
@@ -7032,11 +7566,26 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     type,
     date,
+    calendar,
+    lunarMonth,
+    lunarDay,
+    lunarLeap,
+    lunarYear,
+    style,
+    background,
+    reminders,
+    reminderTime,
+    ignoreYear,
+    showAge,
+    dateDisplayFormat,
+    daysOption,
+    hasBackground,
+    backgroundUrl,
     repeat,
     pinned,
     status,
@@ -7050,7 +7599,7 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
     state,
     occurrenceDate,
     age,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7059,6 +7608,21 @@ class CountdownRow extends DataClass implements Insertable<CountdownRow> {
           other.name == this.name &&
           other.type == this.type &&
           other.date == this.date &&
+          other.calendar == this.calendar &&
+          other.lunarMonth == this.lunarMonth &&
+          other.lunarDay == this.lunarDay &&
+          other.lunarLeap == this.lunarLeap &&
+          other.lunarYear == this.lunarYear &&
+          other.style == this.style &&
+          other.background == this.background &&
+          other.reminders == this.reminders &&
+          other.reminderTime == this.reminderTime &&
+          other.ignoreYear == this.ignoreYear &&
+          other.showAge == this.showAge &&
+          other.dateDisplayFormat == this.dateDisplayFormat &&
+          other.daysOption == this.daysOption &&
+          other.hasBackground == this.hasBackground &&
+          other.backgroundUrl == this.backgroundUrl &&
           other.repeat == this.repeat &&
           other.pinned == this.pinned &&
           other.status == this.status &&
@@ -7079,6 +7643,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
   final Value<String> name;
   final Value<String> type;
   final Value<int> date;
+  final Value<String> calendar;
+  final Value<int> lunarMonth;
+  final Value<int> lunarDay;
+  final Value<bool> lunarLeap;
+  final Value<int> lunarYear;
+  final Value<String> style;
+  final Value<String> background;
+  final Value<String> reminders;
+  final Value<String> reminderTime;
+  final Value<bool> ignoreYear;
+  final Value<bool> showAge;
+  final Value<String> dateDisplayFormat;
+  final Value<String> daysOption;
+  final Value<bool> hasBackground;
+  final Value<String> backgroundUrl;
   final Value<String> repeat;
   final Value<bool> pinned;
   final Value<int> status;
@@ -7097,6 +7676,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
     this.name = const Value.absent(),
     this.type = const Value.absent(),
     this.date = const Value.absent(),
+    this.calendar = const Value.absent(),
+    this.lunarMonth = const Value.absent(),
+    this.lunarDay = const Value.absent(),
+    this.lunarLeap = const Value.absent(),
+    this.lunarYear = const Value.absent(),
+    this.style = const Value.absent(),
+    this.background = const Value.absent(),
+    this.reminders = const Value.absent(),
+    this.reminderTime = const Value.absent(),
+    this.ignoreYear = const Value.absent(),
+    this.showAge = const Value.absent(),
+    this.dateDisplayFormat = const Value.absent(),
+    this.daysOption = const Value.absent(),
+    this.hasBackground = const Value.absent(),
+    this.backgroundUrl = const Value.absent(),
     this.repeat = const Value.absent(),
     this.pinned = const Value.absent(),
     this.status = const Value.absent(),
@@ -7116,6 +7710,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
     this.name = const Value.absent(),
     this.type = const Value.absent(),
     this.date = const Value.absent(),
+    this.calendar = const Value.absent(),
+    this.lunarMonth = const Value.absent(),
+    this.lunarDay = const Value.absent(),
+    this.lunarLeap = const Value.absent(),
+    this.lunarYear = const Value.absent(),
+    this.style = const Value.absent(),
+    this.background = const Value.absent(),
+    this.reminders = const Value.absent(),
+    this.reminderTime = const Value.absent(),
+    this.ignoreYear = const Value.absent(),
+    this.showAge = const Value.absent(),
+    this.dateDisplayFormat = const Value.absent(),
+    this.daysOption = const Value.absent(),
+    this.hasBackground = const Value.absent(),
+    this.backgroundUrl = const Value.absent(),
     this.repeat = const Value.absent(),
     this.pinned = const Value.absent(),
     this.status = const Value.absent(),
@@ -7135,6 +7744,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
     Expression<String>? name,
     Expression<String>? type,
     Expression<int>? date,
+    Expression<String>? calendar,
+    Expression<int>? lunarMonth,
+    Expression<int>? lunarDay,
+    Expression<bool>? lunarLeap,
+    Expression<int>? lunarYear,
+    Expression<String>? style,
+    Expression<String>? background,
+    Expression<String>? reminders,
+    Expression<String>? reminderTime,
+    Expression<bool>? ignoreYear,
+    Expression<bool>? showAge,
+    Expression<String>? dateDisplayFormat,
+    Expression<String>? daysOption,
+    Expression<bool>? hasBackground,
+    Expression<String>? backgroundUrl,
     Expression<String>? repeat,
     Expression<bool>? pinned,
     Expression<int>? status,
@@ -7154,6 +7778,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
       if (name != null) 'name': name,
       if (type != null) 'type': type,
       if (date != null) 'date': date,
+      if (calendar != null) 'calendar': calendar,
+      if (lunarMonth != null) 'lunar_month': lunarMonth,
+      if (lunarDay != null) 'lunar_day': lunarDay,
+      if (lunarLeap != null) 'lunar_leap': lunarLeap,
+      if (lunarYear != null) 'lunar_year': lunarYear,
+      if (style != null) 'style': style,
+      if (background != null) 'background': background,
+      if (reminders != null) 'reminders': reminders,
+      if (reminderTime != null) 'reminder_time': reminderTime,
+      if (ignoreYear != null) 'ignore_year': ignoreYear,
+      if (showAge != null) 'show_age': showAge,
+      if (dateDisplayFormat != null) 'date_display_format': dateDisplayFormat,
+      if (daysOption != null) 'days_option': daysOption,
+      if (hasBackground != null) 'has_background': hasBackground,
+      if (backgroundUrl != null) 'background_url': backgroundUrl,
       if (repeat != null) 'repeat': repeat,
       if (pinned != null) 'pinned': pinned,
       if (status != null) 'status': status,
@@ -7175,6 +7814,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
     Value<String>? name,
     Value<String>? type,
     Value<int>? date,
+    Value<String>? calendar,
+    Value<int>? lunarMonth,
+    Value<int>? lunarDay,
+    Value<bool>? lunarLeap,
+    Value<int>? lunarYear,
+    Value<String>? style,
+    Value<String>? background,
+    Value<String>? reminders,
+    Value<String>? reminderTime,
+    Value<bool>? ignoreYear,
+    Value<bool>? showAge,
+    Value<String>? dateDisplayFormat,
+    Value<String>? daysOption,
+    Value<bool>? hasBackground,
+    Value<String>? backgroundUrl,
     Value<String>? repeat,
     Value<bool>? pinned,
     Value<int>? status,
@@ -7194,6 +7848,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
       name: name ?? this.name,
       type: type ?? this.type,
       date: date ?? this.date,
+      calendar: calendar ?? this.calendar,
+      lunarMonth: lunarMonth ?? this.lunarMonth,
+      lunarDay: lunarDay ?? this.lunarDay,
+      lunarLeap: lunarLeap ?? this.lunarLeap,
+      lunarYear: lunarYear ?? this.lunarYear,
+      style: style ?? this.style,
+      background: background ?? this.background,
+      reminders: reminders ?? this.reminders,
+      reminderTime: reminderTime ?? this.reminderTime,
+      ignoreYear: ignoreYear ?? this.ignoreYear,
+      showAge: showAge ?? this.showAge,
+      dateDisplayFormat: dateDisplayFormat ?? this.dateDisplayFormat,
+      daysOption: daysOption ?? this.daysOption,
+      hasBackground: hasBackground ?? this.hasBackground,
+      backgroundUrl: backgroundUrl ?? this.backgroundUrl,
       repeat: repeat ?? this.repeat,
       pinned: pinned ?? this.pinned,
       status: status ?? this.status,
@@ -7224,6 +7893,51 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
     }
     if (date.present) {
       map['date'] = Variable<int>(date.value);
+    }
+    if (calendar.present) {
+      map['calendar'] = Variable<String>(calendar.value);
+    }
+    if (lunarMonth.present) {
+      map['lunar_month'] = Variable<int>(lunarMonth.value);
+    }
+    if (lunarDay.present) {
+      map['lunar_day'] = Variable<int>(lunarDay.value);
+    }
+    if (lunarLeap.present) {
+      map['lunar_leap'] = Variable<bool>(lunarLeap.value);
+    }
+    if (lunarYear.present) {
+      map['lunar_year'] = Variable<int>(lunarYear.value);
+    }
+    if (style.present) {
+      map['style'] = Variable<String>(style.value);
+    }
+    if (background.present) {
+      map['background'] = Variable<String>(background.value);
+    }
+    if (reminders.present) {
+      map['reminders'] = Variable<String>(reminders.value);
+    }
+    if (reminderTime.present) {
+      map['reminder_time'] = Variable<String>(reminderTime.value);
+    }
+    if (ignoreYear.present) {
+      map['ignore_year'] = Variable<bool>(ignoreYear.value);
+    }
+    if (showAge.present) {
+      map['show_age'] = Variable<bool>(showAge.value);
+    }
+    if (dateDisplayFormat.present) {
+      map['date_display_format'] = Variable<String>(dateDisplayFormat.value);
+    }
+    if (daysOption.present) {
+      map['days_option'] = Variable<String>(daysOption.value);
+    }
+    if (hasBackground.present) {
+      map['has_background'] = Variable<bool>(hasBackground.value);
+    }
+    if (backgroundUrl.present) {
+      map['background_url'] = Variable<String>(backgroundUrl.value);
     }
     if (repeat.present) {
       map['repeat'] = Variable<String>(repeat.value);
@@ -7274,6 +7988,21 @@ class CountdownsCompanion extends UpdateCompanion<CountdownRow> {
           ..write('name: $name, ')
           ..write('type: $type, ')
           ..write('date: $date, ')
+          ..write('calendar: $calendar, ')
+          ..write('lunarMonth: $lunarMonth, ')
+          ..write('lunarDay: $lunarDay, ')
+          ..write('lunarLeap: $lunarLeap, ')
+          ..write('lunarYear: $lunarYear, ')
+          ..write('style: $style, ')
+          ..write('background: $background, ')
+          ..write('reminders: $reminders, ')
+          ..write('reminderTime: $reminderTime, ')
+          ..write('ignoreYear: $ignoreYear, ')
+          ..write('showAge: $showAge, ')
+          ..write('dateDisplayFormat: $dateDisplayFormat, ')
+          ..write('daysOption: $daysOption, ')
+          ..write('hasBackground: $hasBackground, ')
+          ..write('backgroundUrl: $backgroundUrl, ')
           ..write('repeat: $repeat, ')
           ..write('pinned: $pinned, ')
           ..write('status: $status, ')
@@ -11754,6 +12483,21 @@ typedef $$CountdownsTableCreateCompanionBuilder = CountdownsCompanion Function({
   Value<String> name,
   Value<String> type,
   Value<int> date,
+  Value<String> calendar,
+  Value<int> lunarMonth,
+  Value<int> lunarDay,
+  Value<bool> lunarLeap,
+  Value<int> lunarYear,
+  Value<String> style,
+  Value<String> background,
+  Value<String> reminders,
+  Value<String> reminderTime,
+  Value<bool> ignoreYear,
+  Value<bool> showAge,
+  Value<String> dateDisplayFormat,
+  Value<String> daysOption,
+  Value<bool> hasBackground,
+  Value<String> backgroundUrl,
   Value<String> repeat,
   Value<bool> pinned,
   Value<int> status,
@@ -11773,6 +12517,21 @@ typedef $$CountdownsTableUpdateCompanionBuilder = CountdownsCompanion Function({
   Value<String> name,
   Value<String> type,
   Value<int> date,
+  Value<String> calendar,
+  Value<int> lunarMonth,
+  Value<int> lunarDay,
+  Value<bool> lunarLeap,
+  Value<int> lunarYear,
+  Value<String> style,
+  Value<String> background,
+  Value<String> reminders,
+  Value<String> reminderTime,
+  Value<bool> ignoreYear,
+  Value<bool> showAge,
+  Value<String> dateDisplayFormat,
+  Value<String> daysOption,
+  Value<bool> hasBackground,
+  Value<String> backgroundUrl,
   Value<String> repeat,
   Value<bool> pinned,
   Value<int> status,
@@ -11814,6 +12573,81 @@ class $$CountdownsTableFilterComposer
 
   ColumnFilters<int> get date => $composableBuilder(
     column: $table.date,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get calendar => $composableBuilder(
+    column: $table.calendar,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lunarMonth => $composableBuilder(
+    column: $table.lunarMonth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lunarDay => $composableBuilder(
+    column: $table.lunarDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get lunarLeap => $composableBuilder(
+    column: $table.lunarLeap,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lunarYear => $composableBuilder(
+    column: $table.lunarYear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get style => $composableBuilder(
+    column: $table.style,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get background => $composableBuilder(
+    column: $table.background,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reminders => $composableBuilder(
+    column: $table.reminders,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reminderTime => $composableBuilder(
+    column: $table.reminderTime,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ignoreYear => $composableBuilder(
+    column: $table.ignoreYear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showAge => $composableBuilder(
+    column: $table.showAge,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get dateDisplayFormat => $composableBuilder(
+    column: $table.dateDisplayFormat,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get daysOption => $composableBuilder(
+    column: $table.daysOption,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hasBackground => $composableBuilder(
+    column: $table.hasBackground,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get backgroundUrl => $composableBuilder(
+    column: $table.backgroundUrl,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11912,6 +12746,81 @@ class $$CountdownsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get calendar => $composableBuilder(
+    column: $table.calendar,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lunarMonth => $composableBuilder(
+    column: $table.lunarMonth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lunarDay => $composableBuilder(
+    column: $table.lunarDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get lunarLeap => $composableBuilder(
+    column: $table.lunarLeap,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lunarYear => $composableBuilder(
+    column: $table.lunarYear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get style => $composableBuilder(
+    column: $table.style,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get background => $composableBuilder(
+    column: $table.background,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reminders => $composableBuilder(
+    column: $table.reminders,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get reminderTime => $composableBuilder(
+    column: $table.reminderTime,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get ignoreYear => $composableBuilder(
+    column: $table.ignoreYear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get showAge => $composableBuilder(
+    column: $table.showAge,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get dateDisplayFormat => $composableBuilder(
+    column: $table.dateDisplayFormat,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get daysOption => $composableBuilder(
+    column: $table.daysOption,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get hasBackground => $composableBuilder(
+    column: $table.hasBackground,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get backgroundUrl => $composableBuilder(
+    column: $table.backgroundUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get repeat => $composableBuilder(
     column: $table.repeat,
     builder: (column) => ColumnOrderings(column),
@@ -11999,6 +12908,67 @@ class $$CountdownsTableAnnotationComposer
   GeneratedColumn<int> get date =>
       $composableBuilder(column: $table.date, builder: (column) => column);
 
+  GeneratedColumn<String> get calendar =>
+      $composableBuilder(column: $table.calendar, builder: (column) => column);
+
+  GeneratedColumn<int> get lunarMonth => $composableBuilder(
+    column: $table.lunarMonth,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lunarDay =>
+      $composableBuilder(column: $table.lunarDay, builder: (column) => column);
+
+  GeneratedColumn<bool> get lunarLeap =>
+      $composableBuilder(column: $table.lunarLeap, builder: (column) => column);
+
+  GeneratedColumn<int> get lunarYear =>
+      $composableBuilder(column: $table.lunarYear, builder: (column) => column);
+
+  GeneratedColumn<String> get style =>
+      $composableBuilder(column: $table.style, builder: (column) => column);
+
+  GeneratedColumn<String> get background => $composableBuilder(
+    column: $table.background,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get reminders =>
+      $composableBuilder(column: $table.reminders, builder: (column) => column);
+
+  GeneratedColumn<String> get reminderTime => $composableBuilder(
+    column: $table.reminderTime,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get ignoreYear => $composableBuilder(
+    column: $table.ignoreYear,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get showAge =>
+      $composableBuilder(column: $table.showAge, builder: (column) => column);
+
+  GeneratedColumn<String> get dateDisplayFormat => $composableBuilder(
+    column: $table.dateDisplayFormat,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get daysOption => $composableBuilder(
+    column: $table.daysOption,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get hasBackground => $composableBuilder(
+    column: $table.hasBackground,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get backgroundUrl => $composableBuilder(
+    column: $table.backgroundUrl,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get repeat =>
       $composableBuilder(column: $table.repeat, builder: (column) => column);
 
@@ -12076,6 +13046,21 @@ class $$CountdownsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<int> date = const Value.absent(),
+                Value<String> calendar = const Value.absent(),
+                Value<int> lunarMonth = const Value.absent(),
+                Value<int> lunarDay = const Value.absent(),
+                Value<bool> lunarLeap = const Value.absent(),
+                Value<int> lunarYear = const Value.absent(),
+                Value<String> style = const Value.absent(),
+                Value<String> background = const Value.absent(),
+                Value<String> reminders = const Value.absent(),
+                Value<String> reminderTime = const Value.absent(),
+                Value<bool> ignoreYear = const Value.absent(),
+                Value<bool> showAge = const Value.absent(),
+                Value<String> dateDisplayFormat = const Value.absent(),
+                Value<String> daysOption = const Value.absent(),
+                Value<bool> hasBackground = const Value.absent(),
+                Value<String> backgroundUrl = const Value.absent(),
                 Value<String> repeat = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<int> status = const Value.absent(),
@@ -12094,6 +13079,21 @@ class $$CountdownsTableTableManager
                 name: name,
                 type: type,
                 date: date,
+                calendar: calendar,
+                lunarMonth: lunarMonth,
+                lunarDay: lunarDay,
+                lunarLeap: lunarLeap,
+                lunarYear: lunarYear,
+                style: style,
+                background: background,
+                reminders: reminders,
+                reminderTime: reminderTime,
+                ignoreYear: ignoreYear,
+                showAge: showAge,
+                dateDisplayFormat: dateDisplayFormat,
+                daysOption: daysOption,
+                hasBackground: hasBackground,
+                backgroundUrl: backgroundUrl,
                 repeat: repeat,
                 pinned: pinned,
                 status: status,
@@ -12114,6 +13114,21 @@ class $$CountdownsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> type = const Value.absent(),
                 Value<int> date = const Value.absent(),
+                Value<String> calendar = const Value.absent(),
+                Value<int> lunarMonth = const Value.absent(),
+                Value<int> lunarDay = const Value.absent(),
+                Value<bool> lunarLeap = const Value.absent(),
+                Value<int> lunarYear = const Value.absent(),
+                Value<String> style = const Value.absent(),
+                Value<String> background = const Value.absent(),
+                Value<String> reminders = const Value.absent(),
+                Value<String> reminderTime = const Value.absent(),
+                Value<bool> ignoreYear = const Value.absent(),
+                Value<bool> showAge = const Value.absent(),
+                Value<String> dateDisplayFormat = const Value.absent(),
+                Value<String> daysOption = const Value.absent(),
+                Value<bool> hasBackground = const Value.absent(),
+                Value<String> backgroundUrl = const Value.absent(),
                 Value<String> repeat = const Value.absent(),
                 Value<bool> pinned = const Value.absent(),
                 Value<int> status = const Value.absent(),
@@ -12132,6 +13147,21 @@ class $$CountdownsTableTableManager
                 name: name,
                 type: type,
                 date: date,
+                calendar: calendar,
+                lunarMonth: lunarMonth,
+                lunarDay: lunarDay,
+                lunarLeap: lunarLeap,
+                lunarYear: lunarYear,
+                style: style,
+                background: background,
+                reminders: reminders,
+                reminderTime: reminderTime,
+                ignoreYear: ignoreYear,
+                showAge: showAge,
+                dateDisplayFormat: dateDisplayFormat,
+                daysOption: daysOption,
+                hasBackground: hasBackground,
+                backgroundUrl: backgroundUrl,
                 repeat: repeat,
                 pinned: pinned,
                 status: status,

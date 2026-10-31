@@ -25,6 +25,21 @@ class CountdownItem {
     required this.state,
     required this.occurrenceDate,
     required this.age,
+    this.calendar = 'solar',
+    this.lunarMonth = 0,
+    this.lunarDay = 0,
+    this.lunarLeap = false,
+    this.lunarYear = 0,
+    this.style = 'normal',
+    this.background = '',
+    this.reminders = const <int>[],
+    this.reminderTime = '09:00',
+    this.ignoreYear = false,
+    this.showAge = false,
+    this.dateDisplayFormat = 'day',
+    this.daysOption = 'day',
+    this.hasBackground = false,
+    this.backgroundUrl = '',
   });
 
   final int id;
@@ -44,6 +59,21 @@ class CountdownItem {
   final String state;
   final int occurrenceDate;
   final int age;
+  final String calendar;
+  final int lunarMonth;
+  final int lunarDay;
+  final bool lunarLeap;
+  final int lunarYear;
+  final String style;
+  final String background;
+  final List<int> reminders;
+  final String reminderTime;
+  final bool ignoreYear;
+  final bool showAge;
+  final String dateDisplayFormat;
+  final String daysOption;
+  final bool hasBackground;
+  final String backgroundUrl;
 
   factory CountdownItem.fromJson(Map<String, dynamic> json) => CountdownItem(
     id: _int(json['id'], 0),
@@ -63,6 +93,21 @@ class CountdownItem {
     state: (json['state'] ?? 'future').toString(),
     occurrenceDate: _int(json['occurrenceDate'], 0),
     age: _int(json['age'], 0),
+    calendar: (json['calendar'] ?? 'solar').toString(),
+    lunarMonth: _int(json['lunarMonth'], 0),
+    lunarDay: _int(json['lunarDay'], 0),
+    lunarLeap: json['lunarLeap'] == true,
+    lunarYear: _int(json['lunarYear'], 0),
+    style: (json['style'] ?? 'normal').toString(),
+    background: (json['background'] ?? '').toString(),
+    reminders: _intList(json['reminders']),
+    reminderTime: (json['reminderTime'] ?? '09:00').toString(),
+    ignoreYear: json['ignoreYear'] == true,
+    showAge: json['showAge'] == true,
+    dateDisplayFormat: (json['dateDisplayFormat'] ?? 'day').toString(),
+    daysOption: (json['daysOption'] ?? 'day').toString(),
+    hasBackground: json['hasBackground'] == true,
+    backgroundUrl: (json['backgroundUrl'] ?? '').toString(),
   );
 
   bool get isToday => state == 'today';
@@ -75,9 +120,23 @@ class CountdownDraft {
     required this.date,
     required this.type,
     required this.repeat,
-    required this.pinned,
+    this.pinned = false,
     required this.color,
     required this.remark,
+    this.icon = '⏳',
+    this.calendar = 'solar',
+    this.lunarMonth = 0,
+    this.lunarDay = 0,
+    this.lunarLeap = false,
+    this.lunarYear = 0,
+    this.style = 'normal',
+    this.background = '',
+    this.reminders = const <int>[],
+    this.reminderTime = '09:00',
+    this.ignoreYear = false,
+    this.showAge = false,
+    this.dateDisplayFormat = 'day',
+    this.daysOption = 'day',
   });
 
   final String name;
@@ -87,6 +146,20 @@ class CountdownDraft {
   final bool pinned;
   final String color;
   final String remark;
+  final String icon;
+  final String calendar;
+  final int lunarMonth;
+  final int lunarDay;
+  final bool lunarLeap;
+  final int lunarYear;
+  final String style;
+  final String background;
+  final List<int> reminders;
+  final String reminderTime;
+  final bool ignoreYear;
+  final bool showAge;
+  final String dateDisplayFormat;
+  final String daysOption;
 
   int get stamp => date.year * 10000 + date.month * 100 + date.day;
 
@@ -94,8 +167,21 @@ class CountdownDraft {
     'name': name,
     'type': type,
     'date': stamp,
-    'calendar': 'solar',
+    'calendar': calendar,
+    'lunarMonth': lunarMonth,
+    'lunarDay': lunarDay,
+    'lunarLeap': lunarLeap,
+    'lunarYear': lunarYear,
+    'icon': icon,
+    'style': style,
+    'background': background,
+    'reminders': jsonEncode(reminders),
+    'reminderTime': reminderTime,
     'repeat': repeat,
+    'ignoreYear': ignoreYear,
+    'showAge': showAge,
+    'dateDisplayFormat': dateDisplayFormat,
+    'daysOption': daysOption,
     'pinned': pinned,
     'color': color,
     'remark': remark,
@@ -147,10 +233,7 @@ class CountdownApi {
 
   /// Re-applies a queued patch over a mirrored item, preserving the fields
   /// only the server can compute (hours, age).
-  static CountdownItem patchedItem(
-    CountdownItem item,
-    Map<String, dynamic> p,
-  ) {
+  static CountdownItem patchedItem(CountdownItem item, Map<String, dynamic> p) {
     final date = _int(p['date'], item.date);
     final repeat = (p['repeat'] ?? item.repeat).toString();
     final occurrence = repeat == 'yearly' ? _nextYearly(date) : date;
@@ -164,15 +247,41 @@ class CountdownApi {
       pinned: p['pinned'] is bool ? p['pinned'] as bool : item.pinned,
       status: item.status,
       color: (p['color'] ?? item.color).toString(),
-      icon: item.icon,
+      icon: (p['icon'] ?? item.icon).toString(),
       remark: (p['remark'] ?? item.remark).toString(),
       days: days.abs(),
       hours: item.hours,
       minutes: item.minutes,
       seconds: item.seconds,
-      state: days == 0 ? 'today' : days > 0 ? 'future' : 'past',
+      state: days == 0
+          ? 'today'
+          : days > 0
+          ? 'future'
+          : 'past',
       occurrenceDate: occurrence,
       age: item.age,
+      calendar: (p['calendar'] ?? item.calendar).toString(),
+      lunarMonth: _int(p['lunarMonth'], item.lunarMonth),
+      lunarDay: _int(p['lunarDay'], item.lunarDay),
+      lunarLeap: p['lunarLeap'] is bool
+          ? p['lunarLeap'] as bool
+          : item.lunarLeap,
+      lunarYear: _int(p['lunarYear'], item.lunarYear),
+      style: (p['style'] ?? item.style).toString(),
+      background: (p['background'] ?? item.background).toString(),
+      reminders: p['reminders'] != null
+          ? _intList(p['reminders'])
+          : item.reminders,
+      reminderTime: (p['reminderTime'] ?? item.reminderTime).toString(),
+      ignoreYear: p['ignoreYear'] is bool
+          ? p['ignoreYear'] as bool
+          : item.ignoreYear,
+      showAge: p['showAge'] is bool ? p['showAge'] as bool : item.showAge,
+      dateDisplayFormat: (p['dateDisplayFormat'] ?? item.dateDisplayFormat)
+          .toString(),
+      daysOption: (p['daysOption'] ?? item.daysOption).toString(),
+      hasBackground: item.hasBackground,
+      backgroundUrl: item.backgroundUrl,
     );
   }
 
@@ -201,9 +310,26 @@ class CountdownApi {
       hours: 0,
       minutes: 0,
       seconds: 0,
-      state: days == 0 ? 'today' : days > 0 ? 'future' : 'past',
+      state: days == 0
+          ? 'today'
+          : days > 0
+          ? 'future'
+          : 'past',
       occurrenceDate: occurrence,
       age: 0,
+      calendar: (payload['calendar'] ?? 'solar').toString(),
+      lunarMonth: _int(payload['lunarMonth'], 0),
+      lunarDay: _int(payload['lunarDay'], 0),
+      lunarLeap: payload['lunarLeap'] == true,
+      lunarYear: _int(payload['lunarYear'], 0),
+      style: (payload['style'] ?? 'normal').toString(),
+      background: (payload['background'] ?? '').toString(),
+      reminders: _intList(payload['reminders']),
+      reminderTime: (payload['reminderTime'] ?? '09:00').toString(),
+      ignoreYear: payload['ignoreYear'] == true,
+      showAge: payload['showAge'] == true,
+      dateDisplayFormat: (payload['dateDisplayFormat'] ?? 'day').toString(),
+      daysOption: (payload['daysOption'] ?? 'day').toString(),
     );
   }
 
@@ -397,4 +523,19 @@ int _int(Object? value, int fallback) {
   if (value is int) return value;
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+List<int> _intList(Object? value) {
+  Object? decoded = value;
+  if (value is String) {
+    try {
+      decoded = jsonDecode(value);
+    } on FormatException {
+      return const <int>[];
+    }
+  }
+  if (decoded is List) {
+    return decoded.map((item) => _int(item, 0)).toList(growable: false);
+  }
+  return const <int>[];
 }

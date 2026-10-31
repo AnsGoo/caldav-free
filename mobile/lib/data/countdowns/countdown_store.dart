@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:drift/drift.dart' show DoUpdate;
@@ -232,6 +233,21 @@ extension CountdownMirrorRow on CountdownItem {
     name: name,
     type: type,
     date: date,
+    calendar: calendar,
+    lunarMonth: lunarMonth,
+    lunarDay: lunarDay,
+    lunarLeap: lunarLeap,
+    lunarYear: lunarYear,
+    style: style,
+    background: background,
+    reminders: jsonEncode(reminders),
+    reminderTime: reminderTime,
+    ignoreYear: ignoreYear,
+    showAge: showAge,
+    dateDisplayFormat: dateDisplayFormat,
+    daysOption: daysOption,
+    hasBackground: hasBackground,
+    backgroundUrl: backgroundUrl,
     repeat: repeat,
     pinned: pinned,
     status: status,
@@ -267,5 +283,34 @@ extension CountdownMirrorModel on CountdownRow {
     state: state,
     occurrenceDate: occurrenceDate,
     age: age,
+    calendar: calendar,
+    lunarMonth: lunarMonth,
+    lunarDay: lunarDay,
+    lunarLeap: lunarLeap,
+    lunarYear: lunarYear,
+    style: style,
+    background: background,
+    reminders: _decodeReminders(reminders),
+    reminderTime: reminderTime,
+    ignoreYear: ignoreYear,
+    showAge: showAge,
+    dateDisplayFormat: dateDisplayFormat,
+    daysOption: daysOption,
+    hasBackground: hasBackground,
+    backgroundUrl: backgroundUrl,
   );
+}
+
+List<int> _decodeReminders(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded
+          .map((item) => item is int ? item : int.tryParse('$item') ?? 0)
+          .toList(growable: false);
+    }
+  } on FormatException {
+    return const <int>[];
+  }
+  return const <int>[];
 }

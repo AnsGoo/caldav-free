@@ -513,7 +513,13 @@ class _SummaryPanelState extends State<SummaryPanel> {
               clipBehavior: Clip.antiAlias,
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                child: _MarkdownPreview(markdown: _markdown),
+                child: _MarkdownPreview(
+                  markdown: _markdown,
+                  listColors: {
+                    for (final list in widget.lists)
+                      list.name: colorFromHex(list.color),
+                  },
+                ),
               ),
             ),
           ),
@@ -769,13 +775,19 @@ class _TagFilterDropdown extends StatelessWidget {
 
 /// Read-only Markdown preview for the generated summary.
 ///
-/// The generated subset is headings, list rows and checkbox bullets, so a
-/// small renderer keeps the client free of a markdown dependency while still
-/// showing a preview instead of raw text.
+/// The generated subset is headings, checkbox bullets and `·` metadata, so a
+/// focused renderer produces a cleaner result than dumping raw Markdown and
+/// avoids pulling in a full parser dependency.
 class _MarkdownPreview extends StatelessWidget {
-  const _MarkdownPreview({required this.markdown});
+  const _MarkdownPreview({required this.markdown, required this.listColors});
 
   final String markdown;
+  final Map<String, Color> listColors;
+
+  static final _checkbox = RegExp(r'^- \[([ xX])\]\s?(.*)$');
+  static final _datePrefix = RegExp(r'^\[([^\]]+)\]\s*(.*)$');
+  static final _stats = RegExp(r'^已完成\s*(\d+)\s*项\s*·\s*未完成\s*(\d+)\s*项$');
+  static final _dayRange = RegExp(r'^\d+\s*月\s*\d+\s*日\s*-\s*\d+\s*月\s*\d+\s*日$');
 
   @override
   Widget build(BuildContext context) {
@@ -785,16 +797,17 @@ class _MarkdownPreview extends StatelessWidget {
     for (final rawLine in markdown.split('\n')) {
       final line = rawLine.trimRight();
       if (line.trim().isEmpty) {
-        if (rows.isNotEmpty) rows.add(const SizedBox(height: 6));
+        if (rows.isNotEmpty) rows.add(const SizedBox(height: 4));
         continue;
       }
       if (line.startsWith('## ')) {
         rows.add(
           Text(
             line.substring(3),
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontSize: 17,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontSize: 19,
               fontWeight: FontWeight.w700,
+              letterSpacing: -0.4,
             ),
           ),
         );
@@ -803,42 +816,25 @@ class _MarkdownPreview extends StatelessWidget {
       if (line.startsWith('### ')) {
         rows.add(
           Padding(
-            padding: const EdgeInsets.only(top: 6, bottom: 2),
-            child: Text(
-              line.substring(4),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: scheme.onSurfaceVariant,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        );
-        continue;
-      }
-      final checkbox = RegExp(r'^- \[([ xX])\]\s?(.*)$').firstMatch(line);
-      if (checkbox != null) {
-        final done = checkbox.group(1)!.toLowerCase() == 'x';
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+            padding: const EdgeInsets.only(top: 14, bottom: 6),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  done
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  size: 15,
-                  color: done ? scheme.primary : scheme.outline,
+                Container(
+                  width: 3,
+                  height: 13,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
                 ),
                 const SizedBox(width: 7),
-                Expanded(
-                  child: Text(
-                    checkbox.group(2) ?? '',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      fontSize: 12.5,
-                      height: 1.45,
-                    ),
+                Text(
+                  line.substring(4),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontSize: 12,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
                   ),
                 ),
               ],
@@ -847,21 +843,75 @@ class _MarkdownPreview extends StatelessWidget {
         );
         continue;
       }
+      final stats = _stats.firstMatch(line.trim());
+      if (stats != null) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 2, bottom: 2),
+            child: Wrap(
+              spacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                _PreviewPill(
+                  label: '已完成 ${stats.group(1)}',
+                  color: const Color(0xFF10B981),
+                ),
+                _PreviewPill(
+                  label: '未完成 ${stats.group(2)}',
+                  color: scheme.primary,
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+      if (_dayRange.hasMatch(line.trim())) {
+        rows.add(
+          Text(
+            line.trim(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              fontSize: 11,
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        );
+        continue;
+      }
+      final checkbox = _checkbox.firstMatch(line);
+      if (checkbox != null) {
+        rows.add(
+          _PreviewTaskRow(
+            done: checkbox.group(1)!.toLowerCase() == 'x',
+            body: checkbox.group(2) ?? '',
+            listColors: listColors,
+          ),
+        );
+        continue;
+      }
       if (line.startsWith('- ')) {
         rows.add(
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1),
+            padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(width: 4),
-                Text('• ', style: theme.textTheme.bodySmall),
+                Container(
+                  width: 4,
+                  height: 4,
+                  margin: const EdgeInsets.only(top: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.onSurfaceVariant,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     line.substring(2),
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 12.5,
-                      height: 1.45,
+                      height: 1.5,
                     ),
                   ),
                 ),
@@ -882,9 +932,183 @@ class _MarkdownPreview extends StatelessWidget {
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: rows,
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows);
+  }
+}
+
+class _PreviewPill extends StatelessWidget {
+  const _PreviewPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _PreviewTaskRow extends StatelessWidget {
+  const _PreviewTaskRow({
+    required this.done,
+    required this.body,
+    required this.listColors,
+  });
+
+  final bool done;
+  final String body;
+  final Map<String, Color> listColors;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final match = _MarkdownPreview._datePrefix.firstMatch(body);
+    final date = match?.group(1);
+    final rest = (match?.group(2) ?? body).trim();
+    final parts = rest
+        .split(' · ')
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    final title = parts.isEmpty ? rest : parts.first;
+    final meta = parts.length > 1 ? parts.skip(1).toList(growable: false) : const <String>[];
+
+    Color metaColor(String value) {
+      final listColor = listColors[value];
+      if (listColor != null) return listColor;
+      if (value.startsWith('#')) return tagColorForName(value.substring(1).trim());
+      if (value.contains('高优先级')) return const Color(0xFFE5484D);
+      if (value.contains('中优先级')) return const Color(0xFFF76B15);
+      if (value.contains('低优先级')) return const Color(0xFF3B82F6);
+      return scheme.onSurfaceVariant;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(
+              done
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              size: 15,
+              color: done ? scheme.primary : scheme.outline,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (date != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          date,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 12.5,
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                          color: done ? scheme.onSurfaceVariant : null,
+                          decoration: done
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: scheme.onSurfaceVariant
+                              .withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (meta.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        for (final item in meta)
+                          if (listColors.containsKey(item))
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 6,
+                                  height: 6,
+                                  decoration: BoxDecoration(
+                                    color: listColors[item],
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  item,
+                                  style: TextStyle(
+                                    fontSize: 10.5,
+                                    color: listColors[item],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            Text(
+                              item,
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                color: metaColor(item),
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

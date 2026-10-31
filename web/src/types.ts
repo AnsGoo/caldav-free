@@ -143,6 +143,7 @@ export interface TaskList {
 export interface TaskFolder {
   id: number
   name: string
+  kind: 'TASK' | 'NOTE'
   order: number
 }
 

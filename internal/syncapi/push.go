@@ -1006,7 +1006,13 @@ func (s *Service) applyFolder(ctx context.Context, userID int64, action, entityI
 		if err != nil || strings.TrimSpace(name) == "" {
 			return errorOutcome("invalid_patch", "name is required")
 		}
-		folder, err := s.store.CreateTaskFolderWithSyncID(ctx, userID, name, entityID)
+		kind := "TASK"
+		if value, set, _, err := patchString(patch, "kind"); err != nil {
+			return errorOutcome("invalid_patch", err.Error())
+		} else if set && strings.TrimSpace(value) != "" {
+			kind = value
+		}
+		folder, err := s.store.CreateTaskFolderWithSyncID(ctx, userID, name, kind, entityID)
 		if err != nil {
 			return storeFailure("create folder", err)
 		}

@@ -8,6 +8,15 @@
         </svg>
       </span>
       <span class="tw-brand-name">我的任务</span>
+      <div class="tw-sidebar-mobile-actions">
+        <button class="tw-icon-button tw-notice-button" title="通知" @click="$emit('open-notifications')">
+          <TaskIcon name="notice" :size="18" />
+          <span v-if="unreadNotifications" class="tw-side-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span>
+        </button>
+        <button class="tw-icon-button" title="退出登录" @click="$emit('logout')">
+          <TaskIcon name="logout" :size="18" />
+        </button>
+      </div>
       <button class="tw-icon-button tw-sidebar-close" aria-label="收起侧栏" @click="$emit('close')">
         <TaskIcon name="close" :size="18" />
       </button>
@@ -74,9 +83,6 @@
         <header class="tw-section-head">
           <span>任务清单</span>
           <span class="tw-section-actions">
-            <button class="tw-icon-button" aria-label="新建文件夹" title="新建文件夹" @click="$emit('create-folder')">
-              <TaskIcon name="folder" :size="16" />
-            </button>
             <button class="tw-icon-button" aria-label="新建任务清单" title="新建任务清单" @click="toggleAdd">
               <TaskIcon name="plus" :size="16" />
             </button>
@@ -265,29 +271,6 @@
         <TaskIcon name="check" :size="13" />
         CalDAV VTODO 同步
       </p>
-      <button class="tw-side-link" @click="$emit('open-notifications')">
-        <TaskIcon name="notice" :size="16" />
-        <span>通知</span>
-        <span v-if="unreadNotifications" class="tw-side-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span>
-      </button>
-      <button class="tw-side-link" @click="$emit('open-reminders')">
-        <TaskIcon name="bell" :size="16" />
-        <span>提醒设置</span>
-      </button>
-      <router-link class="tw-side-link" to="/dashboard">
-        <TaskIcon name="back" :size="16" />
-        <span>管理后台</span>
-      </router-link>
-      <div class="tw-account">
-        <span class="tw-avatar">{{ initial }}</span>
-        <span class="tw-account-meta">
-          <strong>{{ displayName || userName }}</strong>
-          <small>{{ userName }}</small>
-        </span>
-        <button class="tw-icon-button" title="退出登录" @click="$emit('logout')">
-          <TaskIcon name="close" :size="16" />
-        </button>
-      </div>
     </footer>
   </aside>
 </template>
@@ -313,8 +296,6 @@ const props = defineProps<{
   activeSharedListId: number
   activeSharedNoteId: number
   unreadNotifications: number
-  userName: string
-  displayName: string
   open: boolean
 }>()
 
@@ -331,7 +312,6 @@ const emit = defineEmits<{
   (event: 'delete-list', list: TaskList): void
   (event: 'pin-list', list: TaskList): void
   (event: 'copy-list', list: TaskList): void
-  (event: 'create-folder'): void
   (event: 'edit-folder', folder: TaskFolder): void
   (event: 'delete-folder', folder: TaskFolder): void
   (event: 'create-filter'): void
@@ -343,7 +323,6 @@ const emit = defineEmits<{
   (event: 'reorder-folders', ids: number[]): void
   (event: 'share-list', list: TaskList): void
   (event: 'manage-tags'): void
-  (event: 'open-reminders'): void
   (event: 'open-notifications'): void
   (event: 'logout'): void
   (event: 'close'): void
@@ -357,7 +336,6 @@ const draggingFolderId = ref(0)
 const draggingListId = ref(0)
 const draggingFilterId = ref(0)
 
-const initial = computed(() => (props.displayName || props.userName || '?').slice(0, 1).toUpperCase())
 const pinnedLists = computed(() => props.lists.filter((list) => list.pinned && list.kind !== 'NOTE'))
 const pinnedFilters = computed(() => props.filters.filter((filter) => filter.pinned))
 const unpinnedFilters = computed(() => props.filters.filter((filter) => !filter.pinned))

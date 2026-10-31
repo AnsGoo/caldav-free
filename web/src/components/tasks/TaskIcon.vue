@@ -213,6 +213,14 @@
     <template v-else-if="name === 'sunrise'">
       <path d="M4 18h16M6.5 14a5.5 5.5 0 0 1 11 0M12 4v3M4.8 8.2l1.8 1.8M19.2 8.2l-1.8 1.8" />
     </template>
+    <template v-else-if="name === 'user'">
+      <circle cx="12" cy="8" r="3.6" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </template>
+    <template v-else-if="name === 'logout'">
+      <path d="M14 4.5H6.5a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2H14" />
+      <path d="M10 12h10M17 8.5 20.5 12 17 15.5" />
+    </template>
     <template v-else>
       <path d="m4.5 12.5 5 5 10-11" />
     </template>

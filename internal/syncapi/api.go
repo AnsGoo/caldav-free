@@ -159,6 +159,7 @@ type SectionDTO struct {
 type FolderDTO struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
+	Kind       string `json:"kind"`
 	Order      int    `json:"order"`
 	CreatedAt  string `json:"createdAt"`
 	ModifiedAt string `json:"modifiedAt"`
@@ -573,6 +574,7 @@ func folderSnapshot(folder *store.TaskFolder, seq int64) FolderDTO {
 	return FolderDTO{
 		ID:         folder.SyncID,
 		Name:       folder.Name,
+		Kind:       folder.NormalizedKind(),
 		Order:      folder.Order,
 		CreatedAt:  formatTimeValue(folder.CreatedAt),
 		ModifiedAt: formatTimeValue(folder.ModifiedAt),

@@ -103,10 +103,10 @@ export function copyTaskList(id: number, payload: { name: string; mode: 'open' |
   })
 }
 
-export function createTaskFolder(name: string) {
+export function createTaskFolder(name: string, kind: 'TASK' | 'NOTE' = 'TASK') {
   return api<{ folder: TaskFolder }>('/task-folders', {
     method: 'POST',
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, kind }),
   })
 }
 

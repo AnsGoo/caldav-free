@@ -270,6 +270,88 @@
   color: var(--tw-accent);
 }
 
+.tw-rail-notice {
+  position: relative;
+}
+
+.tw-rail-badge {
+  position: absolute;
+  top: 2px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--tw-danger);
+  color: #fff;
+  font-size: 9.5px;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.tw-rail-account {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.tw-rail-account-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.tw-rail-account-menu {
+  position: absolute;
+  left: calc(100% + 10px);
+  bottom: 0;
+  z-index: 41;
+  min-width: 168px;
+  padding: 10px 10px 8px;
+  border-radius: 10px;
+  background: var(--tw-bg);
+  border: 1px solid var(--tw-border);
+  box-shadow: var(--tw-shadow);
+  display: grid;
+  gap: 2px;
+}
+
+.tw-rail-account-menu strong {
+  font-size: 13px;
+  color: var(--tw-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-rail-account-menu small {
+  margin-bottom: 6px;
+  font-size: 11px;
+  color: var(--tw-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-rail-logout {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tw-hover);
+  color: var(--tw-danger);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.tw-rail-logout:hover {
+  background: var(--tw-surface-2);
+}
+
 /* --------------------------------------------------------------- sidebar */
 .tw-sidebar {
   width: 252px;
@@ -304,6 +386,29 @@
 .tw-sidebar-close {
   display: none;
   margin-left: auto;
+}
+
+.tw-sidebar-mobile-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.tw-sidebar-mobile-actions .tw-icon-button {
+  position: relative;
+}
+
+.tw-sidebar-mobile-actions .tw-notice-button .tw-side-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin-left: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  font-size: 9px;
+  line-height: 15px;
 }
 
 .tw-smart-nav {
@@ -2081,6 +2186,11 @@
 
   .tw-sidebar-close {
     display: inline-flex;
+    margin-left: 2px;
+  }
+
+  .tw-sidebar-mobile-actions {
+    display: inline-flex;
   }
 
   .tw-scrim {
@@ -2233,6 +2343,25 @@
 }
 
 /* ---------------------------------------------------------------- dialogs */
+/* Dialogs reused outside the task workspace (e.g. admin backend) need the
+   task theme variables, which normally live on .tw-root. */
+.tw-dialog-theme {
+  --tw-bg: #ffffff;
+  --tw-rail: #f4f4f5;
+  --tw-sidebar: #f8f8f9;
+  --tw-surface: #f3f3f5;
+  --tw-surface-2: #eaeaee;
+  --tw-hover: #f0f0f3;
+  --tw-text: #1f2329;
+  --tw-text-2: #5c626b;
+  --tw-text-3: #9aa0a6;
+  --tw-border: #e9e9ec;
+  --tw-accent: #4772fa;
+  --tw-accent-soft: rgba(71, 114, 250, 0.1);
+  --tw-danger: #d93f2b;
+  --tw-shadow: 0 24px 60px -30px rgba(21, 27, 38, 0.45);
+}
+
 .tw-dialog-scrim {
   position: fixed;
   inset: 0;

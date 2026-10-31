@@ -11,15 +11,33 @@ import (
 	"gorm.io/gorm"
 )
 
-// TaskFolder groups lists in the workspace sidebar.
+// TaskFolder groups lists in the workspace sidebar. Folders are one level
+// deep and are scoped to either task lists or note lists via Kind.
 type TaskFolder struct {
 	ID         int64     `gorm:"primaryKey"`
 	SyncID     string    `gorm:"column:sync_id;size:64;not null;default:''"`
 	UserID     int64     `gorm:"not null;uniqueIndex:idx_taskfolder_owner_name,priority:1;index:idx_taskfolder_user"`
 	Name       string    `gorm:"size:190;not null;uniqueIndex:idx_taskfolder_owner_name,priority:2"`
+	Kind       string    `gorm:"size:16;not null;default:'TASK'"`
 	Order      int       `gorm:"column:order_index;not null;default:0"`
 	CreatedAt  time.Time `gorm:"not null;autoCreateTime"`
 	ModifiedAt time.Time `gorm:"not null;autoUpdateTime"`
+}
+
+// NormalizedKind reports whether the folder belongs to note lists or task
+// lists. Older rows without a kind default to task folders.
+func (f *TaskFolder) NormalizedKind() string {
+	if strings.ToUpper(strings.TrimSpace(f.Kind)) == "NOTE" {
+		return "NOTE"
+	}
+	return "TASK"
+}
+
+func normalizeFolderKind(kind string) string {
+	if strings.ToUpper(strings.TrimSpace(kind)) == "NOTE" {
+		return "NOTE"
+	}
+	return "TASK"
 }
 
 // TaskFilterConditions is the JSON payload stored on a saved filter.
@@ -86,13 +104,18 @@ func (s *Store) GetTaskFolder(ctx context.Context, userID, id int64) (*TaskFolde
 	return &folder, nil
 }
 
-// CreateTaskFolder adds a folder for the user.
+// CreateTaskFolder adds a task folder for the user.
 func (s *Store) CreateTaskFolder(ctx context.Context, userID int64, name string) (*TaskFolder, error) {
-	return s.CreateTaskFolderWithSyncID(ctx, userID, name, "")
+	return s.CreateTaskFolderKind(ctx, userID, name, "TASK")
+}
+
+// CreateTaskFolderKind adds a task or note folder for the user.
+func (s *Store) CreateTaskFolderKind(ctx context.Context, userID int64, name, kind string) (*TaskFolder, error) {
+	return s.CreateTaskFolderWithSyncID(ctx, userID, name, kind, "")
 }
 
 // CreateTaskFolderWithSyncID adds a folder using a caller-supplied sync ID.
-func (s *Store) CreateTaskFolderWithSyncID(ctx context.Context, userID int64, name, syncID string) (*TaskFolder, error) {
+func (s *Store) CreateTaskFolderWithSyncID(ctx context.Context, userID int64, name, kind, syncID string) (*TaskFolder, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, errors.New("folder name is required")
@@ -100,7 +123,7 @@ func (s *Store) CreateTaskFolderWithSyncID(ctx context.Context, userID int64, na
 	var maxOrder int
 	_ = s.db.WithContext(ctx).Model(&TaskFolder{}).Where("user_id = ?", userID).
 		Select("COALESCE(MAX(order_index), 0)").Scan(&maxOrder).Error
-	folder := TaskFolder{UserID: userID, SyncID: syncID, Name: name, Order: maxOrder + 1}
+	folder := TaskFolder{UserID: userID, SyncID: syncID, Name: name, Kind: normalizeFolderKind(kind), Order: maxOrder + 1}
 	if err := s.db.WithContext(ctx).Create(&folder).Error; err != nil {
 		if errors.Is(translate(err), ErrConflict) {
 			return nil, ErrConflict
@@ -144,17 +167,23 @@ func (s *Store) DeleteTaskFolder(ctx context.Context, userID, id int64) error {
 	})
 }
 
-// SetTaskListFolder moves a list into a folder (0 = root).
+// SetTaskListFolder moves a list into a folder (0 = root). Task and note
+// lists can only live in folders of the matching kind.
 func (s *Store) SetTaskListFolder(ctx context.Context, userID, listID, folderID int64) error {
-	if _, err := s.GetTaskList(ctx, userID, listID); err != nil {
+	list, err := s.GetTaskList(ctx, userID, listID)
+	if err != nil {
 		return err
 	}
 	if folderID != 0 {
-		if _, err := s.GetTaskFolder(ctx, userID, folderID); err != nil {
+		folder, err := s.GetTaskFolder(ctx, userID, folderID)
+		if err != nil {
 			return err
 		}
+		if (list.Kind == "NOTE") != (folder.NormalizedKind() == "NOTE") {
+			return errors.New("清单和文件夹类型不匹配")
+		}
 	}
-	err := s.db.WithContext(ctx).Model(&TaskList{}).
+	err = s.db.WithContext(ctx).Model(&TaskList{}).
 		Where("id = ? AND user_id = ?", listID, userID).
 		Update("folder_id", folderID).Error
 	if err != nil {

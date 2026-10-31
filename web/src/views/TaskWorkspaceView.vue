@@ -46,13 +46,9 @@
         </button>
       </nav>
       <div class="tw-rail-foot">
-        <button
-          class="tw-rail-button"
-          :class="{ active: remindersEnabled }"
-          title="提醒设置"
-          @click="reminderSettingsOpen = true"
-        >
-          <TaskIcon name="bell" :size="20" />
+        <button class="tw-rail-button tw-rail-notice" title="通知" @click="notificationDialogOpen = true">
+          <TaskIcon name="notice" :size="20" />
+          <span v-if="unreadNotifications" class="tw-rail-badge">{{ unreadNotifications > 99 ? '99+' : unreadNotifications }}</span>
         </button>
         <button class="tw-rail-button" :title="`主题：${themeLabel}`" @click="themeDialogOpen = true">
           <TaskIcon name="palette" :size="20" />
@@ -63,6 +59,22 @@
         <router-link class="tw-rail-button" to="/dashboard" title="管理后台">
           <TaskIcon name="settings" :size="20" />
         </router-link>
+        <div class="tw-rail-account">
+          <button class="tw-rail-button" :title="auth.user?.displayName || auth.user?.username || '账户'" @click="accountMenuOpen = !accountMenuOpen">
+            <TaskIcon name="user" :size="20" />
+          </button>
+          <template v-if="accountMenuOpen">
+            <div class="tw-rail-account-scrim" @click="accountMenuOpen = false" />
+            <div class="tw-rail-account-menu">
+              <strong>{{ auth.user?.displayName || auth.user?.username || '账户' }}</strong>
+              <small>{{ auth.user?.username }}</small>
+              <button class="tw-rail-logout" @click="handleLogout">
+                <TaskIcon name="logout" :size="15" />
+                退出登录
+              </button>
+            </div>
+          </template>
+        </div>
       </div>
     </aside>
 
@@ -71,7 +83,7 @@
       :lists="lists"
       :shared-lists="sharedLists"
       :shared-notes="sharedNotes"
-      :folders="folders"
+      :folders="taskFolders"
       :filters="filters"
       :tag-counts="tagCounts"
       :counts="counts"
@@ -82,8 +94,6 @@
       :active-shared-note-id="sharedNote?.task.id || 0"
       :unread-notifications="unreadNotifications"
       :active-tag="activeTag"
-      :user-name="auth.user?.username || ''"
-      :display-name="auth.user?.displayName || ''"
       :open="sidebarOpen"
       @select-view="selectView"
       @select-list="selectList"
@@ -97,7 +107,6 @@
       @delete-list="confirmDeleteList"
       @pin-list="toggleListPin"
       @copy-list="openCopyList"
-      @create-folder="openCreateFolder"
       @edit-folder="openEditFolder"
       @delete-folder="confirmDeleteFolder"
       @create-filter="openCreateFilter"
@@ -109,7 +118,6 @@
       @reorder-folders="reorderSidebarFolders"
       @select-tag="selectTag"
       @manage-tags="openTagManager"
-      @open-reminders="reminderSettingsOpen = true"
       @open-notifications="notificationDialogOpen = true"
       @close="sidebarOpen = false"
       @logout="handleLogout"
@@ -205,6 +213,7 @@
         v-else-if="view === 'notes'"
         :notes="noteTasks"
         :lists="lists"
+        :folders="noteFolders"
         :shared-notes="sharedNotes"
         :tag-colors="tagColorMap"
         :selected-id="selectedId"
@@ -652,7 +661,7 @@
     <div v-if="folderVisible" class="tw-dialog-scrim" @click.self="folderVisible = false">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" @keydown.esc="folderVisible = false">
         <header class="tw-dialog-head">
-          <h2>{{ folderForm.id ? '编辑文件夹' : '新建文件夹' }}</h2>
+          <h2>编辑文件夹</h2>
           <button class="tw-icon-button" title="关闭" @click="folderVisible = false">
             <TaskIcon name="close" :size="16" />
           </button>
@@ -892,7 +901,7 @@
             文件夹
             <a-select v-model.number="editForm.folderId" class="tw-field-select">
               <a-option :value="0">根目录</a-option>
-              <a-option v-for="folder in folders" :key="folder.id" :value="folder.id">{{ folder.name }}</a-option>
+              <a-option v-for="folder in editFolderOptions" :key="folder.id" :value="folder.id">{{ folder.name }}</a-option>
             </a-select>
           </div>
           <p class="tw-modal-note">
@@ -1006,13 +1015,6 @@
       @close="eventDialogOpen = false"
     />
 
-    <ReminderSettingsDialog
-      v-if="reminderSettingsOpen"
-      :browser-enabled="remindersEnabled"
-      @toggle-browser="toggleReminders"
-      @close="reminderSettingsOpen = false"
-    />
-
     <div v-if="sectionDeleteTarget" class="tw-dialog-scrim" @click.self="sectionDeleteTarget = null">
       <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="删除分组">
         <header class="tw-dialog-head">
@@ -1110,7 +1112,6 @@ import {
   copyTaskList,
   createSavedFilter,
   createTask,
-  createTaskFolder,
   createTaskSection,
   deleteTaskSection,
   updateTaskSection,
@@ -1182,7 +1183,6 @@ import TaskAIPanel from '../components/tasks/TaskAIPanel.vue'
 import CalendarEventDialog from '../components/tasks/CalendarEventDialog.vue'
 import NotificationDialog from '../components/tasks/NotificationDialog.vue'
 import TaskListShareDialog from '../components/tasks/TaskListShareDialog.vue'
-import ReminderSettingsDialog from '../components/tasks/ReminderSettingsDialog.vue'
 import ThemePicker from '../components/tasks/ThemePicker.vue'
 import ShortcutHelp from '../components/tasks/ShortcutHelp.vue'
 import CommandPalette, { type PaletteCommand } from '../components/tasks/CommandPalette.vue'
@@ -1210,6 +1210,8 @@ const sharedNotes = ref<SharedNote[]>([])
 const sharedNote = ref<SharedNote | null>(null)
 const noteShareTarget = ref<TaskItem | null>(null)
 const folders = ref<TaskFolder[]>([])
+const taskFolders = computed(() => folders.value.filter((folder) => folder.kind !== 'NOTE'))
+const noteFolders = computed(() => folders.value.filter((folder) => folder.kind === 'NOTE'))
 const sections = ref<TaskSection[]>([])
 const filters = ref<SavedFilter[]>([])
 const tasks = ref<TaskItem[]>([])
@@ -1303,7 +1305,7 @@ const moveDialogOpen = ref(false)
 const moveTargetId = ref(0)
 const batchBusy = ref(false)
 const remindersEnabled = ref(false)
-const reminderSettingsOpen = ref(false)
+const accountMenuOpen = ref(false)
 const notificationDialogOpen = ref(false)
 const unreadNotifications = ref(0)
 const reminderTasks = ref<TaskItem[]>([])
@@ -1322,6 +1324,9 @@ const editVisible = ref(false)
 const editBusy = ref(false)
 const editForm = reactive({ id: 0, name: '', color: LIST_COLORS[0], folderId: 0 })
 const editingList = computed(() => lists.value.find((list) => list.id === editForm.id))
+const editFolderOptions = computed(() =>
+  folders.value.filter((folder) => (folder.kind === 'NOTE') === (editingList.value?.kind === 'NOTE')),
+)
 const folderVisible = ref(false)
 const folderBusy = ref(false)
 const folderForm = reactive({ id: 0, name: '' })
@@ -3216,12 +3221,6 @@ function emptyConditions(): TaskFilterConditions {
   return { listIds: [], tags: [], tagMode: 'any', priorities: [], status: 'open', date: 'any', dateFrom: '', dateTo: '', keyword: '' }
 }
 
-function openCreateFolder() {
-  folderForm.id = 0
-  folderForm.name = ''
-  folderVisible.value = true
-}
-
 function openEditFolder(folder: TaskFolder) {
   folderForm.id = folder.id
   folderForm.name = folder.name
@@ -3236,8 +3235,7 @@ async function saveFolder() {
   }
   folderBusy.value = true
   try {
-    if (folderForm.id) await updateTaskFolder(folderForm.id, { name })
-    else await createTaskFolder(name)
+    await updateTaskFolder(folderForm.id, { name })
     folderVisible.value = false
     await loadWorkspace(true)
   } catch (error) {
@@ -3641,43 +3639,6 @@ function startReminderTimer() {
   reminderTimer = setInterval(() => {
     void checkReminders()
   }, 30000)
-}
-
-async function toggleReminders() {
-  if (remindersEnabled.value) {
-    remindersEnabled.value = false
-    stopReminderTimer()
-    try {
-      localStorage.setItem('caldav-task-reminders', 'off')
-    } catch {
-      /* ignore */
-    }
-    Message.info('已关闭浏览器提醒')
-    return
-  }
-  if (!notificationSupported()) {
-    Message.warning('当前浏览器不支持桌面通知')
-    return
-  }
-  if (!window.isSecureContext) {
-    Message.warning('浏览器提醒需要 HTTPS 或 localhost 访问')
-    return
-  }
-  let permission = Notification.permission
-  if (permission === 'default') permission = await Notification.requestPermission()
-  if (permission !== 'granted') {
-    Message.warning('未获得通知权限，请在浏览器设置中允许通知')
-    return
-  }
-  remindersEnabled.value = true
-  try {
-    localStorage.setItem('caldav-task-reminders', 'on')
-  } catch {
-    /* ignore */
-  }
-  await checkReminders()
-  startReminderTimer()
-  Message.success('已开启浏览器提醒，页面保持打开时生效')
 }
 
 async function refreshNotifications() {

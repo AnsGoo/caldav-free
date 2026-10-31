@@ -38,6 +38,7 @@ type apiTaskList struct {
 type apiTaskFolder struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
+	Kind  string `json:"kind"`
 	Order int    `json:"order"`
 }
 
@@ -234,7 +235,7 @@ func apiTaskListDTO(list *store.TaskList, count int64) apiTaskList {
 }
 
 func apiTaskFolderDTO(folder *store.TaskFolder) apiTaskFolder {
-	return apiTaskFolder{ID: folder.ID, Name: folder.Name, Order: folder.Order}
+	return apiTaskFolder{ID: folder.ID, Name: folder.Name, Kind: folder.NormalizedKind(), Order: folder.Order}
 }
 
 func apiTaskSectionDTO(section *store.TaskSection) apiTaskSection {
@@ -1233,8 +1234,17 @@ func (s *Server) apiCreateTaskList(w http.ResponseWriter, r *http.Request, curre
 		return
 	}
 	if body.FolderID > 0 {
-		if _, err := s.store.GetTaskFolder(r.Context(), current.ID, body.FolderID); err != nil {
+		folder, err := s.store.GetTaskFolder(r.Context(), current.ID, body.FolderID)
+		if err != nil {
 			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
+		listKind := body.Kind
+		if listKind == "" {
+			listKind = "TASK"
+		}
+		if (listKind == "NOTE") != (folder.NormalizedKind() == "NOTE") {
+			writeAPIError(w, http.StatusBadRequest, "清单和文件夹类型不匹配")
 			return
 		}
 	}
@@ -1285,8 +1295,13 @@ func (s *Server) apiUpdateTaskList(w http.ResponseWriter, r *http.Request, curre
 		body.Color = existing.Color
 	}
 	if body.FolderID != nil && *body.FolderID > 0 {
-		if _, err := s.store.GetTaskFolder(r.Context(), current.ID, *body.FolderID); err != nil {
+		folder, err := s.store.GetTaskFolder(r.Context(), current.ID, *body.FolderID)
+		if err != nil {
 			writeAPIError(w, http.StatusBadRequest, "文件夹不存在")
+			return
+		}
+		if (existing.Kind == "NOTE") != (folder.NormalizedKind() == "NOTE") {
+			writeAPIError(w, http.StatusBadRequest, "清单和文件夹类型不匹配")
 			return
 		}
 	}
@@ -1549,11 +1564,16 @@ func (s *Server) apiEmptyTrash(w http.ResponseWriter, r *http.Request, current *
 func (s *Server) apiCreateTaskFolder(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body struct {
 		Name string `json:"name"`
+		Kind string `json:"kind"`
 	}
 	if !readAPIJSON(w, r, &body) {
 		return
 	}
-	folder, err := s.store.CreateTaskFolder(r.Context(), current.ID, body.Name)
+	if body.Kind != "" && body.Kind != "TASK" && body.Kind != "NOTE" {
+		writeAPIError(w, http.StatusBadRequest, "无效的文件夹类型")
+		return
+	}
+	folder, err := s.store.CreateTaskFolderKind(r.Context(), current.ID, body.Name, body.Kind)
 	if err != nil {
 		if err == store.ErrConflict {
 			writeAPIError(w, http.StatusConflict, "同名文件夹已存在")

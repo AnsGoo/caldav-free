@@ -1,6 +1,10 @@
 <template>
   <AdminLayout title="控制台" subtitle="服务器概览、用户与日历状态">
     <template #actions>
+      <a-button @click="reminderSettingsOpen = true">
+        <template #icon><IconNotification /></template>
+        提醒设置
+      </a-button>
       <a-button @click="load" :loading="loading">
         <template #icon><IconRefresh /></template>
         刷新
@@ -171,6 +175,15 @@
         </a-card>
       </template>
     </a-spin>
+
+    <div class="tw-dialog-theme">
+      <ReminderSettingsDialog
+        v-if="reminderSettingsOpen"
+        :browser-enabled="browserRemindersEnabled"
+        @toggle-browser="toggleBrowserReminders"
+        @close="reminderSettingsOpen = false"
+      />
+    </div>
   </AdminLayout>
 </template>
 
@@ -185,11 +198,13 @@ import {
   IconCheckCircle,
   IconCheckSquare,
   IconCopy,
+  IconNotification,
   IconPlus,
   IconRefresh,
   IconUserGroup,
 } from '@arco-design/web-vue/es/icon'
 import AdminLayout from '../layouts/AdminLayout.vue'
+import ReminderSettingsDialog from '../components/tasks/ReminderSettingsDialog.vue'
 import { api } from '../api'
 import { useIsMobile } from '../useMobile'
 import { auth, copyText, initials } from '../auth'
@@ -198,6 +213,53 @@ import type { DashboardData } from '../types'
 const router = useRouter()
 const loading = ref(true)
 const data = ref<DashboardData | null>(null)
+const reminderSettingsOpen = ref(false)
+const browserRemindersEnabled = ref(false)
+
+function syncBrowserReminders() {
+  try {
+    browserRemindersEnabled.value =
+      localStorage.getItem('caldav-task-reminders') === 'on' &&
+      'Notification' in window &&
+      Notification.permission === 'granted'
+  } catch {
+    browserRemindersEnabled.value = false
+  }
+}
+
+async function toggleBrowserReminders() {
+  if (browserRemindersEnabled.value) {
+    browserRemindersEnabled.value = false
+    try {
+      localStorage.setItem('caldav-task-reminders', 'off')
+    } catch {
+      /* ignore */
+    }
+    Message.info('已关闭浏览器提醒')
+    return
+  }
+  if (!('Notification' in window)) {
+    Message.warning('当前浏览器不支持桌面通知')
+    return
+  }
+  if (!window.isSecureContext) {
+    Message.warning('浏览器提醒需要 HTTPS 或 localhost 访问')
+    return
+  }
+  let permission = Notification.permission
+  if (permission === 'default') permission = await Notification.requestPermission()
+  if (permission !== 'granted') {
+    Message.warning('未获得通知权限，请在浏览器设置中允许通知')
+    return
+  }
+  browserRemindersEnabled.value = true
+  try {
+    localStorage.setItem('caldav-task-reminders', 'on')
+  } catch {
+    /* ignore */
+  }
+  Message.success('已开启浏览器提醒，任务工作台页面打开时生效')
+}
 const origin = computed(() => window.location.origin)
 const caldavBase = computed(() => auth.caldavUrl || origin.value)
 
@@ -233,5 +295,8 @@ function formatDate(value: string) {
   return value ? dayjs(value).format('YYYY-MM-DD') : '—'
 }
 
-onMounted(load)
+onMounted(() => {
+  syncBrowserReminders()
+  void load()
+})
 </script>

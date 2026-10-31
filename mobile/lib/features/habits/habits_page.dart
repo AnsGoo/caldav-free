@@ -298,7 +298,8 @@ class _HabitsPageState extends State<HabitsPage> {
                                     groups[g].habits[i],
                                     _selectedStamp,
                                   ),
-                                  onCheckin: (_selectedIsFuture || _selectedIsPast)
+                                  onCheckin:
+                                      (_selectedIsFuture || _selectedIsPast)
                                       ? null
                                       : () => _checkin(groups[g].habits[i]),
                                   onOpen: () =>
@@ -348,19 +349,30 @@ class _HabitWeekStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final todayDate = DateTime(today.year, today.month, today.day);
     final monday = todayDate.subtract(Duration(days: todayDate.weekday - 1));
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 10),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(13, 2, 13, 10),
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: scheme.outlineVariant.withValues(alpha: 0.7),
+          ),
+        ),
+      ),
       child: Row(
         children: [
           for (var i = 0; i < 7; i++)
             Expanded(
-              child: _HabitDayCell(
-                day: monday.add(Duration(days: i)),
-                today: todayDate,
-                selectedStamp: selectedStamp,
-                onSelected: onSelected,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: _HabitDayCell(
+                  day: monday.add(Duration(days: i)),
+                  today: todayDate,
+                  selectedStamp: selectedStamp,
+                  onSelected: onSelected,
+                ),
               ),
             ),
         ],
@@ -399,58 +411,80 @@ class _HabitDayCell extends StatelessWidget {
         : isToday
         ? scheme.primary
         : scheme.onSurface;
+    final fill = selected
+        ? scheme.primary.withValues(alpha: 0.12)
+        : isToday
+        ? scheme.primary.withValues(alpha: 0.07)
+        : scheme.surfaceContainerLow;
+    final outline = selected
+        ? scheme.primary
+        : isToday
+        ? scheme.primary.withValues(alpha: 0.45)
+        : scheme.outlineVariant;
     return Semantics(
       button: true,
       selected: selected,
       label: '${day.month}月${day.day}日',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: future ? null : () => onSelected(stamp),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _weekdays[day.weekday - 1],
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: selected
-                      ? scheme.primary
-                      : future
-                      ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
-                      : scheme.onSurfaceVariant,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 6),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOutCubic,
-                width: 34,
-                height: 34,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? scheme.primary : Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: !selected && isToday
-                      ? Border.all(
-                          color: scheme.primary.withValues(alpha: 0.5),
-                          width: 1.2,
-                        )
-                      : null,
-                ),
-                child: Text(
-                  '${day.day}',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontSize: 15,
-                    color: foreground,
-                    fontWeight: selected || isToday
-                        ? FontWeight.w700
-                        : FontWeight.w500,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: outline, width: selected ? 1.2 : 1),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: future ? null : () => onSelected(stamp),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _weekdays[day.weekday - 1],
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: selected
+                          ? scheme.primary
+                          : future
+                          ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
+                          : scheme.onSurfaceVariant,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: selected ? scheme.primary : Colors.transparent,
+                      shape: BoxShape.circle,
+                      border: !selected && isToday
+                          ? Border.all(
+                              color: scheme.primary.withValues(alpha: 0.5),
+                              width: 1.2,
+                            )
+                          : null,
+                    ),
+                    child: Text(
+                      '${day.day}',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontSize: 15,
+                        color: foreground,
+                        fontWeight: selected || isToday
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

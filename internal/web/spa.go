@@ -36,6 +36,9 @@ func (s *Server) spaHandler() http.Handler {
 					ct := mime.TypeByExtension(ext)
 					if ext == ".webmanifest" {
 						ct = "application/manifest+json"
+						// 清单必须每次新鲜获取：部分代理/浏览器会缓存错误的 HTML 响应，
+						// 导致 Chrome 报 “Manifest: Line: 1, column: 1, Syntax error”。
+						w.Header().Set("Cache-Control", "no-store, max-age=0")
 					}
 					if ct != "" {
 						w.Header().Set("Content-Type", ct)
@@ -43,7 +46,7 @@ func (s *Server) spaHandler() http.Handler {
 				}
 				if strings.HasPrefix(rel, "assets/") {
 					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-				} else {
+				} else if path.Ext(rel) != ".webmanifest" {
 					w.Header().Set("Cache-Control", "no-cache")
 				}
 				w.WriteHeader(http.StatusOK)

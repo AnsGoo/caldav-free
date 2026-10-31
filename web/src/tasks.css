@@ -7189,10 +7189,10 @@ button.tw-side-link {
 .tw-habits-view-switch { display: inline-flex; align-items: center; gap: 4px; border: 0; padding: 0; color: var(--tw-text); background: transparent; font-size: 20px; font-weight: 650; outline: none; }
 .tw-habits-view-switch svg { transform: rotate(90deg); color: var(--tw-text-3); }
 .tw-habits-actions { display: flex; align-items: center; gap: 6px; }
-.tw-habit-week { flex: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 4px 34px 14px; }
-.tw-habit-week-day { display: flex; flex-direction: column; align-items: center; gap: 5px; color: var(--tw-text-3); font-size: 11px; }
-.tw-habit-week-day strong { color: var(--tw-text-2); font-size: 12px; font-weight: 650; }
-.tw-habit-week-day.today { color: var(--tw-accent); }
+.tw-habit-week { flex: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 6px 34px 14px; }
+.tw-habit-week-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px 7px; border: 1px solid var(--tw-border); border-radius: 10px; background: var(--tw-surface); color: var(--tw-text-3); font-size: 11px; }
+.tw-habit-week-day strong { color: var(--tw-text-2); font-size: 13px; font-weight: 650; }
+.tw-habit-week-day.today { color: var(--tw-accent); border-color: color-mix(in srgb, var(--tw-accent) 55%, var(--tw-border)); background: color-mix(in srgb, var(--tw-accent) 8%, var(--tw-surface)); }
 .tw-habit-week-day.today strong { color: var(--tw-accent); }
 .tw-habit-week-dot { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid var(--tw-border); color: #fff; background: transparent; }
 .tw-habit-week-dot.done { border-color: var(--tw-accent); background: var(--tw-accent); }
@@ -7294,7 +7294,8 @@ button.tw-side-link {
   .tw-habit-list { padding-left: 18px; padding-right: 18px; }
 }
 @media (max-width: 700px) {
-  .tw-habit-week { padding-left: 12px; padding-right: 12px; gap: 2px; }
+  .tw-habit-week { padding-left: 12px; padding-right: 12px; gap: 4px; }
+  .tw-habit-week-day { padding: 7px 2px 6px; border-radius: 9px; }
   .tw-habit-content { position: relative; }
   .tw-habit-detail { position: absolute; inset: 0; z-index: 5; width: 100%; background: var(--tw-surface); }
   .tw-habit-list { padding: 12px; }

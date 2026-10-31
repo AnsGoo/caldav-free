@@ -678,8 +678,10 @@ class _HabitSelect<T> extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: scheme.outlineVariant),
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 38),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
                 children: [
                   Expanded(
@@ -1012,36 +1014,34 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
     ),
   );
 
-  Widget _inlineNumberField(TextEditingController controller, {double? width}) {
+  Widget _inlineNumberField(TextEditingController controller) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: scheme.outlineVariant),
-    );
-    final field = TextField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      textAlign: TextAlign.center,
-      style: theme.textTheme.bodyMedium,
-      decoration: InputDecoration(
-        isDense: true,
-        filled: true,
-        fillColor:
-            theme.inputDecorationTheme.fillColor ?? scheme.surfaceContainerLow,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        border: border,
-        enabledBorder: border,
-        focusedBorder: OutlineInputBorder(
+    return SizedBox(
+      width: 76,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 38),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color:
+              theme.inputDecorationTheme.fillColor ??
+              scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: scheme.primary.withValues(alpha: 0.75),
-            width: 1.4,
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          textAlign: TextAlign.center,
+          style: theme.textTheme.bodyMedium,
+          decoration: const InputDecoration(
+            isCollapsed: true,
+            border: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
           ),
         ),
       ),
     );
-    return width == null ? field : SizedBox(width: width, child: field);
   }
 
   @override
@@ -1181,32 +1181,35 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
                     ],
                   ),
                   _sectionTitle('频率'),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _HabitSelect<String>(
-                          value: _frequencyMode,
-                          options: const [
-                            _HabitOption('daily', '按天'),
-                            _HabitOption('weekly', '按周'),
-                            _HabitOption('interval', '按时间间隔'),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _frequencyMode = value),
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _HabitSelect<String>(
+                            value: _frequencyMode,
+                            options: const [
+                              _HabitOption('daily', '按天'),
+                              _HabitOption('weekly', '按周'),
+                              _HabitOption('interval', '按时间间隔'),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _frequencyMode = value),
+                          ),
                         ),
-                      ),
-                      if (_frequencyMode == 'weekly') ...[
-                        const SizedBox(width: 8),
-                        Expanded(child: _inlineNumberField(_daysPerWeek)),
-                        const SizedBox(width: 6),
-                        const Text('天'),
-                      ] else if (_frequencyMode == 'interval') ...[
-                        const SizedBox(width: 8),
-                        Expanded(child: _inlineNumberField(_interval)),
-                        const SizedBox(width: 6),
-                        const Text('天'),
+                        if (_frequencyMode == 'weekly') ...[
+                          const SizedBox(width: 8),
+                          _inlineNumberField(_daysPerWeek),
+                          const SizedBox(width: 6),
+                          const Center(child: Text('天')),
+                        ] else if (_frequencyMode == 'interval') ...[
+                          const SizedBox(width: 8),
+                          _inlineNumberField(_interval),
+                          const SizedBox(width: 6),
+                          const Center(child: Text('天')),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                   if (_frequencyMode == 'daily') ...[
                     const SizedBox(height: 8),
@@ -1232,26 +1235,29 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
                     ),
                   ],
                   _sectionTitle('目标'),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _HabitSelect<String>(
-                          value: _goalMode,
-                          options: const [
-                            _HabitOption('completion', '当天完成打卡'),
-                            _HabitOption('quantity', '当天完成一定量'),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _goalMode = value),
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _HabitSelect<String>(
+                            value: _goalMode,
+                            options: const [
+                              _HabitOption('completion', '当天完成打卡'),
+                              _HabitOption('quantity', '当天完成一定量'),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _goalMode = value),
+                          ),
                         ),
-                      ),
-                      if (_goalMode == 'quantity') ...[
-                        const SizedBox(width: 8),
-                        Expanded(child: _inlineNumberField(_goal)),
-                        const SizedBox(width: 6),
-                        const Text('次/天'),
+                        if (_goalMode == 'quantity') ...[
+                          const SizedBox(width: 8),
+                          _inlineNumberField(_goal),
+                          const SizedBox(width: 6),
+                          const Center(child: Text('次/天')),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                   _sectionTitle('开始日期'),
                   OutlinedButton.icon(
@@ -1292,26 +1298,29 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
                     ),
                   ),
                   _sectionTitle('坚持天数'),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _HabitSelect<String>(
-                          value: _durationMode,
-                          options: const [
-                            _HabitOption('forever', '永远'),
-                            _HabitOption('days', '指定天数'),
-                          ],
-                          onChanged: (value) =>
-                              setState(() => _durationMode = value),
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: _HabitSelect<String>(
+                            value: _durationMode,
+                            options: const [
+                              _HabitOption('forever', '永远'),
+                              _HabitOption('days', '指定天数'),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _durationMode = value),
+                          ),
                         ),
-                      ),
-                      if (_durationMode == 'days') ...[
-                        const SizedBox(width: 8),
-                        Expanded(child: _inlineNumberField(_targetDays)),
-                        const SizedBox(width: 6),
-                        const Text('天'),
+                        if (_durationMode == 'days') ...[
+                          const SizedBox(width: 8),
+                          _inlineNumberField(_targetDays),
+                          const SizedBox(width: 6),
+                          const Center(child: Text('天')),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                   _sectionTitle('所属分组'),
                   _HabitSelect<int>(

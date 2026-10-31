@@ -20,7 +20,7 @@
         <button class="tw-icon-button" title="上一段" @click="shift(-1)">
           <TaskIcon name="chevron" :size="15" class="tw-flip" />
         </button>
-        <button class="tw-ghost-button" @click="goToday">今天</button>
+        <button class="tw-ghost-button" :title="history ? '回到最近完成' : '回到今天'" @click="goToday">{{ history ? '最近' : '今天' }}</button>
         <button class="tw-icon-button" title="下一段" @click="shift(1)">
           <TaskIcon name="chevron" :size="15" />
         </button>
@@ -54,8 +54,14 @@
         </div>
 
         <div v-if="!rows.length" class="tw-timeline-empty">
-          <p>这个时间范围内还没有带日期的任务。</p>
-          <span>点击时间轴空白处可以直接新建任务。</span>
+          <template v-if="history">
+            <p>这个时间范围内还没有已完成的任务。</p>
+            <span>已完成的任务会按完成时间显示在这里。</span>
+          </template>
+          <template v-else>
+            <p>这个时间范围内还没有带日期的任务。</p>
+            <span>点击时间轴空白处可以直接新建任务。</span>
+          </template>
         </div>
 
         <div v-for="row in rows" :key="row.list.id" class="tw-timeline-row">
@@ -80,7 +86,7 @@
               v-for="bar in row.bars"
               :key="bar.task.id"
               class="tw-timeline-bar"
-              :class="{ done: bar.task.completed, dragging: dragState?.task.id === bar.task.id && dragState.moved }"
+              :class="{ done: bar.task.completed && !history, readonly: history, dragging: dragState?.task.id === bar.task.id && dragState.moved }"
               :style="{ left: `${bar.left}px`, width: `${bar.width}px`, background: bar.color, color: bar.textColor }"
               :title="`${bar.task.title}\n${bar.rangeLabel}`"
               @pointerdown.stop="startDrag(bar.task, $event)"
@@ -131,6 +137,10 @@ const props = defineProps<{
   zoom: Zoom
   colorBy: ColorBy
   tagColors: Record<string, string>
+  /** 历史模式：展示已完成任务，按完成时间定位，且只读。 */
+  history?: boolean
+  /** 历史模式下默认定位到的日期（通常是最近一次完成时间）。 */
+  anchorDate?: string
 }>()
 
 const emit = defineEmits<{
@@ -153,6 +163,7 @@ const anchor = ref(startOfDay(new Date()))
 const draft = ref<{ listId: number; left: number; date: string; title: string } | null>(null)
 const dragState = ref<{ task: TaskItem; startX: number; start?: string; due?: string; moved: boolean } | null>(null)
 let suppressClick = false
+let appliedAnchor = ''
 
 const todayKey = computed(() => dayKey(new Date()))
 
@@ -225,8 +236,10 @@ const rows = computed<Row[]>(() => {
   const limit = dayCount.value
   const byList = new Map<number, TaskItem[]>()
   for (const task of props.tasks) {
-    if (task.kind === 'NOTE' || task.completed) continue
-    if (!task.start && !task.due) continue
+    if (task.kind === 'NOTE') continue
+    if (task.completed && !props.history) continue
+    const hasDate = Boolean(task.start || task.due || (task.completed && task.completedAt))
+    if (!hasDate) continue
     const list = byList.get(task.listId) || []
     list.push(task)
     byList.set(task.listId, list)
@@ -237,8 +250,7 @@ const rows = computed<Row[]>(() => {
     const items = byList.get(list.id) || []
     const bars: Bar[] = []
     for (const task of items) {
-      const first = task.start ? new Date(task.start) : new Date(task.due!)
-      const last = task.due ? new Date(task.due) : first
+      const { first, last } = taskSpan(task)
       const startDate = startOfDay(first)
       const endDate = startOfDay(last < first ? first : last)
       const from = diffDays(start, startDate)
@@ -253,14 +265,41 @@ const rows = computed<Row[]>(() => {
         width: barWidth,
         color: barColor(task),
         textColor: barTextColor(task),
-        rangeLabel: formatDue(task),
+        rangeLabel: barRangeLabel(task),
       })
     }
     bars.sort((a, b) => a.left - b.left)
+    // 历史视图只保留当前时间范围内确实有完成记录的清单，避免整屏空泳道。
+    if (props.history && !bars.length) continue
     result.push({ list, items, bars })
   }
   return result
 })
+
+function taskSpan(task: TaskItem) {
+  if (props.history && task.completed) {
+    const stamp = task.completedAt || task.due || task.start
+    if (stamp) {
+      const date = new Date(stamp)
+      if (!Number.isNaN(date.getTime())) return { first: date, last: date }
+    }
+  }
+  const first = task.start ? new Date(task.start) : new Date(task.due!)
+  const last = task.due ? new Date(task.due) : first
+  return { first, last: last < first ? first : last }
+}
+
+function barRangeLabel(task: TaskItem) {
+  if (props.history && task.completed) {
+    const stamp = task.completedAt || task.due || task.start
+    if (!stamp) return '已完成'
+    const date = new Date(stamp)
+    if (Number.isNaN(date.getTime())) return '已完成'
+    const sameYear = date.getFullYear() === new Date().getFullYear()
+    return `完成于 ${sameYear ? '' : `${date.getFullYear()}年`}${date.getMonth() + 1}月${date.getDate()}日`
+  }
+  return formatDue(task)
+}
 
 function startOfDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate())
@@ -318,17 +357,41 @@ function shift(direction: number) {
 }
 
 function goToday() {
+  if (props.history && props.anchorDate) {
+    const date = new Date(props.anchorDate)
+    if (!Number.isNaN(date.getTime())) {
+      anchor.value = startOfDay(date)
+      scrollToDayKey(dayKey(date))
+      return
+    }
+  }
   anchor.value = startOfDay(new Date())
   scrollToToday()
 }
 
 function scrollToToday() {
-  const index = days.value.findIndex((day) => day.key === dayKey(new Date()))
+  scrollToDayKey(dayKey(new Date()))
+}
+
+function scrollToDayKey(key: string, behavior: ScrollBehavior = 'smooth') {
+  const index = days.value.findIndex((day) => day.key === key)
   if (index < 0 || !scrollEl.value) return
-  scrollEl.value.scrollTo({ left: Math.max(0, index * dayWidth.value - 260), behavior: 'smooth' })
+  scrollEl.value.scrollTo({ left: Math.max(0, index * dayWidth.value - 260), behavior })
+}
+
+function applyAnchor() {
+  if (!props.history || !props.anchorDate) return false
+  if (appliedAnchor === props.anchorDate) return false
+  const date = new Date(props.anchorDate)
+  if (Number.isNaN(date.getTime())) return false
+  appliedAnchor = props.anchorDate
+  anchor.value = startOfDay(date)
+  nextTick(() => scrollToDayKey(dayKey(date), 'auto'))
+  return true
 }
 
 function onTrackClick(listId: number, event: MouseEvent) {
+  if (props.history) return
   const track = event.currentTarget as HTMLElement
   const rect = track.getBoundingClientRect()
   const offset = Math.max(0, Math.min(track.clientWidth - 1, event.clientX - rect.left))
@@ -363,6 +426,7 @@ function onBarClick(task: TaskItem) {
 }
 
 function startDrag(task: TaskItem, event: PointerEvent) {
+  if (props.history) return
   dragState.value = {
     task,
     startX: event.clientX,
@@ -404,10 +468,47 @@ function shiftISO(value: string, delta: number) {
 }
 
 watch(
-  () => [props.zoom, props.tasks.length],
-  () => nextTick(scrollToToday),
+  () => props.anchorDate,
+  () => {
+    if (props.history) applyAnchor()
+  },
+  { immediate: true },
 )
 
-onMounted(() => nextTick(scrollToToday))
+watch(
+  () => props.history,
+  (history) => {
+    appliedAnchor = ''
+    if (history) {
+      applyAnchor()
+    } else {
+      anchor.value = startOfDay(new Date())
+      nextTick(scrollToToday)
+    }
+  },
+)
+
+watch(
+  () => [props.zoom, props.tasks.length],
+  () => {
+    if (props.history && appliedAnchor) {
+      const date = new Date(appliedAnchor)
+      nextTick(() => scrollToDayKey(dayKey(date), 'auto'))
+    } else {
+      nextTick(scrollToToday)
+    }
+  },
+)
+
+onMounted(() => {
+  if (props.history && props.anchorDate) {
+    const date = new Date(props.anchorDate)
+    if (!Number.isNaN(date.getTime())) {
+      nextTick(() => scrollToDayKey(dayKey(date), 'auto'))
+      return
+    }
+  }
+  nextTick(() => scrollToToday())
+})
 onBeforeUnmount(() => window.removeEventListener('pointermove', onPointerMove))
 </script>

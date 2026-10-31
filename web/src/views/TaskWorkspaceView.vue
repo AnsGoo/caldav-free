@@ -451,6 +451,8 @@
             :zoom="timelineZoom"
             :color-by="timelineColor"
             :tag-colors="tagColorMap"
+            :history="view === 'completed'"
+            :anchor-date="latestCompletion"
             @open="openTask"
             @create="createFromTimeline"
             @reschedule="rescheduleTask"
@@ -1404,6 +1406,19 @@ const noteTasks = computed(() =>
     .sort((a, b) => Number(b.pinned) - Number(a.pinned)),
 )
 const timelineTasks = computed(() => tasks.value.filter((task) => task.kind !== 'NOTE'))
+
+// 已完成时间线以“最近一次完成”为基准，避免默认停在今天却看不到历史记录。
+const latestCompletion = computed(() => {
+  let latest = 0
+  for (const task of tasks.value) {
+    if (!task.completed) continue
+    const stamp = task.completedAt || task.due || task.start
+    if (!stamp) continue
+    const time = new Date(stamp).getTime()
+    if (Number.isFinite(time) && time > latest) latest = time
+  }
+  return latest ? new Date(latest).toISOString() : undefined
+})
 
 const sharedEditable = computed(() => view.value === 'shared' && activeSharedList.value?.role === 'editor')
 const sharedReadonly = computed(() => {

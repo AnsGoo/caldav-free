@@ -9008,6 +9008,10 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   cursor: grabbing;
 }
 
+.tw-timeline-bar.readonly {
+  cursor: default;
+}
+
 .tw-timeline-draft {
   position: absolute;
   top: 8px;

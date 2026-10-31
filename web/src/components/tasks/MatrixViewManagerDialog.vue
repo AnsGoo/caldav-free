@@ -14,14 +14,17 @@
           :key="view.id"
           class="tw-matrix-manager-row"
           :class="{ dragging: dragIndex === index, 'drag-over': overIndex === index && dragIndex !== index }"
-          draggable="true"
-          @dragstart="startDrag(index, $event)"
           @dragover.prevent="overIndex = index"
           @dragleave="overIndex = -1"
           @drop.prevent="dropOn(index)"
-          @dragend="dragIndex = -1; overIndex = -1"
         >
-          <span class="tw-matrix-drag" title="拖动排序">
+          <span
+            class="tw-matrix-drag"
+            title="拖动排序"
+            draggable="true"
+            @dragstart="startDrag(index, $event)"
+            @dragend="dragIndex = -1; overIndex = -1"
+          >
             <TaskIcon name="drag" :size="14" />
           </span>
           <a-input v-model="view.name" class="tw-dialog-input" :max-length="60" @blur="saveName(view)" @keydown.enter="saveName(view)" />

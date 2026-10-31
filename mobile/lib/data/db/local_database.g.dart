@@ -4771,6 +4771,55 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, HabitRow> {
     requiredDuringInsert: false,
     defaultValue: const Constant('{}'),
   );
+  static const VerificationMeta _remindersMeta = const VerificationMeta(
+    'reminders',
+  );
+  @override
+  late final GeneratedColumn<String> reminders = GeneratedColumn<String>(
+    'reminders',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _recordEnableMeta = const VerificationMeta(
+    'recordEnable',
+  );
+  @override
+  late final GeneratedColumn<bool> recordEnable = GeneratedColumn<bool>(
+    'record_enable',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("record_enable" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _exDatesMeta = const VerificationMeta(
+    'exDates',
+  );
+  @override
+  late final GeneratedColumn<String> exDates = GeneratedColumn<String>(
+    'ex_dates',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _styleMeta = const VerificationMeta('style');
+  @override
+  late final GeneratedColumn<String> style = GeneratedColumn<String>(
+    'style',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('check'),
+  );
   static const VerificationMeta _startDateMeta = const VerificationMeta(
     'startDate',
   );
@@ -4885,6 +4934,10 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, HabitRow> {
     step,
     unit,
     frequency,
+    reminders,
+    recordEnable,
+    exDates,
+    style,
     startDate,
     targetDays,
     completedCycles,
@@ -4961,6 +5014,33 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, HabitRow> {
       context.handle(
         _frequencyMeta,
         frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
+    }
+    if (data.containsKey('reminders')) {
+      context.handle(
+        _remindersMeta,
+        reminders.isAcceptableOrUnknown(data['reminders']!, _remindersMeta),
+      );
+    }
+    if (data.containsKey('record_enable')) {
+      context.handle(
+        _recordEnableMeta,
+        recordEnable.isAcceptableOrUnknown(
+          data['record_enable']!,
+          _recordEnableMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ex_dates')) {
+      context.handle(
+        _exDatesMeta,
+        exDates.isAcceptableOrUnknown(data['ex_dates']!, _exDatesMeta),
+      );
+    }
+    if (data.containsKey('style')) {
+      context.handle(
+        _styleMeta,
+        style.isAcceptableOrUnknown(data['style']!, _styleMeta),
       );
     }
     if (data.containsKey('start_date')) {
@@ -5069,6 +5149,22 @@ class $HabitsTable extends Habits with TableInfo<$HabitsTable, HabitRow> {
         DriftSqlType.string,
         data['${effectivePrefix}frequency'],
       )!,
+      reminders: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reminders'],
+      )!,
+      recordEnable: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}record_enable'],
+      )!,
+      exDates: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ex_dates'],
+      )!,
+      style: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}style'],
+      )!,
       startDate: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}start_date'],
@@ -5121,6 +5217,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
   final double step;
   final String unit;
   final String frequency;
+  final String reminders;
+  final bool recordEnable;
+  final String exDates;
+  final String style;
   final int startDate;
   final int targetDays;
   final int completedCycles;
@@ -5143,6 +5243,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
     required this.step,
     required this.unit,
     required this.frequency,
+    required this.reminders,
+    required this.recordEnable,
+    required this.exDates,
+    required this.style,
     required this.startDate,
     required this.targetDays,
     required this.completedCycles,
@@ -5165,6 +5269,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
     map['step'] = Variable<double>(step);
     map['unit'] = Variable<String>(unit);
     map['frequency'] = Variable<String>(frequency);
+    map['reminders'] = Variable<String>(reminders);
+    map['record_enable'] = Variable<bool>(recordEnable);
+    map['ex_dates'] = Variable<String>(exDates);
+    map['style'] = Variable<String>(style);
     map['start_date'] = Variable<int>(startDate);
     map['target_days'] = Variable<int>(targetDays);
     map['completed_cycles'] = Variable<int>(completedCycles);
@@ -5188,6 +5296,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
       step: Value(step),
       unit: Value(unit),
       frequency: Value(frequency),
+      reminders: Value(reminders),
+      recordEnable: Value(recordEnable),
+      exDates: Value(exDates),
+      style: Value(style),
       startDate: Value(startDate),
       targetDays: Value(targetDays),
       completedCycles: Value(completedCycles),
@@ -5215,6 +5327,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
       step: serializer.fromJson<double>(json['step']),
       unit: serializer.fromJson<String>(json['unit']),
       frequency: serializer.fromJson<String>(json['frequency']),
+      reminders: serializer.fromJson<String>(json['reminders']),
+      recordEnable: serializer.fromJson<bool>(json['recordEnable']),
+      exDates: serializer.fromJson<String>(json['exDates']),
+      style: serializer.fromJson<String>(json['style']),
       startDate: serializer.fromJson<int>(json['startDate']),
       targetDays: serializer.fromJson<int>(json['targetDays']),
       completedCycles: serializer.fromJson<int>(json['completedCycles']),
@@ -5239,6 +5355,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
       'step': serializer.toJson<double>(step),
       'unit': serializer.toJson<String>(unit),
       'frequency': serializer.toJson<String>(frequency),
+      'reminders': serializer.toJson<String>(reminders),
+      'recordEnable': serializer.toJson<bool>(recordEnable),
+      'exDates': serializer.toJson<String>(exDates),
+      'style': serializer.toJson<String>(style),
       'startDate': serializer.toJson<int>(startDate),
       'targetDays': serializer.toJson<int>(targetDays),
       'completedCycles': serializer.toJson<int>(completedCycles),
@@ -5261,6 +5381,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
     double? step,
     String? unit,
     String? frequency,
+    String? reminders,
+    bool? recordEnable,
+    String? exDates,
+    String? style,
     int? startDate,
     int? targetDays,
     int? completedCycles,
@@ -5280,6 +5404,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
     step: step ?? this.step,
     unit: unit ?? this.unit,
     frequency: frequency ?? this.frequency,
+    reminders: reminders ?? this.reminders,
+    recordEnable: recordEnable ?? this.recordEnable,
+    exDates: exDates ?? this.exDates,
+    style: style ?? this.style,
     startDate: startDate ?? this.startDate,
     targetDays: targetDays ?? this.targetDays,
     completedCycles: completedCycles ?? this.completedCycles,
@@ -5301,6 +5429,12 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
       step: data.step.present ? data.step.value : this.step,
       unit: data.unit.present ? data.unit.value : this.unit,
       frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      reminders: data.reminders.present ? data.reminders.value : this.reminders,
+      recordEnable: data.recordEnable.present
+          ? data.recordEnable.value
+          : this.recordEnable,
+      exDates: data.exDates.present ? data.exDates.value : this.exDates,
+      style: data.style.present ? data.style.value : this.style,
       startDate: data.startDate.present ? data.startDate.value : this.startDate,
       targetDays: data.targetDays.present
           ? data.targetDays.value
@@ -5333,6 +5467,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
           ..write('step: $step, ')
           ..write('unit: $unit, ')
           ..write('frequency: $frequency, ')
+          ..write('reminders: $reminders, ')
+          ..write('recordEnable: $recordEnable, ')
+          ..write('exDates: $exDates, ')
+          ..write('style: $style, ')
           ..write('startDate: $startDate, ')
           ..write('targetDays: $targetDays, ')
           ..write('completedCycles: $completedCycles, ')
@@ -5346,7 +5484,7 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     icon,
@@ -5357,6 +5495,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
     step,
     unit,
     frequency,
+    reminders,
+    recordEnable,
+    exDates,
+    style,
     startDate,
     targetDays,
     completedCycles,
@@ -5365,7 +5507,7 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
     maxStreak,
     dueToday,
     doneToday,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -5380,6 +5522,10 @@ class HabitRow extends DataClass implements Insertable<HabitRow> {
           other.step == this.step &&
           other.unit == this.unit &&
           other.frequency == this.frequency &&
+          other.reminders == this.reminders &&
+          other.recordEnable == this.recordEnable &&
+          other.exDates == this.exDates &&
+          other.style == this.style &&
           other.startDate == this.startDate &&
           other.targetDays == this.targetDays &&
           other.completedCycles == this.completedCycles &&
@@ -5401,6 +5547,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
   final Value<double> step;
   final Value<String> unit;
   final Value<String> frequency;
+  final Value<String> reminders;
+  final Value<bool> recordEnable;
+  final Value<String> exDates;
+  final Value<String> style;
   final Value<int> startDate;
   final Value<int> targetDays;
   final Value<int> completedCycles;
@@ -5420,6 +5570,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
     this.step = const Value.absent(),
     this.unit = const Value.absent(),
     this.frequency = const Value.absent(),
+    this.reminders = const Value.absent(),
+    this.recordEnable = const Value.absent(),
+    this.exDates = const Value.absent(),
+    this.style = const Value.absent(),
     this.startDate = const Value.absent(),
     this.targetDays = const Value.absent(),
     this.completedCycles = const Value.absent(),
@@ -5440,6 +5594,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
     this.step = const Value.absent(),
     this.unit = const Value.absent(),
     this.frequency = const Value.absent(),
+    this.reminders = const Value.absent(),
+    this.recordEnable = const Value.absent(),
+    this.exDates = const Value.absent(),
+    this.style = const Value.absent(),
     this.startDate = const Value.absent(),
     this.targetDays = const Value.absent(),
     this.completedCycles = const Value.absent(),
@@ -5460,6 +5618,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
     Expression<double>? step,
     Expression<String>? unit,
     Expression<String>? frequency,
+    Expression<String>? reminders,
+    Expression<bool>? recordEnable,
+    Expression<String>? exDates,
+    Expression<String>? style,
     Expression<int>? startDate,
     Expression<int>? targetDays,
     Expression<int>? completedCycles,
@@ -5480,6 +5642,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
       if (step != null) 'step': step,
       if (unit != null) 'unit': unit,
       if (frequency != null) 'frequency': frequency,
+      if (reminders != null) 'reminders': reminders,
+      if (recordEnable != null) 'record_enable': recordEnable,
+      if (exDates != null) 'ex_dates': exDates,
+      if (style != null) 'style': style,
       if (startDate != null) 'start_date': startDate,
       if (targetDays != null) 'target_days': targetDays,
       if (completedCycles != null) 'completed_cycles': completedCycles,
@@ -5502,6 +5668,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
     Value<double>? step,
     Value<String>? unit,
     Value<String>? frequency,
+    Value<String>? reminders,
+    Value<bool>? recordEnable,
+    Value<String>? exDates,
+    Value<String>? style,
     Value<int>? startDate,
     Value<int>? targetDays,
     Value<int>? completedCycles,
@@ -5522,6 +5692,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
       step: step ?? this.step,
       unit: unit ?? this.unit,
       frequency: frequency ?? this.frequency,
+      reminders: reminders ?? this.reminders,
+      recordEnable: recordEnable ?? this.recordEnable,
+      exDates: exDates ?? this.exDates,
+      style: style ?? this.style,
       startDate: startDate ?? this.startDate,
       targetDays: targetDays ?? this.targetDays,
       completedCycles: completedCycles ?? this.completedCycles,
@@ -5566,6 +5740,18 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
     if (frequency.present) {
       map['frequency'] = Variable<String>(frequency.value);
     }
+    if (reminders.present) {
+      map['reminders'] = Variable<String>(reminders.value);
+    }
+    if (recordEnable.present) {
+      map['record_enable'] = Variable<bool>(recordEnable.value);
+    }
+    if (exDates.present) {
+      map['ex_dates'] = Variable<String>(exDates.value);
+    }
+    if (style.present) {
+      map['style'] = Variable<String>(style.value);
+    }
     if (startDate.present) {
       map['start_date'] = Variable<int>(startDate.value);
     }
@@ -5606,6 +5792,10 @@ class HabitsCompanion extends UpdateCompanion<HabitRow> {
           ..write('step: $step, ')
           ..write('unit: $unit, ')
           ..write('frequency: $frequency, ')
+          ..write('reminders: $reminders, ')
+          ..write('recordEnable: $recordEnable, ')
+          ..write('exDates: $exDates, ')
+          ..write('style: $style, ')
           ..write('startDate: $startDate, ')
           ..write('targetDays: $targetDays, ')
           ..write('completedCycles: $completedCycles, ')
@@ -10666,6 +10856,10 @@ typedef $$HabitsTableCreateCompanionBuilder = HabitsCompanion Function({
   Value<double> step,
   Value<String> unit,
   Value<String> frequency,
+  Value<String> reminders,
+  Value<bool> recordEnable,
+  Value<String> exDates,
+  Value<String> style,
   Value<int> startDate,
   Value<int> targetDays,
   Value<int> completedCycles,
@@ -10686,6 +10880,10 @@ typedef $$HabitsTableUpdateCompanionBuilder = HabitsCompanion Function({
   Value<double> step,
   Value<String> unit,
   Value<String> frequency,
+  Value<String> reminders,
+  Value<bool> recordEnable,
+  Value<String> exDates,
+  Value<String> style,
   Value<int> startDate,
   Value<int> targetDays,
   Value<int> completedCycles,
@@ -10752,6 +10950,26 @@ class $$HabitsTableFilterComposer
 
   ColumnFilters<String> get frequency => $composableBuilder(
     column: $table.frequency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reminders => $composableBuilder(
+    column: $table.reminders,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get recordEnable => $composableBuilder(
+    column: $table.recordEnable,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get exDates => $composableBuilder(
+    column: $table.exDates,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get style => $composableBuilder(
+    column: $table.style,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10855,6 +11073,26 @@ class $$HabitsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get reminders => $composableBuilder(
+    column: $table.reminders,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get recordEnable => $composableBuilder(
+    column: $table.recordEnable,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get exDates => $composableBuilder(
+    column: $table.exDates,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get style => $composableBuilder(
+    column: $table.style,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get startDate => $composableBuilder(
     column: $table.startDate,
     builder: (column) => ColumnOrderings(column),
@@ -10935,6 +11173,20 @@ class $$HabitsTableAnnotationComposer
   GeneratedColumn<String> get frequency =>
       $composableBuilder(column: $table.frequency, builder: (column) => column);
 
+  GeneratedColumn<String> get reminders =>
+      $composableBuilder(column: $table.reminders, builder: (column) => column);
+
+  GeneratedColumn<bool> get recordEnable => $composableBuilder(
+    column: $table.recordEnable,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get exDates =>
+      $composableBuilder(column: $table.exDates, builder: (column) => column);
+
+  GeneratedColumn<String> get style =>
+      $composableBuilder(column: $table.style, builder: (column) => column);
+
   GeneratedColumn<int> get startDate =>
       $composableBuilder(column: $table.startDate, builder: (column) => column);
 
@@ -11006,6 +11258,10 @@ class $$HabitsTableTableManager
                 Value<double> step = const Value.absent(),
                 Value<String> unit = const Value.absent(),
                 Value<String> frequency = const Value.absent(),
+                Value<String> reminders = const Value.absent(),
+                Value<bool> recordEnable = const Value.absent(),
+                Value<String> exDates = const Value.absent(),
+                Value<String> style = const Value.absent(),
                 Value<int> startDate = const Value.absent(),
                 Value<int> targetDays = const Value.absent(),
                 Value<int> completedCycles = const Value.absent(),
@@ -11025,6 +11281,10 @@ class $$HabitsTableTableManager
                 step: step,
                 unit: unit,
                 frequency: frequency,
+                reminders: reminders,
+                recordEnable: recordEnable,
+                exDates: exDates,
+                style: style,
                 startDate: startDate,
                 targetDays: targetDays,
                 completedCycles: completedCycles,
@@ -11046,6 +11306,10 @@ class $$HabitsTableTableManager
                 Value<double> step = const Value.absent(),
                 Value<String> unit = const Value.absent(),
                 Value<String> frequency = const Value.absent(),
+                Value<String> reminders = const Value.absent(),
+                Value<bool> recordEnable = const Value.absent(),
+                Value<String> exDates = const Value.absent(),
+                Value<String> style = const Value.absent(),
                 Value<int> startDate = const Value.absent(),
                 Value<int> targetDays = const Value.absent(),
                 Value<int> completedCycles = const Value.absent(),
@@ -11065,6 +11329,10 @@ class $$HabitsTableTableManager
                 step: step,
                 unit: unit,
                 frequency: frequency,
+                reminders: reminders,
+                recordEnable: recordEnable,
+                exDates: exDates,
+                style: style,
                 startDate: startDate,
                 targetDays: targetDays,
                 completedCycles: completedCycles,

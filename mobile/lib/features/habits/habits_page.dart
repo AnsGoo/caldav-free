@@ -98,7 +98,8 @@ class _HabitsPageState extends State<HabitsPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => const _HabitEditorSheet(),
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (context) => _HabitEditorSheet(sections: _snapshot.sections),
     );
     if (draft == null || !mounted) return;
     try {
@@ -113,7 +114,9 @@ class _HabitsPageState extends State<HabitsPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => _HabitEditorSheet(initial: habit),
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (context) =>
+          _HabitEditorSheet(sections: _snapshot.sections, initial: habit),
     );
     if (draft == null || !mounted) return;
     try {
@@ -630,9 +633,127 @@ class _HabitRow extends StatelessWidget {
   }
 }
 
-class _HabitEditorSheet extends StatefulWidget {
-  const _HabitEditorSheet({this.initial});
+class _HabitOption<T> {
+  const _HabitOption(this.value, this.label);
 
+  final T value;
+  final String label;
+}
+
+/// Compact select used by the habit editor. A anchored popup menu keeps the
+/// option rows tight and rounded; the field highlight follows its own radius
+/// so focusing/switching never flashes square corners.
+class _HabitSelect<T> extends StatelessWidget {
+  const _HabitSelect({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final T value;
+  final List<_HabitOption<T>> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final label = options
+        .firstWhere(
+          (option) => option.value == value,
+          orElse: () => options.first,
+        )
+        .label;
+    return Builder(
+      builder: (fieldContext) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _open(context, fieldContext),
+          borderRadius: BorderRadius.circular(12),
+          child: Ink(
+            decoration: BoxDecoration(
+              color:
+                  theme.inputDecorationTheme.fillColor ??
+                  scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context, BuildContext fieldContext) async {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    final box = fieldContext.findRenderObject();
+    if (overlay is! RenderBox || box is! RenderBox) return;
+    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(origin.dx, origin.dy + box.size.height, box.size.width, 0),
+      Offset.zero & overlay.size,
+    );
+    final scheme = Theme.of(context).colorScheme;
+    final selected = await showMenu<T>(
+      context: context,
+      position: position,
+      color: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+      items: [
+        for (final option in options)
+          PopupMenuItem<T>(
+            value: option.value,
+            height: 42,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    option.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (option.value == value)
+                  Icon(Icons.check_rounded, size: 18, color: scheme.primary),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (selected != null) onChanged(selected);
+  }
+}
+
+class _HabitEditorSheet extends StatefulWidget {
+  const _HabitEditorSheet({required this.sections, this.initial});
+
+  final List<Map<String, dynamic>> sections;
   final HabitItem? initial;
 
   @override
@@ -642,71 +763,152 @@ class _HabitEditorSheet extends StatefulWidget {
 class _HabitEditorSheetState extends State<_HabitEditorSheet> {
   late final TextEditingController _name;
   late final TextEditingController _goal;
-  late final TextEditingController _step;
-  late final TextEditingController _unit;
+  late final TextEditingController _daysPerWeek;
+  late final TextEditingController _interval;
+  late final TextEditingController _targetDays;
+  late String _icon;
   late String _color;
-  late String _frequency;
-  late int _targetDays;
+  late String _frequencyMode;
+  late Set<int> _weekdays;
+  late String _goalMode;
+  late DateTime _startDate;
+  late String _durationMode;
+  late int _sectionId;
+  late String _style;
+  late bool _recordEnable;
+  late List<String> _reminders;
+  late List<int> _exDates;
 
+  static const _emojis = [
+    '😊',
+    '📚',
+    '🏃',
+    '💧',
+    '🧘',
+    '🌱',
+    '🎯',
+    '✍️',
+    '🌙',
+    '🍎',
+    '💪',
+    '🎨',
+  ];
   static const _colors = [
     '#97E38B',
-    '#4772FA',
-    '#F59E0B',
-    '#EF4444',
-    '#8B5CF6',
-    '#14B8A6',
+    '#FFB84D',
+    '#FF7B7B',
+    '#7B9CFF',
+    '#B58BFF',
+    '#5ED4C5',
+    '#F28BC5',
+    '#A2A8B8',
   ];
+  static const _weekdayLabels = ['日', '一', '二', '三', '四', '五', '六'];
 
   @override
   void initState() {
     super.initState();
     final habit = widget.initial;
     _name = TextEditingController(text: habit?.name ?? '');
-    _goal = TextEditingController(text: _number(habit?.goal ?? 1));
-    _step = TextEditingController(text: _number(habit?.step ?? 1));
-    _unit = TextEditingController(text: habit?.unit ?? 'Count');
+    _icon = habit?.icon.isNotEmpty == true ? habit!.icon : _emojis.first;
     _color = habit?.color.isNotEmpty == true ? habit!.color : _colors.first;
-    _frequency = habit?.frequency ?? '';
-    _targetDays = habit?.targetDays ?? 0;
+    _sectionId = habit?.sectionId ?? 0;
+    _style = habit?.style == 'icon' ? 'icon' : 'check';
+    _recordEnable = habit?.recordEnable ?? false;
+    _reminders = [...?habit?.reminders];
+    _exDates = [...?habit?.exDates]..sort();
+    _goalMode = (habit?.goal ?? 1) > 1 ? 'quantity' : 'completion';
+    _goal = TextEditingController(
+      text: _number((habit?.goal ?? 1) <= 1 ? 1 : habit!.goal),
+    );
+    _durationMode = (habit?.targetDays ?? 0) > 0 ? 'days' : 'forever';
+    _targetDays = TextEditingController(
+      text: _number((habit?.targetDays ?? 0) > 0 ? habit!.targetDays : 30),
+    );
+    _startDate = _dateFromStamp(habit?.startDate ?? 0) ?? DateTime.now();
+    _daysPerWeek = TextEditingController(text: '2');
+    _interval = TextEditingController(text: '2');
+    _frequencyMode = 'daily';
+    _weekdays = {0, 1, 2, 3, 4, 5, 6};
+    _loadFrequency(habit?.frequency ?? '');
   }
 
   @override
   void dispose() {
     _name.dispose();
     _goal.dispose();
-    _step.dispose();
-    _unit.dispose();
+    _daysPerWeek.dispose();
+    _interval.dispose();
+    _targetDays.dispose();
     super.dispose();
   }
 
-  static String _number(double value) {
-    if (value == value.roundToDouble()) return value.toInt().toString();
-    return value.toStringAsFixed(1);
+  static String _number(num value) {
+    final doubleValue = value.toDouble();
+    if (doubleValue == doubleValue.roundToDouble()) {
+      return doubleValue.toInt().toString();
+    }
+    return doubleValue.toStringAsFixed(1);
   }
 
-  String get _frequencyType {
+  static num _asNum(Object? value, num fallback) {
+    if (value is num) return value;
+    return num.tryParse('${value ?? ''}') ?? fallback;
+  }
+
+  static DateTime? _dateFromStamp(int stamp) {
+    if (stamp <= 0) return null;
+    final year = stamp ~/ 10000;
+    final month = (stamp ~/ 100) % 100;
+    final day = stamp % 100;
+    if (year < 1900 || month < 1 || month > 12 || day < 1 || day > 31) {
+      return null;
+    }
+    return DateTime(year, month, day);
+  }
+
+  String _dateLabel(DateTime date) =>
+      '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+
+  void _loadFrequency(String raw) {
+    if (raw.trim().isEmpty) return;
     try {
-      final decoded = jsonDecode(_frequency);
-      if (decoded is Map<String, dynamic>) {
-        final type = (decoded['type'] ?? '').toString();
-        if (type == 'weekly' && decoded['weekdays'] is List) return 'weekdays';
-        if (type == 'weekly') return 'weekly';
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return;
+      final type = decoded['type']?.toString();
+      final weekdays = decoded['weekdays'];
+      if (type == 'weekly' && weekdays is List) {
+        _frequencyMode = 'daily';
+        final values = _parseWeekdays(weekdays);
+        if (values.isNotEmpty) _weekdays = values;
+        return;
+      }
+      if (type == 'weekly') {
+        _frequencyMode = 'weekly';
+        _daysPerWeek.text = _number(
+          _asNum(decoded['daysPerWeek'], 2).clamp(1, 7),
+        );
+        return;
+      }
+      if (type == 'interval') {
+        _frequencyMode = 'interval';
+        _interval.text = _number(_asNum(decoded['interval'], 2).clamp(1, 365));
+        return;
+      }
+      if (weekdays is List) {
+        final values = _parseWeekdays(weekdays);
+        if (values.isNotEmpty) _weekdays = values;
       }
     } on FormatException {
-      // Fall back to daily.
+      // Keep the defaults when the stored rule is malformed.
     }
-    return 'daily';
   }
 
-  void _setFrequency(String type) {
-    setState(() {
-      _frequency = switch (type) {
-        'weekdays' => '{"type":"weekly","weekdays":[1,2,3,4,5]}',
-        'weekly' => '{"type":"weekly","daysPerWeek":1}',
-        _ => '{"type":"daily","weekdays":[0,1,2,3,4,5,6]}',
-      };
-    });
-  }
+  Set<int> _parseWeekdays(List<dynamic> raw) => raw
+      .map((value) => value is int ? value : int.tryParse('$value') ?? -1)
+      .where((value) => value >= 0 && value <= 6)
+      .toSet();
 
   void _save() {
     final name = _name.text.trim();
@@ -715,142 +917,474 @@ class _HabitEditorSheetState extends State<_HabitEditorSheet> {
           .showSnackBar(const SnackBar(content: Text('请填写习惯名称')));
       return;
     }
-    final goal = double.tryParse(_goal.text.trim()) ?? 1;
-    final step = double.tryParse(_step.text.trim()) ?? 1;
+    final weekdays = _weekdays.isEmpty
+        ? <int>[0, 1, 2, 3, 4, 5, 6]
+        : (_weekdays.toList()..sort());
+    final frequency = switch (_frequencyMode) {
+      'weekly' => jsonEncode({
+        'type': 'weekly',
+        'daysPerWeek': _asNum(_daysPerWeek.text, 2).toInt().clamp(1, 7),
+      }),
+      'interval' => jsonEncode({
+        'type': 'interval',
+        'interval': _asNum(_interval.text, 2).toInt().clamp(1, 365),
+      }),
+      _ => jsonEncode({'type': 'daily', 'weekdays': weekdays}),
+    };
+    final goal = _goalMode == 'quantity'
+        ? _asNum(_goal.text, 1).clamp(1, 9999).toDouble()
+        : 1.0;
+    final targetDays = _durationMode == 'days'
+        ? _asNum(_targetDays.text, 30).toInt().clamp(1, 9999)
+        : 0;
+    final exDates = _exDates.toSet().toList()..sort();
     Navigator.pop(
       context,
       HabitDraft(
         name: name,
         color: _color,
-        sectionId: widget.initial?.sectionId ?? 0,
-        goal: goal <= 0 ? 1 : goal,
-        step: step <= 0 ? 1 : step,
-        unit: _unit.text.trim().isEmpty ? 'Count' : _unit.text.trim(),
-        frequency: _frequency,
-        targetDays: _targetDays,
+        icon: _icon,
+        sectionId: _sectionId,
+        goal: goal,
+        step: widget.initial?.step ?? 1,
+        unit: widget.initial?.unit ?? 'Count',
+        frequency: frequency,
+        targetDays: targetDays,
+        style: _style,
         status: widget.initial?.status ?? 0,
+        reminders: _reminders.where((value) => value.isNotEmpty).toList(),
+        recordEnable: _recordEnable,
+        startDate: _stampFor(_startDate),
+        exDates: exDates,
       ),
     );
   }
 
+  Future<void> _pickStartDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _startDate,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _startDate = picked);
+  }
+
+  Future<void> _addExDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    final stamp = _stampFor(picked);
+    setState(() {
+      if (!_exDates.contains(stamp)) {
+        _exDates = [..._exDates, stamp]..sort();
+      }
+    });
+  }
+
+  Future<void> _addReminder() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: const TimeOfDay(hour: 10, minute: 0),
+    );
+    if (picked == null) return;
+    setState(() {
+      _reminders = [
+        ..._reminders,
+        '${picked.hour.toString().padLeft(2, '0')}:'
+            '${picked.minute.toString().padLeft(2, '0')}',
+      ];
+    });
+  }
+
+  Widget _sectionTitle(String title) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 4),
+    child: Text(
+      title,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+
+  Widget _numberField(
+    TextEditingController controller,
+    String label, {
+    double width = 110,
+  }) => SizedBox(
+    width: width,
+    child: TextField(
+      controller: controller,
+      keyboardType: TextInputType.number,
+      decoration: InputDecoration(labelText: label),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        bottom:
-            MediaQuery.viewInsetsOf(context).bottom +
-            MediaQuery.paddingOf(context).bottom +
-            16,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.initial == null ? '新建习惯' : '编辑习惯',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _name,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: '名称'),
-            ),
-            const SizedBox(height: 12),
-            Text('颜色', style: theme.textTheme.labelMedium),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 10,
-              children: [
-                for (final color in _colors)
-                  InkWell(
-                    onTap: () => setState(() => _color = color),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: colorFromHex(color),
-                        shape: BoxShape.circle,
-                        border: _color == color
-                            ? Border.all(
-                                color: Theme.of(context).colorScheme.onSurface,
-                                width: 2,
-                              )
-                            : null,
-                      ),
-                      child: _color == color
-                          ? const Icon(
-                              Icons.check_rounded,
-                              size: 18,
-                              color: Colors.white,
-                            )
-                          : null,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _goal,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '目标'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _step,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '每次'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _unit,
-                    decoration: const InputDecoration(labelText: '单位'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _frequencyType,
-              decoration: const InputDecoration(labelText: '频率'),
-              items: const [
-                DropdownMenuItem(value: 'daily', child: Text('每天')),
-                DropdownMenuItem(value: 'weekdays', child: Text('工作日')),
-                DropdownMenuItem(value: 'weekly', child: Text('每周')),
-              ],
-              onChanged: (value) {
-                if (value != null) _setFrequency(value);
-              },
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
-                ),
-                const Spacer(),
-                FilledButton(onPressed: _save, child: const Text('保存')),
-              ],
-            ),
-          ],
+    final scheme = theme.colorScheme;
+    final compact = theme.copyWith(
+      visualDensity: VisualDensity.compact,
+      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
         ),
       ),
     );
+    return Theme(
+      data: compact,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom:
+              MediaQuery.viewInsetsOf(context).bottom +
+              MediaQuery.paddingOf(context).bottom +
+              12,
+        ),
+        child: Align(
+          alignment: Alignment.topCenter,
+          heightFactor: 1,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    widget.initial == null ? '新建习惯' : '编辑习惯',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: colorFromHex(_color),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          _icon,
+                          style: const TextStyle(fontSize: 22),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _name,
+                          autofocus: true,
+                          decoration: const InputDecoration(labelText: '名称'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 4,
+                    runSpacing: 4,
+                    children: [
+                      for (final emoji in _emojis)
+                        InkWell(
+                          onTap: () => setState(() => _icon = emoji),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Container(
+                            width: 34,
+                            height: 34,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _icon == emoji
+                                    ? scheme.primary
+                                    : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Text(
+                              emoji,
+                              style: const TextStyle(fontSize: 19),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      for (final color in _colors)
+                        InkWell(
+                          onTap: () => setState(() => _color = color),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: colorFromHex(color),
+                              shape: BoxShape.circle,
+                              border: _color == color
+                                  ? Border.all(
+                                      color: scheme.onSurface,
+                                      width: 2,
+                                    )
+                                  : null,
+                            ),
+                            child: _color == color
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    size: 17,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                        ),
+                    ],
+                  ),
+                  _sectionTitle('频率'),
+                  _HabitSelect<String>(
+                    value: _frequencyMode,
+                    options: const [
+                      _HabitOption('daily', '按天'),
+                      _HabitOption('weekly', '按周'),
+                      _HabitOption('interval', '按时间间隔'),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _frequencyMode = value),
+                  ),
+                  if (_frequencyMode == 'daily') ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (var index = 0; index < 7; index++)
+                          FilterChip(
+                            label: Text(_weekdayLabels[index]),
+                            selected: _weekdays.contains(index),
+                            onSelected: (selected) {
+                              setState(() {
+                                if (selected) {
+                                  _weekdays.add(index);
+                                } else {
+                                  _weekdays.remove(index);
+                                }
+                              });
+                            },
+                          ),
+                      ],
+                    ),
+                  ] else if (_frequencyMode == 'weekly') ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text('每周'),
+                        const SizedBox(width: 8),
+                        _numberField(_daysPerWeek, '天数'),
+                        const SizedBox(width: 8),
+                        const Text('天'),
+                      ],
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        const Text('每'),
+                        const SizedBox(width: 8),
+                        _numberField(_interval, '天数'),
+                        const SizedBox(width: 8),
+                        const Text('天'),
+                      ],
+                    ),
+                  ],
+                  _sectionTitle('目标'),
+                  _HabitSelect<String>(
+                    value: _goalMode,
+                    options: const [
+                      _HabitOption('completion', '当天完成打卡'),
+                      _HabitOption('quantity', '当天完成一定量'),
+                    ],
+                    onChanged: (value) => setState(() => _goalMode = value),
+                  ),
+                  if (_goalMode == 'quantity') ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _numberField(_goal, '数量'),
+                        const SizedBox(width: 8),
+                        const Text('次/天'),
+                      ],
+                    ),
+                  ],
+                  _sectionTitle('开始日期'),
+                  OutlinedButton.icon(
+                    onPressed: _pickStartDate,
+                    icon: const Icon(Icons.event_rounded, size: 18),
+                    label: Text(_dateLabel(_startDate)),
+                  ),
+                  _sectionTitle('例外日期'),
+                  OutlinedButton.icon(
+                    onPressed: _addExDate,
+                    icon: const Icon(Icons.event_busy_rounded, size: 18),
+                    label: const Text('添加例外日期'),
+                  ),
+                  if (_exDates.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final stamp in _exDates)
+                          if (_dateFromStamp(stamp) != null)
+                            InputChip(
+                              label: Text(_dateLabel(_dateFromStamp(stamp)!)),
+                              onDeleted: () => setState(() {
+                                _exDates = _exDates
+                                    .where((e) => e != stamp)
+                                    .toList();
+                              }),
+                            ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  Text(
+                    '例外日期不会进入打卡和连续统计，也不能补卡。',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  _sectionTitle('坚持天数'),
+                  _HabitSelect<String>(
+                    value: _durationMode,
+                    options: const [
+                      _HabitOption('forever', '永远'),
+                      _HabitOption('days', '指定天数'),
+                    ],
+                    onChanged: (value) => setState(() => _durationMode = value),
+                  ),
+                  if (_durationMode == 'days') ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _numberField(_targetDays, '天数'),
+                        const SizedBox(width: 8),
+                        const Text('天'),
+                      ],
+                    ),
+                  ],
+                  _sectionTitle('所属分组'),
+                  _HabitSelect<int>(
+                    value: _sectionId,
+                    options: [
+                      const _HabitOption(0, '其他'),
+                      for (final section in widget.sections)
+                        _HabitOption(
+                          _asNum(section['id'], 0).toInt(),
+                          '${section['name'] ?? ''}',
+                        ),
+                    ],
+                    onChanged: (value) => setState(() => _sectionId = value),
+                  ),
+                  _sectionTitle('打卡样式'),
+                  _HabitSelect<String>(
+                    value: _style,
+                    options: const [
+                      _HabitOption('check', '对勾'),
+                      _HabitOption('icon', '习惯图标'),
+                    ],
+                    onChanged: (value) => setState(() => _style = value),
+                  ),
+                  _sectionTitle('提醒'),
+                  for (var index = 0; index < _reminders.length; index++)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final initial = _parseTime(_reminders[index]);
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: initial,
+                                );
+                                if (picked == null) return;
+                                setState(() {
+                                  _reminders[index] =
+                                      '${picked.hour.toString().padLeft(2, '0')}:'
+                                      '${picked.minute.toString().padLeft(2, '0')}';
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.access_time_rounded,
+                                size: 18,
+                              ),
+                              label: Text(_reminders[index]),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '删除提醒',
+                            onPressed: () => setState(() {
+                              _reminders = [..._reminders]..removeAt(index);
+                            }),
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                          ),
+                        ],
+                      ),
+                    ),
+                  TextButton.icon(
+                    onPressed: _addReminder,
+                    icon: const Icon(Icons.add_rounded, size: 18),
+                    label: const Text('添加提醒'),
+                  ),
+                  CheckboxListTile(
+                    value: _recordEnable,
+                    onChanged: (value) =>
+                        setState(() => _recordEnable = value ?? false),
+                    title: const Text('自动弹出打卡日志'),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('取消'),
+                      ),
+                      const Spacer(),
+                      FilledButton(onPressed: _save, child: const Text('保存')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  TimeOfDay _parseTime(String raw) {
+    final parts = raw.split(':');
+    final hour = int.tryParse(parts.isNotEmpty ? parts[0] : '') ?? 10;
+    final minute = int.tryParse(parts.length > 1 ? parts[1] : '') ?? 0;
+    return TimeOfDay(hour: hour.clamp(0, 23), minute: minute.clamp(0, 59));
   }
 }
 

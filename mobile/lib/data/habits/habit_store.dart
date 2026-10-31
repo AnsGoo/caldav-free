@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:drift/drift.dart' show DoUpdate;
@@ -345,6 +346,10 @@ extension HabitMirrorRow on HabitItem {
     startDate: startDate,
     targetDays: targetDays,
     completedCycles: completedCycles,
+    reminders: jsonEncode(reminders),
+    recordEnable: recordEnable,
+    exDates: jsonEncode(exDates),
+    style: style,
     totalCheckIns: totalCheckIns,
     currentStreak: currentStreak,
     maxStreak: maxStreak,
@@ -373,6 +378,10 @@ extension HabitMirrorModel on HabitRow {
     targetDays: targetDays,
     completedCycles: completedCycles,
     startDate: startDate,
+    style: style,
+    reminders: _decodeStringList(reminders),
+    recordEnable: recordEnable,
+    exDates: _decodeIntList(exDates),
   );
 }
 
@@ -415,8 +424,42 @@ HabitItem optimisticItem(int id, HabitDraft draft) => HabitItem(
   totalCheckIns: 0,
   targetDays: draft.targetDays,
   completedCycles: 0,
-  startDate: 0,
+  startDate: draft.startDate,
+  style: draft.style,
+  reminders: draft.reminders,
+  recordEnable: draft.recordEnable,
+  exDates: draft.exDates,
 );
+
+List<String> _decodeStringList(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded
+          .map((item) => item?.toString() ?? '')
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+  } on FormatException {
+    return const <String>[];
+  }
+  return const <String>[];
+}
+
+List<int> _decodeIntList(String raw) {
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is List) {
+      return decoded
+          .map(_int)
+          .where((item) => item > 0)
+          .toList(growable: false);
+    }
+  } on FormatException {
+    return const <int>[];
+  }
+  return const <int>[];
+}
 
 int _int(Object? value) {
   if (value is int) return value;

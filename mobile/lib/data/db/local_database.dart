@@ -283,6 +283,16 @@ class Habits extends Table {
 
   TextColumn get frequency => text().withDefault(const Constant('{}'))();
 
+  TextColumn get reminders => text().withDefault(const Constant('[]'))();
+
+  BoolColumn get recordEnable =>
+      boolean().named('record_enable').withDefault(const Constant(false))();
+
+  TextColumn get exDates =>
+      text().named('ex_dates').withDefault(const Constant('[]'))();
+
+  TextColumn get style => text().withDefault(const Constant('check'))();
+
   IntColumn get startDate =>
       integer().named('start_date').withDefault(const Constant(0))();
 
@@ -484,7 +494,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -501,6 +511,13 @@ class AppDatabase extends _$AppDatabase {
         // v3: focus read mirror and its write queue.
         await migrator.createTable(focusSessions);
         await migrator.createTable(focusOutbox);
+      }
+      if (from < 4) {
+        // v4: habit form fields shared with the web editor.
+        await migrator.addColumn(habits, habits.reminders);
+        await migrator.addColumn(habits, habits.recordEnable);
+        await migrator.addColumn(habits, habits.exDates);
+        await migrator.addColumn(habits, habits.style);
       }
     },
   );

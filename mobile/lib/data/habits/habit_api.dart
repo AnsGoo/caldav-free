@@ -26,6 +26,10 @@ class HabitItem {
     required this.targetDays,
     required this.completedCycles,
     required this.startDate,
+    this.style = 'check',
+    this.reminders = const <String>[],
+    this.recordEnable = false,
+    this.exDates = const <int>[],
   });
 
   final int id;
@@ -46,6 +50,10 @@ class HabitItem {
   final int targetDays;
   final int completedCycles;
   final int startDate;
+  final String style;
+  final List<String> reminders;
+  final bool recordEnable;
+  final List<int> exDates;
 
   bool get archived => status == 1;
 
@@ -68,6 +76,10 @@ class HabitItem {
     targetDays: _int(json['targetDays']),
     completedCycles: _int(json['completedCycles']),
     startDate: _int(json['startDate']),
+    style: (json['style'] ?? 'check').toString(),
+    reminders: _stringList(json['reminders']),
+    recordEnable: json['recordEnable'] == true,
+    exDates: _intList(json['exDates']),
   );
 
   HabitItem copyWith({
@@ -95,6 +107,10 @@ class HabitItem {
     targetDays: targetDays,
     completedCycles: completedCycles,
     startDate: startDate,
+    style: style,
+    reminders: reminders,
+    recordEnable: recordEnable,
+    exDates: exDates,
   );
 }
 
@@ -152,6 +168,10 @@ class HabitDraft {
     this.targetDays = 0,
     this.style = 'check',
     this.status = 0,
+    this.reminders = const <String>[],
+    this.recordEnable = false,
+    this.startDate = 0,
+    this.exDates = const <int>[],
   });
 
   final String name;
@@ -165,6 +185,10 @@ class HabitDraft {
   final int targetDays;
   final String style;
   final int status;
+  final List<String> reminders;
+  final bool recordEnable;
+  final int startDate;
+  final List<int> exDates;
 
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -178,7 +202,10 @@ class HabitDraft {
     'targetDays': targetDays,
     'style': style,
     'status': status,
-    'recordEnable': false,
+    'reminders': jsonEncode(reminders),
+    'recordEnable': recordEnable,
+    'startDate': startDate,
+    'exDates': jsonEncode(exDates),
   };
 
   factory HabitDraft.fromJson(Map<String, dynamic> json) => HabitDraft(
@@ -189,10 +216,16 @@ class HabitDraft {
     goal: _double(json['goal'], 1),
     step: _double(json['step'], 1),
     unit: (json['unit'] ?? 'Count').toString(),
-    frequency: (json['frequency'] ?? '{"type":"daily","weekdays":[0,1,2,3,4,5,6]}').toString(),
+    frequency:
+        (json['frequency'] ?? '{"type":"daily","weekdays":[0,1,2,3,4,5,6]}')
+            .toString(),
     targetDays: _int(json['targetDays']),
     style: (json['style'] ?? 'check').toString(),
     status: _int(json['status']),
+    reminders: _stringList(json['reminders']),
+    recordEnable: json['recordEnable'] == true,
+    startDate: _int(json['startDate']),
+    exDates: _intList(json['exDates']),
   );
 }
 
@@ -390,4 +423,37 @@ int _int(Object? value) {
 double _double(Object? value, double fallback) {
   if (value is num) return value.toDouble();
   return double.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+List<String> _stringList(Object? value) {
+  Object? decoded = value;
+  if (value is String) {
+    try {
+      decoded = jsonDecode(value);
+    } on FormatException {
+      return const <String>[];
+    }
+  }
+  if (decoded is List) {
+    return decoded
+        .map((item) => item?.toString() ?? '')
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+  }
+  return const <String>[];
+}
+
+List<int> _intList(Object? value) {
+  Object? decoded = value;
+  if (value is String) {
+    try {
+      decoded = jsonDecode(value);
+    } on FormatException {
+      return const <int>[];
+    }
+  }
+  if (decoded is List) {
+    return decoded.map(_int).where((item) => item > 0).toList(growable: false);
+  }
+  return const <int>[];
 }

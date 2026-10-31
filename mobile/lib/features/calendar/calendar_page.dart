@@ -396,10 +396,10 @@ class _CalendarPageState extends State<CalendarPage> {
     if (_writableSources.isEmpty) return null;
     return Tooltip(
       message: '新建日程',
-      child: FloatingActionButton(
+      child: FloatingActionButton.small(
         heroTag: 'calendar-compose-fab',
         onPressed: _createEvent,
-        child: const Icon(Icons.add_rounded),
+        child: const Icon(Icons.add_rounded, size: 18),
       ),
     );
   }

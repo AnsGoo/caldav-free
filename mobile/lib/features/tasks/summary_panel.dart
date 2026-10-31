@@ -722,7 +722,7 @@ class _TagFilterDropdown extends StatelessWidget {
           child: Row(
             children: [
               const SizedBox(width: 16),
-              const Expanded(child: Text('所有标签')),
+              const Expanded(child: Text('所有')),
               if (value.isEmpty)
                 Icon(Icons.check_rounded, size: 16, color: scheme.primary),
             ],
@@ -777,7 +777,7 @@ class _TagFilterDropdown extends StatelessWidget {
             ],
             Expanded(
               child: Text(
-                value.isEmpty ? '所有标签' : '# $value',
+                value.isEmpty ? '所有' : '# $value',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 13),
@@ -1324,7 +1324,7 @@ class _SummarySettingsForm extends StatelessWidget {
           spacing: 6,
           children: [
             for (final entry in const {
-              'all': '所有状态',
+              'all': '所有',
               'open': '未完成',
               'completed': '已完成',
             }.entries)
@@ -1340,7 +1340,7 @@ class _SummarySettingsForm extends StatelessWidget {
           spacing: 6,
           children: [
             for (final entry in const {
-              0: '所有优先级',
+              0: '所有',
               3: '高',
               2: '中',
               1: '低',

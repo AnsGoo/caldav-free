@@ -152,6 +152,25 @@
               <TaskIcon name="timeline" :size="16" />
             </button>
           </div>
+          <div v-if="mode === 'board' && view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai'" class="tw-board-group">
+            <a-select class="tw-field-select tw-board-group-select" :model-value="boardGroupBy" @change="setBoardGroup">
+              <a-option value="list">按清单分组</a-option>
+              <a-option value="priority">按优先级</a-option>
+              <a-option value="due">按截止日期</a-option>
+              <a-option value="tag">按标签</a-option>
+              <a-option value="assignee">按指派人</a-option>
+              <a-option value="matrix">按矩阵视图</a-option>
+            </a-select>
+            <a-select
+              v-if="boardGroupBy === 'matrix'"
+              class="tw-field-select tw-board-group-select"
+              :model-value="boardMatrixViewId"
+              @change="setBoardMatrixView"
+            >
+              <a-option :value="0">默认矩阵</a-option>
+              <a-option v-for="view in matrixViews" :key="view.id" :value="view.id">{{ view.name }}</a-option>
+            </a-select>
+          </div>
           <button
             v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && !noteView && mode !== 'calendar'"
             class="tw-icon-button"
@@ -1137,6 +1156,7 @@ import {
   updateTask,
   updateTaskFolder,
   updateTaskList,
+  type TaskDraft,
   type TaskView,
 } from '../tasks-api'
 import {
@@ -1151,7 +1171,7 @@ import {
   startOfToday,
   taskReminderOffsets,
 } from '../tasks-utils'
-import { blankTaskForMatrix, normalizeMatrixRules, planComplexDrop, planMatrixDrop } from '../matrix-utils'
+import { MATRIX_QUADRANTS, blankTaskForMatrix, matrixQuadrant, normalizeMatrixRules, planComplexDrop, planMatrixDrop } from '../matrix-utils'
 import { tagColor, tagTint } from '../tag-colors'
 import TaskSidebar from '../components/tasks/TaskSidebar.vue'
 import TaskRow from '../components/tasks/TaskRow.vue'
@@ -1244,6 +1264,18 @@ const cursor = ref(new Date())
 const calendarView = ref<'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'>('month')
 const timelineZoom = ref<'day' | 'week' | 'month'>('week')
 const timelineColor = ref<'list' | 'tag' | 'priority' | 'none'>('list')
+type BoardGroupMode = 'list' | 'priority' | 'due' | 'tag' | 'assignee' | 'matrix'
+const BOARD_GROUP_MODES: BoardGroupMode[] = ['list', 'priority', 'due', 'tag', 'assignee', 'matrix']
+const boardGroupBy = ref<BoardGroupMode>('list')
+const boardMatrixViewId = ref(0)
+try {
+  const savedGroup = localStorage.getItem('caldav-board-group')
+  if (savedGroup && (BOARD_GROUP_MODES as string[]).includes(savedGroup)) boardGroupBy.value = savedGroup as BoardGroupMode
+  const savedMatrixView = Number(localStorage.getItem('caldav-board-matrix-view') || 0)
+  if (Number.isFinite(savedMatrixView) && savedMatrixView > 0) boardMatrixViewId.value = savedMatrixView
+} catch {
+  /* ignore */
+}
 const splitView = ref(false)
 const splitWidth = ref(440)
 const splitViewMode = ref<'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'>('3day')
@@ -1283,6 +1315,8 @@ let sequenceTimer: ReturnType<typeof setTimeout> | undefined
 const collapsed = ref(new Set<string>())
 const dragId = ref(0)
 const quickSectionId = ref(0)
+const quickBoardColumn = ref<BoardColumn | null>(null)
+const quickBoardLabel = ref('')
 const sectionMenuId = ref(-1)
 const sectionRenameId = ref(0)
 const sectionRenameName = ref('')
@@ -1522,6 +1556,7 @@ const quickTargetList = computed(() => {
   return lists.value.find((list) => list.id === id)
 })
 const quickTargetName = computed(() => {
+  if (quickBoardLabel.value) return quickBoardLabel.value
   if (view.value === 'shared' && activeSharedList.value) return activeSharedList.value.name
   return quickTargetList.value?.name || '收集箱'
 })
@@ -1535,13 +1570,27 @@ const emptyHint = computed(() => {
 })
 
 const singleListBoard = computed(
-  () => mode.value === 'board' && view.value === 'list' && activeListId.value > 0 && activeList.value?.kind !== 'NOTE',
+  () =>
+    mode.value === 'board' &&
+    boardGroupBy.value === 'list' &&
+    view.value === 'list' &&
+    activeListId.value > 0 &&
+    activeList.value?.kind !== 'NOTE',
 )
 const activeSections = computed(() =>
   sections.value
     .filter((section) => section.listId === activeListId.value)
     .sort((a, b) => a.order - b.order || a.id - b.id),
 )
+
+type BoardDueBucket = 'overdue' | 'today' | 'tomorrow' | 'next7' | 'later' | 'none'
+
+type BoardColumnGroup =
+  | { type: 'priority'; value: number }
+  | { type: 'due'; value: BoardDueBucket }
+  | { type: 'tag'; value: string }
+  | { type: 'assignee'; value: string }
+  | { type: 'matrix'; quadrant: MatrixQuadrantKey }
 
 interface BoardColumn {
   key: string
@@ -1551,6 +1600,91 @@ interface BoardColumn {
   sectionId: number
   isSection: boolean
   tasks: TaskItem[]
+  group?: BoardColumnGroup
+}
+
+const BOARD_DUE_BUCKETS: Array<{ value: BoardDueBucket; name: string; color: string }> = [
+  { value: 'overdue', name: '已过期', color: '#e5533d' },
+  { value: 'today', name: '今天', color: '#f0a020' },
+  { value: 'tomorrow', name: '明天', color: '#17a38a' },
+  { value: 'next7', name: '未来 7 天', color: '#4772fa' },
+  { value: 'later', name: '以后', color: '#7f8aa5' },
+  { value: 'none', name: '无日期', color: '#9aa0a6' },
+]
+
+const boardMatrixView = computed(() => matrixViews.value.find((view) => view.id === boardMatrixViewId.value))
+const boardMatrixMode = computed<MatrixRuleMode>(() => boardMatrixView.value?.mode || matrixDefaultRule.value)
+const boardMatrixRules = computed(() => normalizeMatrixRules(boardMatrixView.value?.rules))
+
+function boardPriority(task: TaskItem) {
+  return task.priority > 3 || task.priority < 0 ? 0 : task.priority
+}
+
+function boardDueBucket(task: TaskItem): BoardDueBucket {
+  if (!task.due) return 'none'
+  const key = dayKey(task.due)
+  const today = startOfToday()
+  const tomorrow = new Date(today)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const next7 = new Date(today)
+  next7.setDate(next7.getDate() + 7)
+  const todayKey = dayKey(today)
+  const tomorrowKey = dayKey(tomorrow)
+  const next7Key = dayKey(next7)
+  if (key < todayKey) return 'overdue'
+  if (key === todayKey) return 'today'
+  if (key === tomorrowKey) return 'tomorrow'
+  if (key <= next7Key) return 'next7'
+  return 'later'
+}
+
+function boardDueDate(bucket: BoardDueBucket) {
+  if (bucket === 'none') return ''
+  const date = startOfToday()
+  date.setHours(18, 0, 0, 0)
+  if (bucket === 'overdue') date.setDate(date.getDate() - 1)
+  else if (bucket === 'tomorrow') date.setDate(date.getDate() + 1)
+  else if (bucket === 'next7') date.setDate(date.getDate() + 7)
+  else if (bucket === 'later') date.setDate(date.getDate() + 14)
+  return date.toISOString()
+}
+
+function boardMatrixQuadrant(task: TaskItem): MatrixQuadrantKey {
+  const priority = boardPriority(task)
+  if (boardMatrixMode.value === 'simple') {
+    return priority === 3 ? 'q1' : priority === 2 ? 'q2' : priority === 1 ? 'q3' : 'q4'
+  }
+  if (boardMatrixMode.value === 'custom') {
+    return matrixQuadrant(task, boardMatrixRules.value)
+  }
+  const tomorrowEnd = new Date(startOfToday())
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 2)
+  const due = task.due ? new Date(task.due) : null
+  const urgent = Boolean(due && due.getTime() < tomorrowEnd.getTime())
+  return priority >= 2 ? (urgent ? 'q1' : 'q2') : (urgent ? 'q3' : 'q4')
+}
+
+function boardMatrixPatch(task: TaskItem, quadrant: MatrixQuadrantKey): TaskDraft | null {
+  if (boardMatrixMode.value === 'custom') return planMatrixDrop(task, boardMatrixRules.value, quadrant)
+  if (boardMatrixMode.value === 'complex') return planComplexDrop(task, quadrant)
+  return { priority: quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0 }
+}
+
+function boardPatchFor(task: TaskItem, group: BoardColumnGroup): TaskDraft | null {
+  switch (group.type) {
+    case 'priority':
+      return { priority: group.value }
+    case 'due':
+      return { due: boardDueDate(group.value) }
+    case 'tag':
+      return { tags: group.value ? [group.value, ...task.tags.filter((tag) => tag !== group.value)] : [] }
+    case 'assignee':
+      return { assignee: group.value }
+    case 'matrix':
+      return boardMatrixPatch(task, group.quadrant)
+    default:
+      return null
+  }
 }
 
 const boardColumns = computed<BoardColumn[]>(() => {
@@ -1584,6 +1718,105 @@ const boardColumns = computed<BoardColumn[]>(() => {
       })
     }
     return columns
+  }
+  if (boardGroupBy.value === 'priority') {
+    return [
+      ...PRIORITIES.map((item) => ({
+        key: `priority-${item.value}`,
+        name: item.label,
+        color: item.color,
+        listId: 0,
+        sectionId: -1,
+        isSection: false,
+        group: { type: 'priority' as const, value: item.value },
+        tasks: base.filter((task) => boardPriority(task) === item.value),
+      })),
+      {
+        key: 'priority-0',
+        name: '无优先级',
+        color: '#9aa0a6',
+        listId: 0,
+        sectionId: -1,
+        isSection: false,
+        group: { type: 'priority', value: 0 },
+        tasks: base.filter((task) => boardPriority(task) === 0),
+      },
+    ]
+  }
+  if (boardGroupBy.value === 'due') {
+    return BOARD_DUE_BUCKETS.map((bucket) => ({
+      key: `due-${bucket.value}`,
+      name: bucket.name,
+      color: bucket.color,
+      listId: 0,
+      sectionId: -1,
+      isSection: false,
+      group: { type: 'due' as const, value: bucket.value },
+      tasks: base.filter((task) => boardDueBucket(task) === bucket.value),
+    }))
+  }
+  if (boardGroupBy.value === 'tag') {
+    const names = Array.from(new Set(base.flatMap((task) => task.tags))).sort((a, b) => a.localeCompare(b, 'zh'))
+    const columns: BoardColumn[] = names.map((tag) => ({
+      key: `tag-${tag}`,
+      name: `#${tag}`,
+      color: tagColor(tag, tagColorMap.value[tag]),
+      listId: 0,
+      sectionId: -1,
+      isSection: false,
+      group: { type: 'tag', value: tag },
+      tasks: base.filter((task) => (task.tags[0] || '') === tag),
+    }))
+    columns.push({
+      key: 'tag-none',
+      name: '无标签',
+      color: '#9aa0a6',
+      listId: 0,
+      sectionId: -1,
+      isSection: false,
+      group: { type: 'tag', value: '' },
+      tasks: base.filter((task) => !task.tags.length),
+    })
+    return columns
+  }
+  if (boardGroupBy.value === 'assignee') {
+    const names = Array.from(new Set(base.map((task) => task.assignee).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh'))
+    const columns: BoardColumn[] = names.map((name, index) => ({
+      key: `assignee-${name}`,
+      name: `@${name}`,
+      color: LIST_COLORS[index % LIST_COLORS.length],
+      listId: 0,
+      sectionId: -1,
+      isSection: false,
+      group: { type: 'assignee', value: name },
+      tasks: base.filter((task) => task.assignee === name),
+    }))
+    columns.push({
+      key: 'assignee-none',
+      name: '未指派',
+      color: '#9aa0a6',
+      listId: 0,
+      sectionId: -1,
+      isSection: false,
+      group: { type: 'assignee', value: '' },
+      tasks: base.filter((task) => !task.assignee),
+    })
+    return columns
+  }
+  if (boardGroupBy.value === 'matrix') {
+    return MATRIX_QUADRANTS.map((quadrant) => {
+      const rule = boardMatrixRules.value[quadrant.id]
+      return {
+        key: `matrix-${quadrant.id}`,
+        name: rule.name || quadrant.label,
+        color: rule.color || quadrant.color,
+        listId: 0,
+        sectionId: -1,
+        isSection: false,
+        group: { type: 'matrix' as const, quadrant: quadrant.id },
+        tasks: base.filter((task) => boardMatrixQuadrant(task) === quadrant.id),
+      }
+    })
   }
   return lists.value
     .filter((list) => list.kind !== 'NOTE')
@@ -1621,6 +1854,9 @@ async function loadWorkspace(silent = false) {
     sharedLists.value = data.sharedLists || []
     sharedNotes.value = data.sharedNotes || []
     matrixViews.value = data.matrixViews || []
+    if (boardMatrixViewId.value && !matrixViews.value.some((view) => view.id === boardMatrixViewId.value)) {
+      setBoardMatrixView(0)
+    }
     if (matrixViews.value.length) {
       if (!activeMatrixViewId.value || !matrixViews.value.some((view) => view.id === activeMatrixViewId.value)) {
         const saved = Number(localStorage.getItem('caldav-matrix-view') || 0)
@@ -1866,6 +2102,8 @@ function switchMode(next: Mode) {
   if (view.value === 'trash' || view.value === 'shared') return
   if (noteView.value) next = 'list'
   if (view.value === 'stats' || view.value === 'summary' || view.value === 'ai' || view.value === 'matrix' || view.value === 'habit' || view.value === 'focus' || view.value === 'countdown') resetWorkspaceToAll()
+  quickBoardColumn.value = null
+  quickBoardLabel.value = ''
   clearSelection()
   mode.value = next
   if (next === 'calendar') {
@@ -2102,14 +2340,24 @@ async function submitQuick() {
       selectedId.value = task.id
       return
     }
+    const boardPatch = quickBoardColumn.value?.group
+      ? boardPatchFor(blankTaskForMatrix(text), quickBoardColumn.value.group)
+      : null
+    if (quickBoardColumn.value?.group && !boardPatch) {
+      Message.warning('目标分组的条件无法自动满足')
+      return
+    }
     const { task } = await createTask({
       text,
       listId: view.value === 'shared' ? activeSharedList.value?.listId : quickTargetList.value?.id,
       sectionId: quickSectionId.value || undefined,
+      ...(boardPatch || {}),
     })
     quickText.value = ''
     quickListId.value = 0
     quickSectionId.value = 0
+    quickBoardColumn.value = null
+    quickBoardLabel.value = ''
     await loadWorkspace(true)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建任务失败')
@@ -2137,14 +2385,27 @@ function createFromCalendar(payload: { date: string; title: string }) {
 }
 
 function addToColumn(column: BoardColumn) {
-  quickListId.value = column.listId
-  quickSectionId.value = column.sectionId > 0 ? column.sectionId : 0
+  if (column.group) {
+    quickBoardColumn.value = column
+    quickBoardLabel.value = column.name
+    quickListId.value = 0
+    quickSectionId.value = 0
+  } else {
+    quickBoardColumn.value = null
+    quickBoardLabel.value = ''
+    quickListId.value = column.listId
+    quickSectionId.value = column.sectionId > 0 ? column.sectionId : 0
+  }
   quickInputEl.value?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   quickInputEl.value?.focus()
 }
 
 function focusQuick() {
-  if (mode.value === 'board') quickSectionId.value = 0
+  if (mode.value === 'board') {
+    quickSectionId.value = 0
+    quickBoardColumn.value = null
+    quickBoardLabel.value = ''
+  }
   mode.value = 'list'
   requestAnimationFrame(() => quickInputEl.value?.focus())
 }
@@ -2174,6 +2435,10 @@ function onColumnDrop(column: BoardColumn) {
   if (!id) return
   const task = tasks.value.find((item) => item.id === id)
   if (!task) return
+  if (column.group) {
+    moveTaskToBoardGroup(task, column.group)
+    return
+  }
   if (column.isSection) {
     if (task.listId === column.listId && task.sectionId === column.sectionId) return
     const previousList = task.listId
@@ -2193,6 +2458,39 @@ function onColumnDrop(column: BoardColumn) {
     return
   }
   dropOnList(column.listId)
+}
+
+function moveTaskToBoardGroup(task: TaskItem, group: BoardColumnGroup) {
+  const patch = boardPatchFor(task, group)
+  if (!patch) {
+    Message.warning('目标分组的条件无法自动满足')
+    return
+  }
+  const previous = {
+    priority: task.priority,
+    due: task.due,
+    tags: [...task.tags],
+    assignee: task.assignee,
+    listId: task.listId,
+  }
+  if (patch.priority !== undefined) task.priority = patch.priority
+  if (patch.due !== undefined) task.due = patch.due || undefined
+  if (patch.tags !== undefined) task.tags = [...patch.tags]
+  if (patch.assignee !== undefined) task.assignee = patch.assignee
+  if (patch.listId !== undefined) task.listId = patch.listId
+  void updateTask(task.id, patch)
+    .then(({ task: updated }) => {
+      replaceTask(updated)
+      scheduleRefresh()
+    })
+    .catch((error) => {
+      task.priority = previous.priority
+      task.due = previous.due
+      task.tags = previous.tags
+      task.assignee = previous.assignee
+      task.listId = previous.listId
+      Message.error(error instanceof Error ? error.message : '移动任务失败')
+    })
 }
 
 function dropSection(target: BoardColumn) {
@@ -2634,6 +2932,28 @@ function setTimelineColor(value: 'list' | 'tag' | 'priority' | 'none') {
   timelineColor.value = value
   try {
     localStorage.setItem('caldav-timeline-color', value)
+  } catch {
+    /* ignore */
+  }
+}
+
+function setBoardGroup(value: unknown) {
+  const next = String(value) as BoardGroupMode
+  if (!BOARD_GROUP_MODES.includes(next)) return
+  boardGroupBy.value = next
+  quickBoardColumn.value = null
+  quickBoardLabel.value = ''
+  try {
+    localStorage.setItem('caldav-board-group', next)
+  } catch {
+    /* ignore */
+  }
+}
+
+function setBoardMatrixView(value: unknown) {
+  boardMatrixViewId.value = Number(value) || 0
+  try {
+    localStorage.setItem('caldav-board-matrix-view', String(boardMatrixViewId.value))
   } catch {
     /* ignore */
   }

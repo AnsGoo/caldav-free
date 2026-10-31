@@ -804,6 +804,19 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
+/* Board grouping selector */
+.tw-board-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tw-board-group-select {
+  width: 132px;
+  height: 30px;
+  font-size: 12px;
+}
+
 .tw-icon-button {
   width: 28px;
   height: 28px;
@@ -2251,6 +2264,10 @@
 
   .tw-mode-switch {
     display: none;
+  }
+
+  .tw-board-group-select {
+    width: 112px;
   }
 
   .tw-heading-icon {

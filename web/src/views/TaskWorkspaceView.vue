@@ -35,6 +35,9 @@
         <button class="tw-rail-button" :class="{ active: view === 'notes' }" title="笔记" @click="selectView('notes')">
           <TaskIcon name="note" :size="20" />
         </button>
+        <button class="tw-rail-button" :class="{ active: view === 'summary' }" title="摘要" @click="selectView('summary')">
+          <TaskIcon name="summary" :size="20" />
+        </button>
         <button class="tw-rail-button" :class="{ active: view === 'stats' }" title="统计" @click="openStats">
           <TaskIcon name="chart" :size="21" />
         </button>

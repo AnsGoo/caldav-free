@@ -370,9 +370,6 @@ const smartItems = computed(() => [
   { view: 'next7', label: '最近 7 天', icon: 'next7', count: props.counts.next7 },
   { view: 'completed', label: '已完成', icon: 'check', count: props.counts.completed },
   { view: 'trash', label: '垃圾桶', icon: 'trash', count: props.counts.trash },
-  { view: 'summary', label: '摘要', icon: 'note', count: 0 },
-  { view: 'stats', label: '统计', icon: 'chart', count: 0 },
-  { view: 'ai', label: 'AI 助手', icon: 'sparkles', count: 0 },
 ])
 
 function isFolderCollapsed(id: number) {

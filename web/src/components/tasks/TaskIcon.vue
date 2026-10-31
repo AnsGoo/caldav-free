@@ -143,6 +143,10 @@
     <template v-else-if="name === 'send'">
       <path d="M20.5 3.5 10 14M20.5 3.5l-6.5 17-4-7-7-4 17-6Z" />
     </template>
+    <template v-else-if="name === 'summary'">
+      <rect x="4" y="3.5" width="16" height="17" rx="2.5" />
+      <path d="M8 15.5v-3M12 15.5V8.5M16 15.5v-5" />
+    </template>
     <template v-else-if="name === 'chart'">
       <path d="M4 20h16" />
       <path d="M7 20V11M12 20V5M17 20v-6" />

@@ -11,18 +11,6 @@
         <button class="tw-rail-button" :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
           <TaskIcon name="list" :size="21" />
         </button>
-        <button class="tw-rail-button" :class="{ active: mode === 'board' }" title="看板" @click="openModePage('board')">
-          <TaskIcon name="board" :size="21" />
-        </button>
-        <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="openModePage('calendar')">
-          <TaskIcon name="calendar" :size="21" />
-        </button>
-        <button class="tw-rail-button" :class="{ active: mode === 'timeline' }" title="时间线" @click="openModePage('timeline')">
-          <TaskIcon name="timeline" :size="21" />
-        </button>
-        <button class="tw-rail-button" :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
-          <TaskIcon name="matrix" :size="20" />
-        </button>
         <button class="tw-rail-button" :class="{ active: view === 'focus' }" title="专注" @click="selectView('focus')">
           <TaskIcon name="clock" :size="21" />
         </button>
@@ -159,6 +147,9 @@
             </button>
             <button :class="{ active: mode === 'timeline' }" title="时间线" @click="switchMode('timeline')">
               <TaskIcon name="timeline" :size="16" />
+            </button>
+            <button :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
+              <TaskIcon name="matrix" :size="16" />
             </button>
           </div>
           <button
@@ -1860,13 +1851,6 @@ function switchMode(next: Mode) {
   if (next === 'calendar') {
     cursor.value = new Date()
   }
-  syncURL()
-}
-
-function openModePage(next: Mode) {
-  if (view.value !== 'all') resetWorkspaceToAll()
-  mode.value = next
-  if (next === 'calendar') cursor.value = new Date()
   syncURL()
 }
 

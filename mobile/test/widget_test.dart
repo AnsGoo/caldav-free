@@ -1251,10 +1251,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.summaryTemplatesSnapshot().single.content, contains('保留我'));
 
-    // 宽屏：筛选在右侧栏，修改后立即重新生成。
-    await tester.tap(find.byTooltip('筛选与分组'));
-    await tester.pumpAndSettle();
+    // 宽屏：右侧筛选栏常驻，修改后立即重新生成。
     expect(find.text('摘要筛选'), findsOneWidget);
+    expect(find.byTooltip('筛选与分组'), findsNothing);
     await tester.tap(find.text('本月'));
     await tester.pumpAndSettle();
     expect(text(), contains('本月摘要'));

@@ -100,7 +100,6 @@ class _SummaryFilter {
 class _SummaryPanelState extends State<SummaryPanel> {
   final _controller = TextEditingController();
   _SummaryFilter _filter = const _SummaryFilter();
-  bool _settingsOpen = false;
 
   @override
   void initState() {
@@ -429,15 +428,17 @@ class _SummaryPanelState extends State<SummaryPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final wide = isWideLayout(context);
+    // Tablets/desktop keep the aside; phones (even landscape) always use the
+    // bottom sheet and keep the filter panel hidden by default.
+    final wide = MediaQuery.sizeOf(context).shortestSide >= 600;
     final editor = _buildEditor(context, wide);
     if (!wide) return editor;
+    // The right filter panel is permanent on PC, like the web summary aside.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Expanded(child: editor),
-        if (_settingsOpen)
-          SizedBox(width: 286, child: _buildAside(context)),
+        SizedBox(width: 286, child: _buildAside(context)),
       ],
     );
   }
@@ -472,18 +473,13 @@ class _SummaryPanelState extends State<SummaryPanel> {
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.refresh_rounded, size: 18),
               ),
-              IconButton(
-                tooltip: '筛选与分组',
-                onPressed: () {
-                  if (wide) {
-                    setState(() => _settingsOpen = !_settingsOpen);
-                  } else {
-                    _openSettings();
-                  }
-                },
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.tune_rounded, size: 18),
-              ),
+              if (!wide)
+                IconButton(
+                  tooltip: '筛选与分组',
+                  onPressed: _openSettings,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.tune_rounded, size: 18),
+                ),
               IconButton(
                 tooltip: '复制摘要',
                 onPressed: _copy,
@@ -572,24 +568,12 @@ class _SummaryPanelState extends State<SummaryPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '摘要筛选',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: '关闭',
-                onPressed: () => setState(() => _settingsOpen = false),
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.close_rounded, size: 16),
-              ),
-            ],
+          Text(
+            '摘要筛选',
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           Expanded(
             child: SingleChildScrollView(

@@ -3,7 +3,7 @@
     <header class="tw-matrix-head">
       <div>
         <h2>{{ activeViewName }}</h2>
-        <p>{{ manualSort ? '手动排序 · 拖动任务调整象限内顺序' : rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
+        <p>{{ rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
       </div>
       <div class="tw-matrix-head-actions">
         <div class="tw-matrix-view-picker">
@@ -21,36 +21,10 @@
             <TaskIcon name="filter" :size="13" />
           </button>
         </div>
-        <button
-          class="tw-icon-button"
-          :class="{ active: selectionMode }"
-          :title="selectionMode ? '退出多选' : '多选任务'"
-          @click="$emit('toggle-selection')"
-        >
-          <TaskIcon name="select" :size="16" />
-        </button>
-        <button
-          class="tw-icon-button"
-          :class="{ active: manualSort }"
-          :title="manualSort ? '关闭手动排序' : '开启手动排序（拖动任务调整顺序）'"
-          @click="$emit('toggle-manual-sort')"
-        >
-          <TaskIcon name="sort" :size="16" />
-        </button>
         <span class="tw-matrix-total">{{ tasks.length }} 项</span>
       </div>
     </header>
 
-    <div v-if="selectionMode" class="tw-matrix-batch-bar">
-      <span>已选 {{ selectedIds.size }} 项</span>
-      <div class="tw-matrix-batch-actions">
-        <button v-for="item in quadrants" :key="item.id" :disabled="!selectedIds.size" @click="$emit('batch-move', item.id)">
-          移到 {{ item.label }}
-        </button>
-        <button :disabled="!selectedIds.size" @click="$emit('clear-selection')">清空</button>
-        <button @click="$emit('toggle-selection')">退出多选</button>
-      </div>
-    </div>
 
     <div class="tw-matrix-grid" :class="gridCollapseClass">
       <article
@@ -112,26 +86,13 @@
                 v-for="task in group.tasks"
                 :key="task.id"
                 class="tw-matrix-row"
-                :class="{ done: task.completed, selected: selectionMode && selectedIds.has(task.id), 'sort-over': manualSort && sortOver === task.id }"
-                :draggable="!selectionMode && (manualSort ? !task.completed : rule !== 'complex')"
+                :class="{ done: task.completed }"
+                :draggable="rule !== 'complex'"
                 @dragstart="startDrag(task, $event)"
-                @dragover.prevent="manualSort && !task.completed ? (sortOver = task.id) : null"
-                @dragleave="sortOver = 0"
-                @drop.prevent="onRowDrop(quadrant.id, task, $event)"
                 @dragend="endDrag"
-                @click="onRowClick(task)"
+                @click="$emit('open', task)"
               >
                 <span
-                  v-if="selectionMode"
-                  class="tw-matrix-select"
-                  :class="{ checked: selectedIds.has(task.id) }"
-                  :title="selectedIds.has(task.id) ? '取消选择' : '选择任务'"
-                  @click.stop="$emit('toggle-select', task)"
-                >
-                  <TaskIcon v-if="selectedIds.has(task.id)" name="check" :size="10" />
-                </span>
-                <span
-                  v-else
                   class="tw-matrix-check"
                   :class="{ checked: task.completed }"
                   :title="task.completed ? '标记为未完成' : '标记为完成'"
@@ -178,9 +139,6 @@ const props = defineProps<{
   lists: TaskList[]
   tags: string[]
   assignees: string[]
-  manualSort: boolean
-  selectionMode: boolean
-  selectedIds: Set<number>
 }>()
 
 const emit = defineEmits<{
@@ -188,24 +146,15 @@ const emit = defineEmits<{
   (event: 'toggle', task: TaskItem): void
   (event: 'move', payload: { task: TaskItem; priority: number }): void
   (event: 'move-custom', payload: { task: TaskItem; quadrant: MatrixQuadrantKey }): void
-  (event: 'move-sorted', payload: { task: TaskItem; quadrant: MatrixQuadrantKey; orderedIds: number[] }): void
   (event: 'select-view', id: number): void
   (event: 'create-view'): void
   (event: 'manage-views'): void
   (event: 'edit-rules'): void
-  (event: 'toggle-manual-sort'): void
-  (event: 'reorder', ids: number[]): void
-  (event: 'toggle-selection'): void
-  (event: 'toggle-select', task: TaskItem): void
-  (event: 'clear-selection'): void
-  (event: 'batch-move', quadrant: string): void
   (event: 'quick-add', payload: { quadrant: string; title: string }): void
 }>()
 
 const dragTask = ref<TaskItem | null>(null)
 const dragOver = ref('')
-const sortTask = ref<TaskItem | null>(null)
-const sortOver = ref(0)
 const quickQuadrant = ref('')
 const quickTitle = ref('')
 const quickInput = ref<HTMLInputElement | null>(null)
@@ -267,9 +216,7 @@ const quadrants = computed(() => {
     }
     buckets[key].push(task)
   }
-  const groupsFor = (items: TaskItem[]) => props.manualSort
-    ? [{ key: 'manual', label: '', tasks: sortManual(items) }]
-    : group(items)
+  const groupsFor = (items: TaskItem[]) => group(items)
   return [
     { id: 'q1', label: customRules.value.q1.name, color: customRules.value.q1.color, tasks: buckets.q1, groups: groupsFor(buckets.q1) },
     { id: 'q2', label: customRules.value.q2.name, color: customRules.value.q2.color, tasks: buckets.q2, groups: groupsFor(buckets.q2) },
@@ -277,11 +224,6 @@ const quadrants = computed(() => {
     { id: 'q4', label: customRules.value.q4.name, color: customRules.value.q4.color, tasks: buckets.q4, groups: groupsFor(buckets.q4) },
   ]
 })
-
-function onRowClick(task: TaskItem) {
-  if (props.selectionMode) emit('toggle-select', task)
-  else emit('open', task)
-}
 
 function openQuickAdd(quadrant: string) {
   if (collapsedQuadrants.value.has(quadrant)) toggleCollapse(quadrant)
@@ -304,14 +246,8 @@ function cancelQuickAdd() {
 }
 
 function startDrag(task: TaskItem, event: DragEvent) {
-  if (props.manualSort) {
-    if (task.completed) return
-    sortTask.value = task
-    sortOver.value = task.id
-  } else {
-    if (props.rule === 'complex') return
-    dragTask.value = task
-  }
+  if (props.rule === 'complex') return
+  dragTask.value = task
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', String(task.id))
@@ -321,76 +257,17 @@ function startDrag(task: TaskItem, event: DragEvent) {
 function endDrag() {
   dragTask.value = null
   dragOver.value = ''
-  sortTask.value = null
-  sortOver.value = 0
-}
-
-function onRowDrop(quadrant: string, target: TaskItem, event: DragEvent) {
-  if (!props.manualSort) return
-  event.stopPropagation()
-  const source = sortTask.value
-  sortTask.value = null
-  sortOver.value = 0
-  if (!source || target.completed || source.id === target.id) return
-  if (quadrantOf(source.id) !== quadrant) {
-    const orderedIds = orderedIdsWith(source, quadrant, target.id)
-    if (orderedIds) emit('move-sorted', { task: source, quadrant: quadrant as MatrixQuadrantKey, orderedIds })
-    return
-  }
-  const quadrantTasks = quadrants.value.find((item) => item.id === quadrant)?.groups[0]?.tasks
-  if (!quadrantTasks) return
-  const list = quadrantTasks.slice()
-  const from = list.findIndex((task) => task.id === source.id)
-  const to = list.findIndex((task) => task.id === target.id)
-  if (from < 0 || to < 0) return
-  const [moved] = list.splice(from, 1)
-  list.splice(to, 0, moved)
-  const ordered: number[] = []
-  for (const item of quadrants.value) {
-    const tasks = item.id === quadrant ? list : item.groups[0]?.tasks ?? []
-    ordered.push(...tasks.map((task) => task.id))
-  }
-  emit('reorder', ordered)
 }
 
 function priorityForQuadrant(quadrant: string) {
   return quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0
 }
 
-function quadrantOf(taskId: number) {
-  return quadrants.value.find((item) => item.tasks.some((task) => task.id === taskId))?.id
-}
-
-function orderedIdsWith(task: TaskItem, quadrant: string, beforeId = 0) {
-  const lists = quadrants.value.map((item) => ({
-    id: item.id,
-    tasks: (item.groups[0]?.tasks ?? item.tasks).slice(),
-  }))
-  const sourceList = lists.find((item) => item.tasks.some((entry) => entry.id === task.id))
-  const targetList = lists.find((item) => item.id === quadrant)
-  if (!sourceList || !targetList) return null
-  sourceList.tasks = sourceList.tasks.filter((entry) => entry.id !== task.id)
-  const index = beforeId ? targetList.tasks.findIndex((entry) => entry.id === beforeId) : -1
-  if (index >= 0) targetList.tasks.splice(index, 0, task)
-  else targetList.tasks.push(task)
-  return lists.flatMap((item) => item.tasks.map((entry) => entry.id))
-}
-
 function dropOnQuadrant(quadrant: string) {
-  const source = sortTask.value
-  const task = source || dragTask.value
-  sortTask.value = null
-  sortOver.value = 0
+  const task = dragTask.value
   dragTask.value = null
   dragOver.value = ''
   if (!task) return
-  if (source) {
-    if (quadrantOf(task.id) !== quadrant) {
-      const orderedIds = orderedIdsWith(task, quadrant)
-      if (orderedIds) emit('move-sorted', { task, quadrant: quadrant as MatrixQuadrantKey, orderedIds })
-    }
-    return
-  }
   if (props.rule === 'complex') return
   if (props.rule === 'custom') {
     emit('move-custom', { task, quadrant: quadrant as MatrixQuadrantKey })
@@ -398,10 +275,6 @@ function dropOnQuadrant(quadrant: string) {
   }
   const priority = priorityForQuadrant(quadrant)
   if (task.priority !== priority) emit('move', { task, priority })
-}
-
-function sortManual(tasks: TaskItem[]) {
-  return tasks.slice().sort((a, b) => a.order - b.order || a.id - b.id)
 }
 
 function group(tasks: TaskItem[]) {

@@ -6803,11 +6803,6 @@ button.tw-side-link {
   justify-content: flex-end;
 }
 
-.tw-matrix-row.sort-over {
-  box-shadow: inset 0 2px 0 var(--tw-accent);
-  background: color-mix(in srgb, var(--tw-accent) 7%, transparent);
-}
-
 .tw-matrix-head-actions {
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -6823,81 +6818,6 @@ button.tw-side-link {
 .tw-matrix-template-current {
   border-style: dashed;
   background: transparent;
-}
-
-.tw-matrix-batch-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  padding: 7px 10px;
-  border: 1px solid var(--tw-border);
-  border-radius: 10px;
-  background: var(--tw-surface);
-  color: var(--tw-text-2);
-  font-size: 11.5px;
-}
-
-.tw-matrix-batch-bar > span {
-  color: var(--tw-text-3);
-  white-space: nowrap;
-}
-
-.tw-matrix-batch-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-left: auto;
-}
-
-.tw-matrix-batch-actions button {
-  height: 26px;
-  border: 1px solid var(--tw-border);
-  border-radius: 999px;
-  padding: 0 10px;
-  color: var(--tw-text-2);
-  background: var(--tw-bg);
-  font-size: 10.5px;
-  white-space: nowrap;
-}
-
-.tw-matrix-batch-actions button:hover:not(:disabled) {
-  border-color: var(--tw-accent);
-  color: var(--tw-accent);
-  background: color-mix(in srgb, var(--tw-accent) 8%, transparent);
-}
-
-.tw-matrix-batch-actions button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.tw-matrix-select {
-  width: 17px;
-  height: 17px;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1.3px solid var(--tw-text-3);
-  border-radius: 5px;
-  color: #fff;
-  background: transparent;
-  cursor: pointer;
-}
-
-.tw-matrix-select.checked {
-  border-color: var(--tw-accent);
-  background: var(--tw-accent);
-}
-
-.tw-matrix-row.selected {
-  background: color-mix(in srgb, var(--tw-accent) 9%, transparent);
-}
-
-.tw-matrix-row.selected:hover {
-  background: color-mix(in srgb, var(--tw-accent) 13%, transparent);
 }
 
 .tw-matrix-quick {

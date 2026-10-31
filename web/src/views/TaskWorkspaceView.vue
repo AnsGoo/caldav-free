@@ -229,9 +229,6 @@
         :views="matrixViews"
         :active-view-id="activeMatrixViewId"
         :custom-rules="matrixCustomRules"
-        :manual-sort="matrixManualSort"
-        :selection-mode="matrixSelectionMode"
-        :selected-ids="matrixSelectedIds"
         :lists="lists"
         :tags="tags"
         :assignees="matrixAssignees"
@@ -239,17 +236,10 @@
         @toggle="toggleTask"
         @move="moveTaskToQuadrant"
         @move-custom="moveTaskToCustomQuadrant"
-        @move-sorted="moveTaskCrossQuadrant"
         @select-view="selectMatrixView"
         @create-view="openMatrixViewDialog"
         @manage-views="matrixViewManagerOpen = true"
         @edit-rules="openMatrixRules"
-        @toggle-manual-sort="toggleMatrixManualSort"
-        @reorder="onMatrixReorder"
-        @toggle-selection="toggleMatrixSelection"
-        @toggle-select="toggleMatrixSelect"
-        @clear-selection="clearMatrixSelection"
-        @batch-move="batchMoveMatrix"
         @quick-add="quickAddMatrixTask"
       />
       <div v-else class="tw-main-body" :class="{ 'is-split': splitView && mode !== 'calendar' }">
@@ -1262,11 +1252,7 @@ const matrixViewName = ref('')
 const matrixViewMode = ref<MatrixRuleMode>('simple')
 const matrixViewManagerOpen = ref(false)
 const matrixRulesDialogOpen = ref(false)
-const matrixManualSort = ref(false)
-const matrixSelectionMode = ref(false)
-const matrixSelectedIds = ref(new Set<number>())
 try {
-  matrixManualSort.value = localStorage.getItem('caldav-matrix-manual-sort') === '1'
   const savedRule = localStorage.getItem('caldav-matrix-rule')
   if (savedRule === 'simple' || savedRule === 'complex' || savedRule === 'custom') {
     matrixDefaultRule.value = savedRule
@@ -2715,51 +2701,12 @@ const matrixAssignees = computed(() =>
   Array.from(new Set(tasks.value.map((task) => task.assignee).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'zh')),
 )
 
-function clearMatrixSelection() {
-  matrixSelectedIds.value = new Set()
-}
-
-function toggleMatrixSelection() {
-  matrixSelectionMode.value = !matrixSelectionMode.value
-  clearMatrixSelection()
-}
-
-function toggleMatrixSelect(task: TaskItem) {
-  const next = new Set(matrixSelectedIds.value)
-  if (next.has(task.id)) next.delete(task.id)
-  else next.add(task.id)
-  matrixSelectedIds.value = next
-}
-
 function matrixPatchForTask(task: TaskItem, quadrant: MatrixQuadrantKey) {
   if (matrixRule.value === 'custom') {
     return planMatrixDrop(task, normalizeMatrixRules(matrixCustomRules.value), quadrant)
   }
   if (matrixRule.value === 'complex') return planComplexDrop(task, quadrant)
   return { priority: quadrant === 'q1' ? 3 : quadrant === 'q2' ? 2 : quadrant === 'q3' ? 1 : 0 }
-}
-
-async function batchMoveMatrix(quadrant: string) {
-  const target = quadrant as MatrixQuadrantKey
-  const selected = matrixTasks.value.filter((task) => matrixSelectedIds.value.has(task.id))
-  if (!selected.length) return
-  const plans = selected.map((task) => ({ task, patch: matrixPatchForTask(task, target) }))
-  const valid = plans.filter((item): item is { task: TaskItem; patch: NonNullable<typeof item.patch> } => item.patch !== null)
-  let updated = 0
-  let failed = plans.length - valid.length
-  await Promise.all(valid.map(async ({ task, patch }) => {
-    try {
-      const { task: next } = await updateTask(task.id, patch)
-      replaceTask(next)
-      updated += 1
-    } catch {
-      failed += 1
-    }
-  }))
-  if (updated) Message.success(`已移动 ${updated} 个任务`)
-  if (failed) Message.warning(`${failed} 个任务未能移动`)
-  clearMatrixSelection()
-  await loadWorkspace(true)
 }
 
 async function quickAddMatrixTask(payload: { quadrant: string; title: string }) {
@@ -2786,33 +2733,6 @@ async function quickAddMatrixTask(payload: { quadrant: string; title: string }) 
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建任务失败')
   }
-}
-
-function toggleMatrixManualSort() {
-  clearMatrixSelection()
-  matrixManualSort.value = !matrixManualSort.value
-  try {
-    localStorage.setItem('caldav-matrix-manual-sort', matrixManualSort.value ? '1' : '0')
-  } catch {
-    /* ignore */
-  }
-}
-
-async function applyMatrixOrder(ids: number[]) {
-  ids.forEach((id, index) => {
-    const task = tasks.value.find((item) => item.id === id)
-    if (task) task.order = index + 1
-  })
-  try {
-    await reorderTasks(ids)
-  } catch (error) {
-    Message.error(error instanceof Error ? error.message : '排序保存失败')
-    void loadWorkspace(true)
-  }
-}
-
-async function onMatrixReorder(ids: number[]) {
-  await applyMatrixOrder(ids)
 }
 
 function openMatrixRules() {
@@ -2842,12 +2762,10 @@ function setDefaultMatrixRule(rule: MatrixRuleMode) {
     /* ignore */
   }
   if (activeMatrixViewId.value) return
-  clearMatrixSelection()
   matrixRule.value = rule
 }
 
 function selectMatrixView(id: number) {
-  clearMatrixSelection()
   activeMatrixViewId.value = id
   const view = matrixViews.value.find((item) => item.id === id)
   matrixRule.value = view?.mode || matrixDefaultRule.value
@@ -2910,29 +2828,6 @@ async function moveTaskToCustomQuadrant(payload: { task: TaskItem; quadrant: Mat
     Message.success('已按目标象限规则调整任务')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '自动调整任务条件失败')
-  }
-}
-
-async function moveTaskCrossQuadrant(payload: { task: TaskItem; quadrant: MatrixQuadrantKey; orderedIds: number[] }) {
-  let patch: { priority?: number; due?: string; listId?: number; tags?: string[]; assignee?: string } | null = null
-  if (matrixRule.value === 'custom') {
-    patch = planMatrixDrop(payload.task, normalizeMatrixRules(matrixCustomRules.value), payload.quadrant)
-    if (patch === null) {
-      Message.warning('目标象限条件无法通过拖拽自动满足')
-      return
-    }
-  } else if (matrixRule.value === 'complex') {
-    patch = planComplexDrop(payload.task, payload.quadrant)
-  } else {
-    patch = { priority: payload.quadrant === 'q1' ? 3 : payload.quadrant === 'q2' ? 2 : payload.quadrant === 'q3' ? 1 : 0 }
-  }
-  try {
-    const { task } = await updateTask(payload.task.id, patch)
-    replaceTask(task)
-    await applyMatrixOrder(payload.orderedIds)
-    Message.success('已移动到对应象限')
-  } catch (error) {
-    Message.error(error instanceof Error ? error.message : '移动任务失败')
   }
 }
 

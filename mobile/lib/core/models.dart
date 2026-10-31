@@ -418,6 +418,45 @@ class TaskListItem {
   }
 }
 
+/// Locally stored summary template: a generation preset, never synced.
+class SummaryTemplate {
+  const SummaryTemplate({
+    required this.id,
+    required this.name,
+    required this.range,
+    this.content = '',
+    required this.createdAt,
+  });
+
+  final String id;
+  final String name;
+
+  /// Generation range the template was saved from.
+  final String range;
+
+  /// Markdown snapshot saved from the editor.
+  final String content;
+  final DateTime createdAt;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'range': range,
+    'content': content,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
+
+  factory SummaryTemplate.fromJson(Map<String, dynamic> json) => SummaryTemplate(
+    id: (json['id'] ?? '').toString(),
+    name: (json['name'] ?? '').toString(),
+    range: (json['range'] ?? 'week').toString(),
+    content: (json['content'] ?? '').toString(),
+    createdAt:
+        DateTime.tryParse((json['createdAt'] ?? '').toString())?.toUtc() ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  );
+}
+
 /// Conditions of a saved task filter, mirroring the web's filter dialog.
 class FilterConditions {
   const FilterConditions({

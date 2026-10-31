@@ -517,6 +517,9 @@ const String accentKey = 'accent';
 /// Which tags are shown in the PC sidebar. Missing means "show every tag".
 const String sidebarTagsKey = 'sidebar_tags';
 
+/// Summary templates are intentionally local-only (never pushed to the server).
+const String summaryTemplatesKey = 'summary_templates';
+
 /// Habit display preferences (server `HabitPreference`, a single row per user)
 /// are cached as one JSON value rather than a table of scalars.
 const String habitPreferencesKey = 'habit_preferences';

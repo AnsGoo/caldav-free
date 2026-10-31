@@ -16,7 +16,7 @@ import '../../design/format.dart';
 import '../lists/lists_page.dart';
 import 'board_view.dart';
 import 'matrix_view.dart';
-import 'timeline_view.dart';
+import 'summary_panel.dart';
 
 bool _filterDateMatches(TaskItem task, FilterConditions conditions) {
   final due = task.dueAt?.toLocal();
@@ -70,7 +70,7 @@ bool _filterDateMatches(TaskItem task, FilterConditions conditions) {
   }
 }
 
-enum _TaskLayout { list, board, matrix, timeline }
+enum _TaskLayout { list, board, matrix }
 
 class TasksPage extends StatefulWidget {
   const TasksPage({super.key});
@@ -83,6 +83,7 @@ class _TasksPageState extends State<TasksPage> {
   String? _selectedListId;
   bool _completed = false;
   bool _trash = false;
+  bool _summary = false;
   List<TaskListItem> _lists = const [];
   List<TaskItem> _tasks = const [];
   StreamSubscription<List<TaskListItem>>? _listsSub;
@@ -98,8 +99,6 @@ class _TasksPageState extends State<TasksPage> {
   String? _activeFilterId;
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
-  TimelineScale _timelineScale = TimelineScale.day;
-  DateTime? _timelineAnchor;
   bool _manualSort = false;
   bool _selecting = false;
   final Set<String> _selectedIds = {};
@@ -189,6 +188,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _setLayout(_TaskLayout layout) {
     setState(() {
+      _summary = false;
       _trash = false;
       _layout = layout;
       _completed = false;
@@ -197,7 +197,7 @@ class _TasksPageState extends State<TasksPage> {
       _selectedIds.clear();
       if (layout != _TaskLayout.list) {
         _view = 'all';
-        // Board/matrix/timeline all start scoped to every list; the board
+        // Board/matrix start scoped to every list; the board
         // shows one column per list until a single list is picked.
         _selectedListId = null;
       }
@@ -207,6 +207,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectTag(String tag) {
     setState(() {
+      _summary = false;
       _trash = false;
       _activeFilterId = null;
       _selectedTag = _selectedTag == tag ? null : tag;
@@ -225,6 +226,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _applyFilter(String? id) {
     setState(() {
+      _summary = false;
       _trash = false;
       _activeFilterId = id;
       if (id != null) {
@@ -327,6 +329,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectListScope(String? listId) {
     setState(() {
+      _summary = false;
       _trash = false;
       _activeFilterId = null;
       _selectedListId = listId;
@@ -339,6 +342,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectViewScope(String view) {
     setState(() {
+      _summary = false;
       _trash = false;
       _activeFilterId = null;
       _selectedListId = null;
@@ -352,6 +356,7 @@ class _TasksPageState extends State<TasksPage> {
   void _selectCompletedScope() {
     setState(() {
       // Completed is a list-layout scope, mirroring _setLayout's reset.
+      _summary = false;
       _trash = false;
       _activeFilterId = null;
       _layout = _TaskLayout.list;
@@ -361,6 +366,26 @@ class _TasksPageState extends State<TasksPage> {
       _manualSort = false;
       _selecting = false;
       _selectedIds.clear();
+    });
+    _subscribeTasks();
+  }
+
+  void _toggleSummary() {
+    final next = !_summary;
+    setState(() {
+      _summary = next;
+      if (next) {
+        _trash = false;
+        _selectedListId = null;
+        _view = 'all';
+        _completed = false;
+        _activeFilterId = null;
+        _selectedTag = null;
+        _manualSort = false;
+        _layout = _TaskLayout.list;
+        _selecting = false;
+        _selectedIds.clear();
+      }
     });
     _subscribeTasks();
   }
@@ -467,14 +492,6 @@ class _TasksPageState extends State<TasksPage> {
       await context.read<AppState>().repository.reorderTasks(ids);
     } catch (error) {
       _snack('排序失败：$error');
-    }
-  }
-
-  Future<void> _reschedule(TaskItem task, DateTime? due) async {
-    try {
-      await context.read<AppState>().repository.rescheduleTask(task.id, due);
-    } catch (error) {
-      _snack('改期失败：$error');
     }
   }
 
@@ -828,7 +845,9 @@ class _TasksPageState extends State<TasksPage> {
     final selected = _selectedList;
     final activeFilter = _activeFilter;
     final trashTasks = _trash ? app.store.trashSnapshot() : const <TaskItem>[];
-    final title = _trash
+    final title = _summary
+        ? '摘要'
+        : _trash
         ? '回收站'
         : activeFilter != null
         ? activeFilter.name
@@ -953,6 +972,8 @@ class _TasksPageState extends State<TasksPage> {
               completedCount: completedCount,
               trashCount: trashCount,
               trashSelected: _trash,
+              summarySelected: _summary,
+              onSummary: _toggleSummary,
               onSelected: _selectListScope,
               onViewSelected: _selectViewScope,
               onCompleted: _selectCompletedScope,
@@ -972,7 +993,7 @@ class _TasksPageState extends State<TasksPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!_searching && !_selecting && !_trash)
+                if (!_searching && !_selecting && !_trash && !_summary)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
                     child: _LayoutSwitcher(
@@ -1004,12 +1025,19 @@ class _TasksPageState extends State<TasksPage> {
                       completedCount: completedCount,
                       trashCount: trashCount,
                       trashSelected: _trash,
+                      summarySelected: _summary,
+                      onSummary: _toggleSummary,
                       onViewSelected: _selectViewScope,
                       onCompleted: _selectCompletedScope,
                       onTrash: _toggleTrash,
                     ),
                   Expanded(
-                    child: _trash
+                    child: _summary
+                        ? SummaryPanel(
+                            tasks: app.store.allTasks(),
+                            lists: _lists,
+                          )
+                        : _trash
                         ? _TrashPanel(
                             tasks: visible,
                             onRestore: _restoreTrashTask,
@@ -1135,7 +1163,7 @@ class _TasksPageState extends State<TasksPage> {
                             ),
                     ),
                   ),
-                ] else if (_layout == _TaskLayout.matrix) ...[
+                ] else ...[
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -1151,31 +1179,6 @@ class _TasksPageState extends State<TasksPage> {
                       ),
                     ),
                   ),
-                ] else ...[
-                  _TimelineScaleBar(
-                    scale: _timelineScale,
-                    anchor: _timelineAnchor,
-                    onChanged: (value) =>
-                        setState(() => _timelineScale = value),
-                    onAnchorChanged: (value) =>
-                        setState(() => _timelineAnchor = value),
-                  ),
-                  Expanded(
-                    child: SafeArea(
-                      top: false,
-                      child: TimelineView(
-                        tasks: _activeFilter != null
-                            ? _filterTasks
-                            : _taggedTasks,
-                        scale: _timelineScale,
-                        anchor: _timelineAnchor,
-                        onOpenTask: (task) =>
-                            _openEditor(task, listsById[task.listId]),
-                        onToggleTask: _toggle,
-                        onReschedule: _reschedule,
-                      ),
-                    ),
-                  ),
                 ],
               ],
             ),
@@ -1186,6 +1189,7 @@ class _TasksPageState extends State<TasksPage> {
           _layout == _TaskLayout.list &&
               !_completed &&
               !_trash &&
+              !_summary &&
               !_selecting
           ? _QuickAddBar(
               controller: _quickAdd,
@@ -1367,7 +1371,7 @@ class _LayoutSwitcher extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
       child: AppUnderlineTabs<_TaskLayout>(
         values: _TaskLayout.values,
-        labels: const ['列表', '看板', '矩阵', '时间线'],
+        labels: const ['列表', '看板', '矩阵'],
         selected: layout,
         onChanged: onChanged,
         padding: EdgeInsets.zero,
@@ -1478,89 +1482,6 @@ class _BatchBar extends StatelessWidget {
   }
 }
 
-class _TimelineScaleBar extends StatelessWidget {
-  const _TimelineScaleBar({
-    required this.scale,
-    required this.anchor,
-    required this.onChanged,
-    required this.onAnchorChanged,
-  });
-
-  final TimelineScale scale;
-  final DateTime? anchor;
-  final ValueChanged<TimelineScale> onChanged;
-  final ValueChanged<DateTime?> onAnchorChanged;
-
-  Future<void> _pickAnchor(BuildContext context) async {
-    final now = DateTime.now();
-    final initial = anchor ?? now;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(initial.year, initial.month, initial.day),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) onAnchorChanged(picked);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final label = anchor == null ? '今天' : '${anchor!.month}/${anchor!.day}';
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 12, 8),
-      child: Row(
-        children: [
-          Text(
-            '缩放',
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(width: 10),
-          ChoiceChip(
-            label: const Text('日'),
-            selected: scale == TimelineScale.day,
-            onSelected: (_) => onChanged(TimelineScale.day),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 6),
-          ChoiceChip(
-            label: const Text('周'),
-            selected: scale == TimelineScale.week,
-            onSelected: (_) => onChanged(TimelineScale.week),
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 6),
-          ChoiceChip(
-            label: const Text('月'),
-            selected: scale == TimelineScale.month,
-            onSelected: (_) => onChanged(TimelineScale.month),
-            visualDensity: VisualDensity.compact,
-          ),
-          const Spacer(),
-          TextButton.icon(
-            onPressed: () => _pickAnchor(context),
-            icon: const Icon(Icons.calendar_month_rounded, size: 16),
-            label: Text(label),
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-            ),
-          ),
-          if (anchor != null)
-            IconButton(
-              tooltip: '回到今天',
-              onPressed: () => onAnchorChanged(null),
-              icon: const Icon(Icons.restart_alt_rounded, size: 18),
-              visualDensity: VisualDensity.compact,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 移动端顶部的清单筛选：漏斗 + 下拉箭头，点开后选择清单。
 class _ListFilterButton extends StatelessWidget {
   const _ListFilterButton({
     required this.lists,
@@ -1709,6 +1630,8 @@ class _ListSelector extends StatelessWidget {
     required this.completedCount,
     required this.trashCount,
     required this.trashSelected,
+    required this.summarySelected,
+    required this.onSummary,
     required this.onViewSelected,
     required this.onCompleted,
     required this.onTrash,
@@ -1720,6 +1643,8 @@ class _ListSelector extends StatelessWidget {
   final int completedCount;
   final int trashCount;
   final bool trashSelected;
+  final bool summarySelected;
+  final VoidCallback onSummary;
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
   final VoidCallback onTrash;
@@ -1740,23 +1665,38 @@ class _ListSelector extends StatelessWidget {
                 selectedId == null &&
                 selectedView == 'all' &&
                 !completed &&
-                !trashSelected,
+                !trashSelected &&
+                !summarySelected,
             color: scheme.primary,
             onTap: () => onViewSelected('all'),
           ),
           const SizedBox(width: 6),
           _SelectorChip(
             label: '今天',
-            selected: selectedId == null && selectedView == 'today',
+            selected:
+                selectedId == null &&
+                selectedView == 'today' &&
+                !summarySelected,
             color: const Color(0xFFF59E0B),
             onTap: () => onViewSelected('today'),
           ),
           const SizedBox(width: 6),
           _SelectorChip(
             label: '最近 7 天',
-            selected: selectedId == null && selectedView == 'next7',
+            selected:
+                selectedId == null &&
+                selectedView == 'next7' &&
+                !summarySelected,
             color: const Color(0xFF3B82F6),
             onTap: () => onViewSelected('next7'),
+          ),
+          const SizedBox(width: 6),
+          _SelectorChip(
+            label: '摘要',
+            selected: summarySelected,
+            color: const Color(0xFF8B5CF6),
+            icon: Icons.summarize_outlined,
+            onTap: onSummary,
           ),
           const SizedBox(width: 6),
           _SelectorChip(
@@ -1863,6 +1803,8 @@ class _ListPane extends StatefulWidget {
     required this.completedCount,
     required this.trashCount,
     required this.trashSelected,
+    required this.summarySelected,
+    required this.onSummary,
     required this.onSelected,
     required this.onViewSelected,
     required this.onCompleted,
@@ -1886,6 +1828,8 @@ class _ListPane extends StatefulWidget {
   final int completedCount;
   final int trashCount;
   final bool trashSelected;
+  final bool summarySelected;
+  final VoidCallback onSummary;
   final ValueChanged<String?> onSelected;
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
@@ -2056,6 +2000,12 @@ class _ListPaneState extends State<_ListPane> {
                     widget.selectedId == null &&
                     widget.selectedView == 'next7',
                 onTap: () => widget.onViewSelected('next7'),
+              ),
+              _PaneRow(
+                label: '摘要',
+                icon: Icons.summarize_outlined,
+                selected: widget.summarySelected,
+                onTap: widget.onSummary,
               ),
               _PaneRow(
                 label: '已完成',

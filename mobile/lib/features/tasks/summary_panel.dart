@@ -1,0 +1,935 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+
+import '../../app_state.dart';
+import '../../core/ids.dart';
+import '../../core/models.dart';
+import '../../design/components.dart';
+
+/// Summary editor mirroring the web panel: the generated Markdown is editable,
+/// regenerated from the chosen filters, and templates stay on this device.
+class SummaryPanel extends StatefulWidget {
+  const SummaryPanel({super.key, required this.tasks, required this.lists});
+
+  final List<TaskItem> tasks;
+  final List<TaskListItem> lists;
+
+  @override
+  State<SummaryPanel> createState() => _SummaryPanelState();
+}
+
+enum _SummaryRange {
+  today('今天'),
+  tomorrow('明天'),
+  yesterday('昨天'),
+  week('本周'),
+  nextWeek('下周'),
+  lastWeek('上周'),
+  month('本月'),
+  lastMonth('上月'),
+  custom('自定义');
+
+  const _SummaryRange(this.label);
+  final String label;
+}
+
+enum _SummaryGroup {
+  status('按完成状态'),
+  list('按清单'),
+  priority('按优先级'),
+  due('按任务时间');
+
+  const _SummaryGroup(this.label);
+  final String label;
+}
+
+class _SummaryFilter {
+  const _SummaryFilter({
+    this.range = _SummaryRange.week,
+    this.customFrom,
+    this.customTo,
+    this.listId = '',
+    this.status = 'all',
+    this.priority = 0,
+    this.tag = '',
+    this.includeNext = false,
+    this.group = _SummaryGroup.status,
+  });
+
+  final _SummaryRange range;
+  final DateTime? customFrom;
+  final DateTime? customTo;
+  final String listId;
+  final String status;
+  final int priority;
+  final String tag;
+  final bool includeNext;
+  final _SummaryGroup group;
+
+  _SummaryFilter copyWith({
+    _SummaryRange? range,
+    DateTime? customFrom,
+    DateTime? customTo,
+    String? listId,
+    String? status,
+    int? priority,
+    String? tag,
+    bool? includeNext,
+    _SummaryGroup? group,
+  }) => _SummaryFilter(
+    range: range ?? this.range,
+    customFrom: customFrom ?? this.customFrom,
+    customTo: customTo ?? this.customTo,
+    listId: listId ?? this.listId,
+    status: status ?? this.status,
+    priority: priority ?? this.priority,
+    tag: tag ?? this.tag,
+    includeNext: includeNext ?? this.includeNext,
+    group: group ?? this.group,
+  );
+}
+
+class _SummaryPanelState extends State<SummaryPanel> {
+  final _controller = TextEditingController();
+  _SummaryFilter _filter = const _SummaryFilter();
+  bool _settingsOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.text = _buildMarkdown();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  ({DateTime from, DateTime to}) _bounds(_SummaryFilter filter) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    const day = Duration(days: 1);
+    DateTime weekStart(DateTime date) =>
+        date.subtract(Duration(days: date.weekday - 1));
+    switch (filter.range) {
+      case _SummaryRange.today:
+        return (from: today, to: today.add(day));
+      case _SummaryRange.tomorrow:
+        final start = today.add(day);
+        return (from: start, to: start.add(day));
+      case _SummaryRange.yesterday:
+        return (from: today.subtract(day), to: today);
+      case _SummaryRange.week:
+        final start = weekStart(today);
+        return (from: start, to: start.add(const Duration(days: 7)));
+      case _SummaryRange.nextWeek:
+        final start = weekStart(today).add(const Duration(days: 7));
+        return (from: start, to: start.add(const Duration(days: 7)));
+      case _SummaryRange.lastWeek:
+        final start = weekStart(today).subtract(const Duration(days: 7));
+        return (from: start, to: start.add(const Duration(days: 7)));
+      case _SummaryRange.month:
+        return (
+          from: DateTime(today.year, today.month, 1),
+          to: DateTime(today.year, today.month + 1, 1),
+        );
+      case _SummaryRange.lastMonth:
+        return (
+          from: DateTime(today.year, today.month - 1, 1),
+          to: DateTime(today.year, today.month, 1),
+        );
+      case _SummaryRange.custom:
+        final from = filter.customFrom ?? today;
+        final to = filter.customTo ?? today;
+        return (
+          from: DateTime(from.year, from.month, from.day),
+          to: DateTime(to.year, to.month, to.day).add(day),
+        );
+    }
+  }
+
+  bool _matchesFilter(TaskItem task, _SummaryFilter filter) {
+    if (task.deleted || task.kind != TaskKind.task) return false;
+    if (filter.listId.isNotEmpty && task.listId != filter.listId) return false;
+    if (filter.priority > 0 && task.priority != filter.priority) return false;
+    if (filter.tag.isNotEmpty && !task.tags.contains(filter.tag)) return false;
+    return true;
+  }
+
+  ({List<TaskItem> done, List<TaskItem> open}) _collect(
+    _SummaryFilter filter,
+  ) {
+    final bounds = _bounds(filter);
+    final done = <TaskItem>[];
+    final open = <TaskItem>[];
+    for (final task in widget.tasks) {
+      if (!_matchesFilter(task, filter)) continue;
+      if (task.completed) {
+        final at = task.completedAt?.toLocal();
+        if (at != null && !at.isBefore(bounds.from) && at.isBefore(bounds.to)) {
+          done.add(task);
+        }
+      } else {
+        final due = task.dueAt?.toLocal() ?? task.createdAt?.toLocal();
+        if (due != null &&
+            !due.isBefore(bounds.from) &&
+            due.isBefore(bounds.to)) {
+          open.add(task);
+        }
+      }
+    }
+    done.sort(
+      (a, b) => (b.completedAt ?? b.updatedAt).compareTo(
+        a.completedAt ?? a.updatedAt,
+      ),
+    );
+    open.sort(
+      (a, b) => (a.dueAt ?? a.updatedAt).compareTo(b.dueAt ?? b.updatedAt),
+    );
+    return (done: done, open: open);
+  }
+
+  List<TaskItem> _nextCycle(_SummaryFilter filter) {
+    if (!filter.includeNext) return const [];
+    final bounds = _bounds(filter);
+    final span = bounds.to.difference(bounds.from);
+    final out = <TaskItem>[];
+    for (final task in widget.tasks) {
+      if (!_matchesFilter(task, filter) || task.completed) continue;
+      final due = task.dueAt?.toLocal();
+      if (due == null) continue;
+      if (!due.isBefore(bounds.to) && due.isBefore(bounds.to.add(span))) {
+        out.add(task);
+      }
+    }
+    out.sort((a, b) => (a.dueAt ?? a.updatedAt).compareTo(b.dueAt ?? b.updatedAt));
+    return out;
+  }
+
+  Map<String, TaskListItem> get _listsById => {
+    for (final list in widget.lists) list.id: list,
+  };
+
+  String _groupLabel(TaskItem task, _SummaryFilter filter) {
+    switch (filter.group) {
+      case _SummaryGroup.list:
+        return _listsById[task.listId]?.name ?? '未分组';
+      case _SummaryGroup.priority:
+        return switch (task.priority) {
+          3 => '高优先级',
+          2 => '中优先级',
+          1 => '低优先级',
+          _ => '无优先级',
+        };
+      case _SummaryGroup.due:
+        final due = task.dueAt?.toLocal();
+        return due == null ? '无日期' : '${due.month} 月 ${due.day} 日';
+      case _SummaryGroup.status:
+        return task.completed ? '已完成' : '未完成';
+    }
+  }
+
+  String _taskLine(TaskItem task) {
+    final parts = <String>[];
+    final when = task.completed
+        ? task.completedAt
+        : (task.dueAt ?? task.createdAt);
+    if (when != null) {
+      final local = when.toLocal();
+      parts.add(
+        '[${local.month}/${local.day}'
+        '${task.allDay ? '' : ' ${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}'}]',
+      );
+    }
+    parts.add(task.title);
+    final list = _listsById[task.listId];
+    if (list != null) parts.add('· ${list.name}');
+    if (task.priority > 0) {
+      parts.add(
+        '· ${switch (task.priority) { 3 => '高优先级', 2 => '中优先级', _ => '低优先级' }}',
+      );
+    }
+    if (task.tags.isNotEmpty) parts.add('· ${task.tags.take(3).map((tag) => '#$tag').join(' ')}');
+    return '- [${task.completed ? 'x' : ' '}] ${parts.join(' ')}';
+  }
+
+  String _buildMarkdown() {
+    final bounds = _bounds(_filter);
+    final rows = _collect(_filter);
+    final end = bounds.to.subtract(const Duration(days: 1));
+    final lines = <String>[
+      '## ${_filter.range.label}摘要',
+      '',
+      '${bounds.from.month} 月 ${bounds.from.day} 日 - ${end.month} 月 ${end.day} 日',
+      '',
+      '已完成 ${rows.done.length} 项 · 未完成 ${rows.open.length} 项',
+      '',
+    ];
+
+    final tasks = <TaskItem>[...rows.done, ...rows.open];
+    if (_filter.group == _SummaryGroup.status) {
+      void addGroup(String label, List<TaskItem> items) {
+        if (items.isEmpty) return;
+        lines.addAll(['### $label', '']);
+        for (final task in items) {
+          lines.add(_taskLine(task));
+        }
+        lines.add('');
+      }
+
+      addGroup('已完成', rows.done);
+      addGroup('未完成', rows.open);
+    } else {
+      final groups = <String, List<TaskItem>>{};
+      for (final task in tasks) {
+        (groups[_groupLabel(task, _filter)] ??= <TaskItem>[]).add(task);
+      }
+      for (final entry in groups.entries) {
+        lines.addAll(['### ${entry.key}', '']);
+        for (final task in entry.value) {
+          lines.add(_taskLine(task));
+        }
+        lines.add('');
+      }
+    }
+
+    final next = _nextCycle(_filter);
+    if (next.isNotEmpty) {
+      lines.addAll(['### 下一周期', '']);
+      for (final task in next) {
+        lines.add(_taskLine(task));
+      }
+      lines.add('');
+    }
+    if (rows.done.isEmpty && rows.open.isEmpty && next.isEmpty) {
+      lines.add('当前范围内没有符合条件的任务');
+    }
+    return '${lines.join('\n').trim()}\n';
+  }
+
+  void _regenerate() {
+    setState(() {
+      _controller.text = _buildMarkdown();
+    });
+    _showMessage('已按当前条件重新生成');
+  }
+
+  void _applyFilter(_SummaryFilter next) {
+    setState(() {
+      _filter = next;
+      _controller.text = _buildMarkdown();
+    });
+  }
+
+  Future<void> _openSettings() async {
+    final next = await showModalBottomSheet<_SummaryFilter>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _SummarySettingsSheet(
+        filter: _filter,
+        lists: widget.lists,
+        tags: _tagOptions(),
+      ),
+    );
+    if (next != null && mounted) _applyFilter(next);
+  }
+
+  List<String> _tagOptions() {
+    final tags = <String>{};
+    for (final task in widget.tasks) {
+      if (task.deleted) continue;
+      for (final tag in task.tags) {
+        if (tag.trim().isNotEmpty) tags.add(tag.trim());
+      }
+    }
+    return tags.toList()..sort();
+  }
+
+  Future<void> _saveTemplate() async {
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _SaveTemplateDialog(
+        initial: '${_filter.range.label}摘要',
+      ),
+    );
+    final value = (name ?? '').trim();
+    if (value.isEmpty || !mounted) return;
+    await context.read<AppState>().store.saveSummaryTemplate(
+      SummaryTemplate(
+        id: newSyncId(),
+        name: value,
+        range: _filter.range.name,
+        content: _controller.text,
+        createdAt: DateTime.now().toUtc(),
+      ),
+    );
+    if (mounted) setState(() {});
+    _showMessage('模板已保存到本机');
+  }
+
+  Future<void> _deleteTemplate(SummaryTemplate template) async {
+    await context.read<AppState>().store.deleteSummaryTemplate(template.id);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadTemplate(SummaryTemplate template) async {
+    final name = template.name;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('套用模板「$name」？'),
+        content: const Text('会用模板中的摘要内容覆盖当前编辑器。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('套用'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      final range = _SummaryRange.values.where(
+        (item) => item.name == template.range,
+      );
+      if (range.isNotEmpty) _filter = _filter.copyWith(range: range.first);
+      if (template.content.trim().isNotEmpty) {
+        _controller.text = template.content;
+      } else {
+        _controller.text = _buildMarkdown();
+      }
+    });
+  }
+
+  Future<void> _copy() async {
+    await Clipboard.setData(ClipboardData(text: _controller.text));
+    _showMessage('摘要已复制');
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final wide = isWideLayout(context);
+    final editor = _buildEditor(context, wide);
+    if (!wide) return editor;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(child: editor),
+        if (_settingsOpen)
+          SizedBox(width: 286, child: _buildAside(context)),
+      ],
+    );
+  }
+
+  Widget _buildEditor(BuildContext context, bool wide) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final templates = context
+        .read<AppState>()
+        .store
+        .summaryTemplatesSnapshot();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '摘要编辑器',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: '重新生成',
+                onPressed: _regenerate,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+              ),
+              IconButton(
+                tooltip: '筛选与分组',
+                onPressed: () {
+                  if (wide) {
+                    setState(() => _settingsOpen = !_settingsOpen);
+                  } else {
+                    _openSettings();
+                  }
+                },
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.tune_rounded, size: 18),
+              ),
+              IconButton(
+                tooltip: '复制摘要',
+                onPressed: _copy,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.copy_rounded, size: 18),
+              ),
+              IconButton(
+                tooltip: '保存为模板',
+                onPressed: _saveTemplate,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+              ),
+            ],
+          ),
+        ),
+        if (templates.isNotEmpty)
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: templates.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final template = templates[index];
+                return InputChip(
+                  label: Text(template.name),
+                  onPressed: () => _loadTemplate(template),
+                  onDeleted: () => _deleteTemplate(template),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  labelStyle: const TextStyle(fontSize: 12),
+                );
+              },
+            ),
+          ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: Container(
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: TextField(
+                controller: _controller,
+                maxLines: null,
+                expands: true,
+                textAlignVertical: TextAlignVertical.top,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 12.5,
+                  height: 1.55,
+                  fontFamily: 'Menlo',
+                ),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.fromLTRB(14, 12, 14, 14),
+                  hintText: '摘要会根据当前条件自动生成，也可以手动修改…',
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Wide layout keeps the filters in a right-hand aside, like the web panel.
+  Widget _buildAside(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 4, 16, 12),
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '摘要筛选',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: '关闭',
+                onPressed: () => setState(() => _settingsOpen = false),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded, size: 16),
+              ),
+            ],
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              child: _SummarySettingsForm(
+                filter: _filter,
+                lists: widget.lists,
+                tags: _tagOptions(),
+                onChanged: _applyFilter,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummarySettingsSheet extends StatefulWidget {
+  const _SummarySettingsSheet({
+    required this.filter,
+    required this.lists,
+    required this.tags,
+  });
+
+  final _SummaryFilter filter;
+  final List<TaskListItem> lists;
+  final List<String> tags;
+
+  @override
+  State<_SummarySettingsSheet> createState() => _SummarySettingsSheetState();
+}
+
+class _SummarySettingsSheetState extends State<_SummarySettingsSheet> {
+  late _SummaryFilter _draft = widget.filter;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      top: false,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        ),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            16 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '摘要筛选',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(_draft),
+                    child: const Text('应用'),
+                  ),
+                ],
+              ),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: _SummarySettingsForm(
+                    filter: _draft,
+                    lists: widget.lists,
+                    tags: widget.tags,
+                    onChanged: (next) => setState(() => _draft = next),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Filter controls shared by the narrow bottom sheet and the wide right aside.
+class _SummarySettingsForm extends StatelessWidget {
+  const _SummarySettingsForm({
+    required this.filter,
+    required this.lists,
+    required this.tags,
+    required this.onChanged,
+  });
+
+  final _SummaryFilter filter;
+  final List<TaskListItem> lists;
+  final List<String> tags;
+  final ValueChanged<_SummaryFilter> onChanged;
+
+  Future<void> _pickCustom(BuildContext context, {required bool from}) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (from ? filter.customFrom : filter.customTo) ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 5),
+    );
+    if (picked == null) return;
+    onChanged(
+      from
+          ? filter.copyWith(customFrom: picked)
+          : filter.copyWith(customTo: picked),
+    );
+  }
+
+  Widget _label(BuildContext context, String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 4, top: 10),
+    child: Text(
+      text,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
+  Widget _chip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) => ChoiceChip(
+    label: Text(label),
+    selected: selected,
+    onSelected: (_) => onTap(),
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    labelStyle: const TextStyle(fontSize: 12),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _label(context, '日期'),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final range in _SummaryRange.values)
+              _chip(
+                label: range.label,
+                selected: filter.range == range,
+                onTap: () => onChanged(filter.copyWith(range: range)),
+              ),
+          ],
+        ),
+        if (filter.range == _SummaryRange.custom) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  style: _dateButtonStyle,
+                  onPressed: () => _pickCustom(context, from: true),
+                  child: Text(
+                    filter.customFrom == null
+                        ? '开始日期'
+                        : '${filter.customFrom!.month}/${filter.customFrom!.day}',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  style: _dateButtonStyle,
+                  onPressed: () => _pickCustom(context, from: false),
+                  child: Text(
+                    filter.customTo == null
+                        ? '结束日期'
+                        : '${filter.customTo!.month}/${filter.customTo!.day}',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+        if (lists.isNotEmpty) ...[
+          _label(context, '清单'),
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: lists.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final list = index == 0 ? null : lists[index - 1];
+                final value = list?.id ?? '';
+                return _chip(
+                  label: list?.name ?? '所有清单',
+                  selected: filter.listId == value,
+                  onTap: () => onChanged(filter.copyWith(listId: value)),
+                );
+              },
+            ),
+          ),
+        ],
+        _label(context, '状态'),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final entry in const {
+              'all': '所有状态',
+              'open': '未完成',
+              'completed': '已完成',
+            }.entries)
+              _chip(
+                label: entry.value,
+                selected: filter.status == entry.key,
+                onTap: () => onChanged(filter.copyWith(status: entry.key)),
+              ),
+          ],
+        ),
+        _label(context, '优先级'),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final entry in const {
+              0: '所有优先级',
+              3: '高',
+              2: '中',
+              1: '低',
+            }.entries)
+              _chip(
+                label: entry.value,
+                selected: filter.priority == entry.key,
+                onTap: () => onChanged(filter.copyWith(priority: entry.key)),
+              ),
+          ],
+        ),
+        if (tags.isNotEmpty) ...[
+          _label(context, '标签'),
+          SizedBox(
+            height: 38,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: tags.length + 1,
+              separatorBuilder: (_, _) => const SizedBox(width: 6),
+              itemBuilder: (context, index) {
+                final tag = index == 0 ? '' : tags[index - 1];
+                return _chip(
+                  label: tag.isEmpty ? '所有标签' : '# $tag',
+                  selected: filter.tag == tag,
+                  onTap: () => onChanged(filter.copyWith(tag: tag)),
+                );
+              },
+            ),
+          ),
+        ],
+        _label(context, '分组'),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final group in _SummaryGroup.values)
+              _chip(
+                label: group.label,
+                selected: filter.group == group,
+                onTap: () => onChanged(filter.copyWith(group: group)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '下一周期任务',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+            Switch(
+              value: filter.includeNext,
+              onChanged: (value) =>
+                  onChanged(filter.copyWith(includeNext: value)),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+ButtonStyle get _dateButtonStyle => OutlinedButton.styleFrom(
+  minimumSize: const Size(0, 32),
+  padding: const EdgeInsets.symmetric(horizontal: 8),
+  visualDensity: VisualDensity.compact,
+  textStyle: const TextStyle(fontSize: 12),
+);
+
+/// Owns its controller so disposal happens with the dialog route.
+class _SaveTemplateDialog extends StatefulWidget {
+  const _SaveTemplateDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_SaveTemplateDialog> createState() => _SaveTemplateDialogState();
+}
+
+class _SaveTemplateDialogState extends State<_SaveTemplateDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() => Navigator.of(context).pop(_controller.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('保存为模板'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 40,
+        decoration: const InputDecoration(
+          isDense: true,
+          labelText: '模板名称',
+          counterText: '',
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('保存')),
+      ],
+    );
+  }
+}

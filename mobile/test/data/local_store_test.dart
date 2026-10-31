@@ -298,6 +298,14 @@ void main() {
     await store.setAccent('#C23B5A');
     await store.writeCursor('42');
     await store.setSidebarTags(const ['重点']);
+    await store.saveSummaryTemplate(
+      SummaryTemplate(
+        id: 'tpl-1',
+        name: '周报模板',
+        range: 'week',
+        createdAt: DateTime.now().toUtc(),
+      ),
+    );
     await store.dispose();
 
     final reopened = await LocalStore.open(path: path);
@@ -307,6 +315,7 @@ void main() {
     expect(reopened.accent, '#C23B5A');
     expect(reopened.cursor, '42');
     expect(reopened.sidebarTagsSnapshot(), const ['重点']);
+    expect(reopened.summaryTemplatesSnapshot().single.name, '周报模板');
     await reopened.dispose();
     await directory.delete(recursive: true);
   });

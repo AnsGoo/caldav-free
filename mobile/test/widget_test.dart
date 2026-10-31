@@ -162,7 +162,7 @@ void main() {
     expect(find.text('买牛奶'), findsNothing);
   });
 
-  testWidgets('layout switcher renders board, matrix and timeline', (
+  testWidgets('layout switcher renders board and matrix', (
     tester,
   ) async {
     final store = LocalStore.memory();
@@ -262,32 +262,8 @@ void main() {
     expect(find.text('不重要不紧急'), findsOneWidget);
     expect(find.text('看板里的任务'), findsOneWidget);
 
-    await tester.tap(find.text('时间线'));
-    await tester.pumpAndSettle();
-    expect(find.text('无日期'), findsOneWidget);
-    expect(find.text('今天'), findsWidgets);
-    expect(find.text('看板里的任务'), findsOneWidget);
-
-    final timelineDrag = await tester.startGesture(
-      tester.getCenter(find.text('拖拽任务')),
-    );
-    await tester.pump(const Duration(milliseconds: 700));
-    await timelineDrag.moveTo(
-      tester.getCenter(find.text('今天').last) + const Offset(0, 120),
-    );
-    await tester.pump(const Duration(milliseconds: 150));
-    await timelineDrag.up();
-    await tester.pumpAndSettle();
-    expect(store.task('task-drag')?.dueAt, isNotNull);
-
-    await tester.tap(find.text('周'));
-    await tester.pumpAndSettle();
-    expect(find.text('本周'), findsOneWidget);
-    expect(find.text('下周'), findsOneWidget);
-
-    await tester.tap(find.text('月'));
-    await tester.pumpAndSettle();
-    expect(find.text('本月'), findsOneWidget);
+    // 时间线视图已移除，布局切换只保留列表 / 看板 / 矩阵。
+    expect(find.text('时间线'), findsNothing);
   });
 
   testWidgets('the matrix buckets by priority and hides completed', (
@@ -1196,6 +1172,108 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.task('deleted')?.deleted, false);
     expect(find.text('回收站是空的'), findsOneWidget);
+  });
+
+  testWidgets('the summary editor generates markdown and keeps local templates', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    final today = DateTime.now();
+    final start = DateTime(today.year, today.month, today.day);
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'done',
+        listId: 'work-1',
+        title: '本周完成的任务',
+        completedAt: start.add(const Duration(hours: 9)).toUtc(),
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'open',
+        listId: 'work-1',
+        title: '本周未完成的任务',
+        dueAt: start.add(const Duration(hours: 18)).toUtc(),
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('摘要').first);
+    await tester.pumpAndSettle();
+    final editor = find.byType(TextField);
+    expect(editor, findsOneWidget);
+    String text() =>
+        (tester.widget<TextField>(editor).controller?.text ?? '');
+    expect(text(), contains('本周摘要'));
+    expect(text(), contains('本周完成的任务'));
+    expect(text(), contains('本周未完成的任务'));
+
+    // 编辑器可手动修改。
+    await tester.enterText(editor, '手动调整后的摘要\n- [x] 保留我');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('保存为模板'));
+    await tester.pumpAndSettle();
+    final nameField = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(nameField, '我的周报');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+    expect(store.summaryTemplatesSnapshot().single.content, contains('保留我'));
+
+    // 宽屏：筛选在右侧栏，修改后立即重新生成。
+    await tester.tap(find.byTooltip('筛选与分组'));
+    await tester.pumpAndSettle();
+    expect(find.text('摘要筛选'), findsOneWidget);
+    await tester.tap(find.text('本月'));
+    await tester.pumpAndSettle();
+    expect(text(), contains('本月摘要'));
+
+    await tester.tap(find.text('我的周报'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('套用'));
+    await tester.pumpAndSettle();
+    expect(text(), contains('保留我'));
+
+    // 窄屏：同一套筛选改为底部弹层。
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('筛选与分组'));
+    await tester.pumpAndSettle();
+    expect(find.text('摘要筛选'), findsOneWidget);
+    expect(find.text('应用'), findsOneWidget);
+    await tester.tap(find.text('应用'));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('the mobile filter chips keep a compact highlight', (

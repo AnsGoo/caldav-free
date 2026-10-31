@@ -195,6 +195,9 @@ class LocalStore {
   /// Tags picked for the PC sidebar; `null` means every tag is shown.
   Set<String>? _sidebarTags;
 
+  /// Summary templates kept on this device only.
+  final List<SummaryTemplate> _summaryTemplates = [];
+
   final StreamController<void> _changes = StreamController<void>.broadcast();
   Future<void> _tail = Future<void>.value();
 
@@ -619,6 +622,28 @@ class LocalStore {
     });
   }
 
+  List<SummaryTemplate> summaryTemplatesSnapshot() =>
+      List<SummaryTemplate>.unmodifiable(_summaryTemplates);
+
+  Future<void> saveSummaryTemplate(SummaryTemplate template) {
+    return _mutate(() {
+      _summaryTemplates.removeWhere((item) => item.id == template.id);
+      _summaryTemplates.insert(0, template);
+      if (_summaryTemplates.length > 50) {
+        _summaryTemplates.removeRange(50, _summaryTemplates.length);
+      }
+      _wMeta = true;
+    });
+  }
+
+  Future<void> deleteSummaryTemplate(String id) {
+    return _mutate(() {
+      final before = _summaryTemplates.length;
+      _summaryTemplates.removeWhere((item) => item.id == id);
+      if (_summaryTemplates.length != before) _wMeta = true;
+    });
+  }
+
   Future<void> clearAll() {
     return _mutate(() {
       _tasks.clear();
@@ -639,6 +664,7 @@ class LocalStore {
       _wOutbox.clear();
       _wConflicts.clear();
       _sidebarTags = null;
+      _summaryTemplates.clear();
       _wMeta = false;
       _wipe = true;
     });
@@ -666,6 +692,25 @@ class LocalStore {
     _cursor = await db.metaValue(cursorKey) ?? '0';
     _syncedAt = _date(await db.metaValue(syncedAtKey));
     _accent = await db.metaValue(accentKey) ?? '#3563F0';
+    final rawTemplates = await db.metaValue(summaryTemplatesKey);
+    if (rawTemplates != null && rawTemplates.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(rawTemplates);
+        if (decoded is List) {
+          for (final item in decoded) {
+            if (item is Map) {
+              _summaryTemplates.add(
+                SummaryTemplate.fromJson(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              );
+            }
+          }
+        }
+      } catch (_) {
+        // Ignore a malformed template list; the feature can rebuild it.
+      }
+    }
     final rawTags = await db.metaValue(sidebarTagsKey);
     if (rawTags != null) {
       try {
@@ -1046,6 +1091,10 @@ class LocalStore {
           final names = sidebarTags.toList()..sort();
           await db.putMeta(sidebarTagsKey, jsonEncode(names));
         }
+        await db.putMeta(
+          summaryTemplatesKey,
+          jsonEncode(_summaryTemplates.map((item) => item.toJson()).toList()),
+        );
       }
     });
   }

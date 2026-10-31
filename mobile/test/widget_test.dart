@@ -509,7 +509,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('回收站任务'), findsOneWidget);
 
-    Navigator.of(tester.element(find.text('回收站任务'))).pop();
+    // 回收站现在是页内视图，再次点击侧栏的回收站即可返回。
+    await tester.tap(find.byIcon(Icons.delete_outline_rounded).first);
     await tester.pumpAndSettle();
     expect(find.text('未完成任务'), findsOneWidget);
   });
@@ -1138,6 +1139,63 @@ void main() {
     expect(find.text('编辑筛选器'), findsOneWidget);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('the trash opens in the task page and restores tasks', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'deleted',
+        listId: 'work-1',
+        title: '删掉的任务',
+        deleted: true,
+        deletedAt: now,
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('删掉的任务'), findsNothing);
+
+    await tester.tap(find.text('回收站'));
+    await tester.pumpAndSettle();
+    // 仍在任务页：标题、页内列表与操作都在。
+    expect(find.text('回收站'), findsWidgets);
+    expect(find.text('删掉的任务'), findsOneWidget);
+    expect(find.text('恢复'), findsOneWidget);
+    expect(find.text('清空回收站'), findsOneWidget);
+    expect(find.text('加载中…'), findsNothing);
+
+    await tester.tap(find.text('恢复'));
+    await tester.pumpAndSettle();
+    expect(store.task('deleted')?.deleted, false);
+    expect(find.text('回收站是空的'), findsOneWidget);
   });
 
   testWidgets('the mobile filter chips keep a compact highlight', (

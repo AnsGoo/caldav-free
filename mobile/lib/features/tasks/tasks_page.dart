@@ -17,7 +17,6 @@ import '../lists/lists_page.dart';
 import 'board_view.dart';
 import 'matrix_view.dart';
 import 'timeline_view.dart';
-import 'trash_page.dart';
 
 bool _filterDateMatches(TaskItem task, FilterConditions conditions) {
   final due = task.dueAt?.toLocal();
@@ -83,6 +82,7 @@ class TasksPage extends StatefulWidget {
 class _TasksPageState extends State<TasksPage> {
   String? _selectedListId;
   bool _completed = false;
+  bool _trash = false;
   List<TaskListItem> _lists = const [];
   List<TaskItem> _tasks = const [];
   StreamSubscription<List<TaskListItem>>? _listsSub;
@@ -189,6 +189,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _setLayout(_TaskLayout layout) {
     setState(() {
+      _trash = false;
       _layout = layout;
       _completed = false;
       _manualSort = false;
@@ -206,6 +207,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectTag(String tag) {
     setState(() {
+      _trash = false;
       _activeFilterId = null;
       _selectedTag = _selectedTag == tag ? null : tag;
     });
@@ -223,6 +225,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _applyFilter(String? id) {
     setState(() {
+      _trash = false;
       _activeFilterId = id;
       if (id != null) {
         _selectedListId = null;
@@ -324,6 +327,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectListScope(String? listId) {
     setState(() {
+      _trash = false;
       _activeFilterId = null;
       _selectedListId = listId;
       _view = 'all';
@@ -335,6 +339,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectViewScope(String view) {
     setState(() {
+      _trash = false;
       _activeFilterId = null;
       _selectedListId = null;
       _view = view;
@@ -347,6 +352,7 @@ class _TasksPageState extends State<TasksPage> {
   void _selectCompletedScope() {
     setState(() {
       // Completed is a list-layout scope, mirroring _setLayout's reset.
+      _trash = false;
       _activeFilterId = null;
       _layout = _TaskLayout.list;
       _selectedListId = null;
@@ -359,9 +365,95 @@ class _TasksPageState extends State<TasksPage> {
     _subscribeTasks();
   }
 
-  void _openTrash() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const TrashPage()));
+  void _toggleTrash() {
+    final next = !_trash;
+    setState(() {
+      _trash = next;
+      if (next) {
+        _selectedListId = null;
+        _view = 'all';
+        _completed = false;
+        _activeFilterId = null;
+        _selectedTag = null;
+        _manualSort = false;
+        _layout = _TaskLayout.list;
+        _selecting = false;
+        _selectedIds.clear();
+      }
+    });
+    _subscribeTasks();
+  }
+
+  Future<void> _restoreTrashTask(TaskItem task) async {
+    try {
+      await context.read<AppState>().repository.restoreTask(task.id);
+      if (mounted) _snack('已恢复到原清单');
+    } catch (error) {
+      if (mounted) _snack('恢复失败：$error');
+    }
+  }
+
+  Future<void> _purgeTrashTask(TaskItem task) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('永久删除？'),
+        content: Text('“${task.title}”将无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('永久删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<AppState>().repository.purgeTask(task.id);
+      if (mounted) _snack('已永久删除');
+    } catch (error) {
+      if (mounted) _snack('删除失败：$error');
+    }
+  }
+
+  Future<void> _emptyTrash() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清空回收站？'),
+        content: const Text('回收站里的任务将被永久删除，无法恢复。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('清空'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final tasks = context.read<AppState>().store.trashSnapshot();
+    try {
+      for (final task in tasks) {
+        await context.read<AppState>().repository.purgeTask(task.id);
+      }
+      if (mounted) _snack('回收站已清空');
+    } catch (error) {
+      if (mounted) _snack('清空失败：$error');
+    }
   }
 
   Future<void> _reorderTasks(int oldIndex, int newIndex) async {
@@ -735,7 +827,10 @@ class _TasksPageState extends State<TasksPage> {
     final scheme = theme.colorScheme;
     final selected = _selectedList;
     final activeFilter = _activeFilter;
-    final title = activeFilter != null
+    final trashTasks = _trash ? app.store.trashSnapshot() : const <TaskItem>[];
+    final title = _trash
+        ? '回收站'
+        : activeFilter != null
         ? activeFilter.name
         : _completed
         ? '已完成'
@@ -746,7 +841,11 @@ class _TasksPageState extends State<TasksPage> {
                   ? '最近 7 天'
                   : '任务'));
     final listsById = {for (final list in _lists) list.id: list};
-    final visible = activeFilter != null ? _filterTasks : _filteredTasks;
+    final visible = _trash
+        ? _searchTasks(trashTasks)
+        : activeFilter != null
+        ? _filterTasks
+        : _filteredTasks;
     final completedCount = app.store.tasksSnapshot(completed: true).length;
     final trashCount = app.store.trashSnapshot().length;
     final wide = isWideLayout(context);
@@ -816,6 +915,7 @@ class _TasksPageState extends State<TasksPage> {
                     setState(() {
                       _layout = _TaskLayout.list;
                       _searching = true;
+                      _trash = false;
                       _activeFilterId = null;
                       _selectedListId = null;
                       _view = 'all';
@@ -852,10 +952,11 @@ class _TasksPageState extends State<TasksPage> {
               completed: _completed,
               completedCount: completedCount,
               trashCount: trashCount,
+              trashSelected: _trash,
               onSelected: _selectListScope,
               onViewSelected: _selectViewScope,
               onCompleted: _selectCompletedScope,
-              onTrash: _openTrash,
+              onTrash: _toggleTrash,
               selectedTag: _selectedTag,
               onTagSelected: _selectTag,
               onTagRenamed: _renameTagSelection,
@@ -871,7 +972,7 @@ class _TasksPageState extends State<TasksPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!_searching && !_selecting)
+                if (!_searching && !_selecting && !_trash)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
                     child: _LayoutSwitcher(
@@ -902,12 +1003,20 @@ class _TasksPageState extends State<TasksPage> {
                       completed: _completed,
                       completedCount: completedCount,
                       trashCount: trashCount,
+                      trashSelected: _trash,
                       onViewSelected: _selectViewScope,
                       onCompleted: _selectCompletedScope,
-                      onTrash: _openTrash,
+                      onTrash: _toggleTrash,
                     ),
                   Expanded(
-                    child: visible.isEmpty
+                    child: _trash
+                        ? _TrashPanel(
+                            tasks: visible,
+                            onRestore: _restoreTrashTask,
+                            onPurge: _purgeTrashTask,
+                            onEmpty: _emptyTrash,
+                          )
+                        : visible.isEmpty
                         ? RefreshIndicator(
                             onRefresh: () => app.syncNow(),
                             child: LayoutBuilder(
@@ -1074,7 +1183,10 @@ class _TasksPageState extends State<TasksPage> {
         ],
       ),
       bottomNavigationBar:
-          _layout == _TaskLayout.list && !_completed && !_selecting
+          _layout == _TaskLayout.list &&
+              !_completed &&
+              !_trash &&
+              !_selecting
           ? _QuickAddBar(
               controller: _quickAdd,
               focusNode: _quickAddFocus,
@@ -1596,6 +1708,7 @@ class _ListSelector extends StatelessWidget {
     required this.completed,
     required this.completedCount,
     required this.trashCount,
+    required this.trashSelected,
     required this.onViewSelected,
     required this.onCompleted,
     required this.onTrash,
@@ -1606,6 +1719,7 @@ class _ListSelector extends StatelessWidget {
   final bool completed;
   final int completedCount;
   final int trashCount;
+  final bool trashSelected;
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
   final VoidCallback onTrash;
@@ -1622,7 +1736,11 @@ class _ListSelector extends StatelessWidget {
         children: [
           _SelectorChip(
             label: '全部',
-            selected: selectedId == null && selectedView == 'all' && !completed,
+            selected:
+                selectedId == null &&
+                selectedView == 'all' &&
+                !completed &&
+                !trashSelected,
             color: scheme.primary,
             onTap: () => onViewSelected('all'),
           ),
@@ -1652,7 +1770,7 @@ class _ListSelector extends StatelessWidget {
           const SizedBox(width: 6),
           _SelectorChip(
             label: '回收站',
-            selected: false,
+            selected: trashSelected,
             color: scheme.onSurfaceVariant,
             icon: Icons.delete_outline_rounded,
             count: trashCount,
@@ -1744,6 +1862,7 @@ class _ListPane extends StatefulWidget {
     required this.completed,
     required this.completedCount,
     required this.trashCount,
+    required this.trashSelected,
     required this.onSelected,
     required this.onViewSelected,
     required this.onCompleted,
@@ -1766,6 +1885,7 @@ class _ListPane extends StatefulWidget {
   final bool completed;
   final int completedCount;
   final int trashCount;
+  final bool trashSelected;
   final ValueChanged<String?> onSelected;
   final ValueChanged<String> onViewSelected;
   final VoidCallback onCompleted;
@@ -1948,7 +2068,7 @@ class _ListPaneState extends State<_ListPane> {
                 label: '回收站',
                 icon: Icons.delete_outline_rounded,
                 count: widget.trashCount,
-                selected: false,
+                selected: widget.trashSelected,
                 onTap: widget.onTrash,
               ),
               _PaneSectionHeader(
@@ -3062,6 +3182,138 @@ class _CheckCircle extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// In-page trash list used instead of pushing a separate route.
+class _TrashPanel extends StatelessWidget {
+  const _TrashPanel({
+    required this.tasks,
+    required this.onRestore,
+    required this.onPurge,
+    required this.onEmpty,
+  });
+
+  final List<TaskItem> tasks;
+  final ValueChanged<TaskItem> onRestore;
+  final ValueChanged<TaskItem> onPurge;
+  final VoidCallback onEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    if (tasks.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.delete_outline_rounded,
+              size: 44,
+              color: scheme.onSurfaceVariant,
+            ),
+            const SizedBox(height: 10),
+            Text('回收站是空的', style: theme.textTheme.bodyLarge),
+            const SizedBox(height: 4),
+            Text(
+              '删除的任务会先放在这里，可随时恢复。',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 8, 4),
+          child: Row(
+            children: [
+              Text(
+                '${tasks.length} 个已删除任务',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: onEmpty,
+                style: TextButton.styleFrom(
+                  foregroundColor: scheme.error,
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: const Text('清空回收站'),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            itemCount: tasks.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final task = tasks[index];
+              return Material(
+                color: scheme.surface,
+                borderRadius: BorderRadius.circular(14),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 4, 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              task.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '删除于 ${relativeTime(task.deletedAt ?? task.updatedAt)}',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => onRestore(task),
+                        style: TextButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        child: const Text('恢复'),
+                      ),
+                      IconButton(
+                        tooltip: '永久删除',
+                        onPressed: () => onPurge(task),
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          Icons.delete_forever_rounded,
+                          size: 18,
+                          color: scheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

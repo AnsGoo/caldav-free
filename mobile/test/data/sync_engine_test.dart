@@ -446,6 +446,62 @@ void main() {
     expect(server.appliedOps, before + 1);
   });
 
+  test('repeated full pulls never duplicate or drop rows', () async {
+    await deviceA.engine.sync(full: true);
+    final inbox = deviceA.store.inbox()!;
+    final first = await deviceA.repo.createTask(title: '甲', listId: inbox.id);
+    final second = await deviceA.repo.createTask(title: '乙', listId: inbox.id);
+    await deviceA.engine.sync();
+
+    for (var round = 0; round < 2; round++) {
+      await deviceB.engine.sync(full: true);
+    }
+
+    // The pushing device also re-pulls its own echo; it must stay at two rows.
+    expect(deviceA.store.tasksSnapshot(completed: false).length, 2);
+    expect(deviceA.store.allTasks().length, 2);
+    expect(server.tasks.length, 2);
+
+    final tasks = deviceB.store.tasksSnapshot(completed: false);
+    expect(tasks.length, 2);
+    expect(tasks.where((task) => task.id == first.id).length, 1);
+    expect(tasks.where((task) => task.id == second.id).length, 1);
+    expect(deviceB.store.allTasks().length, 2);
+    expect(
+      deviceB.store.listsSnapshot().where((list) => list.isInbox).length,
+      1,
+    );
+    expect(deviceB.store.pendingCount, 0);
+  });
+
+  test('paged pulls return every entity exactly once', () async {
+    await deviceA.engine.sync(full: true);
+    final inbox = deviceA.store.inbox()!;
+    final created = <String>[];
+    for (var index = 0; index < 6; index++) {
+      final task = await deviceA.repo.createTask(
+        title: '分页 $index',
+        listId: inbox.id,
+      );
+      created.add(task.id);
+    }
+    await deviceA.engine.sync();
+
+    final deviceC = _Client(server, 'device-c');
+    addTearDown(() => deviceC.store.dispose());
+    deviceC.api.pageSize = 2;
+    await deviceC.engine.sync(full: true);
+
+    final tasks = deviceC.store.tasksSnapshot(completed: false);
+    expect(tasks.length, created.length);
+    expect(tasks.map((task) => task.id).toSet().length, created.length);
+    for (final id in created) {
+      expect(tasks.where((task) => task.id == id).length, 1);
+    }
+    expect(deviceC.store.listsSnapshot().where((list) => list.isInbox).length, 1);
+    expect(deviceC.store.pendingCount, 0);
+  });
+
   test('pull paginates and resumes from the returned cursor', () async {
     await deviceA.engine.sync(full: true);
     await deviceA.repo.createTask(

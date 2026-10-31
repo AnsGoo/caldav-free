@@ -534,6 +534,10 @@ class FakeSyncApi implements SyncApi {
   bool failNextPull = false;
   bool failNextPush = false;
 
+  /// Caps a page below the engine's requested size so tests can exercise
+  /// multi-page pulls without seeding 500+ rows.
+  int pageSize = 500;
+
   @override
   Future<PullPage> pull({
     required String since,
@@ -544,7 +548,11 @@ class FakeSyncApi implements SyncApi {
       failNextPull = false;
       throw SyncApiException('网络中断');
     }
-    return server.pull(since: since, limit: limit, refresh: refresh);
+    return server.pull(
+      since: since,
+      limit: pageSize < limit ? pageSize : limit,
+      refresh: refresh,
+    );
   }
 
   @override

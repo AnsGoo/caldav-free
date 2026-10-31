@@ -1273,12 +1273,6 @@ void main() {
     expect(find.text('应用'), findsOneWidget);
     await tester.tap(find.text('应用'));
     await tester.pumpAndSettle();
-
-    // 关闭按钮退出摘要，回到任务列表。
-    await tester.tap(find.byTooltip('关闭摘要'));
-    await tester.pumpAndSettle();
-    expect(find.text('摘要编辑器'), findsNothing);
-    expect(find.text('本周未完成的任务'), findsOneWidget);
   });
 
   testWidgets('the mobile filter chips keep a compact highlight', (

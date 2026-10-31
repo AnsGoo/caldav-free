@@ -11,16 +11,10 @@ import '../../design/format.dart';
 /// Summary editor mirroring the web panel: the generated Markdown is editable,
 /// regenerated from the chosen filters, and templates stay on this device.
 class SummaryPanel extends StatefulWidget {
-  const SummaryPanel({
-    super.key,
-    required this.tasks,
-    required this.lists,
-    required this.onClose,
-  });
+  const SummaryPanel({super.key, required this.tasks, required this.lists});
 
   final List<TaskItem> tasks;
   final List<TaskListItem> lists;
-  final VoidCallback onClose;
 
   @override
   State<SummaryPanel> createState() => _SummaryPanelState();
@@ -491,12 +485,6 @@ class _SummaryPanelState extends State<SummaryPanel> {
                 onPressed: _saveTemplate,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-              ),
-              IconButton(
-                tooltip: '关闭摘要',
-                onPressed: widget.onClose,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.close_rounded, size: 18),
               ),
             ],
           ),

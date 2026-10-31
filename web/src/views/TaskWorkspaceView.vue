@@ -446,7 +446,6 @@
 
           <TaskCalendar
             v-else-if="mode === 'calendar'"
-            :tasks="filteredTasks"
             :cursor="cursor"
             :view-mode="calendarView"
             :reload-key="calendarReload"
@@ -556,7 +555,6 @@
       >
         <div class="tw-split-resizer" title="拖动调整宽度" @pointerdown="startSplitResize"></div>
         <TaskCalendar
-          :tasks="filteredTasks"
           :cursor="splitCursor"
           :view-mode="splitViewMode"
           :reload-key="calendarReload"

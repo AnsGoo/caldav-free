@@ -333,7 +333,6 @@ import CalendarSubscriptionDialog from './CalendarSubscriptionDialog.vue'
 import TaskOccurrenceDialog from './TaskOccurrenceDialog.vue'
 
 const props = defineProps<{
-  tasks: TaskItem[]
   cursor: Date
   viewMode: 'month' | 'week' | '2week' | '3day' | 'day' | 'agenda' | 'year'
   reloadKey?: number
@@ -517,17 +516,9 @@ const rangeTitle = computed(() => {
   return `${props.cursor.getMonth() + 1} 月 ${props.cursor.getDate()} 日 - ${end.getMonth() + 1} 月 ${end.getDate()} 日`
 })
 
-const visibleTasks = computed(() => {
-  if (hiddenTasks.value) return []
-  if (!taskOccurrences.value.length) return props.tasks
-  // `/tasks/calendar` already returns every dated task in range — including
-  // non-recurring ones — so drop the workspace copy of any task it expanded.
-  const expandedIds = new Set(taskOccurrences.value.map((task) => task.id))
-  return [
-    ...props.tasks.filter((task) => !expandedIds.has(task.id)),
-    ...taskOccurrences.value,
-  ]
-})
+// 日历只认 `/tasks/calendar` 返回的任务（含重复实例），避免和工作台
+// 任务列表合并后出现重复条目。
+const visibleTasks = computed(() => hiddenTasks.value ? [] : taskOccurrences.value)
 const visibleHabitEntries = computed(() => hiddenHabits.value ? [] : habitEntries.value)
 const visibleEvents = computed(() => events.value.filter((event) => !hiddenCalendarIds.value.has(event.calendarId)))
 

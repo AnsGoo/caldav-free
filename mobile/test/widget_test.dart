@@ -6,6 +6,7 @@ import 'package:caldav_free/data/tasks_repository.dart';
 import 'package:caldav_free/features/auth/login_page.dart';
 import 'package:caldav_free/features/lists/lists_page.dart';
 import 'package:caldav_free/features/search/search_page.dart';
+import 'package:caldav_free/features/summary/summary_page.dart';
 import 'package:caldav_free/features/tasks/tasks_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1174,7 +1175,7 @@ void main() {
     expect(find.text('回收站是空的'), findsOneWidget);
   });
 
-  testWidgets('the summary editor generates markdown and keeps local templates', (
+  testWidgets('the summary editor previews markdown and keeps local templates', (
     tester,
   ) async {
     tester.view
@@ -1221,24 +1222,16 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider<AppState>.value(
         value: app,
-        child: const MaterialApp(home: TasksPage()),
+        child: const MaterialApp(home: SummaryPage()),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('摘要').first);
-    await tester.pumpAndSettle();
-    final editor = find.byType(TextField);
-    expect(editor, findsOneWidget);
-    String text() =>
-        (tester.widget<TextField>(editor).controller?.text ?? '');
-    expect(text(), contains('本周摘要'));
-    expect(text(), contains('本周完成的任务'));
-    expect(text(), contains('本周未完成的任务'));
-
-    // 编辑器可手动修改。
-    await tester.enterText(editor, '手动调整后的摘要\n- [x] 保留我');
-    await tester.pumpAndSettle();
+    // 只读预览：没有编辑框，内容已按 Markdown 渲染。
+    expect(find.byType(TextField), findsNothing);
+    expect(find.text('本周摘要'), findsOneWidget);
+    expect(find.textContaining('本周完成的任务'), findsOneWidget);
+    expect(find.textContaining('本周未完成的任务'), findsOneWidget);
 
     await tester.tap(find.byTooltip('保存为模板'));
     await tester.pumpAndSettle();
@@ -1249,20 +1242,23 @@ void main() {
     await tester.enterText(nameField, '我的周报');
     await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
-    expect(store.summaryTemplatesSnapshot().single.content, contains('保留我'));
+    expect(
+      store.summaryTemplatesSnapshot().single.content,
+      contains('本周摘要'),
+    );
 
     // 宽屏：右侧筛选栏常驻，修改后立即重新生成。
     expect(find.text('摘要筛选'), findsOneWidget);
     expect(find.byTooltip('筛选与分组'), findsNothing);
     await tester.tap(find.text('本月'));
     await tester.pumpAndSettle();
-    expect(text(), contains('本月摘要'));
+    expect(find.text('本月摘要'), findsOneWidget);
 
     await tester.tap(find.text('我的周报'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('套用'));
     await tester.pumpAndSettle();
-    expect(text(), contains('保留我'));
+    expect(find.text('本周摘要'), findsOneWidget);
 
     // 窄屏：同一套筛选改为底部弹层。
     tester.view.physicalSize = const Size(390, 844);

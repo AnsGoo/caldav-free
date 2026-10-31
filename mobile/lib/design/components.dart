@@ -378,19 +378,26 @@ class AppSideNav extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Column(
           children: [
-            for (var i = 0; i < destinations.length; i++)
-              SizedBox(
-                height: 52,
-                child: _NavItem(
-                  destination: destinations[i],
-                  selected: i == index,
-                  activeColor: scheme.primary,
-                  inactiveColor: scheme.onSurfaceVariant,
-                  rail: true,
-                  onTap: () => onSelected(i),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    for (var i = 0; i < destinations.length; i++)
+                      SizedBox(
+                        height: 52,
+                        child: _NavItem(
+                          destination: destinations[i],
+                          selected: i == index,
+                          activeColor: scheme.primary,
+                          inactiveColor: scheme.onSurfaceVariant,
+                          rail: true,
+                          onTap: () => onSelected(i),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-            const Spacer(),
+            ),
             if (onSettings != null)
               SizedBox(
                 height: 56,

@@ -8,6 +8,7 @@ import '../countdowns/countdown_page.dart';
 import '../focus/focus_page.dart';
 import '../habits/habits_page.dart';
 import '../settings/settings_page.dart';
+import '../summary/summary_page.dart';
 import '../tasks/tasks_page.dart';
 
 class HomeShell extends StatefulWidget {
@@ -51,6 +52,11 @@ class _HomeShellState extends State<HomeShell> {
       selectedIcon: Icons.hourglass_full_rounded,
       label: '倒数',
     ),
+    AppNavDestination(
+      icon: Icons.summarize_outlined,
+      selectedIcon: Icons.summarize_rounded,
+      label: '摘要',
+    ),
   ];
 
   void _select(int value) {
@@ -73,6 +79,8 @@ class _HomeShellState extends State<HomeShell> {
         return const FocusPage();
       case 4:
         return const CountdownPage();
+      case 5:
+        return const SummaryPage();
       default:
         return const SizedBox.shrink();
     }

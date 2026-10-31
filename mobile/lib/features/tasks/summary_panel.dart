@@ -92,19 +92,13 @@ class _SummaryFilter {
 }
 
 class _SummaryPanelState extends State<SummaryPanel> {
-  final _controller = TextEditingController();
   _SummaryFilter _filter = const _SummaryFilter();
+  String _markdown = '';
 
   @override
   void initState() {
     super.initState();
-    _controller.text = _buildMarkdown();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _markdown = _buildMarkdown();
   }
 
   ({DateTime from, DateTime to}) _bounds(_SummaryFilter filter) {
@@ -311,7 +305,7 @@ class _SummaryPanelState extends State<SummaryPanel> {
 
   void _regenerate() {
     setState(() {
-      _controller.text = _buildMarkdown();
+      _markdown = _buildMarkdown();
     });
     _showMessage('已按当前条件重新生成');
   }
@@ -319,7 +313,7 @@ class _SummaryPanelState extends State<SummaryPanel> {
   void _applyFilter(_SummaryFilter next) {
     setState(() {
       _filter = next;
-      _controller.text = _buildMarkdown();
+      _markdown = _buildMarkdown();
     });
   }
 
@@ -362,7 +356,7 @@ class _SummaryPanelState extends State<SummaryPanel> {
         id: newSyncId(),
         name: value,
         range: _filter.range.name,
-        content: _controller.text,
+        content: _markdown,
         createdAt: DateTime.now().toUtc(),
       ),
     );
@@ -400,16 +394,14 @@ class _SummaryPanelState extends State<SummaryPanel> {
         (item) => item.name == template.range,
       );
       if (range.isNotEmpty) _filter = _filter.copyWith(range: range.first);
-      if (template.content.trim().isNotEmpty) {
-        _controller.text = template.content;
-      } else {
-        _controller.text = _buildMarkdown();
-      }
+      _markdown = template.content.trim().isNotEmpty
+          ? template.content
+          : _buildMarkdown();
     });
   }
 
   Future<void> _copy() async {
-    await Clipboard.setData(ClipboardData(text: _controller.text));
+    await Clipboard.setData(ClipboardData(text: _markdown));
     _showMessage('摘要已复制');
   }
 
@@ -519,21 +511,9 @@ class _SummaryPanelState extends State<SummaryPanel> {
                 borderRadius: BorderRadius.circular(16),
               ),
               clipBehavior: Clip.antiAlias,
-              child: TextField(
-                controller: _controller,
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  fontSize: 12.5,
-                  height: 1.55,
-                  fontFamily: 'Menlo',
-                ),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  hintText: '摘要会根据当前条件自动生成，也可以手动修改…',
-                ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: _MarkdownPreview(markdown: _markdown),
               ),
             ),
           ),
@@ -783,6 +763,128 @@ class _TagFilterDropdown extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Read-only Markdown preview for the generated summary.
+///
+/// The generated subset is headings, list rows and checkbox bullets, so a
+/// small renderer keeps the client free of a markdown dependency while still
+/// showing a preview instead of raw text.
+class _MarkdownPreview extends StatelessWidget {
+  const _MarkdownPreview({required this.markdown});
+
+  final String markdown;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final rows = <Widget>[];
+    for (final rawLine in markdown.split('\n')) {
+      final line = rawLine.trimRight();
+      if (line.trim().isEmpty) {
+        if (rows.isNotEmpty) rows.add(const SizedBox(height: 6));
+        continue;
+      }
+      if (line.startsWith('## ')) {
+        rows.add(
+          Text(
+            line.substring(3),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        );
+        continue;
+      }
+      if (line.startsWith('### ')) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 2),
+            child: Text(
+              line.substring(4),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: scheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        );
+        continue;
+      }
+      final checkbox = RegExp(r'^- \[([ xX])\]\s?(.*)$').firstMatch(line);
+      if (checkbox != null) {
+        final done = checkbox.group(1)!.toLowerCase() == 'x';
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  done
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  size: 15,
+                  color: done ? scheme.primary : scheme.outline,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    checkbox.group(2) ?? '',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 12.5,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+      if (line.startsWith('- ')) {
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 1),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(width: 4),
+                Text('• ', style: theme.textTheme.bodySmall),
+                Expanded(
+                  child: Text(
+                    line.substring(2),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 12.5,
+                      height: 1.45,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        continue;
+      }
+      rows.add(
+        Text(
+          line,
+          style: theme.textTheme.bodySmall?.copyWith(
+            fontSize: 12.5,
+            height: 1.5,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: rows,
     );
   }
 }

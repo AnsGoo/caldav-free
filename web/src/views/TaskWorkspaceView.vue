@@ -117,7 +117,7 @@
     <div v-if="sidebarOpen" class="tw-scrim" @click="sidebarOpen = false" />
 
     <main class="tw-main">
-      <header v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-toolbar">
+      <header v-if="view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-toolbar">
         <button class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
           <TaskIcon name="list" :size="20" />
         </button>
@@ -136,16 +136,16 @@
             新建日程
           </button>
           <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView" class="tw-mode-switch" role="group" aria-label="视图模式">
-            <button :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
+            <button :class="{ active: mode === 'list' && view !== 'matrix' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
-            <button :class="{ active: mode === 'board' }" title="看板" @click="switchMode('board')">
+            <button :class="{ active: mode === 'board' && view !== 'matrix' }" title="看板" @click="switchMode('board')">
               <TaskIcon name="board" :size="16" />
             </button>
-            <button :class="{ active: mode === 'calendar' }" title="日历" @click="switchMode('calendar')">
+            <button :class="{ active: mode === 'calendar' && view !== 'matrix' }" title="日历" @click="switchMode('calendar')">
               <TaskIcon name="calendar" :size="16" />
             </button>
-            <button :class="{ active: mode === 'timeline' }" title="时间线" @click="switchMode('timeline')">
+            <button :class="{ active: mode === 'timeline' && view !== 'matrix' }" title="时间线" @click="switchMode('timeline')">
               <TaskIcon name="timeline" :size="16" />
             </button>
             <button :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
@@ -153,7 +153,7 @@
             </button>
           </div>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView && mode !== 'calendar'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && !noteView && mode !== 'calendar'"
             class="tw-icon-button"
             :class="{ active: splitView }"
             :title="splitView ? '关闭日历并列显示' : '任务与日历并列显示'"
@@ -162,7 +162,7 @@
             <TaskIcon name="calendar" :size="18" />
           </button>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'completed' && mode === 'list'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && view !== 'completed' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: manualSort }"
             :title="manualSort ? '关闭手动排序' : '手动排序（拖拽调整顺序）'"
@@ -171,7 +171,7 @@
             <TaskIcon name="sort" :size="18" />
           </button>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && mode === 'list'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && mode === 'list'"
             class="tw-icon-button"
             :class="{ active: selectionMode }"
             :title="selectionMode ? '退出多选' : '多选任务'"
@@ -179,7 +179,7 @@
           >
             <TaskIcon name="select" :size="18" />
           </button>
-          <button v-if="view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-icon-button" title="搜索" @click="toggleSearch">
+          <button v-if="view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix'" class="tw-icon-button" title="搜索" @click="toggleSearch">
             <TaskIcon name="search" :size="18" />
           </button>
         </div>
@@ -1412,6 +1412,7 @@ const headingIcon = computed(() => {
   if (view.value === 'trash') return 'trash'
   if (view.value === 'habit') return 'habit'
   if (view.value === 'focus') return 'clock'
+  if (view.value === 'matrix') return 'matrix'
   if (view.value === 'countdown') return 'countdown'
   if (view.value === 'notes') return 'note'
   if (view.value === 'filter') return 'filter'

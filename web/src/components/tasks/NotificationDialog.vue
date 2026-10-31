@@ -39,10 +39,16 @@
             <button
               v-if="item.type === 'task'"
               class="tw-notification-snooze"
-              :disabled="completing === item.id"
+              :disabled="completing === item.id || completedTaskIds.has(item.id)"
               @click="completeTask(item)"
             >
-              {{ completing === item.id ? '处理中…' : '完成' }}
+              {{
+                completing === item.id
+                  ? '处理中…'
+                  : completedTaskIds.has(item.id)
+                    ? '已完成'
+                    : '完成'
+              }}
             </button>
             <a-select
               class="tw-notification-snooze-select"
@@ -95,6 +101,7 @@ const busy = ref(false)
 const snoozing = ref(0)
 const snoozeMinutes = ref<Record<number, number>>({})
 const completing = ref(0)
+const completedTaskIds = ref<Set<number>>(new Set())
 const filter = ref<'all' | 'unread' | 'task' | 'event'>('all')
 const error = ref('')
 const visibleNotifications = computed(() => {
@@ -147,14 +154,23 @@ function setSnoozeMinutes(id: number, next: unknown) {
 }
 
 async function completeTask(item: AppNotification) {
-  if (completing.value || item.type !== 'task' || !item.taskId) return
+  if (
+    completing.value ||
+    completedTaskIds.value.has(item.id) ||
+    item.type !== 'task' ||
+    !item.taskId
+  ) return
   completing.value = item.id
   try {
     await updateTask(item.taskId, { completed: true })
+    completedTaskIds.value = new Set([...completedTaskIds.value, item.id])
+    const wasUnread = !item.read
     item.read = true
     await markNotificationRead(item.id)
-    unread.value = Math.max(0, unread.value - 1)
-    emit('changed', unread.value)
+    if (wasUnread) {
+      unread.value = Math.max(0, unread.value - 1)
+      emit('changed', unread.value)
+    }
     emit('task-completed', item.taskId)
     Message.success('任务已完成')
   } catch (cause) {

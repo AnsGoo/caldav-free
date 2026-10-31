@@ -73,7 +73,7 @@
     </aside>
 
     <TaskSidebar
-      v-if="view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'"
+      v-if="mode !== 'calendar' && view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'"
       :lists="lists"
       :shared-lists="sharedLists"
       :shared-notes="sharedNotes"
@@ -117,11 +117,11 @@
       @logout="handleLogout"
     />
 
-    <div v-if="sidebarOpen" class="tw-scrim" @click="sidebarOpen = false" />
+    <div v-if="sidebarOpen && mode !== 'calendar'" class="tw-scrim" @click="sidebarOpen = false" />
 
     <main class="tw-main">
       <header v-if="view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-toolbar">
-        <button class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
+        <button v-if="mode !== 'calendar'" class="tw-icon-button tw-menu-button" title="打开侧栏" @click="sidebarOpen = true">
           <TaskIcon name="list" :size="20" />
         </button>
         <div class="tw-heading">

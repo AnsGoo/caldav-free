@@ -434,6 +434,8 @@ ThemeData buildAppTheme(Brightness brightness, {Color? accent}) {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     switchTheme: SwitchThemeData(
+      // 全局开关保持紧凑：默认 48×48 的点击区域会让编辑面板变得松散。
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       thumbColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
             ? Colors.white

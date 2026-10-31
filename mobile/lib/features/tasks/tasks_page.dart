@@ -788,16 +788,9 @@ class _TasksPageState extends State<TasksPage> {
                     onNotes: _batchNotes,
                   ),
                 if (_layout == _TaskLayout.list) ...[
-                  // The wide layout already lists 全部/今天/最近 7 天/已完成/回收站 in
-                  // the side pane, so the main column only keeps the list scope.
-                  if (wide)
-                    _ViewScopeBar(
-                      lists: _lists,
-                      selectedId: _selectedListId,
-                      includeAll: true,
-                      onChanged: _selectListScope,
-                    )
-                  else
+                  // 宽屏侧栏已经提供视图与清单筛选，主区不再重复范围筛选条；
+                  // 窄屏没有侧栏，chips 是唯一的筛选入口。
+                  if (!wide)
                     _ListSelector(
                       lists: _lists,
                       selectedId: _selectedListId,
@@ -904,12 +897,13 @@ class _TasksPageState extends State<TasksPage> {
                           ),
                   ),
                 ] else if (_layout == _TaskLayout.board) ...[
-                  _ViewScopeBar(
-                    lists: _lists,
-                    selectedId: _selectedListId,
-                    includeAll: true,
-                    onChanged: _setScope,
-                  ),
+                  if (!wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      includeAll: true,
+                      onChanged: _setScope,
+                    ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -934,12 +928,13 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 ] else if (_layout == _TaskLayout.matrix) ...[
-                  _ViewScopeBar(
-                    lists: _lists,
-                    selectedId: _selectedListId,
-                    includeAll: true,
-                    onChanged: _setScope,
-                  ),
+                  if (!wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      includeAll: true,
+                      onChanged: _setScope,
+                    ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -954,12 +949,13 @@ class _TasksPageState extends State<TasksPage> {
                     ),
                   ),
                 ] else ...[
-                  _ViewScopeBar(
-                    lists: _lists,
-                    selectedId: _selectedListId,
-                    includeAll: true,
-                    onChanged: _setScope,
-                  ),
+                  if (!wide)
+                    _ViewScopeBar(
+                      lists: _lists,
+                      selectedId: _selectedListId,
+                      includeAll: true,
+                      onChanged: _setScope,
+                    ),
                   _TimelineScaleBar(
                     scale: _timelineScale,
                     anchor: _timelineAnchor,
@@ -3075,8 +3071,8 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
             Row(
               children: [
                 Text('全天', style: theme.textTheme.bodySmall),
-                const SizedBox(width: 6),
-                Switch(
+                const SizedBox(width: 4),
+                AppSwitch(
                   value: _allDay,
                   onChanged: _saving ? null : _toggleAllDay,
                 ),

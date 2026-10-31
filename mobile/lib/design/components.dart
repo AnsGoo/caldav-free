@@ -567,6 +567,40 @@ class AppUnderlineTabs<T> extends StatelessWidget {
   }
 }
 
+/// Compact on/off switch used across the app.
+///
+/// Material's default switch is 52×32 with a 48×48 tap target, which looks
+/// heavy next to the 13–14px labels in settings rows and editor sheets. This
+/// keeps the theme colors but paints the control at roughly 80% size.
+class AppSwitch extends StatelessWidget {
+  const AppSwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.width = 42,
+  });
+
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: width * 32 / 52,
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: Switch(
+          value: value,
+          onChanged: onChanged,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ),
+    );
+  }
+}
+
 /// Capsule search field: light gray fill, leading search icon, inline clear
 /// button, and a thin accent ring only while focused.
 class AppSearchField extends StatelessWidget {

@@ -232,14 +232,12 @@ void main() {
 
     await tester.tap(find.text('看板'));
     await tester.pumpAndSettle();
-    // 看板默认全部清单：每个清单作为一列
-    expect(find.text('全部清单'), findsOneWidget);
+    // 宽屏通过侧栏选择清单，主区不再显示范围筛选条。
+    expect(find.text('全部清单'), findsNothing);
     expect(find.text('看板里的任务'), findsOneWidget);
     expect(find.text('未分列'), findsNothing);
 
-    await tester.tap(find.text('全部清单'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('收集箱').last);
+    await tester.tap(find.text('收集箱').first);
     await tester.pumpAndSettle();
     // 选定清单后按分列展示
     expect(find.text('进行中'), findsOneWidget);
@@ -622,7 +620,7 @@ void main() {
     expect(added.single.title, '写周报');
   });
 
-  testWidgets('the wide list layout keeps only the scope filter', (
+  testWidgets('the wide list layout filters lists from the side pane only', (
     tester,
   ) async {
     addTearDown(tester.view.reset);
@@ -656,15 +654,19 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    // 宽屏的侧栏已经有一份视图列表，主区不再重复一遍筛选 chips。
+    // 宽屏的侧栏已经有视图和清单筛选，主区不再出现范围筛选条。
     await pumpTasks(const Size(1200, 900));
-    expect(find.text('范围'), findsOneWidget);
+    expect(find.text('范围'), findsNothing);
+    expect(find.text('清单'), findsOneWidget);
     expect(find.text('今天'), findsOneWidget);
 
-    // 窄屏没有侧栏，chips 是唯一的入口，保持原样。
+    // 窄屏没有侧栏，chips 保留清单与视图筛选入口。
     await pumpTasks(const Size(390, 844));
     expect(find.text('范围'), findsNothing);
     expect(find.text('今天'), findsOneWidget);
+    await tester.drag(find.text('今天'), const Offset(-320, 0));
+    await tester.pumpAndSettle();
+    expect(find.text('工作'), findsOneWidget);
   });
 
   testWidgets('the mobile filter chips keep a compact highlight', (

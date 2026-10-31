@@ -592,69 +592,48 @@ class AppSearchField extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final bodyStyle = theme.textTheme.bodyLarge?.copyWith(
-      fontSize: 15,
+      fontSize: 14,
       color: scheme.onSurface,
     );
-    return ValueListenableBuilder<TextEditingValue>(
-      valueListenable: controller,
-      builder: (context, value, _) {
-        return TextField(
-          controller: controller,
-          focusNode: focusNode,
-          autofocus: autofocus,
-          textInputAction: TextInputAction.search,
-          onChanged: onChanged,
-          onSubmitted: onSubmitted,
-          style: bodyStyle,
-          // Fill, radius and the focused ring come from the app's
-          // InputDecorationTheme so every input stays on the same token set.
-          decoration: InputDecoration(
-            hintText: hintText,
-            hintStyle: bodyStyle?.copyWith(color: scheme.onSurfaceVariant),
-            prefixIcon: Icon(
-              Icons.search_rounded,
-              size: 20,
-              color: scheme.onSurfaceVariant,
-            ),
-            prefixIconConstraints: const BoxConstraints(
-              minWidth: 40,
-              minHeight: 40,
-            ),
-            suffixIcon: value.text.isEmpty
-                ? null
-                : IconButton(
-                    tooltip: '清空搜索',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 40,
-                    ),
-                    onPressed: () {
-                      controller.clear();
-                      onChanged?.call('');
-                      focusNode?.requestFocus();
-                    },
-                    icon: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: scheme.onSurfaceVariant.withValues(alpha: 0.22),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 12,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                  ),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 13,
-            ),
+    return TextField(
+      controller: controller,
+      focusNode: focusNode,
+      autofocus: autofocus,
+      textInputAction: TextInputAction.search,
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      style: bodyStyle,
+      // 全局搜索框保持紧凑，不再显示右侧清空按钮。
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: bodyStyle?.copyWith(color: scheme.onSurfaceVariant),
+        isDense: true,
+        prefixIcon: Icon(
+          Icons.search_rounded,
+          size: 18,
+          color: scheme.onSurfaceVariant,
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 36,
+          minHeight: 36,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.outline),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: scheme.outline),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: scheme.primary.withValues(alpha: 0.75),
+            width: 1.4,
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

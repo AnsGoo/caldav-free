@@ -98,7 +98,7 @@ void main() {
     expect(find.text('写周报'), findsOneWidget);
     expect(find.text('买牛奶'), findsNothing);
 
-    await tester.tap(find.byTooltip('关闭搜索'));
+    FocusManager.instance.primaryFocus?.unfocus();
     await tester.pumpAndSettle();
     expect(find.text('买牛奶'), findsOneWidget);
     expect(find.text('写周报'), findsOneWidget);
@@ -371,7 +371,12 @@ void main() {
       TaskListItem(id: 'inbox-1', name: '收集箱', isInbox: true, updatedAt: now),
     );
     for (final task in [
-      TaskItem(id: 'task-open', listId: 'inbox-1', title: '未完成任务', updatedAt: now),
+      TaskItem(
+        id: 'task-open',
+        listId: 'inbox-1',
+        title: '未完成任务',
+        updatedAt: now,
+      ),
       TaskItem(
         id: 'task-done',
         listId: 'inbox-1',
@@ -671,11 +676,7 @@ void main() {
     addTearDown(tester.view.reset);
     final store = LocalStore.memory();
     await store.saveList(
-      TaskListItem(
-        id: 'work-1',
-        name: '工作',
-        updatedAt: DateTime.now().toUtc(),
-      ),
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: DateTime.now().toUtc()),
     );
     final app = AppState(
       store: store,

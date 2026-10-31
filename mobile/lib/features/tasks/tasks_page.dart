@@ -59,6 +59,7 @@ class _TasksPageState extends State<TasksPage> {
     super.initState();
     _subscribeLists();
     _subscribeTasks();
+    _searchFocus.addListener(_handleSearchFocus);
   }
 
   @override
@@ -68,8 +69,14 @@ class _TasksPageState extends State<TasksPage> {
     _quickAdd.dispose();
     _quickAddFocus.dispose();
     _search.dispose();
+    _searchFocus.removeListener(_handleSearchFocus);
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _handleSearchFocus() {
+    if (!mounted || !_searching || _searchFocus.hasFocus) return;
+    _closeSearch();
   }
 
   void _subscribeLists() {
@@ -187,9 +194,8 @@ class _TasksPageState extends State<TasksPage> {
   }
 
   void _openTrash() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const TrashPage()));
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const TrashPage()));
   }
 
   void _toggleManualSort() {
@@ -647,14 +653,7 @@ class _TasksPageState extends State<TasksPage> {
                 const SizedBox(width: 6),
               ]
             : _searching
-            ? [
-                IconButton(
-                  tooltip: '关闭搜索',
-                  onPressed: _closeSearch,
-                  icon: const Icon(Icons.close_rounded),
-                ),
-                const SizedBox(width: 6),
-              ]
+            ? const <Widget>[]
             : [
                 if (sync?.phase == SyncPhase.syncing)
                   const Padding(
@@ -770,7 +769,10 @@ class _TasksPageState extends State<TasksPage> {
                 if (!_searching && !_selecting)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
-                    child: _LayoutSwitcher(layout: _layout, onChanged: _setLayout),
+                    child: _LayoutSwitcher(
+                      layout: _layout,
+                      onChanged: _setLayout,
+                    ),
                   ),
                 if (_selecting && _layout == _TaskLayout.list)
                   _BatchBar(
@@ -823,7 +825,8 @@ class _TasksPageState extends State<TasksPage> {
                                       child: _EmptyState(
                                         completed: _completed,
                                         hasLists: _lists.isNotEmpty,
-                                        searching: _searching && _query.isNotEmpty,
+                                        searching:
+                                            _searching && _query.isNotEmpty,
                                       ),
                                     ),
                                   ),
@@ -878,7 +881,8 @@ class _TasksPageState extends State<TasksPage> {
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                               itemCount: visible.length,
-                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              separatorBuilder: (_, _) =>
+                                  const SizedBox(height: 8),
                               itemBuilder: (context, index) {
                                 final task = visible[index];
                                 final list = listsById[task.listId];
@@ -959,7 +963,8 @@ class _TasksPageState extends State<TasksPage> {
                   _TimelineScaleBar(
                     scale: _timelineScale,
                     anchor: _timelineAnchor,
-                    onChanged: (value) => setState(() => _timelineScale = value),
+                    onChanged: (value) =>
+                        setState(() => _timelineScale = value),
                     onAnchorChanged: (value) =>
                         setState(() => _timelineAnchor = value),
                   ),
@@ -1440,10 +1445,7 @@ class _ViewScopeBar extends StatelessWidget {
                   if (includeAll)
                     PopupMenuItem<String?>(
                       value: null,
-                      child: _ScopeItem(
-                        label: '全部清单',
-                        selected: value == null,
-                      ),
+                      child: _ScopeItem(label: '全部清单', selected: value == null),
                     ),
                   for (final list in lists)
                     PopupMenuItem<String?>(
@@ -1514,11 +1516,7 @@ class _ViewScopeBar extends StatelessWidget {
 }
 
 class _ScopeItem extends StatelessWidget {
-  const _ScopeItem({
-    required this.label,
-    required this.selected,
-    this.color,
-  });
+  const _ScopeItem({required this.label, required this.selected, this.color});
 
   final String label;
   final bool selected;
@@ -1601,7 +1599,8 @@ class _ListSelector extends StatelessWidget {
           if (index == 0) {
             return _SelectorChip(
               label: '全部',
-              selected: selectedId == null && selectedView == 'all' && !completed,
+              selected:
+                  selectedId == null && selectedView == 'all' && !completed,
               color: scheme.primary,
               onTap: () => onViewSelected('all'),
             );
@@ -1724,9 +1723,8 @@ class _SelectorChip extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     '$count',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: foreground,
-                    ),
+                    style: Theme.of(context).textTheme.labelSmall
+                        ?.copyWith(color: foreground),
                   ),
                 ],
               ],
@@ -1821,8 +1819,7 @@ class _ListPane extends StatelessWidget {
                 onTap: onTrash,
               ),
               _PaneLabel(text: '清单'),
-              for (final list in ungrouped)
-                _listRow(context, store, list),
+              for (final list in ungrouped) _listRow(context, store, list),
               for (final folder in folders) ...[
                 if (lists.any((list) => list.folderId == folder.id))
                   _PaneLabel(text: folder.name),
@@ -1846,10 +1843,7 @@ class _ListPane extends StatelessWidget {
   }
 
   Widget _listRow(BuildContext context, LocalStore store, TaskListItem list) {
-    final open = store.tasksSnapshot(
-      listId: list.id,
-      completed: false,
-    );
+    final open = store.tasksSnapshot(listId: list.id, completed: false);
     return _PaneRow(
       label: list.name,
       dot: colorFromHex(list.color),
@@ -2313,9 +2307,7 @@ class _EmptyState extends StatelessWidget {
           : completed
           ? Icons.task_alt_rounded
           : Icons.checklist_rounded,
-      title: searching
-          ? '没有匹配的任务'
-          : (completed ? '还没有已完成任务' : '这里还没有任务'),
+      title: searching ? '没有匹配的任务' : (completed ? '还没有已完成任务' : '这里还没有任务'),
       message: searching
           ? '试试标题、备注、标签或子任务里的关键词'
           : (completed

@@ -227,16 +227,6 @@
             {{ recurrenceBusy ? '处理中…' : '顺延一天' }}
           </button>
         </div>
-        <div v-if="recurrenceInstances.length" class="tw-recurrence-history">
-          <span>最近实例</span>
-          <div v-for="instance in recurrenceInstances" :key="instance.id" class="tw-recurrence-history-row">
-            <span>
-              {{ formatMoment(instance.occurrenceAt) }}
-              <small v-if="instance.status === 'postponed' && instance.postponedTo">→ {{ formatMoment(instance.postponedTo) }}</small>
-            </span>
-            <em :class="instance.status">{{ instance.status === 'skipped' ? '已跳过' : instance.status === 'postponed' ? '已顺延' : '已完成' }}</em>
-          </div>
-        </div>
         <p class="tw-field-hint">
           重复任务完成后会自动滚到下一次。提醒会写入 CalDAV VALARM；页面打开时可同时使用浏览器通知。
         </p>
@@ -298,20 +288,6 @@
           <button class="tw-priority-button" :class="{ active: draft.priority === 0 }" @click="setPriority(0)">
             无
           </button>
-        </div>
-      </section>
-
-      <section v-if="activities.length" class="tw-activity-section">
-        <header class="tw-detail-section-head"><span>动态</span></header>
-        <div class="tw-activity-list">
-          <div v-for="activity in activities" :key="activity.id" class="tw-activity-row">
-            <span class="tw-activity-dot" />
-            <span class="tw-activity-text">
-              <strong>{{ activity.displayName || activity.username }}</strong>
-              {{ activity.detail }}
-            </span>
-            <small>{{ formatCommentTime(activity.createdAt) }}</small>
-          </div>
         </div>
       </section>
 
@@ -445,10 +421,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { ChecklistItem, CommentAttachment, TaskActivity, TaskAttachment, TaskComment, TaskItem, TaskList, TaskListMember, TaskRecurrenceInstance } from '../../types'
+import type { ChecklistItem, CommentAttachment, TaskAttachment, TaskComment, TaskItem, TaskList, TaskListMember } from '../../types'
 import { tagColor, tagTint } from '../../tag-colors'
 import { PRIORITIES, RECURRENCE_OPTIONS, REMINDER_OPTIONS, addDays, dayKey, formatDue, recurrenceLabel, reminderLabel, startOfToday, toDateInput } from '../../tasks-utils'
-import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskActivities, fetchTaskAttachments, fetchTaskComments, fetchTaskRecurrence, postponeTaskOccurrence, skipTaskOccurrence, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
+import { createTaskComment, deleteCommentAttachment, deleteTaskAttachment, deleteTaskComment, fetchTaskAttachments, fetchTaskComments, postponeTaskOccurrence, skipTaskOccurrence, updateTask, updateTaskComment, uploadCommentAttachment, uploadTaskAttachment } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const props = withDefaults(defineProps<{ task: TaskItem; lists: TaskList[]; subtasks?: TaskItem[]; members?: TaskListMember[]; tagColors?: Record<string, string>; readonly?: boolean; listLocked?: boolean }>(), { subtasks: () => [] })
@@ -511,8 +487,6 @@ const subtaskTitle = ref('')
 const attachments = ref<TaskAttachment[]>([])
 const attachmentInput = ref<HTMLInputElement | null>(null)
 const comments = ref<TaskComment[]>([])
-const activities = ref<TaskActivity[]>([])
-const recurrenceInstances = ref<TaskRecurrenceInstance[]>([])
 const recurrenceBusy = ref(false)
 const commentsLoading = ref(false)
 const commentBusy = ref(false)
@@ -585,8 +559,6 @@ function hydrate() {
   editingCommentId.value = 0
   editingCommentText.value = ''
   void loadComments()
-  void loadActivities()
-  void loadRecurrence()
   nextTick(() => {
     growTitle()
     lastSaved = snapshotDraft()
@@ -619,30 +591,7 @@ function changeReminder(index: number, value: number) {
   draft.reminderOffsets.sort((a, b) => a - b)
 }
 
-async function loadActivities() {
-  const id = props.task.id
-  if (!id) return
-  try {
-    const result = await fetchTaskActivities(id)
-    if (id === props.task.id) activities.value = result.activities
-  } catch {
-    if (id === props.task.id) activities.value = []
-  }
-}
-
-async function loadRecurrence() {
-  const id = props.task.id
-  if (!id) return
-  try {
-    const result = await fetchTaskRecurrence(id)
-    if (id === props.task.id) recurrenceInstances.value = result.instances
-  } catch {
-    if (id === props.task.id) recurrenceInstances.value = []
-  }
-}
-
-function applyOccurrenceResult(task: TaskItem, instances: TaskRecurrenceInstance[]) {
-  recurrenceInstances.value = instances
+function applyOccurrenceResult(task: TaskItem) {
   const input = toDateInput(task)
   const [datePart, timePart] = input.split('T')
   draft.dueDate = datePart || ''
@@ -661,7 +610,7 @@ async function skipOccurrence() {
   recurrenceBusy.value = true
   try {
     const result = await skipTaskOccurrence(props.task.id)
-    applyOccurrenceResult(result.task, result.instances)
+    applyOccurrenceResult(result.task)
     Message.info(`已跳过本次，下次 ${formatDue(result.task)}`)
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '跳过本次失败')
@@ -675,7 +624,7 @@ async function postponeOccurrence() {
   recurrenceBusy.value = true
   try {
     const result = await postponeTaskOccurrence(props.task.id, undefined, 1)
-    applyOccurrenceResult(result.task, result.instances)
+    applyOccurrenceResult(result.task)
     const postponed = result.instances.find((item) => item.status === 'postponed')
     Message.info(postponed?.postponedTo ? `已顺延到 ${formatMoment(postponed.postponedTo)}` : '已顺延本次')
   } catch (error) {
@@ -993,8 +942,6 @@ async function save() {
   try {
     const { task } = await updateTask(props.task.id, payload)
     lastSaved = JSON.stringify({ ...payload, title, checklist: payload.checklist })
-    void loadActivities()
-    void loadRecurrence()
     if (completing && !task.completed && task.recurrence) {
       draft.completed = false
       const input = toDateInput(task)

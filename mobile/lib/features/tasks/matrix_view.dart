@@ -362,12 +362,6 @@ class _MatrixTask extends StatelessWidget {
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
                         height: 1.25,
-                        color: task.completed
-                            ? scheme.onSurfaceVariant
-                            : null,
-                        decoration: task.completed
-                            ? TextDecoration.lineThrough
-                            : null,
                       ),
                     ),
                     if (due != null) ...[

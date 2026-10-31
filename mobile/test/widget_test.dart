@@ -290,7 +290,9 @@ void main() {
     expect(find.text('本月'), findsOneWidget);
   });
 
-  testWidgets('the matrix buckets by priority like the web', (tester) async {
+  testWidgets('the matrix buckets by priority and hides completed', (
+    tester,
+  ) async {
     final store = LocalStore.memory();
     final now = DateTime.now().toUtc();
     await store.saveList(
@@ -341,9 +343,9 @@ void main() {
       matching: find.text(title),
     );
 
-    // Web 默认「按优先级」：3→Q1、2→Q2、1→Q3、0→Q4，且包含已完成任务。
+    // Web 默认「按优先级」：3→Q1、2→Q2、1→Q3、0→Q4；四象限不展示已完成。
     expect(inQuadrant('0', '高优先无日期'), findsOneWidget);
-    expect(inQuadrant('0', '已完成高优先'), findsOneWidget);
+    expect(find.text('已完成高优先'), findsNothing);
     expect(inQuadrant('1', '中优先今天到期'), findsOneWidget);
     expect(inQuadrant('2', '低优先任务'), findsOneWidget);
     expect(inQuadrant('3', '无优先任务'), findsOneWidget);

@@ -858,7 +858,7 @@ class _TasksPageState extends State<TasksPage> {
                     child: SafeArea(
                       top: false,
                       child: MatrixView(
-                        tasks: _matrixTasks,
+                        tasks: _taggedTasks,
                         lists: _lists,
                         groupByList: _selectedListId == null,
                         onOpenTask: (task) =>
@@ -916,19 +916,6 @@ class _TasksPageState extends State<TasksPage> {
     return _tasks
         .where((task) => task.tags.contains(tag))
         .toList(growable: false);
-  }
-
-  /// 与 Web 四象限一致：默认也展示已完成任务（最多 50 条）。
-  List<TaskItem> get _matrixTasks {
-    final tag = isWideLayout(context) ? _selectedTag : null;
-    final done = context
-        .read<AppState>()
-        .store
-        .tasksSnapshot(listId: _selectedListId, completed: true)
-        .where((task) => tag == null || task.tags.contains(tag))
-        .take(50)
-        .toList(growable: false);
-    return [..._taggedTasks, ...done];
   }
 
   List<TaskItem> get _filteredTasks {

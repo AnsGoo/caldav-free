@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../app_state.dart';
 import '../../design/components.dart';
 import '../calendar/calendar_page.dart';
 import '../countdowns/countdown_page.dart';
 import '../focus/focus_page.dart';
 import '../habits/habits_page.dart';
+import '../settings/settings_page.dart';
 import '../tasks/tasks_page.dart';
 
 class HomeShell extends StatefulWidget {
@@ -82,9 +85,19 @@ class _HomeShellState extends State<HomeShell> {
     return TickerMode(enabled: slot == _index, child: _page(slot));
   }
 
+  void _openSettings() {
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+  }
+
   @override
   Widget build(BuildContext context) {
     final useRail = isWideLayout(context);
+    final app = context.watch<AppState>();
+    final username = app.session?.username.trim() ?? '';
+    final initial = username.isEmpty
+        ? null
+        : String.fromCharCode(username.runes.first).toUpperCase();
     return Scaffold(
       body: Row(
         children: [
@@ -93,6 +106,8 @@ class _HomeShellState extends State<HomeShell> {
               index: _index,
               destinations: _destinations,
               onSelected: _select,
+              onSettings: _openSettings,
+              userInitial: initial,
             )
           else
             const SizedBox.shrink(),
@@ -112,6 +127,8 @@ class _HomeShellState extends State<HomeShell> {
               index: _index,
               destinations: _destinations,
               onSelected: _select,
+              onSettings: _openSettings,
+              userInitial: initial,
             ),
     );
   }

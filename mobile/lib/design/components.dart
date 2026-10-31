@@ -200,11 +200,19 @@ class AppBottomNav extends StatelessWidget {
     required this.index,
     required this.destinations,
     required this.onSelected,
+    this.onSettings,
+    this.userInitial,
   });
 
   final int index;
   final List<AppNavDestination> destinations;
   final ValueChanged<int> onSelected;
+
+  /// Bottom-right profile entry; hidden when null.
+  final VoidCallback? onSettings;
+
+  /// First character of the signed-in username, shown inside the avatar.
+  final String? userInitial;
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +235,88 @@ class AppBottomNav extends StatelessWidget {
                   onTap: () => onSelected(i),
                 ),
               ),
+            if (onSettings != null) ...[
+              Container(
+                width: 1,
+                height: 24,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                color: scheme.outlineVariant,
+              ),
+              SizedBox(
+                width: 46,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _UserAvatarButton(
+                      onTap: onSettings!,
+                      initial: userInitial,
+                      size: 36,
+                    ),
+                    // 与导航项下方的选中点占位对齐，让头像中心和图标中心一致。
+                    const SizedBox(height: 3),
+                    const SizedBox(width: 4, height: 4),
+                  ],
+                ),
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UserAvatarButton extends StatelessWidget {
+  const _UserAvatarButton({
+    required this.onTap,
+    required this.initial,
+    this.size = 40,
+  });
+
+  final VoidCallback onTap;
+  final String? initial;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasInitial = initial != null && initial!.isNotEmpty;
+    return Tooltip(
+      message: '设置',
+      child: Semantics(
+        button: true,
+        label: '设置',
+        child: Material(
+          color: scheme.surface,
+          elevation: 1,
+          shadowColor: scheme.shadow.withValues(alpha: 0.2),
+          shape: CircleBorder(
+            side: BorderSide(color: scheme.outline, width: 1.4),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: onTap,
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Center(
+                child: hasInitial
+                    ? Text(
+                        initial!,
+                        style: TextStyle(
+                          color: scheme.primary,
+                          fontSize: size * 0.38,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      )
+                    : Icon(
+                        Icons.person_outline_rounded,
+                        size: size * 0.52,
+                        color: scheme.onSurfaceVariant,
+                      ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -263,11 +352,19 @@ class AppSideNav extends StatelessWidget {
     required this.index,
     required this.destinations,
     required this.onSelected,
+    this.onSettings,
+    this.userInitial,
   });
 
   final int index;
   final List<AppNavDestination> destinations;
   final ValueChanged<int> onSelected;
+
+  /// Bottom profile entry; hidden when null.
+  final VoidCallback? onSettings;
+
+  /// First character of the signed-in username, shown inside the avatar.
+  final String? userInitial;
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +390,18 @@ class AppSideNav extends StatelessWidget {
                   onTap: () => onSelected(i),
                 ),
               ),
+            const Spacer(),
+            if (onSettings != null)
+              SizedBox(
+                height: 56,
+                child: Center(
+                  child: _UserAvatarButton(
+                    onTap: onSettings!,
+                    initial: userInitial,
+                  ),
+                ),
+              ),
+            const SizedBox(height: 4),
           ],
         ),
       ),

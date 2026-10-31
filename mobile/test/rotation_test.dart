@@ -98,4 +98,24 @@ void main() {
     expect(find.byType(AppBottomNav), findsOneWidget);
     expect(find.byType(AppSideNav), findsNothing);
   });
+
+  testWidgets('bottom bar avatar aligns with tab icons', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: AppBottomNav(
+            index: 0,
+            destinations: _destinations,
+            onSelected: (_) {},
+            onSettings: () {},
+            userInitial: 'D',
+          ),
+        ),
+      ),
+    );
+
+    final avatar = tester.getCenter(find.byTooltip('设置'));
+    final icon = tester.getCenter(find.byIcon(Icons.checklist_rtl_rounded));
+    expect(avatar.dy, closeTo(icon.dy, 0.1));
+  });
 }

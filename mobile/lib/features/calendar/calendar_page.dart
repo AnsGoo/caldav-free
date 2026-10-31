@@ -391,35 +391,16 @@ class _CalendarPageState extends State<CalendarPage> {
           .where((source) => source.id > 0)
           .toList(growable: false);
 
-  /// The day view pairs the event FAB with a task quick-add; the inline
-  /// composer borrows the corner while it is open.
-  Widget? _fab(ColorScheme scheme) {
-    if (_view == CalendarView.day && _composingDay != null) return null;
-    final event = _writableSources.isEmpty
-        ? null
-        : Tooltip(
-            message: '新建日程',
-            child: FloatingActionButton(
-              heroTag: 'calendar-compose-fab',
-              onPressed: _createEvent,
-              child: const Icon(Icons.add_rounded),
-            ),
-          );
-    if (_view != CalendarView.day) return event;
-    final task = Tooltip(
-      message: '在 ${_anchor.month}月${_anchor.day}日新建任务',
-      child: FloatingActionButton.small(
-        heroTag: 'calendar-task-fab',
-        onPressed: () => _startCompose(_anchor),
-        backgroundColor: scheme.surfaceContainerHigh,
-        foregroundColor: scheme.primary,
-        child: const Icon(Icons.playlist_add_rounded),
+  /// 日视图只保留新建日程入口；任务统一在任务页创建。
+  Widget? _fab() {
+    if (_writableSources.isEmpty) return null;
+    return Tooltip(
+      message: '新建日程',
+      child: FloatingActionButton(
+        heroTag: 'calendar-compose-fab',
+        onPressed: _createEvent,
+        child: const Icon(Icons.add_rounded),
       ),
-    );
-    if (event == null) return task;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [task, const SizedBox(width: 10), event],
     );
   }
 
@@ -494,7 +475,7 @@ class _CalendarPageState extends State<CalendarPage> {
           const SizedBox(width: 6),
         ],
       ),
-      floatingActionButton: _fab(scheme),
+      floatingActionButton: _fab(),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1148,105 +1129,125 @@ class _MonthViewState extends State<_MonthView> {
                               borderRadius: BorderRadius.circular(14),
                               onTap: () => widget.onSelectDay(day),
                               onLongPress: () => widget.onStartCompose(day),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 180),
-                                    width: 32,
-                                    height: 32,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: isToday
-                                          ? scheme.primary
-                                          : Colors.transparent,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: Text(
-                                      '${day.day}',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            fontSize: 14,
-                                            fontWeight: isToday
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                            color: isToday
-                                                ? scheme.onPrimary
-                                                : inMonth
-                                                ? scheme.onSurface
-                                                : scheme.onSurfaceVariant
-                                                      .withValues(alpha: 0.45),
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  if (composing)
-                                    _DayComposer(
-                                      key: ValueKey(day),
-                                      onCommit: widget.onCommitCompose,
-                                      onCancel: widget.onCancelCompose,
-                                    )
-                                  else ...[
-                                    SizedBox(
-                                      height: 10,
-                                      child: Center(
-                                        child: Text(
-                                          label,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .labelSmall
-                                              ?.copyWith(
-                                                fontSize: 7.5,
-                                                height: 1,
-                                                color: special
-                                                    ? AppColors.festivalFor(
-                                                        Theme.of(context)
-                                                            .brightness,
-                                                      )
-                                                    : scheme.onSurfaceVariant
-                                                          .withValues(
-                                                            alpha: 0.8,
-                                                          ),
-                                                fontWeight: special
-                                                    ? FontWeight.w600
-                                                    : FontWeight.w500,
-                                              ),
-                                        ),
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      height: 6,
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
+                              child: LayoutBuilder(
+                                builder: (context, cell) => Center(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: SizedBox(
+                                      width: cell.maxWidth,
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          for (final entry in entries.take(3))
-                                            Container(
-                                              width: 5,
-                                              height: 5,
-                                              margin:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 1,
+                                          AnimatedContainer(
+                                            duration: const Duration(
+                                              milliseconds: 180,
+                                            ),
+                                            width: 32,
+                                            height: 32,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              color: isToday
+                                                  ? scheme.primary
+                                                  : Colors.transparent,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: Text(
+                                              '${day.day}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .labelLarge
+                                                  ?.copyWith(
+                                                    fontSize: 14,
+                                                    fontWeight: isToday
+                                                        ? FontWeight.w700
+                                                        : FontWeight.w500,
+                                                    color: isToday
+                                                        ? scheme.onPrimary
+                                                        : inMonth
+                                                        ? scheme.onSurface
+                                                        : scheme
+                                                              .onSurfaceVariant
+                                                              .withValues(
+                                                                alpha: 0.45,
+                                                              ),
                                                   ),
-                                              decoration: BoxDecoration(
-                                                color: entry.completed
-                                                    ? scheme.onSurfaceVariant
-                                                          .withValues(
-                                                            alpha: 0.35,
-                                                          )
-                                                    : entry.color,
-                                                shape: BoxShape.circle,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          if (composing)
+                                            _DayComposer(
+                                              key: ValueKey(day),
+                                              onCommit: widget.onCommitCompose,
+                                              onCancel: widget.onCancelCompose,
+                                            )
+                                          else ...[
+                                            SizedBox(
+                                              height: 10,
+                                              child: Center(
+                                                child: Text(
+                                                  label,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .labelSmall
+                                                      ?.copyWith(
+                                                        fontSize: 7.5,
+                                                        height: 1,
+                                                        color: special
+                                                            ? AppColors.festivalFor(
+                                                                Theme.of(
+                                                                  context,
+                                                                ).brightness,
+                                                              )
+                                                            : scheme
+                                                                  .onSurfaceVariant
+                                                                  .withValues(
+                                                                    alpha: 0.8,
+                                                                  ),
+                                                        fontWeight: special
+                                                            ? FontWeight.w600
+                                                            : FontWeight.w500,
+                                                      ),
+                                                ),
                                               ),
                                             ),
+                                            SizedBox(
+                                              height: 6,
+                                              child: Row(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  for (final entry
+                                                      in entries.take(3))
+                                                    Container(
+                                                      width: 5,
+                                                      height: 5,
+                                                      margin:
+                                                          const EdgeInsets.symmetric(
+                                                            horizontal: 1,
+                                                          ),
+                                                      decoration: BoxDecoration(
+                                                        color: entry.completed
+                                                            ? scheme
+                                                                  .onSurfaceVariant
+                                                                  .withValues(
+                                                                    alpha: 0.35,
+                                                                  )
+                                                            : entry.color,
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
-                                  ],
-                                ],
+                                  ),
+                                ),
                               ),
                             ),
                             if (!composing && _hoveredCell == index)

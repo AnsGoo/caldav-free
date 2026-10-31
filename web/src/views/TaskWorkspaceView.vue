@@ -235,7 +235,6 @@
         :views="matrixViews"
         :active-view-id="activeMatrixViewId"
         :custom-rules="matrixCustomRules"
-        :show-completed="matrixShowCompleted"
         :manual-sort="matrixManualSort"
         :selection-mode="matrixSelectionMode"
         :selected-ids="matrixSelectedIds"
@@ -252,7 +251,6 @@
         @create-view="openMatrixViewDialog"
         @manage-views="matrixViewManagerOpen = true"
         @edit-rules="openMatrixRules"
-        @toggle-completed="toggleMatrixCompleted"
         @toggle-manual-sort="toggleMatrixManualSort"
         @reorder="onMatrixReorder"
         @toggle-selection="toggleMatrixSelection"
@@ -1270,12 +1268,10 @@ const matrixViewName = ref('')
 const matrixViewMode = ref<MatrixRuleMode>('simple')
 const matrixViewManagerOpen = ref(false)
 const matrixRulesDialogOpen = ref(false)
-const matrixShowCompleted = ref(true)
 const matrixManualSort = ref(false)
 const matrixSelectionMode = ref(false)
 const matrixSelectedIds = ref(new Set<number>())
 try {
-  matrixShowCompleted.value = localStorage.getItem('caldav-matrix-show-completed') !== '0'
   matrixManualSort.value = localStorage.getItem('caldav-matrix-manual-sort') === '1'
 } catch {
   /* ignore */
@@ -1604,6 +1600,8 @@ async function loadWorkspace(silent = false) {
       listId: view.value === 'shared' || view.value === 'notes' ? undefined : activeListId.value || undefined,
       filterId: activeFilterId.value || undefined,
       q: view.value === 'notes' ? undefined : query.value || undefined,
+      // 四象限不展示已完成任务，直接让后端少查一批数据。
+      includeCompleted: view.value === 'matrix' ? false : undefined,
     })
     lists.value = data.lists
     if (view.value === 'list' && lists.value.find((list) => list.id === activeListId.value)?.kind === 'NOTE') {
@@ -2715,7 +2713,7 @@ async function rescheduleEvent(payload: { event: CalendarEvent; start: string; e
 const habitFocusId = computed(() => Number(route.params.habitId) || 0)
 
 const matrixTasks = computed(() =>
-  matrixShowCompleted.value ? filteredTasks.value : filteredTasks.value.filter((task) => !task.completed),
+  filteredTasks.value.filter((task) => !task.completed),
 )
 const activeMatrixView = computed(() => matrixViews.value.find((item) => item.id === activeMatrixViewId.value))
 const matrixCustomRules = computed(() => activeMatrixView.value?.rules)
@@ -2793,16 +2791,6 @@ async function quickAddMatrixTask(payload: { quadrant: string; title: string }) 
     Message.success('任务已添加')
   } catch (error) {
     Message.error(error instanceof Error ? error.message : '创建任务失败')
-  }
-}
-
-function toggleMatrixCompleted() {
-  clearMatrixSelection()
-  matrixShowCompleted.value = !matrixShowCompleted.value
-  try {
-    localStorage.setItem('caldav-matrix-show-completed', matrixShowCompleted.value ? '1' : '0')
-  } catch {
-    /* ignore */
   }
 }
 

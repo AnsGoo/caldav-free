@@ -11,12 +11,15 @@ export function browserTimezone() {
   }
 }
 
-export function fetchTaskWorkspace(params: { view: TaskView; listId?: number; filterId?: number; q?: string }) {
+export function fetchTaskWorkspace(params: { view: TaskView; listId?: number; filterId?: number; q?: string; includeCompleted?: boolean }) {
   const query = new URLSearchParams()
   query.set('view', params.view)
   if (params.listId) query.set('listId', String(params.listId))
   if (params.filterId) query.set('filterId', String(params.filterId))
   if (params.q) query.set('q', params.q)
+  if (params.includeCompleted !== undefined) {
+    query.set('includeCompleted', params.includeCompleted ? '1' : '0')
+  }
   return api<TaskWorkspaceData>(`/tasks?${query.toString()}`)
 }
 

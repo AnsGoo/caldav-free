@@ -116,6 +116,15 @@ func TestTaskFiltersAndCounts(t *testing.T) {
 	if err != nil || len(inboxTasks) != 3 {
 		t.Fatalf("inbox = %d (%v), want 2 open + 1 completed", len(inboxTasks), err)
 	}
+	openOnly, err := s.ListTasks(ctx, userID, TaskFilter{View: "all", SkipCompleted: true})
+	if err != nil || len(openOnly) != 5 {
+		t.Fatalf("skip completed = %d (%v), want 5 open", len(openOnly), err)
+	}
+	for _, task := range openOnly {
+		if task.Completed {
+			t.Fatalf("skip completed returned completed task %q", task.Title)
+		}
+	}
 	search, err := s.ListTasks(ctx, userID, TaskFilter{View: "all", Query: "周报"})
 	if err != nil || len(search) != 0 {
 		t.Fatalf("search = %d (%v)", len(search), err)

@@ -338,10 +338,15 @@ func (s *Server) apiTaskWorkspace(w http.ResponseWriter, r *http.Request, curren
 			return
 		}
 	} else {
+		includeCompleted := true
+		if raw := strings.TrimSpace(r.URL.Query().Get("includeCompleted")); raw != "" {
+			includeCompleted = raw != "0" && !strings.EqualFold(raw, "false")
+		}
 		filter := store.TaskFilter{
-			View:   view,
-			ListID: listID,
-			Query:  strings.TrimSpace(r.URL.Query().Get("q")),
+			View:          view,
+			ListID:        listID,
+			Query:         strings.TrimSpace(r.URL.Query().Get("q")),
+			SkipCompleted: !includeCompleted,
 		}
 		tasks, err = s.store.ListTasks(ctx, current.ID, filter)
 		if err != nil {

@@ -165,6 +165,8 @@ type TaskFilter struct {
 	ListID int64
 	Query  string
 	Limit  int
+	// SkipCompleted omits recently completed rows; the matrix view uses it.
+	SkipCompleted bool
 }
 
 // TaskCounts holds the badge numbers shown in the task sidebar.
@@ -469,6 +471,9 @@ func (s *Store) ListTasks(ctx context.Context, userID int64, filter TaskFilter) 
 	doneLimit := 50
 	if filter.View == "completed" {
 		doneLimit = limit
+	}
+	if filter.SkipCompleted && filter.View != "completed" {
+		return open, nil
 	}
 	var done []*Task
 	err := s.taskQuery(ctx, userID, filter, true).

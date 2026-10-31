@@ -44,15 +44,6 @@
           <TaskIcon name="sort" :size="11" />
           手动排序
         </button>
-        <button
-          class="tw-matrix-completed-toggle"
-          :class="{ active: showCompleted }"
-          :title="showCompleted ? '隐藏已完成任务' : '显示已完成任务'"
-          @click="$emit('toggle-completed')"
-        >
-          <TaskIcon name="check" :size="11" />
-          已完成
-        </button>
         <span class="tw-matrix-total">{{ tasks.length }} 项</span>
       </div>
     </header>
@@ -194,7 +185,6 @@ const props = defineProps<{
   lists: TaskList[]
   tags: string[]
   assignees: string[]
-  showCompleted: boolean
   manualSort: boolean
   selectionMode: boolean
   selectedIds: Set<number>
@@ -211,7 +201,6 @@ const emit = defineEmits<{
   (event: 'create-view'): void
   (event: 'manage-views'): void
   (event: 'edit-rules'): void
-  (event: 'toggle-completed'): void
   (event: 'toggle-manual-sort'): void
   (event: 'reorder', ids: number[]): void
   (event: 'toggle-selection'): void

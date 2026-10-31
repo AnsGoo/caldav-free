@@ -148,7 +148,7 @@
             <button :class="{ active: mode === 'timeline' && view !== 'matrix' }" title="时间线" @click="switchMode('timeline')">
               <TaskIcon name="timeline" :size="16" />
             </button>
-            <button :class="{ active: view === 'matrix' }" title="四象限" @click="selectView('matrix')">
+            <button :class="{ active: view === 'matrix' }" title="矩阵" @click="selectView('matrix')">
               <TaskIcon name="matrix" :size="16" />
             </button>
           </div>
@@ -951,9 +951,9 @@
     />
 
     <div v-if="matrixViewDialogOpen" class="tw-dialog-scrim" @click.self="matrixViewDialogOpen = false">
-      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="新建四象限视图" @keydown.esc="matrixViewDialogOpen = false">
+      <div class="tw-dialog tw-dialog-sm" role="dialog" aria-modal="true" aria-label="新建矩阵视图" @keydown.esc="matrixViewDialogOpen = false">
         <header class="tw-dialog-head">
-          <h2>新建四象限视图</h2>
+          <h2>新建矩阵视图</h2>
           <button class="tw-icon-button" title="关闭" @click="matrixViewDialogOpen = false">
             <TaskIcon name="close" :size="16" />
           </button>
@@ -1387,7 +1387,7 @@ const sharedReadonly = computed(() => {
   return !!shared && shared.role !== 'editor'
 })
 const heading = computed(() => {
-  if (view.value === 'matrix') return '四象限'
+  if (view.value === 'matrix') return '矩阵'
   if (view.value === 'habit') return '习惯'
   if (view.value === 'focus') return '专注'
   if (view.value === 'countdown') return '倒数纪念日'
@@ -1593,7 +1593,7 @@ async function loadWorkspace(silent = false) {
       listId: view.value === 'shared' || view.value === 'notes' ? undefined : activeListId.value || undefined,
       filterId: activeFilterId.value || undefined,
       q: view.value === 'notes' ? undefined : query.value || undefined,
-      // 四象限不展示已完成任务，直接让后端少查一批数据。
+      // 矩阵不展示已完成任务，直接让后端少查一批数据。
       includeCompleted: view.value === 'matrix' ? false : undefined,
     })
     lists.value = data.lists
@@ -2841,7 +2841,7 @@ async function setMatrixRule(rule: MatrixRuleMode) {
     matrixViews.value = matrixViews.value.map((item) => item.id === view.id ? view : item)
     if (rule === 'custom' && !hadRules) matrixRulesDialogOpen.value = true
   } catch (error) {
-    Message.error(error instanceof Error ? error.message : '保存四象限规则失败')
+    Message.error(error instanceof Error ? error.message : '保存矩阵规则失败')
   }
 }
 
@@ -2868,7 +2868,7 @@ function onMatrixViewsChanged(views: MatrixView[]) {
 }
 
 function openMatrixViewDialog() {
-  matrixViewName.value = `四象限视图 ${matrixViews.value.length + 1}`
+  matrixViewName.value = `矩阵视图 ${matrixViews.value.length + 1}`
   matrixViewMode.value = matrixRule.value
   matrixViewBusy.value = false
   matrixViewDialogOpen.value = true
@@ -2884,9 +2884,9 @@ async function saveMatrixView() {
     selectMatrixView(view.id)
     matrixViewDialogOpen.value = false
     if (view.mode === 'custom') matrixRulesDialogOpen.value = true
-    Message.success('四象限视图已创建')
+    Message.success('矩阵视图已创建')
   } catch (error) {
-    Message.error(error instanceof Error ? error.message : '创建四象限视图失败')
+    Message.error(error instanceof Error ? error.message : '创建矩阵视图失败')
   } finally {
     matrixViewBusy.value = false
   }
@@ -3019,7 +3019,7 @@ const paletteCommands = computed<PaletteCommand[]>(() => {
     { id: 'nav-completed', label: '前往“已完成”', group: '导航', keys: [keyOf('navCompleted')].filter(Boolean) },
     { id: 'nav-summary', label: '前往“摘要”', group: '导航', keys: [keyOf('navSummary')].filter(Boolean) },
     { id: 'nav-trash', label: '前往“垃圾桶”', group: '导航', keys: [keyOf('navTrash')].filter(Boolean) },
-    { id: 'nav-matrix', label: '前往“四象限”', group: '导航', keys: [keyOf('navMatrix')].filter(Boolean) },
+    { id: 'nav-matrix', label: '前往“矩阵”', group: '导航', keys: [keyOf('navMatrix')].filter(Boolean) },
     { id: 'nav-habit', label: '前往“习惯”', group: '导航', keys: [keyOf('navHabit')].filter(Boolean) },
     { id: 'nav-focus', label: '前往“专注”', group: '导航', keys: [keyOf('navFocus')].filter(Boolean) },
     { id: 'nav-countdown', label: '前往“倒数纪念日”', group: '导航', keys: [keyOf('navCountdown')].filter(Boolean) },

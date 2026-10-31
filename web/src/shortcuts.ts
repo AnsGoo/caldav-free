@@ -37,7 +37,7 @@ export const DEFAULT_SHORTCUTS: ShortcutAction[] = [
   { id: 'navCompleted', label: '前往“已完成”', group: '导航', keys: ['g c'] },
   { id: 'navSummary', label: '前往“摘要”', group: '导航', keys: ['g b'] },
   { id: 'navTrash', label: '前往“垃圾桶”', group: '导航', keys: ['g g'] },
-  { id: 'navMatrix', label: '前往“四象限”', group: '导航', keys: ['g m'] },
+  { id: 'navMatrix', label: '前往“矩阵”', group: '导航', keys: ['g m'] },
   { id: 'navHabit', label: '前往“习惯”', group: '导航', keys: ['g h'] },
   { id: 'navFocus', label: '前往“专注”', group: '导航', keys: ['g f'] },
   { id: 'navCountdown', label: '前往“倒数纪念日”', group: '导航', keys: ['g d'] },

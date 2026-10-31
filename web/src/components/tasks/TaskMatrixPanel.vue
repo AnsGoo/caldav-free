@@ -2,19 +2,19 @@
   <section class="tw-matrix">
     <header class="tw-matrix-head">
       <div>
-        <h2>四象限</h2>
+        <h2>矩阵</h2>
         <p>{{ manualSort ? '手动排序 · 拖动任务调整象限内顺序' : rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
       </div>
       <div class="tw-matrix-head-actions">
         <div class="tw-matrix-view-picker">
           <a-select :model-value="activeViewId" size="small" @change="(value) => $emit('select-view', Number(value))">
-            <a-option :value="0">默认四象限</a-option>
+            <a-option :value="0">默认矩阵</a-option>
             <a-option v-for="view in views" :key="view.id" :value="view.id">{{ view.name }}</a-option>
           </a-select>
-          <button title="新建四象限视图" @click="$emit('create-view')">
+          <button title="新建矩阵视图" @click="$emit('create-view')">
             <TaskIcon name="plus" :size="13" />
           </button>
-          <button title="管理四象限视图" @click="$emit('manage-views')">
+          <button title="管理矩阵视图" @click="$emit('manage-views')">
             <TaskIcon name="settings" :size="13" />
           </button>
           <button v-if="activeViewId" title="编辑自定义规则" @click="$emit('edit-rules')">

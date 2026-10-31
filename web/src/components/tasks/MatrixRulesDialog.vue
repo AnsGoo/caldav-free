@@ -1,9 +1,9 @@
 <template>
   <div class="tw-dialog-scrim" @click.self="$emit('close')">
-    <div class="tw-dialog tw-matrix-rules-dialog" role="dialog" aria-modal="true" aria-label="自定义四象限规则">
+    <div class="tw-dialog tw-matrix-rules-dialog" role="dialog" aria-modal="true" aria-label="自定义矩阵规则">
       <header class="tw-dialog-head">
         <div>
-          <h2>自定义四象限规则</h2>
+          <h2>自定义矩阵规则</h2>
           <p class="tw-matrix-rules-sub">{{ view.name }}</p>
         </div>
         <button class="tw-icon-button" title="关闭" @click="$emit('close')">

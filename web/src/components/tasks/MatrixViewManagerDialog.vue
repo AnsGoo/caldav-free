@@ -1,8 +1,8 @@
 <template>
   <div class="tw-dialog-scrim" @click.self="$emit('close')">
-    <div class="tw-dialog tw-matrix-manager-dialog" role="dialog" aria-modal="true" aria-label="管理四象限视图">
+    <div class="tw-dialog tw-matrix-manager-dialog" role="dialog" aria-modal="true" aria-label="管理矩阵视图">
       <header class="tw-dialog-head">
-        <h2>管理四象限视图</h2>
+        <h2>管理矩阵视图</h2>
         <button class="tw-icon-button" title="关闭" @click="$emit('close')">
           <TaskIcon name="close" :size="16" />
         </button>
@@ -37,7 +37,7 @@
             <TaskIcon name="trash" :size="14" />
           </button>
         </div>
-        <p v-if="!items.length" class="tw-filter-empty">还没有保存的四象限视图。</p>
+        <p v-if="!items.length" class="tw-filter-empty">还没有保存的矩阵视图。</p>
         <p v-if="error" class="tw-reminder-warning">{{ error }}</p>
       </div>
       <footer class="tw-dialog-foot">

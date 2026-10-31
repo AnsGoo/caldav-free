@@ -6,14 +6,21 @@ import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
 import '../../design/components.dart';
+import '../../design/format.dart';
 
 /// Summary editor mirroring the web panel: the generated Markdown is editable,
 /// regenerated from the chosen filters, and templates stay on this device.
 class SummaryPanel extends StatefulWidget {
-  const SummaryPanel({super.key, required this.tasks, required this.lists});
+  const SummaryPanel({
+    super.key,
+    required this.tasks,
+    required this.lists,
+    required this.onClose,
+  });
 
   final List<TaskItem> tasks;
   final List<TaskListItem> lists;
+  final VoidCallback onClose;
 
   @override
   State<SummaryPanel> createState() => _SummaryPanelState();
@@ -489,6 +496,12 @@ class _SummaryPanelState extends State<SummaryPanel> {
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.bookmark_add_outlined, size: 18),
               ),
+              IconButton(
+                tooltip: '关闭摘要',
+                onPressed: widget.onClose,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded, size: 18),
+              ),
             ],
           ),
         ),
@@ -589,6 +602,214 @@ class _SummaryPanelState extends State<SummaryPanel> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact list picker for the summary filters: a small bordered field that
+/// opens a dropdown with each list's colour dot.
+class _ListFilterDropdown extends StatelessWidget {
+  const _ListFilterDropdown({
+    required this.lists,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<TaskListItem> lists;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    TaskListItem? current;
+    for (final list in lists) {
+      if (list.id == value) {
+        current = list;
+        break;
+      }
+    }
+    return PopupMenuButton<String>(
+      tooltip: '清单',
+      color: scheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: '',
+          child: Row(
+            children: [
+              const SizedBox(width: 16),
+              const Expanded(child: Text('所有清单')),
+              if (value.isEmpty)
+                Icon(Icons.check_rounded, size: 16, color: scheme.primary),
+            ],
+          ),
+        ),
+        for (final list in lists)
+          PopupMenuItem(
+            value: list.id,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: colorFromHex(list.color),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    list.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (list.id == value)
+                  Icon(Icons.check_rounded, size: 16, color: scheme.primary),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outline),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          children: [
+            if (current != null) ...[
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: colorFromHex(current.color),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                current?.name ?? '所有清单',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compact tag picker matching the list dropdown, with tag colours.
+class _TagFilterDropdown extends StatelessWidget {
+  const _TagFilterDropdown({
+    required this.tags,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<String> tags;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      tooltip: '标签',
+      color: scheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: '',
+          child: Row(
+            children: [
+              const SizedBox(width: 16),
+              const Expanded(child: Text('所有标签')),
+              if (value.isEmpty)
+                Icon(Icons.check_rounded, size: 16, color: scheme.primary),
+            ],
+          ),
+        ),
+        for (final tag in tags)
+          PopupMenuItem(
+            value: tag,
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: tagColorForName(tag),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '# $tag',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (tag == value)
+                  Icon(Icons.check_rounded, size: 16, color: scheme.primary),
+              ],
+            ),
+          ),
+      ],
+      child: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          border: Border.all(color: scheme.outline),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Row(
+          children: [
+            if (value.isNotEmpty) ...[
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: tagColorForName(value),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                value.isEmpty ? '所有标签' : '# $value',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
+              ),
+            ),
+            Icon(
+              Icons.keyboard_arrow_down_rounded,
+              size: 18,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -772,22 +993,10 @@ class _SummarySettingsForm extends StatelessWidget {
         ],
         if (lists.isNotEmpty) ...[
           _label(context, '清单'),
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: lists.length + 1,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (context, index) {
-                final list = index == 0 ? null : lists[index - 1];
-                final value = list?.id ?? '';
-                return _chip(
-                  label: list?.name ?? '所有清单',
-                  selected: filter.listId == value,
-                  onTap: () => onChanged(filter.copyWith(listId: value)),
-                );
-              },
-            ),
+          _ListFilterDropdown(
+            lists: lists,
+            value: filter.listId,
+            onChanged: (value) => onChanged(filter.copyWith(listId: value)),
           ),
         ],
         _label(context, '状态'),
@@ -825,21 +1034,10 @@ class _SummarySettingsForm extends StatelessWidget {
         ),
         if (tags.isNotEmpty) ...[
           _label(context, '标签'),
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: tags.length + 1,
-              separatorBuilder: (_, _) => const SizedBox(width: 6),
-              itemBuilder: (context, index) {
-                final tag = index == 0 ? '' : tags[index - 1];
-                return _chip(
-                  label: tag.isEmpty ? '所有标签' : '# $tag',
-                  selected: filter.tag == tag,
-                  onTap: () => onChanged(filter.copyWith(tag: tag)),
-                );
-              },
-            ),
+          _TagFilterDropdown(
+            tags: tags,
+            value: filter.tag,
+            onChanged: (value) => onChanged(filter.copyWith(tag: value)),
           ),
         ],
         _label(context, '分组'),
@@ -866,7 +1064,7 @@ class _SummarySettingsForm extends StatelessWidget {
                 ),
               ),
             ),
-            Switch(
+            AppSwitch(
               value: filter.includeNext,
               onChanged: (value) =>
                   onChanged(filter.copyWith(includeNext: value)),

@@ -1036,6 +1036,7 @@ class _TasksPageState extends State<TasksPage> {
                         ? SummaryPanel(
                             tasks: app.store.allTasks(),
                             lists: _lists,
+                            onClose: () => setState(() => _summary = false),
                           )
                         : _trash
                         ? _TrashPanel(

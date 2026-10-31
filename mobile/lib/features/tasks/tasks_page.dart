@@ -155,6 +155,16 @@ class _TasksPageState extends State<TasksPage> {
     setState(() => _selectedTag = _selectedTag == tag ? null : tag);
   }
 
+  void _renameTagSelection(String from, String to) {
+    if (_selectedTag != from) return;
+    setState(() => _selectedTag = to);
+  }
+
+  void _clearTagSelection(String tag) {
+    if (_selectedTag != tag) return;
+    setState(() => _selectedTag = null);
+  }
+
   void _selectListScope(String? listId) {
     setState(() {
       _selectedListId = listId;
@@ -684,6 +694,8 @@ class _TasksPageState extends State<TasksPage> {
               onTrash: _openTrash,
               selectedTag: _selectedTag,
               onTagSelected: _selectTag,
+              onTagRenamed: _renameTagSelection,
+              onTagDeleted: _clearTagSelection,
             ),
           Expanded(
             child: Column(
@@ -1500,7 +1512,7 @@ class _SelectorChip extends StatelessWidget {
   }
 }
 
-class _ListPane extends StatelessWidget {
+class _ListPane extends StatefulWidget {
   const _ListPane({
     required this.lists,
     required this.selectedId,
@@ -1514,6 +1526,8 @@ class _ListPane extends StatelessWidget {
     required this.onTrash,
     required this.selectedTag,
     required this.onTagSelected,
+    required this.onTagRenamed,
+    required this.onTagDeleted,
   });
 
   final List<TaskListItem> lists;
@@ -1528,6 +1542,94 @@ class _ListPane extends StatelessWidget {
   final VoidCallback onTrash;
   final String? selectedTag;
   final ValueChanged<String> onTagSelected;
+  final void Function(String from, String to) onTagRenamed;
+  final ValueChanged<String> onTagDeleted;
+
+  @override
+  State<_ListPane> createState() => _ListPaneState();
+}
+
+class _ListPaneState extends State<_ListPane> {
+  final _newListName = TextEditingController();
+  final _newListFocus = FocusNode();
+  bool _addingList = false;
+
+  @override
+  void dispose() {
+    _newListName.dispose();
+    _newListFocus.dispose();
+    super.dispose();
+  }
+
+  void _startAdding() {
+    setState(() => _addingList = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _newListFocus.requestFocus();
+    });
+  }
+
+  void _cancelAdding() {
+    _newListName.clear();
+    if (!_addingList) return;
+    setState(() => _addingList = false);
+  }
+
+  Future<void> _submitList() async {
+    final name = _newListName.text.trim();
+    if (name.isEmpty) {
+      _cancelAdding();
+      return;
+    }
+    try {
+      await context.read<AppState>().repository.createList(name: name);
+      if (!mounted) return;
+      _cancelAdding();
+    } catch (error) {
+      if (mounted) _snack('新建清单失败：$error');
+    }
+  }
+
+  Future<void> _deleteList(TaskListItem list) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除「${list.name}」？'),
+        content: const Text('清单里的任务会移动到收集箱。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<AppState>().repository.deleteList(list.id);
+    } catch (error) {
+      if (mounted) _snack('删除失败：$error');
+    }
+  }
+
+  Future<void> _manageTags() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _TagManagerDialog(
+        onRenamed: widget.onTagRenamed,
+        onDeleted: widget.onTagDeleted,
+      ),
+    );
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1538,7 +1640,7 @@ class _ListPane extends StatelessWidget {
       builder: (context, folderSnapshot) {
         final folders = folderSnapshot.data ?? const <FolderItem>[];
         final folderIds = folders.map((folder) => folder.id).toSet();
-        final ungrouped = lists
+        final ungrouped = widget.lists
             .where(
               (list) =>
                   list.folderId == null || !folderIds.contains(list.folderId),
@@ -1571,46 +1673,98 @@ class _ListPane extends StatelessWidget {
                 label: '全部',
                 dot: scheme.primary,
                 selected:
-                    selectedId == null && selectedView == 'all' && !completed,
-                onTap: () => onViewSelected('all'),
+                    widget.selectedId == null &&
+                    widget.selectedView == 'all' &&
+                    !widget.completed,
+                onTap: () => widget.onViewSelected('all'),
               ),
               _PaneRow(
                 label: '今天',
                 dot: const Color(0xFFF59E0B),
-                selected: selectedId == null && selectedView == 'today',
-                onTap: () => onViewSelected('today'),
+                selected:
+                    widget.selectedId == null &&
+                    widget.selectedView == 'today',
+                onTap: () => widget.onViewSelected('today'),
               ),
               _PaneRow(
                 label: '最近 7 天',
                 dot: const Color(0xFF3B82F6),
-                selected: selectedId == null && selectedView == 'next7',
-                onTap: () => onViewSelected('next7'),
+                selected:
+                    widget.selectedId == null &&
+                    widget.selectedView == 'next7',
+                onTap: () => widget.onViewSelected('next7'),
               ),
               _PaneRow(
                 label: '已完成',
                 icon: Icons.check_circle_outline_rounded,
-                count: completedCount,
-                selected: completed,
-                onTap: onCompleted,
+                count: widget.completedCount,
+                selected: widget.completed,
+                onTap: widget.onCompleted,
               ),
               _PaneRow(
                 label: '回收站',
                 icon: Icons.delete_outline_rounded,
-                count: trashCount,
+                count: widget.trashCount,
                 selected: false,
-                onTap: onTrash,
+                onTap: widget.onTrash,
               ),
-              _PaneLabel(text: '清单'),
+              _PaneSectionHeader(
+                title: '清单',
+                action: _PaneAction(
+                  icon: Icons.add_rounded,
+                  tooltip: '新建清单',
+                  onTap: _startAdding,
+                ),
+              ),
+              if (_addingList)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+                  child: TextField(
+                    controller: _newListName,
+                    focusNode: _newListFocus,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _submitList(),
+                    onTapOutside: (_) => _cancelAdding(),
+                    textAlignVertical: TextAlignVertical.center,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(fontSize: 12.5),
+                    decoration: InputDecoration(
+                      hintText: '清单名称，回车创建',
+                      hintStyle: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(
+                            fontSize: 12,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                      isDense: true,
+                      isCollapsed: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 7,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                    ),
+                  ),
+                ),
               for (final list in ungrouped) _listRow(context, store, list),
               for (final folder in folders) ...[
-                if (lists.any((list) => list.folderId == folder.id))
+                if (widget.lists.any((list) => list.folderId == folder.id))
                   _PaneLabel(text: folder.name),
-                for (final list in lists.where(
+                for (final list in widget.lists.where(
                   (list) => list.folderId == folder.id,
                 ))
                   _listRow(context, store, list),
               ],
-              _PaneLabel(text: '标签'),
+              _PaneSectionHeader(
+                title: '标签',
+                action: _PaneAction(
+                  icon: Icons.edit_outlined,
+                  tooltip: '管理标签',
+                  onTap: _manageTags,
+                ),
+              ),
               if (tags.isEmpty)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
@@ -1631,8 +1785,8 @@ class _ListPane extends StatelessWidget {
                       for (final entry in tags)
                         _TagChip(
                           tag: entry.key,
-                          selected: entry.key == selectedTag,
-                          onTap: () => onTagSelected(entry.key),
+                          selected: entry.key == widget.selectedTag,
+                          onTap: () => widget.onTagSelected(entry.key),
                         ),
                     ],
                   ),
@@ -1646,12 +1800,362 @@ class _ListPane extends StatelessWidget {
 
   Widget _listRow(BuildContext context, LocalStore store, TaskListItem list) {
     final open = store.tasksSnapshot(listId: list.id, completed: false);
-    return _PaneRow(
-      label: list.name,
-      dot: colorFromHex(list.color),
+    return _PaneListRow(
+      list: list,
       count: open.length,
-      selected: selectedId == list.id,
-      onTap: () => onSelected(list.id),
+      selected: widget.selectedId == list.id,
+      onTap: () => widget.onSelected(list.id),
+      onDelete: list.isInbox ? null : () => _deleteList(list),
+    );
+  }
+}
+
+/// Section title with an optional trailing icon action, matching the web
+/// sidebar's 新建清单 / 管理标签 buttons.
+class _PaneSectionHeader extends StatelessWidget {
+  const _PaneSectionHeader({required this.title, this.action});
+
+  final String title;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ?action,
+        ],
+      ),
+    );
+  }
+}
+
+class _PaneAction extends StatelessWidget {
+  const _PaneAction({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 26, height: 26),
+      padding: EdgeInsets.zero,
+    );
+  }
+}
+
+/// List row that reveals its delete action on hover (desktop) or while the
+/// list is selected, so the sidebar stays quiet at rest.
+class _PaneListRow extends StatefulWidget {
+  const _PaneListRow({
+    required this.list,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+    this.onDelete,
+  });
+
+  final TaskListItem list;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback? onDelete;
+
+  @override
+  State<_PaneListRow> createState() => _PaneListRowState();
+}
+
+class _PaneListRowState extends State<_PaneListRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = widget.selected
+        ? scheme.primary
+        : scheme.onSurfaceVariant;
+    final showDelete = widget.onDelete != null && (_hovering || widget.selected);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Material(
+        color: widget.selected ? scheme.primaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: widget.onTap,
+          child: SizedBox(
+            height: 40,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: widget.selected
+                          ? scheme.primary
+                          : colorFromHex(widget.list.color),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      widget.list.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: foreground,
+                        fontWeight: widget.selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  if (showDelete)
+                    _PaneAction(
+                      icon: Icons.delete_outline_rounded,
+                      tooltip: '删除清单',
+                      onTap: widget.onDelete!,
+                    )
+                  else if (widget.count > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Text(
+                        '${widget.count}',
+                        style: Theme.of(context).textTheme.labelSmall
+                            ?.copyWith(color: foreground),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TagManagerDialog extends StatefulWidget {
+  const _TagManagerDialog({required this.onRenamed, required this.onDeleted});
+
+  final void Function(String from, String to) onRenamed;
+  final ValueChanged<String> onDeleted;
+
+  @override
+  State<_TagManagerDialog> createState() => _TagManagerDialogState();
+}
+
+class _TagManagerDialogState extends State<_TagManagerDialog> {
+  bool _busy = false;
+
+  Future<void> _rename(String tag) async {
+    final next = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameTagDialog(initial: tag),
+    );
+    if (!mounted || _busy) return;
+    final value = (next ?? '').trim();
+    if (value.isEmpty || value == tag) return;
+    setState(() => _busy = true);
+    try {
+      await context.read<AppState>().repository.renameTag(tag, value);
+      widget.onRenamed(tag, value);
+    } catch (error) {
+      if (mounted) _snack('重命名失败：$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(String tag) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除标签「$tag」？'),
+        content: const Text('该标签会从所有任务中移除。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await context.read<AppState>().repository.deleteTag(tag);
+      widget.onDeleted(tag);
+    } catch (error) {
+      if (mounted) _snack('删除失败：$error');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = context.watch<AppState>().store;
+    final counts = <String, int>{};
+    for (final task in store.allTasks()) {
+      if (task.deleted) continue;
+      for (final tag in task.tags) {
+        final name = tag.trim();
+        if (name.isEmpty) continue;
+        counts[name] = (counts[name] ?? 0) + 1;
+      }
+    }
+    final tags = counts.entries.toList()
+      ..sort(
+        (a, b) => a.value == b.value
+            ? a.key.compareTo(b.key)
+            : b.value.compareTo(a.value),
+      );
+    return AlertDialog(
+      title: const Text('管理标签'),
+      content: SizedBox(
+        width: 360,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 420),
+          child: tags.isEmpty
+              ? const Text('暂无标签。新建任务时在标签输入里创建。')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: tags.length,
+                  itemBuilder: (context, index) {
+                    final entry = tags[index];
+                    final color = tagColorForName(entry.key);
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      title: Text(
+                        '# ${entry.key}',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text('${entry.value} 个任务'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: '重命名',
+                            onPressed: _busy ? null : () => _rename(entry.key),
+                            icon: const Icon(Icons.edit_outlined, size: 16),
+                          ),
+                          IconButton(
+                            tooltip: '删除标签',
+                            onPressed: _busy ? null : () => _delete(entry.key),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Owns its text controller so disposing happens with the dialog route,
+/// not while the close animation is still building the field.
+class _RenameTagDialog extends StatefulWidget {
+  const _RenameTagDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_RenameTagDialog> createState() => _RenameTagDialogState();
+}
+
+class _RenameTagDialogState extends State<_RenameTagDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(_controller.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('重命名标签'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: const InputDecoration(labelText: '标签名称'),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('保存')),
+      ],
     );
   }
 }

@@ -378,6 +378,40 @@ class TaskRepository {
     await _patch(task, {'tags': merged}, task.copyWith(tags: merged));
   }
 
+  /// Renames one tag on every live task; mirrors the web tag manager.
+  Future<int> renameTag(String from, String to) async {
+    final source = from.trim();
+    final target = _normalizeTags([to]).join();
+    if (source.isEmpty || target.isEmpty || source == target) return 0;
+    var changed = 0;
+    for (final task in store.allTasks()) {
+      if (task.deleted || !task.tags.contains(source)) continue;
+      final tags = _normalizeTags([
+        for (final tag in task.tags) tag == source ? target : tag,
+      ]);
+      if (_sameTags(task.tags, tags)) continue;
+      await _patch(task, {'tags': tags}, task.copyWith(tags: tags));
+      changed++;
+    }
+    return changed;
+  }
+
+  /// Removes one tag from every live task.
+  Future<int> deleteTag(String tag) async {
+    final target = tag.trim();
+    if (target.isEmpty) return 0;
+    var changed = 0;
+    for (final task in store.allTasks()) {
+      if (task.deleted || !task.tags.contains(target)) continue;
+      final tags = _normalizeTags(
+        task.tags.where((item) => item != target).toList(growable: false),
+      );
+      await _patch(task, {'tags': tags}, task.copyWith(tags: tags));
+      changed++;
+    }
+    return changed;
+  }
+
   Future<void> moveTaskToList(String taskId, String listId) async {
     final task = store.task(taskId);
     if (task == null || task.listId == listId) return;

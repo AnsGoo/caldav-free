@@ -740,6 +740,136 @@ void main() {
     expect(find.text('普通任务'), findsOneWidget);
   });
 
+  testWidgets('the wide sidebar can create and delete lists', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 新建：侧栏标题旁的 + 直接内联输入。
+    await tester.tap(find.byTooltip('新建清单'));
+    await tester.pumpAndSettle();
+    final nameField = find.widgetWithText(TextField, '清单名称，回车创建');
+    expect(tester.getSize(nameField).height, lessThan(34));
+    await tester.enterText(nameField, '项目');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('项目'), findsOneWidget);
+    expect(store.listsSnapshot().any((list) => list.name == '项目'), true);
+
+    // 删除：选中清单后行尾出现删除按钮。
+    await tester.tap(find.text('项目'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('删除清单'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    expect(store.listsSnapshot().any((list) => list.name == '项目'), false);
+  });
+
+  testWidgets('the wide sidebar tag manager deletes a tag', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'tagged',
+        listId: 'work-1',
+        title: '带标签任务',
+        tags: const ['重要', '项目'],
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('管理标签'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('# 重要')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: dialog, matching: find.text('# 项目')),
+      findsOneWidget,
+    );
+
+    // 取消重命名不能因为控制器提前释放而卡住。
+    final renameRow = find.widgetWithText(ListTile, '# 项目');
+    await tester.tap(
+      find.descendant(of: renameRow, matching: find.byTooltip('重命名')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('重命名标签'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(find.text('重命名标签'), findsNothing);
+
+    final importantRow = find.widgetWithText(ListTile, '# 重要');
+    await tester.tap(
+      find.descendant(of: importantRow, matching: find.byTooltip('删除标签')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+
+    expect(store.task('tagged')!.tags, const ['项目']);
+    expect(
+      find.descendant(of: dialog, matching: find.text('# 重要')),
+      findsNothing,
+    );
+
+    await tester.tap(find.text('关闭'));
+    await tester.pumpAndSettle();
+    expect(find.text('# 重要'), findsNothing);
+    expect(find.text('# 项目'), findsOneWidget);
+  });
+
   testWidgets('the mobile filter chips keep a compact highlight', (
     tester,
   ) async {

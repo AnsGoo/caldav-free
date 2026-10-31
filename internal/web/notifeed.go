@@ -106,6 +106,24 @@ func (s *Server) apiSnoozeNotification(w http.ResponseWriter, r *http.Request, c
 	})
 }
 
+func (s *Server) apiDeleteNotification(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
+	notificationID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeAPIError(w, http.StatusNotFound, "通知不存在")
+		return
+	}
+	if err := s.store.DeleteNotification(r.Context(), current.ID, notificationID); err != nil {
+		if err == store.ErrNotFound {
+			writeAPIError(w, http.StatusNotFound, "通知不存在")
+			return
+		}
+		s.apiServerError(w, err)
+		return
+	}
+	unread, _ := s.store.CountUnreadNotifications(r.Context(), current.ID)
+	writeAPIJSON(w, http.StatusOK, map[string]any{"unread": unread})
+}
+
 func (s *Server) apiNotificationsRead(w http.ResponseWriter, r *http.Request, current *store.User, _ *session) {
 	var body struct {
 		ID  int64 `json:"id"`

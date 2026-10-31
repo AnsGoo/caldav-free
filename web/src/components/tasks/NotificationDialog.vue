@@ -84,7 +84,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Message } from '@arco-design/web-vue'
 import type { AppNotification } from '../../types'
-import { fetchNotifications, markAllNotificationsRead, markNotificationRead, snoozeEventNotification, updateTask } from '../../tasks-api'
+import { deleteNotification, fetchNotifications, markAllNotificationsRead, markNotificationRead, snoozeEventNotification, updateTask } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
 
 const emit = defineEmits<{
@@ -162,17 +162,26 @@ async function completeTask(item: AppNotification) {
   ) return
   completing.value = item.id
   try {
-    await updateTask(item.taskId, { completed: true })
+    const { task: updated } = await updateTask(item.taskId, { completed: true })
     completedTaskIds.value = new Set([...completedTaskIds.value, item.id])
-    const wasUnread = !item.read
-    item.read = true
-    await markNotificationRead(item.id)
-    if (wasUnread) {
-      unread.value = Math.max(0, unread.value - 1)
+    try {
+      const result = await deleteNotification(item.id)
+      notifications.value = notifications.value.filter(
+        (notification) => notification.id !== item.id,
+      )
+      unread.value = result.unread
+      emit('changed', result.unread)
+    } catch {
+      // Deleting is best-effort; at least keep the row marked as handled.
+      const wasUnread = !item.read
+      item.read = true
+      await markNotificationRead(item.id).catch(() => {})
+      if (wasUnread) unread.value = Math.max(0, unread.value - 1)
       emit('changed', unread.value)
     }
     emit('task-completed', item.taskId)
-    Message.success('任务已完成')
+    // Recurring tasks advance to the next occurrence instead of completing.
+    Message.success(updated.recurrence ? '已完成本次' : '任务已完成')
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '完成任务失败'
   } finally {

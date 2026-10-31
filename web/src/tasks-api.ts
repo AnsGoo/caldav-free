@@ -186,6 +186,10 @@ export function snoozeEventNotification(id: number, minutes = 10) {
   })
 }
 
+export function deleteNotification(id: number) {
+  return api<{ unread: number }>(`/notifications/${id}`, { method: 'DELETE' })
+}
+
 export function markAllNotificationsRead() {
   return api<{ unread: number }>('/notifications/read', {
     method: 'POST',

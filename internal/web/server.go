@@ -171,6 +171,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/tasks/stream", s.apiAdmin(s.apiTaskStream))
 	mux.HandleFunc("GET /api/admin/focus/stream", s.apiAdmin(s.apiFocusStream))
 	mux.HandleFunc("POST /api/admin/notifications/read", s.apiAdmin(s.apiNotificationsRead))
+	mux.HandleFunc("DELETE /api/admin/notifications/{id}", s.apiAdmin(s.apiDeleteNotification))
 	mux.HandleFunc("POST /api/admin/notifications/{id}/snooze", s.apiAdmin(s.apiSnoozeNotification))
 	mux.HandleFunc("GET /api/admin/users", s.apiAdmin(s.apiUsers))
 	mux.HandleFunc("POST /api/admin/users", s.apiAdmin(s.apiCreateUser))

@@ -74,6 +74,20 @@ func (s *Store) MarkNotificationRead(ctx context.Context, userID, id int64) erro
 		Update("read", true).Error
 }
 
+// DeleteNotification removes a notification once its task has been handled.
+func (s *Store) DeleteNotification(ctx context.Context, userID, id int64) error {
+	res := s.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&Notification{})
+	if res.Error != nil {
+		return fmt.Errorf("delete notification: %w", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // MarkAllNotificationsRead clears the unread badge for a user.
 func (s *Store) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
 	return s.db.WithContext(ctx).Model(&Notification{}).

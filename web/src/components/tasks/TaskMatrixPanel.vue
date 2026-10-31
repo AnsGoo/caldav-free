@@ -2,7 +2,7 @@
   <section class="tw-matrix">
     <header class="tw-matrix-head">
       <div>
-        <h2>矩阵</h2>
+        <h2>{{ activeViewName }}</h2>
         <p>{{ manualSort ? '手动排序 · 拖动任务调整象限内顺序' : rule === 'simple' ? '按优先级分组 · 拖动任务可修改优先级' : rule === 'complex' ? '按优先级 + 截止日期分组' : '按自定义规则分组 · 拖动任务自动匹配目标条件' }}</p>
       </div>
       <div class="tw-matrix-head-actions">
@@ -248,6 +248,10 @@ onMounted(loadCollapsed)
 watch(() => props.activeViewId, loadCollapsed)
 
 const customRules = computed(() => normalizeMatrixRules(props.customRules))
+
+const activeViewName = computed(
+  () => props.views.find((item) => item.id === props.activeViewId)?.name || '默认矩阵',
+)
 
 const quadrants = computed(() => {
   const buckets: Record<string, TaskItem[]> = { q1: [], q2: [], q3: [], q4: [] }

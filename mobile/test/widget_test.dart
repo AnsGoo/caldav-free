@@ -839,16 +839,21 @@ void main() {
       findsOneWidget,
     );
 
-    // 取消重命名不能因为控制器提前释放而卡住。
+    // 原地重命名：行内出现输入框，取消后恢复原样。
     final renameRow = find.widgetWithText(ListTile, '# 项目');
     await tester.tap(
       find.descendant(of: renameRow, matching: find.byTooltip('重命名')),
     );
     await tester.pumpAndSettle();
-    expect(find.text('重命名标签'), findsOneWidget);
-    await tester.tap(find.text('取消'));
+    final inlineField = find.descendant(
+      of: dialog,
+      matching: find.byType(TextField),
+    );
+    expect(inlineField, findsOneWidget);
+    await tester.tap(find.byTooltip('取消'));
     await tester.pumpAndSettle();
-    expect(find.text('重命名标签'), findsNothing);
+    expect(inlineField, findsNothing);
+    expect(find.descendant(of: dialog, matching: find.text('# 项目')), findsOneWidget);
 
     final importantRow = find.widgetWithText(ListTile, '# 重要');
     await tester.tap(
@@ -868,6 +873,69 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('# 重要'), findsNothing);
     expect(find.text('# 项目'), findsOneWidget);
+  });
+
+  testWidgets('the tag manager renames a tag inline', (tester) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'tagged',
+        listId: 'work-1',
+        title: '带标签任务',
+        tags: const ['重要'],
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('管理标签'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    final row = find.widgetWithText(ListTile, '# 重要');
+    await tester.tap(
+      find.descendant(of: row, matching: find.byTooltip('重命名')),
+    );
+    await tester.pumpAndSettle();
+
+    final field = find.descendant(
+      of: dialog,
+      matching: find.byType(TextField),
+    );
+    await tester.enterText(field, '紧急');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(store.task('tagged')!.tags, const ['紧急']);
+    expect(
+      find.descendant(of: dialog, matching: find.text('# 紧急')),
+      findsOneWidget,
+    );
+    expect(find.text('# 重要'), findsNothing);
   });
 
   testWidgets('the mobile filter chips keep a compact highlight', (

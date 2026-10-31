@@ -1972,19 +1972,46 @@ class _TagManagerDialog extends StatefulWidget {
 
 class _TagManagerDialogState extends State<_TagManagerDialog> {
   bool _busy = false;
+  String? _editing;
+  late final TextEditingController _renameController =
+      TextEditingController();
 
-  Future<void> _rename(String tag) async {
-    final next = await showDialog<String>(
-      context: context,
-      builder: (_) => _RenameTagDialog(initial: tag),
-    );
-    if (!mounted || _busy) return;
-    final value = (next ?? '').trim();
-    if (value.isEmpty || value == tag) return;
+  @override
+  void dispose() {
+    _renameController.dispose();
+    super.dispose();
+  }
+
+  void _startRename(String tag) {
+    if (_busy) return;
+    setState(() {
+      _editing = tag;
+      _renameController
+        ..text = tag
+        ..selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: tag.length,
+        );
+    });
+  }
+
+  void _cancelRename() {
+    if (_editing == null) return;
+    setState(() => _editing = null);
+  }
+
+  Future<void> _saveRename(String tag) async {
+    if (_busy) return;
+    final value = _renameController.text.trim();
+    if (value.isEmpty || value == tag) {
+      _cancelRename();
+      return;
+    }
     setState(() => _busy = true);
     try {
       await context.read<AppState>().repository.renameTag(tag, value);
       widget.onRenamed(tag, value);
+      if (mounted) setState(() => _editing = null);
     } catch (error) {
       if (mounted) _snack('重命名失败：$error');
     } finally {
@@ -2060,6 +2087,68 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
                   itemBuilder: (context, index) {
                     final entry = tags[index];
                     final color = tagColorForName(entry.key);
+                    if (_editing == entry.key) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: color,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _renameController,
+                                autofocus: true,
+                                enabled: !_busy,
+                                textInputAction: TextInputAction.done,
+                                onSubmitted: (_) => _saveRename(entry.key),
+                                style: const TextStyle(fontSize: 13),
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 6,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '保存',
+                              onPressed: _busy
+                                  ? null
+                                  : () => _saveRename(entry.key),
+                              icon: const Icon(Icons.check_rounded, size: 16),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints.tightFor(
+                                width: 28,
+                                height: 28,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '取消',
+                              onPressed: _busy ? null : _cancelRename,
+                              icon: const Icon(Icons.close_rounded, size: 16),
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints.tightFor(
+                                width: 28,
+                                height: 28,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                     return ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
@@ -2085,7 +2174,9 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
                         children: [
                           IconButton(
                             tooltip: '重命名',
-                            onPressed: _busy ? null : () => _rename(entry.key),
+                            onPressed: _busy
+                                ? null
+                                : () => _startRename(entry.key),
                             icon: const Icon(Icons.edit_outlined, size: 16),
                           ),
                           IconButton(
@@ -2108,53 +2199,6 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('关闭'),
         ),
-      ],
-    );
-  }
-}
-
-/// Owns its text controller so disposing happens with the dialog route,
-/// not while the close animation is still building the field.
-class _RenameTagDialog extends StatefulWidget {
-  const _RenameTagDialog({required this.initial});
-
-  final String initial;
-
-  @override
-  State<_RenameTagDialog> createState() => _RenameTagDialogState();
-}
-
-class _RenameTagDialogState extends State<_RenameTagDialog> {
-  late final TextEditingController _controller = TextEditingController(
-    text: widget.initial,
-  );
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  void _submit() {
-    Navigator.of(context).pop(_controller.text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('重命名标签'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(labelText: '标签名称'),
-        onSubmitted: (_) => _submit(),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('保存')),
       ],
     );
   }

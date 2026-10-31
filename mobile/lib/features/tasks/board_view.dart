@@ -6,6 +6,39 @@ import '../../core/models.dart';
 import '../../core/ui_utils.dart';
 import '../../design/format.dart';
 
+/// Board grouping modes. "list" keeps the legacy behavior: one column per
+/// list, or per section when a single list is selected.
+enum BoardGroup { list, priority, due, tag, assignee, matrix }
+
+extension BoardGroupLabel on BoardGroup {
+  String get label => switch (this) {
+    BoardGroup.list => '按清单',
+    BoardGroup.priority => '按优先级',
+    BoardGroup.due => '按截止日期',
+    BoardGroup.tag => '按标签',
+    BoardGroup.assignee => '按指派人',
+    BoardGroup.matrix => '按矩阵',
+  };
+
+  IconData get icon => switch (this) {
+    BoardGroup.list => Icons.view_column_outlined,
+    BoardGroup.priority => Icons.flag_rounded,
+    BoardGroup.due => Icons.event_rounded,
+    BoardGroup.tag => Icons.sell_outlined,
+    BoardGroup.assignee => Icons.person_outline_rounded,
+    BoardGroup.matrix => Icons.grid_view_rounded,
+  };
+
+  String get description => switch (this) {
+    BoardGroup.list => '每个清单一列，单清单按分区',
+    BoardGroup.priority => '高 / 中 / 低 / 无优先级',
+    BoardGroup.due => '已过期到无日期六个时间段',
+    BoardGroup.tag => '每个标签一列，含无标签',
+    BoardGroup.assignee => '每个指派人一列，含未指派',
+    BoardGroup.matrix => '按优先级划分四象限',
+  };
+}
+
 /// Kanban board. Scoped to one list: columns are that list's sections.
 /// "All lists" scope (list == null): one column per task list.
 class BoardView extends StatelessWidget {
@@ -17,6 +50,7 @@ class BoardView extends StatelessWidget {
     required this.onOpenTask,
     required this.onToggleTask,
     required this.manualSort,
+    this.group = BoardGroup.list,
   });
 
   final TaskListItem? list;
@@ -25,10 +59,21 @@ class BoardView extends StatelessWidget {
   final void Function(TaskItem task) onOpenTask;
   final void Function(TaskItem task) onToggleTask;
   final bool manualSort;
+  final BoardGroup group;
 
   @override
   Widget build(BuildContext context) {
     final list = this.list;
+    if (group != BoardGroup.list) {
+      return _GroupedBoardView(
+        group: group,
+        list: list,
+        lists: lists,
+        tasks: tasks,
+        onOpenTask: onOpenTask,
+        onToggleTask: onToggleTask,
+      );
+    }
     if (list == null) {
       final byList = <String, List<TaskItem>>{
         for (final l in lists) l.id: <TaskItem>[],
@@ -36,19 +81,25 @@ class BoardView extends StatelessWidget {
       for (final task in tasks) {
         byList[task.listId]?.add(task);
       }
-      return ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        children: [
-          for (final l in lists)
-            _ListBoardColumn(
-              key: ValueKey('list-board-${l.id}'),
-              list: l,
-              tasks: byList[l.id] ?? const [],
-              onOpenTask: onOpenTask,
-              onToggleTask: onToggleTask,
-            ),
-        ],
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = _boardColumnWidth(constraints.maxWidth, lists.length);
+          return ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              for (final l in lists)
+                _ListBoardColumn(
+                  key: ValueKey('list-board-${l.id}'),
+                  width: width,
+                  list: l,
+                  tasks: byList[l.id] ?? const [],
+                  onOpenTask: onOpenTask,
+                  onToggleTask: onToggleTask,
+                ),
+            ],
+          );
+        },
       );
     }
     final scoped = tasks
@@ -77,70 +128,82 @@ class BoardView extends StatelessWidget {
             });
           }
         }
-        return ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          children: [
-            for (var index = 0; index < sections.length; index++)
-              _BoardColumn(
-                key: ValueKey(sections[index].id),
-                list: list,
-                section: sections[index],
-                tasks: bySection[sections[index].id] ?? const [],
-                manualSort: manualSort,
-                onOpenTask: onOpenTask,
-                onToggleTask: onToggleTask,
-                onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
-                  context,
-                  scoped,
-                  bySection[sections[index].id] ?? const [],
-                  oldIndex,
-                  newIndex,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = _boardColumnWidth(
+              constraints.maxWidth,
+              sections.length + 1,
+              reserved: 160,
+            );
+            return ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              children: [
+                for (var index = 0; index < sections.length; index++)
+                  _BoardColumn(
+                    key: ValueKey(sections[index].id),
+                    width: width,
+                    list: list,
+                    section: sections[index],
+                    tasks: bySection[sections[index].id] ?? const [],
+                    manualSort: manualSort,
+                    onOpenTask: onOpenTask,
+                    onToggleTask: onToggleTask,
+                    onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
+                      context,
+                      scoped,
+                      bySection[sections[index].id] ?? const [],
+                      oldIndex,
+                      newIndex,
+                    ),
+                    onReorderSection: (draggedId, targetId) =>
+                        _reorderSectionByIds(
+                          context,
+                          list.id,
+                          sections,
+                          draggedId,
+                          targetId,
+                        ),
+                    onMoveLeft: index > 0
+                        ? () => _reorderSections(
+                            context,
+                            list.id,
+                            sections,
+                            index,
+                            index - 1,
+                          )
+                        : null,
+                    onMoveRight: index < sections.length - 1
+                        ? () => _reorderSections(
+                            context,
+                            list.id,
+                            sections,
+                            index,
+                            index + 1,
+                          )
+                        : null,
+                  ),
+                _BoardColumn(
+                  key: const ValueKey('unassigned'),
+                  width: width,
+                  list: list,
+                  section: null,
+                  tasks: bySection[null] ?? const [],
+                  manualSort: manualSort,
+                  onOpenTask: onOpenTask,
+                  onToggleTask: onToggleTask,
+                  onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
+                    context,
+                    scoped,
+                    bySection[null] ?? const [],
+                    oldIndex,
+                    newIndex,
+                  ),
                 ),
-                onReorderSection: (draggedId, targetId) => _reorderSectionByIds(
-                  context,
-                  list.id,
-                  sections,
-                  draggedId,
-                  targetId,
-                ),
-                onMoveLeft: index > 0
-                    ? () => _reorderSections(
-                        context,
-                        list.id,
-                        sections,
-                        index,
-                        index - 1,
-                      )
-                    : null,
-                onMoveRight: index < sections.length - 1
-                    ? () => _reorderSections(
-                        context,
-                        list.id,
-                        sections,
-                        index,
-                        index + 1,
-                      )
-                    : null,
-              ),
-            _BoardColumn(
-              key: const ValueKey('unassigned'),
-              list: list,
-              section: null,
-              tasks: bySection[null] ?? const [],
-              manualSort: manualSort,
-              onOpenTask: onOpenTask,
-              onToggleTask: onToggleTask,
-              onReorderTask: (oldIndex, newIndex) => _reorderColumnTasks(
-                context,
-                scoped,
-                bySection[null] ?? const [],
-                oldIndex,
-                newIndex,
-              ),
-            ),
-            _AddColumnButton(listId: list.id),
-          ],
+                _AddColumnButton(listId: list.id),
+              ],
+            );
+          },
         );
       },
     );
@@ -150,6 +213,7 @@ class BoardView extends StatelessWidget {
 class _BoardColumn extends StatelessWidget {
   const _BoardColumn({
     super.key,
+    required this.width,
     required this.list,
     required this.section,
     required this.tasks,
@@ -162,6 +226,7 @@ class _BoardColumn extends StatelessWidget {
     this.onReorderSection,
   });
 
+  final double width;
   final TaskListItem list;
   final TaskSection? section;
   final List<TaskItem> tasks;
@@ -208,8 +273,16 @@ class _BoardColumn extends StatelessWidget {
     final title = section?.name ?? '未分列';
     final accent = _columnColor(section?.id ?? 'unassigned');
     return Container(
-      width: 264,
+      width: width,
       margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.9),
+        ),
+      ),
       child: Column(
         children: [
           DragTarget<String>(
@@ -446,12 +519,14 @@ class _BoardColumn extends StatelessWidget {
 class _ListBoardColumn extends StatelessWidget {
   const _ListBoardColumn({
     super.key,
+    required this.width,
     required this.list,
     required this.tasks,
     required this.onOpenTask,
     required this.onToggleTask,
   });
 
+  final double width;
   final TaskListItem list;
   final List<TaskItem> tasks;
   final void Function(TaskItem task) onOpenTask;
@@ -462,8 +537,16 @@ class _ListBoardColumn extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     return Container(
-      width: 264,
+      width: width,
       margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.9),
+        ),
+      ),
       child: Column(
         children: [
           Padding(
@@ -593,6 +676,497 @@ class _ListBoardColumn extends StatelessWidget {
                               ),
                             );
                           },
+                        ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _DueBucket { overdue, today, tomorrow, next7, later, none }
+
+class _GroupColumnSpec {
+  const _GroupColumnSpec({
+    required this.id,
+    required this.title,
+    required this.color,
+    required this.tasks,
+    required this.apply,
+  });
+
+  final String id;
+  final String title;
+  final Color color;
+  final List<TaskItem> tasks;
+  final Future<void> Function(AppState app, TaskItem task) apply;
+}
+
+/// Grouped board used by the non-list grouping modes. Columns are computed
+/// from task fields; dropping a card writes the field that defines the target
+/// column, mirroring the web board behavior.
+class _GroupedBoardView extends StatelessWidget {
+  const _GroupedBoardView({
+    required this.group,
+    required this.list,
+    required this.lists,
+    required this.tasks,
+    required this.onOpenTask,
+    required this.onToggleTask,
+  });
+
+  final BoardGroup group;
+  final TaskListItem? list;
+  final List<TaskListItem> lists;
+  final List<TaskItem> tasks;
+  final void Function(TaskItem task) onOpenTask;
+  final void Function(TaskItem task) onToggleTask;
+
+  TaskListItem? get _creationList {
+    if (list != null) return list;
+    for (final item in lists) {
+      if (item.isInbox) return item;
+    }
+    return lists.isNotEmpty ? lists.first : null;
+  }
+
+  List<_GroupColumnSpec> _columns() {
+    switch (group) {
+      case BoardGroup.priority:
+        const specs = <(int, String, Color)>[
+          (3, '高优先级', Color(0xFFEF4444)),
+          (2, '中优先级', Color(0xFFF59E0B)),
+          (1, '低优先级', Color(0xFF3B82F6)),
+          (0, '无优先级', Color(0xFF94A3B8)),
+        ];
+        return [
+          for (final (value, title, color) in specs)
+            _GroupColumnSpec(
+              id: 'priority-$value',
+              title: title,
+              color: color,
+              tasks: tasks
+                  .where((task) => _taskPriority(task) == value)
+                  .toList(growable: false),
+              apply: (app, task) =>
+                  app.repository.updatePriority(task.id, value),
+            ),
+        ];
+      case BoardGroup.due:
+        const specs = <(_DueBucket, String, Color)>[
+          (_DueBucket.overdue, '已过期', Color(0xFFEF4444)),
+          (_DueBucket.today, '今天', Color(0xFFF59E0B)),
+          (_DueBucket.tomorrow, '明天', Color(0xFF14B8A6)),
+          (_DueBucket.next7, '未来 7 天', Color(0xFF3B82F6)),
+          (_DueBucket.later, '以后', Color(0xFF64748B)),
+          (_DueBucket.none, '无日期', Color(0xFF94A3B8)),
+        ];
+        return [
+          for (final (bucket, title, color) in specs)
+            _GroupColumnSpec(
+              id: 'due-${bucket.name}',
+              title: title,
+              color: color,
+              tasks: tasks
+                  .where((task) => _dueBucketOf(task) == bucket)
+                  .toList(growable: false),
+              apply: (app, task) =>
+                  app.repository.setDue(task.id, _dueForBucket(bucket)),
+            ),
+        ];
+      case BoardGroup.tag:
+        final names = <String>{};
+        for (final task in tasks) {
+          names.addAll(task.tags);
+        }
+        final sorted = names.toList()..sort();
+        return [
+          for (final tag in sorted)
+            _GroupColumnSpec(
+              id: 'tag-$tag',
+              title: '#$tag',
+              color: tagColorForName(tag),
+              tasks: tasks
+                  .where(
+                    (task) => task.tags.isNotEmpty && task.tags.first == tag,
+                  )
+                  .toList(growable: false),
+              apply: (app, task) => app.repository.setTags(task.id, [
+                tag,
+                ...task.tags.where((item) => item != tag),
+              ]),
+            ),
+          _GroupColumnSpec(
+            id: 'tag-none',
+            title: '无标签',
+            color: const Color(0xFF94A3B8),
+            tasks: tasks
+                .where((task) => task.tags.isEmpty)
+                .toList(growable: false),
+            apply: (app, task) => app.repository.setTags(task.id, const []),
+          ),
+        ];
+      case BoardGroup.assignee:
+        final names = <String>{};
+        for (final task in tasks) {
+          if (task.assignee.isNotEmpty) names.add(task.assignee);
+        }
+        final sorted = names.toList()..sort();
+        return [
+          for (var index = 0; index < sorted.length; index++)
+            _GroupColumnSpec(
+              id: 'assignee-${sorted[index]}',
+              title: '@${sorted[index]}',
+              color: _groupPalette[index % _groupPalette.length],
+              tasks: tasks
+                  .where((task) => task.assignee == sorted[index])
+                  .toList(growable: false),
+              apply: (app, task) =>
+                  app.repository.setAssignee(task.id, sorted[index]),
+            ),
+          _GroupColumnSpec(
+            id: 'assignee-none',
+            title: '未指派',
+            color: const Color(0xFF94A3B8),
+            tasks: tasks
+                .where((task) => task.assignee.isEmpty)
+                .toList(growable: false),
+            apply: (app, task) => app.repository.setAssignee(task.id, ''),
+          ),
+        ];
+      case BoardGroup.matrix:
+        const specs = <(int, String, Color)>[
+          (0, '重要且紧急', Color(0xFFEF4444)),
+          (1, '重要不紧急', Color(0xFF3B82F6)),
+          (2, '紧急不重要', Color(0xFFF59E0B)),
+          (3, '不重要不紧急', Color(0xFF22C55E)),
+        ];
+        return [
+          for (final (quadrant, title, color) in specs)
+            _GroupColumnSpec(
+              id: 'matrix-$quadrant',
+              title: title,
+              color: color,
+              tasks: tasks
+                  .where((task) => _matrixQuadrantOf(task) == quadrant)
+                  .toList(growable: false),
+              apply: (app, task) => app.repository.updatePriority(
+                task.id,
+                _priorityForQuadrant(quadrant),
+              ),
+            ),
+        ];
+      case BoardGroup.list:
+        return const [];
+    }
+  }
+
+  Future<void> _addTask(BuildContext context, _GroupColumnSpec column) async {
+    final target = _creationList;
+    if (target == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('先创建一个清单')));
+      return;
+    }
+    final controller = TextEditingController();
+    final title = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('添加到「${column.title}」'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: '任务标题'),
+          onSubmitted: (value) => Navigator.pop(context, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, controller.text.trim()),
+            child: const Text('添加'),
+          ),
+        ],
+      ),
+    );
+    disposeControllerSoon(controller);
+    if (title == null || title.isEmpty || !context.mounted) return;
+    final app = context.read<AppState>();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final task = await app.repository.createTask(
+        title: title,
+        listId: target.id,
+      );
+      await column.apply(app, task);
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('添加失败：$error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final columns = _columns();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = _boardColumnWidth(constraints.maxWidth, columns.length);
+        return ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          children: [
+            for (final column in columns)
+              _GroupBoardColumn(
+                key: ValueKey('group-board-${column.id}'),
+                width: width,
+                title: column.title,
+                color: column.color,
+                tasks: column.tasks,
+                onOpenTask: onOpenTask,
+                onToggleTask: onToggleTask,
+                onAcceptTask: (taskId) =>
+                    _applyGroupChange(context, column, taskId),
+                onAddTask: () => _addTask(context, column),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _applyGroupChange(
+    BuildContext context,
+    _GroupColumnSpec column,
+    String taskId,
+  ) async {
+    final app = context.read<AppState>();
+    final task = app.store.task(taskId);
+    if (task == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await column.apply(app, task);
+    } catch (error) {
+      messenger.showSnackBar(SnackBar(content: Text('移动失败：$error')));
+    }
+  }
+}
+
+const _groupPalette = <Color>[
+  Color(0xFF3563F0),
+  Color(0xFF2F7D8C),
+  Color(0xFF1F7A4D),
+  Color(0xFFA85A12),
+  Color(0xFFC23B5A),
+  Color(0xFF6E4BD1),
+];
+
+int _taskPriority(TaskItem task) =>
+    task.priority > 3 || task.priority < 0 ? 0 : task.priority;
+
+_DueBucket _dueBucketOf(TaskItem task) {
+  final due = task.dueAt?.toLocal();
+  if (due == null) return _DueBucket.none;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final date = DateTime(due.year, due.month, due.day);
+  final tomorrow = today.add(const Duration(days: 1));
+  final next7 = today.add(const Duration(days: 7));
+  if (date.isBefore(today)) return _DueBucket.overdue;
+  if (date.isAtSameMomentAs(today)) return _DueBucket.today;
+  if (date.isAtSameMomentAs(tomorrow)) return _DueBucket.tomorrow;
+  if (!date.isAfter(next7)) return _DueBucket.next7;
+  return _DueBucket.later;
+}
+
+DateTime? _dueForBucket(_DueBucket bucket) {
+  if (bucket == _DueBucket.none) return null;
+  final now = DateTime.now();
+  final base = DateTime(now.year, now.month, now.day, 18);
+  return switch (bucket) {
+    _DueBucket.overdue => base.subtract(const Duration(days: 1)),
+    _DueBucket.today => base,
+    _DueBucket.tomorrow => base.add(const Duration(days: 1)),
+    _DueBucket.next7 => base.add(const Duration(days: 7)),
+    _DueBucket.later => base.add(const Duration(days: 14)),
+    _DueBucket.none => null,
+  };
+}
+
+int _matrixQuadrantOf(TaskItem task) {
+  final priority = _taskPriority(task);
+  if (priority >= 3) return 0;
+  if (priority == 2) return 1;
+  if (priority == 1) return 2;
+  return 3;
+}
+
+int _priorityForQuadrant(int quadrant) => switch (quadrant) {
+  0 => 3,
+  1 => 2,
+  2 => 1,
+  _ => 0,
+};
+
+class _GroupBoardColumn extends StatelessWidget {
+  const _GroupBoardColumn({
+    super.key,
+    required this.width,
+    required this.title,
+    required this.color,
+    required this.tasks,
+    required this.onOpenTask,
+    required this.onToggleTask,
+    required this.onAcceptTask,
+    required this.onAddTask,
+  });
+
+  final double width;
+  final String title;
+  final Color color;
+  final List<TaskItem> tasks;
+  final void Function(TaskItem task) onOpenTask;
+  final void Function(TaskItem task) onToggleTask;
+  final void Function(String taskId) onAcceptTask;
+  final VoidCallback onAddTask;
+
+  Widget _card(TaskItem task) => LongPressDraggable<String>(
+    data: task.id,
+    feedback: Material(
+      color: Colors.transparent,
+      child: SizedBox(
+        width: 240,
+        child: _BoardCard(task: task, onTap: null, onToggle: null),
+      ),
+    ),
+    childWhenDragging: Opacity(
+      opacity: 0.35,
+      child: _BoardCard(task: task, onTap: null, onToggle: null),
+    ),
+    child: _BoardCard(
+      task: task,
+      onTap: () => onOpenTask(task),
+      onToggle: () => onToggleTask(task),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      width: width,
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.fromLTRB(4, 6, 4, 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: scheme.outlineVariant.withValues(alpha: 0.9),
+        ),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(6, 4, 2, 10),
+            child: Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  margin: const EdgeInsets.only(left: 4, right: 7),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${tasks.length}',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: '添加到「$title」',
+                  onPressed: onAddTask,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    maximumSize: const Size(32, 32),
+                    padding: EdgeInsets.zero,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: DragTarget<String>(
+              onWillAcceptWithDetails: (details) =>
+                  !details.data.startsWith('section:'),
+              onAcceptWithDetails: (details) => onAcceptTask(details.data),
+              builder: (context, candidates, rejected) {
+                final active = candidates.isNotEmpty;
+                return Container(
+                  margin: const EdgeInsets.fromLTRB(2, 0, 2, 4),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? scheme.primary.withValues(alpha: 0.06)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: tasks.isEmpty
+                      ? Align(
+                          alignment: Alignment.topCenter,
+                          child: Container(
+                            width: double.infinity,
+                            height: 116,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: scheme.surface.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: scheme.outlineVariant.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                            ),
+                            child: Text(
+                              active ? '放到这里' : '拖入任务',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
+                          itemCount: tasks.length,
+                          separatorBuilder: (_, _) => const SizedBox(height: 8),
+                          itemBuilder: (context, index) => _card(tasks[index]),
                         ),
                 );
               },
@@ -749,6 +1323,22 @@ class _MiniCheck extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Board columns fill the available width when they fit and fall back to a
+/// readable minimum width (horizontal scrolling) when they don't.
+double _boardColumnWidth(
+  double availableWidth,
+  int count, {
+  double reserved = 0,
+}) {
+  const minWidth = 264.0;
+  const gap = 10.0;
+  const horizontalPadding = 32.0;
+  if (count <= 0) return minWidth;
+  final usable = availableWidth - horizontalPadding - reserved;
+  final fitted = (usable - gap * count) / count;
+  return fitted > minWidth ? fitted : minWidth;
 }
 
 Color _columnColor(String key) {

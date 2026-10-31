@@ -378,6 +378,22 @@ class TaskRepository {
     await _patch(task, {'tags': merged}, task.copyWith(tags: merged));
   }
 
+  Future<void> setTags(String id, List<String> tags) async {
+    final task = store.task(id);
+    if (task == null) return;
+    final normalized = _normalizeTags(tags);
+    if (_sameTags(task.tags, normalized)) return;
+    await _patch(task, {'tags': normalized}, task.copyWith(tags: normalized));
+  }
+
+  Future<void> setAssignee(String id, String assignee) async {
+    final task = store.task(id);
+    if (task == null) return;
+    final value = assignee.trim();
+    if (task.assignee == value) return;
+    await _patch(task, {'assignee': value}, task.copyWith(assignee: value));
+  }
+
   /// Renames one tag on every live task; mirrors the web tag manager.
   Future<int> renameTag(String from, String to) async {
     final source = from.trim();

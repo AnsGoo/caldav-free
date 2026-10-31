@@ -97,6 +97,7 @@ class _TasksPageState extends State<TasksPage> {
   String? _activeFilterId;
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
+  BoardGroup _boardGroup = BoardGroup.list;
   bool _manualSort = false;
   bool _selecting = false;
   final Set<String> _selectedIds = {};
@@ -1099,6 +1100,34 @@ class _TasksPageState extends State<TasksPage> {
                           ),
                   ),
                 ] else if (_layout == _TaskLayout.board) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          '看板分组',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _BoardGroupMenu(
+                          group: _boardGroup,
+                          onChanged: (value) =>
+                              setState(() => _boardGroup = value),
+                        ),
+                        const Spacer(),
+                        Tooltip(
+                          message: '拖动任务到其他列会自动修改对应字段',
+                          child: Icon(
+                            Icons.info_outline_rounded,
+                            size: 16,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Expanded(
                     child: SafeArea(
                       top: false,
@@ -1118,6 +1147,7 @@ class _TasksPageState extends State<TasksPage> {
                                   ? _filterTasks
                                   : _taggedTasks,
                               manualSort: _manualSort,
+                              group: _boardGroup,
                               onOpenTask: (task) =>
                                   _openEditor(task, listsById[task.listId]),
                               onToggleTask: _toggle,
@@ -1317,6 +1347,131 @@ class _TasksPageState extends State<TasksPage> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+}
+
+class _BoardGroupMenu extends StatelessWidget {
+  const _BoardGroupMenu({required this.group, required this.onChanged});
+
+  final BoardGroup group;
+  final ValueChanged<BoardGroup> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return PopupMenuButton<BoardGroup>(
+      tooltip: '看板分组',
+      initialValue: group,
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 6),
+      color: scheme.surfaceContainerHigh,
+      surfaceTintColor: Colors.transparent,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      constraints: const BoxConstraints(minWidth: 232, maxWidth: 288),
+      onSelected: onChanged,
+      itemBuilder: (context) => [
+        for (final option in BoardGroup.values)
+          PopupMenuItem<BoardGroup>(
+            value: option,
+            height: 58,
+            child: _BoardGroupMenuItem(
+              option: option,
+              selected: option == group,
+            ),
+          ),
+      ],
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 7, 6),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHigh,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(group.icon, size: 16, color: scheme.primary),
+            const SizedBox(width: 6),
+            Text(
+              group.label,
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 1),
+            Icon(
+              Icons.expand_more_rounded,
+              size: 18,
+              color: scheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BoardGroupMenuItem extends StatelessWidget {
+  const _BoardGroupMenuItem({required this.option, required this.selected});
+
+  final BoardGroup option;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final foreground = selected ? scheme.primary : scheme.onSurface;
+    return Row(
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primary.withValues(alpha: 0.12)
+                : scheme.surface,
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: Icon(
+            option.icon,
+            size: 17,
+            color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                option.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: foreground,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                option.description,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 10.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (selected)
+          Icon(Icons.check_rounded, size: 17, color: scheme.primary),
+      ],
+    );
+  }
 }
 
 class _LayoutSwitcher extends StatelessWidget {

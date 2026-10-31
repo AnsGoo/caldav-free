@@ -37,8 +37,10 @@ pushes it in the background.
   plus remote events, habits and countdowns, with task filters for status,
   priority, list, due date and tags. See `docs/客户端UI设计.md`.
 - P2 views: Kanban board with custom synced columns, drag-reordered columns,
-  drag-between-columns and manual card ordering; Eisenhower matrix;
-  day/week/month timeline with custom start date and drag-to-reschedule.
+  drag-between-columns and manual card ordering, plus grouping by priority,
+  due date, tag, assignee or priority matrix with field-aware drag/drop;
+  Eisenhower matrix; day/week/month timeline with custom start date and
+  drag-to-reschedule.
 - Multi-select in the list view for batch complete, move, delete, priority,
   due date, tags, title prefix/suffix and appended notes.
 - Manual list ordering with drag handles; order is field-synced and restored

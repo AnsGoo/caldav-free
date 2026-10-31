@@ -1024,163 +1024,213 @@ class _MonthViewState extends State<_MonthView> {
           ],
         ),
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) => GridView.builder(
-              padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 7,
-                // Six week rows have to stay on screen whatever the aspect
-                // ratio is; a fixed child aspect ratio pushes most of the
-                // month off-screen as soon as the device turns landscape.
-                mainAxisExtent: (constraints.maxHeight - 14) / 6,
-              ),
-              itemCount: 42,
-              itemBuilder: (context, index) {
-                final day = gridStart.add(Duration(days: index));
-                final entries = _entriesForDay(snapshot, day);
-                final inMonth = day.month == anchor.month;
-                final isToday = day == today;
-                final dayAlmanac = almanac[_dateKey(day)];
-                final holiday = _holidayLabel(snapshot, day);
-                final label = dayAlmanac?.label ?? holiday ?? '';
-                final special = dayAlmanac?.special == true || holiday != null;
-                final composing = day == widget.composingDay;
-                return MouseRegion(
-                  onEnter: (_) {
-                    if (_hoveredCell != index) {
-                      setState(() => _hoveredCell = index);
-                    }
-                  },
-                  onExit: (_) {
-                    if (_hoveredCell == index) {
-                      setState(() => _hoveredCell = null);
-                    }
-                  },
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      InkWell(
-                        borderRadius: BorderRadius.circular(14),
-                        onTap: () => widget.onSelectDay(day),
-                        onLongPress: () => widget.onStartCompose(day),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(8, 2, 8, 12),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              border: Border.all(color: scheme.outline),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) => GridView.builder(
+                padding: EdgeInsets.zero,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  // Six week rows have to stay on screen whatever the aspect
+                  // ratio is; a fixed child aspect ratio pushes most of the
+                  // month off-screen as soon as the device turns landscape.
+                  mainAxisExtent: constraints.maxHeight / 6,
+                ),
+                itemCount: 42,
+                itemBuilder: (context, index) {
+                  final day = gridStart.add(Duration(days: index));
+                  final entries = _entriesForDay(snapshot, day);
+                  final inMonth = day.month == anchor.month;
+                  final isToday = day == today;
+                  final hovered = _hoveredCell == index;
+                  final dayAlmanac = almanac[_dateKey(day)];
+                  final holiday = _holidayLabel(snapshot, day);
+                  final label = dayAlmanac?.label ?? holiday ?? '';
+                  final special =
+                      dayAlmanac?.special == true || holiday != null;
+                  final composing = day == widget.composingDay;
+                  final lastColumn = index % 7 == 6;
+                  final lastRow = index >= 35;
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: isToday
+                          ? Color.alphaBlend(
+                              scheme.primary.withValues(alpha: 0.08),
+                              scheme.surface,
+                            )
+                          : hovered
+                          ? Color.alphaBlend(
+                              scheme.primary.withValues(alpha: 0.04),
+                              scheme.surface,
+                            )
+                          : scheme.surface,
+                      // 网格线让相邻日期有明确边界，PC 大窗口下更容易分辨。
+                      border: Border(
+                        right: lastColumn
+                            ? BorderSide.none
+                            : BorderSide(color: scheme.outline),
+                        bottom: lastRow
+                            ? BorderSide.none
+                            : BorderSide(color: scheme.outline),
+                      ),
+                    ),
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: MouseRegion(
+                        onEnter: (_) {
+                          if (_hoveredCell != index) {
+                            setState(() => _hoveredCell = index);
+                          }
+                        },
+                        onExit: (_) {
+                          if (_hoveredCell == index) {
+                            setState(() => _hoveredCell = null);
+                          }
+                        },
+                        child: Stack(
+                          fit: StackFit.expand,
                           children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 32,
-                              height: 32,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: isToday
-                                    ? scheme.primary
-                                    : Colors.transparent,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Text(
-                                '${day.day}',
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      fontSize: 14,
-                                      fontWeight: isToday
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
+                            InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () => widget.onSelectDay(day),
+                              onLongPress: () => widget.onStartCompose(day),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    width: 32,
+                                    height: 32,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
                                       color: isToday
-                                          ? scheme.onPrimary
-                                          : inMonth
-                                          ? scheme.onSurface
-                                          : scheme.onSurfaceVariant.withValues(
-                                              alpha: 0.45,
-                                            ),
+                                          ? scheme.primary
+                                          : Colors.transparent,
+                                      shape: BoxShape.circle,
                                     ),
+                                    child: Text(
+                                      '${day.day}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelLarge
+                                          ?.copyWith(
+                                            fontSize: 14,
+                                            fontWeight: isToday
+                                                ? FontWeight.w700
+                                                : FontWeight.w500,
+                                            color: isToday
+                                                ? scheme.onPrimary
+                                                : inMonth
+                                                ? scheme.onSurface
+                                                : scheme.onSurfaceVariant
+                                                      .withValues(alpha: 0.45),
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  if (composing)
+                                    _DayComposer(
+                                      key: ValueKey(day),
+                                      onCommit: widget.onCommitCompose,
+                                      onCancel: widget.onCancelCompose,
+                                    )
+                                  else ...[
+                                    SizedBox(
+                                      height: 10,
+                                      child: Center(
+                                        child: Text(
+                                          label,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .labelSmall
+                                              ?.copyWith(
+                                                fontSize: 7.5,
+                                                height: 1,
+                                                color: special
+                                                    ? AppColors.festivalFor(
+                                                        Theme.of(context)
+                                                            .brightness,
+                                                      )
+                                                    : scheme.onSurfaceVariant
+                                                          .withValues(
+                                                            alpha: 0.8,
+                                                          ),
+                                                fontWeight: special
+                                                    ? FontWeight.w600
+                                                    : FontWeight.w500,
+                                              ),
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: 6,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          for (final entry in entries.take(3))
+                                            Container(
+                                              width: 5,
+                                              height: 5,
+                                              margin:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 1,
+                                                  ),
+                                              decoration: BoxDecoration(
+                                                color: entry.completed
+                                                    ? scheme.onSurfaceVariant
+                                                          .withValues(
+                                                            alpha: 0.35,
+                                                          )
+                                                    : entry.color,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            if (composing)
-                              _DayComposer(
-                                key: ValueKey(day),
-                                onCommit: widget.onCommitCompose,
-                                onCancel: widget.onCancelCompose,
-                              )
-                            else ...[
-                              SizedBox(
-                                height: 10,
-                                child: Center(
-                                  child: Text(
-                                    label,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .labelSmall
-                                        ?.copyWith(
-                                          fontSize: 7.5,
-                                          height: 1,
-                                          color: special
-                                              ? AppColors.festivalFor(
-                                                  Theme.of(context).brightness,
-                                                )
-                                              : scheme.onSurfaceVariant
-                                                    .withValues(alpha: 0.8),
-                                          fontWeight: special
-                                              ? FontWeight.w600
-                                              : FontWeight.w500,
-                                        ),
+                            if (!composing && _hoveredCell == index)
+                              Positioned(
+                                top: 1,
+                                right: 2,
+                                child: Tooltip(
+                                  message: '在 ${day.month}月${day.day}日新建任务',
+                                  waitDuration: const Duration(
+                                    milliseconds: 400,
+                                  ),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(7),
+                                    onTap: () => widget.onStartCompose(day),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(2),
+                                      child: Icon(
+                                        Icons.add_rounded,
+                                        size: 15,
+                                        color: scheme.onSurfaceVariant,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                              SizedBox(
-                                height: 6,
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    for (final entry in entries.take(3))
-                                      Container(
-                                        width: 5,
-                                        height: 5,
-                                        margin: const EdgeInsets.symmetric(
-                                          horizontal: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: entry.completed
-                                              ? scheme.onSurfaceVariant
-                                                    .withValues(alpha: 0.35)
-                                              : entry.color,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ),
-                      if (!composing && _hoveredCell == index)
-                        Positioned(
-                          top: 1,
-                          right: 2,
-                          child: Tooltip(
-                            message: '在 ${day.month}月${day.day}日新建任务',
-                            waitDuration: const Duration(milliseconds: 400),
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(7),
-                              onTap: () => widget.onStartCompose(day),
-                              child: Padding(
-                                padding: const EdgeInsets.all(2),
-                                child: Icon(
-                                  Icons.add_rounded,
-                                  size: 15,
-                                  color: scheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -1401,18 +1451,28 @@ class _WeekHeaderRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(_kTimeGutterWidth, 6, 0, 0),
       child: Row(
         children: [
-          for (final day in days)
+          for (var i = 0; i < days.length; i++)
             Expanded(
-              child: _DayHeaderCell(
-                day: day,
-                today: today,
-                label: almanac[_dateKey(day)]?.label ?? '',
-                special: almanac[_dateKey(day)]?.special ?? false,
-                onTap: () => onSelectDay(day),
+              child: Container(
+                decoration: i == days.length - 1
+                    ? null
+                    : BoxDecoration(
+                        border: Border(
+                          right: BorderSide(color: scheme.outlineVariant),
+                        ),
+                      ),
+                child: _DayHeaderCell(
+                  day: days[i],
+                  today: today,
+                  label: almanac[_dateKey(days[i])]?.label ?? '',
+                  special: almanac[_dateKey(days[i])]?.special ?? false,
+                  onTap: () => onSelectDay(days[i]),
+                ),
               ),
             ),
         ],
@@ -1581,84 +1641,108 @@ class _DayViewState extends State<_DayView> {
                     final almanac = widget.almanac[_dateKey(day)];
                     final label = almanac?.label ?? '';
                     final special = almanac?.special ?? false;
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => widget.onSelectedDate(day),
-                      child: Align(
-                        alignment: Alignment.topCenter,
-                        child: Container(
-                          decoration: BoxDecoration(
+                    return Padding(
+                      padding: const EdgeInsets.fromLTRB(3, 4, 3, 2),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        curve: Curves.easeOutCubic,
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? Color.alphaBlend(
+                                  scheme.primary.withValues(alpha: 0.10),
+                                  scheme.surface,
+                                )
+                              : isToday
+                              ? Color.alphaBlend(
+                                  scheme.primary.withValues(alpha: 0.05),
+                                  scheme.surface,
+                                )
+                              : scheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
                             color: isSelected
-                                ? scheme.primary.withValues(alpha: 0.13)
-                                : null,
+                                ? scheme.primary
+                                : isToday
+                                ? scheme.primary.withValues(alpha: 0.42)
+                                : scheme.outlineVariant,
+                          ),
+                        ),
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: InkWell(
                             borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 5,
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                const [
-                                  '日',
-                                  '一',
-                                  '二',
-                                  '三',
-                                  '四',
-                                  '五',
-                                  '六',
-                                ][day.weekday % 7],
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: scheme.onSurfaceVariant,
-                                ),
+                            onTap: () => widget.onSelectedDate(day),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 6,
                               ),
-                              const SizedBox(height: 3),
-                              Container(
-                                width: 30,
-                                height: 30,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: isSelected ? scheme.primary : null,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Text(
-                                  '${day.day}',
-                                  style: theme.textTheme.labelLarge?.copyWith(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: isSelected
-                                        ? scheme.onPrimary
-                                        : isToday
-                                        ? scheme.primary
-                                        : scheme.onSurface,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    const [
+                                      '日',
+                                      '一',
+                                      '二',
+                                      '三',
+                                      '四',
+                                      '五',
+                                      '六',
+                                    ][day.weekday % 7],
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              SizedBox(
-                                width: 40,
-                                child: Text(
-                                  label,
-                                  textAlign: TextAlign.center,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontSize: 8.5,
-                                    height: 1.1,
-                                    fontWeight: special
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: special
-                                        ? AppColors.festivalFor(
-                                            theme.brightness,
-                                          )
-                                        : scheme.onSurfaceVariant,
+                                  const SizedBox(height: 3),
+                                  Container(
+                                    width: 30,
+                                    height: 30,
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? scheme.primary : null,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      '${day.day}',
+                                      style: theme.textTheme.labelLarge
+                                          ?.copyWith(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: isSelected
+                                                ? scheme.onPrimary
+                                                : isToday
+                                                ? scheme.primary
+                                                : scheme.onSurface,
+                                          ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 2),
+                                  SizedBox(
+                                    width: 40,
+                                    child: Text(
+                                      label,
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            fontSize: 8.5,
+                                            height: 1.1,
+                                            fontWeight: special
+                                                ? FontWeight.w600
+                                                : FontWeight.w500,
+                                            color: special
+                                                ? AppColors.festivalFor(
+                                                    theme.brightness,
+                                                  )
+                                                : scheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -1813,6 +1897,7 @@ class _EmptyDaySheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: Center(
         child: AppEmptyState(
@@ -1989,6 +2074,7 @@ class _TimeGridState extends State<_TimeGrid> {
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: scheme.outline),
       ),
       child: Column(
         children: [
@@ -2009,25 +2095,34 @@ class _TimeGridState extends State<_TimeGrid> {
                     ),
                   ),
                 ),
-                for (final chips in allDay)
+                for (var i = 0; i < allDay.length; i++)
                   Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: Row(
-                        children: [
-                          for (final entry in chips)
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 1,
-                              ),
-                              child: _AllDayChip(
-                                entry: entry,
-                                onOpenEvent: widget.onOpenEvent,
-                                onOpenTask: widget.onOpenTask,
+                    child: Container(
+                      decoration: i == allDay.length - 1
+                          ? null
+                          : BoxDecoration(
+                              border: Border(
+                                right: BorderSide(color: scheme.outlineVariant),
                               ),
                             ),
-                        ],
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: Row(
+                          children: [
+                            for (final entry in allDay[i])
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 1,
+                                ),
+                                child: _AllDayChip(
+                                  entry: entry,
+                                  onOpenEvent: widget.onOpenEvent,
+                                  onOpenTask: widget.onOpenTask,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2062,6 +2157,22 @@ class _TimeGridState extends State<_TimeGrid> {
                                 height: 1,
                                 color: scheme.outlineVariant,
                               ),
+                            ),
+                          // 时间刻度与日程列之间的竖线，单日视图也能看出网格边界。
+                          Positioned(
+                            left: _kTimeGutterWidth,
+                            top: 0,
+                            bottom: 0,
+                            width: 1,
+                            child: ColoredBox(color: scheme.outlineVariant),
+                          ),
+                          for (var d = 1; d < days.length; d++)
+                            Positioned(
+                              left: _kTimeGutterWidth + d * columnWidth,
+                              top: 0,
+                              bottom: 0,
+                              width: 1,
+                              child: ColoredBox(color: scheme.outlineVariant),
                             ),
                           for (var hour = 0; hour < 24; hour++)
                             Positioned(

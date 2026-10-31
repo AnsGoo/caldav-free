@@ -11,6 +11,9 @@
         <button class="tw-rail-button" :class="{ active: mode === 'list' }" title="清单" @click="switchMode('list')">
           <TaskIcon name="list" :size="21" />
         </button>
+        <button class="tw-rail-button" :class="{ active: mode === 'calendar' }" title="日历" @click="switchMode('calendar')">
+          <TaskIcon name="calendar" :size="21" />
+        </button>
         <button class="tw-rail-button" :class="{ active: view === 'focus' }" title="专注" @click="selectView('focus')">
           <TaskIcon name="clock" :size="21" />
         </button>
@@ -135,15 +138,12 @@
             <TaskIcon name="plus" :size="15" />
             新建日程
           </button>
-          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView" class="tw-mode-switch" role="group" aria-label="视图模式">
+          <div v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView && mode !== 'calendar'" class="tw-mode-switch" role="group" aria-label="视图模式">
             <button :class="{ active: mode === 'list' && view !== 'matrix' }" title="清单" @click="switchMode('list')">
               <TaskIcon name="list" :size="16" />
             </button>
             <button :class="{ active: mode === 'board' && view !== 'matrix' }" title="看板" @click="switchMode('board')">
               <TaskIcon name="board" :size="16" />
-            </button>
-            <button :class="{ active: mode === 'calendar' && view !== 'matrix' }" title="日历" @click="switchMode('calendar')">
-              <TaskIcon name="calendar" :size="16" />
             </button>
             <button :class="{ active: mode === 'timeline' && view !== 'matrix' }" title="时间线" @click="switchMode('timeline')">
               <TaskIcon name="timeline" :size="16" />
@@ -153,7 +153,7 @@
             </button>
           </div>
           <button
-            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && !noteView && mode !== 'calendar'"
+            v-if="view !== 'trash' && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && !noteView && mode !== 'calendar'"
             class="tw-icon-button"
             :class="{ active: splitView }"
             :title="splitView ? '关闭日历并列显示' : '任务与日历并列显示'"
@@ -179,13 +179,13 @@
           >
             <TaskIcon name="select" :size="18" />
           </button>
-          <button v-if="view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix'" class="tw-icon-button" title="搜索" @click="toggleSearch">
+          <button v-if="view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared'" class="tw-icon-button" title="搜索" @click="toggleSearch">
             <TaskIcon name="search" :size="18" />
           </button>
         </div>
       </header>
 
-      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'matrix' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-search-bar">
+      <div v-if="searchOpen && view !== 'stats' && view !== 'summary' && view !== 'ai' && view !== 'shared' && view !== 'habit' && view !== 'focus' && view !== 'countdown' && view !== 'notes'" class="tw-search-bar">
         <TaskIcon name="search" :size="17" />
         <input
           ref="searchInputEl"
@@ -222,8 +222,13 @@
         @select-shared-list="selectSharedNoteList"
         @reload="loadWorkspace(true)"
       />
-      <TaskMatrixPanel
+      <div
         v-else-if="view === 'matrix'"
+        class="tw-main-body"
+        :class="{ 'is-split': splitView && !selectedTask }"
+      >
+      <div class="tw-scroll tw-scroll-matrix">
+      <TaskMatrixPanel
         :tasks="matrixTasks"
         :rule="matrixRule"
         :views="matrixViews"
@@ -242,6 +247,32 @@
         @edit-rules="openMatrixRules"
         @quick-add="quickAddMatrixTask"
       />
+      </div>
+      <aside
+        v-if="splitView && !selectedTask"
+        class="tw-split-calendar"
+        :style="{ width: `${splitWidth}px` }"
+      >
+        <div class="tw-split-resizer" title="拖动调整宽度" @pointerdown="startSplitResize"></div>
+        <TaskCalendar
+          :cursor="splitCursor"
+          :view-mode="splitViewMode"
+          :reload-key="calendarReload"
+          @open="openTask"
+          @open-event="openCalendarEvent"
+          @open-habit="openHabitFromCalendar"
+          @calendars="calendarSources = $event"
+          @reschedule-task="rescheduleTask"
+          @reschedule-event="rescheduleEvent"
+          @occurrence-changed="onOccurrenceChanged"
+          @create="createFromCalendar"
+          @change-view="splitViewMode = $event"
+          @prev="stepSplitCalendar(-1)"
+          @next="stepSplitCalendar(1)"
+          @today="splitCursor = new Date()"
+        />
+      </aside>
+      </div>
       <div v-else class="tw-main-body" :class="{ 'is-split': splitView && mode !== 'calendar' }">
       <div class="tw-scroll" :class="{ 'tw-scroll-calendar': mode === 'calendar', 'tw-scroll-timeline': mode === 'timeline' }">
         <div
@@ -1380,6 +1411,7 @@ const sharedReadonly = computed(() => {
   return !!shared && shared.role !== 'editor'
 })
 const heading = computed(() => {
+  if (mode.value === 'calendar') return '日历'
   if (view.value === 'matrix') return '矩阵'
   if (view.value === 'habit') return '习惯'
   if (view.value === 'focus') return '专注'
@@ -1396,6 +1428,7 @@ const heading = computed(() => {
 })
 
 const headingIcon = computed(() => {
+  if (mode.value === 'calendar') return 'calendar'
   if (sharedNote.value || sharedNoteView.value) return 'note'
   if (view.value === 'list') return activeList.value?.kind === 'NOTE' ? 'note' : 'inbox'
   if (view.value === 'today') return 'today'

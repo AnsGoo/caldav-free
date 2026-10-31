@@ -8679,6 +8679,17 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   align-items: stretch;
 }
 
+.tw-scroll-matrix {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tw-scroll-matrix > .tw-matrix {
+  flex: 1;
+  min-height: 0;
+}
+
 .tw-main-body > .tw-scroll {
   flex: 1;
   min-width: 0;

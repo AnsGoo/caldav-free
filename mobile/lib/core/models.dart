@@ -418,6 +418,184 @@ class TaskListItem {
   }
 }
 
+/// Conditions of a saved task filter, mirroring the web's filter dialog.
+class FilterConditions {
+  const FilterConditions({
+    this.listIds = const [],
+    this.syncListIds = const [],
+    this.tags = const [],
+    this.tagMode = 'any',
+    this.priorities = const [],
+    this.status = 'open',
+    this.date = 'any',
+    this.dateFrom = '',
+    this.dateTo = '',
+    this.keyword = '',
+  });
+
+  /// Server-side integer list ids (used by the web admin). The mobile client
+  /// cannot resolve them, so it ignores this field.
+  final List<String> listIds;
+
+  /// Client sync ids for lists, understood by the mobile app on every device.
+  /// Stored under a separate key so the web's integer ids stay untouched.
+  final List<String> syncListIds;
+  final List<String> tags;
+  final String tagMode;
+  final List<int> priorities;
+  final String status;
+  final String date;
+  final String dateFrom;
+  final String dateTo;
+  final String keyword;
+
+  bool get isEmpty =>
+      listIds.isEmpty &&
+      syncListIds.isEmpty &&
+      tags.isEmpty &&
+      priorities.isEmpty &&
+      status == 'open' &&
+      date == 'any' &&
+      keyword.trim().isEmpty;
+
+  Map<String, dynamic> toJson() => {
+    'listIds': listIds,
+    'syncListIds': syncListIds,
+    'tags': tags,
+    'tagMode': tagMode,
+    'priorities': priorities,
+    'status': status,
+    'date': date,
+    'dateFrom': dateFrom,
+    'dateTo': dateTo,
+    'keyword': keyword,
+  };
+
+  factory FilterConditions.fromJson(Map<String, dynamic> json) =>
+      FilterConditions(
+        listIds: _stringList(json['listIds']),
+        syncListIds: _stringList(json['syncListIds']),
+        tags: _stringList(json['tags']),
+        tagMode: (json['tagMode'] ?? 'any').toString() == 'all'
+            ? 'all'
+            : 'any',
+        priorities: _intList(json['priorities']),
+        status: switch ((json['status'] ?? 'open').toString()) {
+          'completed' => 'completed',
+          'all' => 'all',
+          _ => 'open',
+        },
+        date: (json['date'] ?? 'any').toString(),
+        dateFrom: (json['dateFrom'] ?? '').toString(),
+        dateTo: (json['dateTo'] ?? '').toString(),
+        keyword: (json['keyword'] ?? '').toString(),
+      );
+
+  FilterConditions copyWith({
+    List<String>? listIds,
+    List<String>? syncListIds,
+    List<String>? tags,
+    String? tagMode,
+    List<int>? priorities,
+    String? status,
+    String? date,
+    String? dateFrom,
+    String? dateTo,
+    String? keyword,
+  }) => FilterConditions(
+    listIds: listIds ?? this.listIds,
+    syncListIds: syncListIds ?? this.syncListIds,
+    tags: tags ?? this.tags,
+    tagMode: tagMode ?? this.tagMode,
+    priorities: priorities ?? this.priorities,
+    status: status ?? this.status,
+    date: date ?? this.date,
+    dateFrom: dateFrom ?? this.dateFrom,
+    dateTo: dateTo ?? this.dateTo,
+    keyword: keyword ?? this.keyword,
+  );
+}
+
+/// A named saved filter synced through the `filter` sync entity.
+class SavedFilterItem {
+  const SavedFilterItem({
+    required this.id,
+    required this.name,
+    this.color = '',
+    this.conditions = const FilterConditions(),
+    this.sortOrder = 0,
+    this.pinned = false,
+    this.etag = '',
+    this.version = 0,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final String color;
+  final FilterConditions conditions;
+  final int sortOrder;
+  final bool pinned;
+  final String etag;
+  final int version;
+  final DateTime updatedAt;
+
+  Map<String, dynamic> toWireJson() => {
+    'id': id,
+    'name': name,
+    'color': color,
+    'conditions': conditions.toJson(),
+    'order': sortOrder,
+    'pinned': pinned,
+    'etag': etag,
+    'version': version,
+    'modifiedAt': updatedAt.toUtc().toIso8601String(),
+  };
+
+  factory SavedFilterItem.fromWireJson(Map<String, dynamic> json) {
+    final rawConditions = json['conditions'];
+    final conditions = rawConditions is Map<String, dynamic>
+        ? FilterConditions.fromJson(rawConditions)
+        : rawConditions is Map
+        ? FilterConditions.fromJson(
+            rawConditions.map((key, value) => MapEntry(key.toString(), value)),
+          )
+        : const FilterConditions();
+    return SavedFilterItem(
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      color: (json['color'] ?? '').toString(),
+      conditions: conditions,
+      sortOrder: _intValue(json['order']),
+      pinned: json['pinned'] == true,
+      etag: (json['etag'] ?? '').toString(),
+      version: _intValue(json['version']),
+      updatedAt: _dateValue(json['modifiedAt']) ?? DateTime.now().toUtc(),
+    );
+  }
+
+  SavedFilterItem copyWith({
+    String? name,
+    String? color,
+    FilterConditions? conditions,
+    int? sortOrder,
+    bool? pinned,
+    String? etag,
+    int? version,
+    DateTime? updatedAt,
+  }) => SavedFilterItem(
+    id: id,
+    name: name ?? this.name,
+    color: color ?? this.color,
+    conditions: conditions ?? this.conditions,
+    sortOrder: sortOrder ?? this.sortOrder,
+    pinned: pinned ?? this.pinned,
+    etag: etag ?? this.etag,
+    version: version ?? this.version,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+}
+
 String? _nullableString(Object? value) {
   final text = value?.toString();
   return text == null || text.isEmpty ? null : text;

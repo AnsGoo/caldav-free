@@ -446,6 +446,36 @@ void main() {
     expect(server.appliedOps, before + 1);
   });
 
+  test('saved filters sync create, update and delete', () async {
+    await deviceA.engine.sync(full: true);
+    final filter = await deviceA.repo.createFilter(
+      name: '高优先',
+      conditions: const FilterConditions(priorities: [3]),
+    );
+    await deviceA.engine.sync();
+    expect(server.filters[filter.id]?['name'], '高优先');
+
+    await deviceB.engine.sync(full: true);
+    expect(deviceB.store.filter(filter.id)?.name, '高优先');
+    expect(deviceB.store.filter(filter.id)?.conditions.priorities, [3]);
+
+    await deviceB.repo.updateFilter(
+      filter.id,
+      name: '中低优先',
+      conditions: const FilterConditions(priorities: [1, 2]),
+    );
+    await deviceB.engine.sync();
+    await deviceA.engine.sync();
+    expect(deviceA.store.filter(filter.id)?.name, '中低优先');
+    expect(deviceA.store.filter(filter.id)?.conditions.priorities, [1, 2]);
+
+    await deviceA.repo.deleteFilter(filter.id);
+    await deviceA.engine.sync();
+    expect(server.filters.containsKey(filter.id), false);
+    await deviceB.engine.sync();
+    expect(deviceB.store.filter(filter.id), isNull);
+  });
+
   test('repeated full pulls never duplicate or drop rows', () async {
     await deviceA.engine.sync(full: true);
     final inbox = deviceA.store.inbox()!;

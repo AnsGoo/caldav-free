@@ -16,6 +16,7 @@ class FakeSyncServer {
   final Map<String, Map<String, dynamic>> lists = {};
   final Map<String, Map<String, dynamic>> sections = {};
   final Map<String, Map<String, dynamic>> folders = {};
+  final Map<String, Map<String, dynamic>> filters = {};
   final List<_Change> _changes = [];
   final Map<String, PushResult> _opResults = {};
 
@@ -68,6 +69,7 @@ class FakeSyncServer {
     final listJson = <Map<String, dynamic>>[];
     final sectionJson = <Map<String, dynamic>>[];
     final folderJson = <Map<String, dynamic>>[];
+    final filterJson = <Map<String, dynamic>>[];
     final tombstones = <Tombstone>[];
     for (final change in page) {
       if (change.entity == 'task') {
@@ -97,6 +99,15 @@ class FakeSyncServer {
         } else {
           folderJson.add(Map<String, dynamic>.from(json));
         }
+      } else if (change.entity == 'filter') {
+        final json = filters[change.id];
+        if (json == null) {
+          tombstones.add(
+            Tombstone(entity: 'filter', id: change.id, deletedAt: _now()),
+          );
+        } else {
+          filterJson.add(Map<String, dynamic>.from(json));
+        }
       } else if (change.entity == 'section') {
         final json = sections[change.id];
         if (json == null) {
@@ -116,6 +127,7 @@ class FakeSyncServer {
       lists: listJson,
       sections: sectionJson,
       folders: folderJson,
+      filters: filterJson,
       tombstones: tombstones,
     );
   }
@@ -144,12 +156,14 @@ class FakeSyncServer {
       'list' => 'list',
       'folder' => 'folder',
       'section' => 'section',
+      'filter' => 'filter',
       _ => 'task',
     };
     final current = switch (entity) {
       'task' => tasks[op.entityId],
       'list' => lists[op.entityId],
       'section' => sections[op.entityId],
+      'filter' => filters[op.entityId],
       _ => folders[op.entityId],
     };
 
@@ -232,6 +246,26 @@ class FakeSyncServer {
           _applyPatch(json, op.patch);
           tasks[op.entityId] = json;
           _touch('task', op.entityId);
+          appliedOps++;
+          return _ok(op, entity, json);
+        }
+        if (entity == 'filter') {
+          final name = (op.patch['name'] ?? '').toString().trim();
+          if (name.isEmpty) {
+            return _error(op, entity, 'invalid_patch', 'name is required');
+          }
+          final json = <String, dynamic>{
+            'id': op.entityId,
+            'name': name,
+            'color': '',
+            'conditions': <String, dynamic>{},
+            'order': 0,
+            'pinned': false,
+            'modifiedAt': _now(),
+          };
+          _applyPatch(json, op.patch);
+          filters[op.entityId] = json;
+          _touch('filter', op.entityId);
           appliedOps++;
           return _ok(op, entity, json);
         }
@@ -321,6 +355,17 @@ class FakeSyncServer {
         if (current == null) return _gone(op, entity);
         if (_baseMismatch(op, current)) {
           return _conflict(op, entity, current);
+        }
+        if (entity == 'filter') {
+          _touch('filter', op.entityId);
+          filters.remove(op.entityId);
+          appliedOps++;
+          return PushResult(
+            opId: op.opId,
+            entity: entity,
+            entityId: op.entityId,
+            status: 'ok',
+          );
         }
         if (entity == 'task') {
           current['deleted'] = true;
@@ -502,6 +547,7 @@ class FakeSyncServer {
       'task' => tasks[id],
       'list' => lists[id],
       'section' => sections[id],
+      'filter' => filters[id],
       _ => folders[id],
     };
     if (json == null) return;

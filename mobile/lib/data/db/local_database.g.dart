@@ -2917,6 +2917,556 @@ class FoldersCompanion extends UpdateCompanion<FolderRow> {
   }
 }
 
+class $SavedFiltersTable extends SavedFilters
+    with TableInfo<$SavedFiltersTable, SavedFilterRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SavedFiltersTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _colorMeta = const VerificationMeta('color');
+  @override
+  late final GeneratedColumn<String> color = GeneratedColumn<String>(
+    'color',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _conditionsMeta = const VerificationMeta(
+    'conditions',
+  );
+  @override
+  late final GeneratedColumn<String> conditions = GeneratedColumn<String>(
+    'conditions',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('{}'),
+  );
+  static const VerificationMeta _orderIndexMeta = const VerificationMeta(
+    'orderIndex',
+  );
+  @override
+  late final GeneratedColumn<int> orderIndex = GeneratedColumn<int>(
+    'order_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _pinnedMeta = const VerificationMeta('pinned');
+  @override
+  late final GeneratedColumn<bool> pinned = GeneratedColumn<bool>(
+    'pinned',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pinned" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _etagMeta = const VerificationMeta('etag');
+  @override
+  late final GeneratedColumn<String> etag = GeneratedColumn<String>(
+    'etag',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _versionMeta = const VerificationMeta(
+    'version',
+  );
+  @override
+  late final GeneratedColumn<int> version = GeneratedColumn<int>(
+    'version',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _modifiedAtMeta = const VerificationMeta(
+    'modifiedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> modifiedAt = GeneratedColumn<DateTime>(
+    'modified_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    syncId,
+    name,
+    color,
+    conditions,
+    orderIndex,
+    pinned,
+    etag,
+    version,
+    modifiedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'saved_filters';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SavedFilterRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_syncIdMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    }
+    if (data.containsKey('color')) {
+      context.handle(
+        _colorMeta,
+        color.isAcceptableOrUnknown(data['color']!, _colorMeta),
+      );
+    }
+    if (data.containsKey('conditions')) {
+      context.handle(
+        _conditionsMeta,
+        conditions.isAcceptableOrUnknown(data['conditions']!, _conditionsMeta),
+      );
+    }
+    if (data.containsKey('order_index')) {
+      context.handle(
+        _orderIndexMeta,
+        orderIndex.isAcceptableOrUnknown(data['order_index']!, _orderIndexMeta),
+      );
+    }
+    if (data.containsKey('pinned')) {
+      context.handle(
+        _pinnedMeta,
+        pinned.isAcceptableOrUnknown(data['pinned']!, _pinnedMeta),
+      );
+    }
+    if (data.containsKey('etag')) {
+      context.handle(
+        _etagMeta,
+        etag.isAcceptableOrUnknown(data['etag']!, _etagMeta),
+      );
+    }
+    if (data.containsKey('version')) {
+      context.handle(
+        _versionMeta,
+        version.isAcceptableOrUnknown(data['version']!, _versionMeta),
+      );
+    }
+    if (data.containsKey('modified_at')) {
+      context.handle(
+        _modifiedAtMeta,
+        modifiedAt.isAcceptableOrUnknown(data['modified_at']!, _modifiedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modifiedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {syncId};
+  @override
+  SavedFilterRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SavedFilterRow(
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      color: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color'],
+      )!,
+      conditions: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conditions'],
+      )!,
+      orderIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}order_index'],
+      )!,
+      pinned: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pinned'],
+      )!,
+      etag: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}etag'],
+      )!,
+      version: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}version'],
+      )!,
+      modifiedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}modified_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SavedFiltersTable createAlias(String alias) {
+    return $SavedFiltersTable(attachedDatabase, alias);
+  }
+}
+
+class SavedFilterRow extends DataClass implements Insertable<SavedFilterRow> {
+  final String syncId;
+  final String name;
+  final String color;
+  final String conditions;
+  final int orderIndex;
+  final bool pinned;
+  final String etag;
+  final int version;
+  final DateTime modifiedAt;
+  const SavedFilterRow({
+    required this.syncId,
+    required this.name,
+    required this.color,
+    required this.conditions,
+    required this.orderIndex,
+    required this.pinned,
+    required this.etag,
+    required this.version,
+    required this.modifiedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['sync_id'] = Variable<String>(syncId);
+    map['name'] = Variable<String>(name);
+    map['color'] = Variable<String>(color);
+    map['conditions'] = Variable<String>(conditions);
+    map['order_index'] = Variable<int>(orderIndex);
+    map['pinned'] = Variable<bool>(pinned);
+    map['etag'] = Variable<String>(etag);
+    map['version'] = Variable<int>(version);
+    map['modified_at'] = Variable<DateTime>(modifiedAt);
+    return map;
+  }
+
+  SavedFiltersCompanion toCompanion(bool nullToAbsent) {
+    return SavedFiltersCompanion(
+      syncId: Value(syncId),
+      name: Value(name),
+      color: Value(color),
+      conditions: Value(conditions),
+      orderIndex: Value(orderIndex),
+      pinned: Value(pinned),
+      etag: Value(etag),
+      version: Value(version),
+      modifiedAt: Value(modifiedAt),
+    );
+  }
+
+  factory SavedFilterRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SavedFilterRow(
+      syncId: serializer.fromJson<String>(json['syncId']),
+      name: serializer.fromJson<String>(json['name']),
+      color: serializer.fromJson<String>(json['color']),
+      conditions: serializer.fromJson<String>(json['conditions']),
+      orderIndex: serializer.fromJson<int>(json['orderIndex']),
+      pinned: serializer.fromJson<bool>(json['pinned']),
+      etag: serializer.fromJson<String>(json['etag']),
+      version: serializer.fromJson<int>(json['version']),
+      modifiedAt: serializer.fromJson<DateTime>(json['modifiedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'syncId': serializer.toJson<String>(syncId),
+      'name': serializer.toJson<String>(name),
+      'color': serializer.toJson<String>(color),
+      'conditions': serializer.toJson<String>(conditions),
+      'orderIndex': serializer.toJson<int>(orderIndex),
+      'pinned': serializer.toJson<bool>(pinned),
+      'etag': serializer.toJson<String>(etag),
+      'version': serializer.toJson<int>(version),
+      'modifiedAt': serializer.toJson<DateTime>(modifiedAt),
+    };
+  }
+
+  SavedFilterRow copyWith({
+    String? syncId,
+    String? name,
+    String? color,
+    String? conditions,
+    int? orderIndex,
+    bool? pinned,
+    String? etag,
+    int? version,
+    DateTime? modifiedAt,
+  }) => SavedFilterRow(
+    syncId: syncId ?? this.syncId,
+    name: name ?? this.name,
+    color: color ?? this.color,
+    conditions: conditions ?? this.conditions,
+    orderIndex: orderIndex ?? this.orderIndex,
+    pinned: pinned ?? this.pinned,
+    etag: etag ?? this.etag,
+    version: version ?? this.version,
+    modifiedAt: modifiedAt ?? this.modifiedAt,
+  );
+  SavedFilterRow copyWithCompanion(SavedFiltersCompanion data) {
+    return SavedFilterRow(
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      name: data.name.present ? data.name.value : this.name,
+      color: data.color.present ? data.color.value : this.color,
+      conditions: data.conditions.present
+          ? data.conditions.value
+          : this.conditions,
+      orderIndex: data.orderIndex.present
+          ? data.orderIndex.value
+          : this.orderIndex,
+      pinned: data.pinned.present ? data.pinned.value : this.pinned,
+      etag: data.etag.present ? data.etag.value : this.etag,
+      version: data.version.present ? data.version.value : this.version,
+      modifiedAt: data.modifiedAt.present
+          ? data.modifiedAt.value
+          : this.modifiedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedFilterRow(')
+          ..write('syncId: $syncId, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('conditions: $conditions, ')
+          ..write('orderIndex: $orderIndex, ')
+          ..write('pinned: $pinned, ')
+          ..write('etag: $etag, ')
+          ..write('version: $version, ')
+          ..write('modifiedAt: $modifiedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    syncId,
+    name,
+    color,
+    conditions,
+    orderIndex,
+    pinned,
+    etag,
+    version,
+    modifiedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SavedFilterRow &&
+          other.syncId == this.syncId &&
+          other.name == this.name &&
+          other.color == this.color &&
+          other.conditions == this.conditions &&
+          other.orderIndex == this.orderIndex &&
+          other.pinned == this.pinned &&
+          other.etag == this.etag &&
+          other.version == this.version &&
+          other.modifiedAt == this.modifiedAt);
+}
+
+class SavedFiltersCompanion extends UpdateCompanion<SavedFilterRow> {
+  final Value<String> syncId;
+  final Value<String> name;
+  final Value<String> color;
+  final Value<String> conditions;
+  final Value<int> orderIndex;
+  final Value<bool> pinned;
+  final Value<String> etag;
+  final Value<int> version;
+  final Value<DateTime> modifiedAt;
+  final Value<int> rowid;
+  const SavedFiltersCompanion({
+    this.syncId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.conditions = const Value.absent(),
+    this.orderIndex = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.version = const Value.absent(),
+    this.modifiedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SavedFiltersCompanion.insert({
+    required String syncId,
+    this.name = const Value.absent(),
+    this.color = const Value.absent(),
+    this.conditions = const Value.absent(),
+    this.orderIndex = const Value.absent(),
+    this.pinned = const Value.absent(),
+    this.etag = const Value.absent(),
+    this.version = const Value.absent(),
+    required DateTime modifiedAt,
+    this.rowid = const Value.absent(),
+  }) : syncId = Value(syncId),
+       modifiedAt = Value(modifiedAt);
+  static Insertable<SavedFilterRow> custom({
+    Expression<String>? syncId,
+    Expression<String>? name,
+    Expression<String>? color,
+    Expression<String>? conditions,
+    Expression<int>? orderIndex,
+    Expression<bool>? pinned,
+    Expression<String>? etag,
+    Expression<int>? version,
+    Expression<DateTime>? modifiedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (syncId != null) 'sync_id': syncId,
+      if (name != null) 'name': name,
+      if (color != null) 'color': color,
+      if (conditions != null) 'conditions': conditions,
+      if (orderIndex != null) 'order_index': orderIndex,
+      if (pinned != null) 'pinned': pinned,
+      if (etag != null) 'etag': etag,
+      if (version != null) 'version': version,
+      if (modifiedAt != null) 'modified_at': modifiedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SavedFiltersCompanion copyWith({
+    Value<String>? syncId,
+    Value<String>? name,
+    Value<String>? color,
+    Value<String>? conditions,
+    Value<int>? orderIndex,
+    Value<bool>? pinned,
+    Value<String>? etag,
+    Value<int>? version,
+    Value<DateTime>? modifiedAt,
+    Value<int>? rowid,
+  }) {
+    return SavedFiltersCompanion(
+      syncId: syncId ?? this.syncId,
+      name: name ?? this.name,
+      color: color ?? this.color,
+      conditions: conditions ?? this.conditions,
+      orderIndex: orderIndex ?? this.orderIndex,
+      pinned: pinned ?? this.pinned,
+      etag: etag ?? this.etag,
+      version: version ?? this.version,
+      modifiedAt: modifiedAt ?? this.modifiedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (color.present) {
+      map['color'] = Variable<String>(color.value);
+    }
+    if (conditions.present) {
+      map['conditions'] = Variable<String>(conditions.value);
+    }
+    if (orderIndex.present) {
+      map['order_index'] = Variable<int>(orderIndex.value);
+    }
+    if (pinned.present) {
+      map['pinned'] = Variable<bool>(pinned.value);
+    }
+    if (etag.present) {
+      map['etag'] = Variable<String>(etag.value);
+    }
+    if (version.present) {
+      map['version'] = Variable<int>(version.value);
+    }
+    if (modifiedAt.present) {
+      map['modified_at'] = Variable<DateTime>(modifiedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SavedFiltersCompanion(')
+          ..write('syncId: $syncId, ')
+          ..write('name: $name, ')
+          ..write('color: $color, ')
+          ..write('conditions: $conditions, ')
+          ..write('orderIndex: $orderIndex, ')
+          ..write('pinned: $pinned, ')
+          ..write('etag: $etag, ')
+          ..write('version: $version, ')
+          ..write('modifiedAt: $modifiedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $OutboxTable extends Outbox with TableInfo<$OutboxTable, OutboxRow> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -9080,6 +9630,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TaskListsTable taskLists = $TaskListsTable(this);
   late final $TaskSectionsTable taskSections = $TaskSectionsTable(this);
   late final $FoldersTable folders = $FoldersTable(this);
+  late final $SavedFiltersTable savedFilters = $SavedFiltersTable(this);
   late final $OutboxTable outbox = $OutboxTable(this);
   late final $ConflictsTable conflicts = $ConflictsTable(this);
   late final $HabitOutboxTable habitOutbox = $HabitOutboxTable(this);
@@ -9154,6 +9705,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     taskLists,
     taskSections,
     folders,
+    savedFilters,
     outbox,
     conflicts,
     habitOutbox,
@@ -10611,6 +11163,297 @@ typedef $$FoldersTableProcessedTableManager =
       $$FoldersTableUpdateCompanionBuilder,
       (FolderRow, BaseReferences<_$AppDatabase, $FoldersTable, FolderRow>),
       FolderRow,
+      PrefetchHooks Function()
+    >;
+typedef $$SavedFiltersTableCreateCompanionBuilder =
+    SavedFiltersCompanion Function({
+      required String syncId,
+      Value<String> name,
+      Value<String> color,
+      Value<String> conditions,
+      Value<int> orderIndex,
+      Value<bool> pinned,
+      Value<String> etag,
+      Value<int> version,
+      required DateTime modifiedAt,
+      Value<int> rowid,
+    });
+typedef $$SavedFiltersTableUpdateCompanionBuilder =
+    SavedFiltersCompanion Function({
+      Value<String> syncId,
+      Value<String> name,
+      Value<String> color,
+      Value<String> conditions,
+      Value<int> orderIndex,
+      Value<bool> pinned,
+      Value<String> etag,
+      Value<int> version,
+      Value<DateTime> modifiedAt,
+      Value<int> rowid,
+    });
+
+class $$SavedFiltersTableFilterComposer
+    extends Composer<_$AppDatabase, $SavedFiltersTable> {
+  $$SavedFiltersTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conditions => $composableBuilder(
+    column: $table.conditions,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get orderIndex => $composableBuilder(
+    column: $table.orderIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SavedFiltersTableOrderingComposer
+    extends Composer<_$AppDatabase, $SavedFiltersTable> {
+  $$SavedFiltersTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get color => $composableBuilder(
+    column: $table.color,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get conditions => $composableBuilder(
+    column: $table.conditions,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get orderIndex => $composableBuilder(
+    column: $table.orderIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pinned => $composableBuilder(
+    column: $table.pinned,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get etag => $composableBuilder(
+    column: $table.etag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get version => $composableBuilder(
+    column: $table.version,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SavedFiltersTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SavedFiltersTable> {
+  $$SavedFiltersTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get color =>
+      $composableBuilder(column: $table.color, builder: (column) => column);
+
+  GeneratedColumn<String> get conditions => $composableBuilder(
+    column: $table.conditions,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get orderIndex => $composableBuilder(
+    column: $table.orderIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get pinned =>
+      $composableBuilder(column: $table.pinned, builder: (column) => column);
+
+  GeneratedColumn<String> get etag =>
+      $composableBuilder(column: $table.etag, builder: (column) => column);
+
+  GeneratedColumn<int> get version =>
+      $composableBuilder(column: $table.version, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get modifiedAt => $composableBuilder(
+    column: $table.modifiedAt,
+    builder: (column) => column,
+  );
+}
+
+class $$SavedFiltersTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SavedFiltersTable,
+          SavedFilterRow,
+          $$SavedFiltersTableFilterComposer,
+          $$SavedFiltersTableOrderingComposer,
+          $$SavedFiltersTableAnnotationComposer,
+          $$SavedFiltersTableCreateCompanionBuilder,
+          $$SavedFiltersTableUpdateCompanionBuilder,
+          (
+            SavedFilterRow,
+            BaseReferences<_$AppDatabase, $SavedFiltersTable, SavedFilterRow>,
+          ),
+          SavedFilterRow,
+          PrefetchHooks Function()
+        > {
+  $$SavedFiltersTableTableManager(_$AppDatabase db, $SavedFiltersTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SavedFiltersTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SavedFiltersTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SavedFiltersTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> syncId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<String> conditions = const Value.absent(),
+                Value<int> orderIndex = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<String> etag = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                Value<DateTime> modifiedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => SavedFiltersCompanion(
+                syncId: syncId,
+                name: name,
+                color: color,
+                conditions: conditions,
+                orderIndex: orderIndex,
+                pinned: pinned,
+                etag: etag,
+                version: version,
+                modifiedAt: modifiedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String syncId,
+                Value<String> name = const Value.absent(),
+                Value<String> color = const Value.absent(),
+                Value<String> conditions = const Value.absent(),
+                Value<int> orderIndex = const Value.absent(),
+                Value<bool> pinned = const Value.absent(),
+                Value<String> etag = const Value.absent(),
+                Value<int> version = const Value.absent(),
+                required DateTime modifiedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => SavedFiltersCompanion.insert(
+                syncId: syncId,
+                name: name,
+                color: color,
+                conditions: conditions,
+                orderIndex: orderIndex,
+                pinned: pinned,
+                etag: etag,
+                version: version,
+                modifiedAt: modifiedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SavedFiltersTable, SavedFilterRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $SavedFiltersTable,
+                    SavedFilterRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SavedFiltersTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SavedFiltersTable,
+      SavedFilterRow,
+      $$SavedFiltersTableFilterComposer,
+      $$SavedFiltersTableOrderingComposer,
+      $$SavedFiltersTableAnnotationComposer,
+      $$SavedFiltersTableCreateCompanionBuilder,
+      $$SavedFiltersTableUpdateCompanionBuilder,
+      (
+        SavedFilterRow,
+        BaseReferences<_$AppDatabase, $SavedFiltersTable, SavedFilterRow>,
+      ),
+      SavedFilterRow,
       PrefetchHooks Function()
     >;
 typedef $$OutboxTableCreateCompanionBuilder = OutboxCompanion Function({
@@ -13821,6 +14664,8 @@ class $AppDatabaseManager {
       $$TaskSectionsTableTableManager(_db, _db.taskSections);
   $$FoldersTableTableManager get folders =>
       $$FoldersTableTableManager(_db, _db.folders);
+  $$SavedFiltersTableTableManager get savedFilters =>
+      $$SavedFiltersTableTableManager(_db, _db.savedFilters);
   $$OutboxTableTableManager get outbox =>
       $$OutboxTableTableManager(_db, _db.outbox);
   $$ConflictsTableTableManager get conflicts =>

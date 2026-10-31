@@ -424,6 +424,117 @@ class TaskRepository {
     return changed;
   }
 
+  Future<SavedFilterItem> createFilter({
+    required String name,
+    required FilterConditions conditions,
+    String color = '',
+  }) async {
+    final value = name.trim();
+    if (value.isEmpty) throw const FormatException('筛选器名称不能为空');
+    var order = 0;
+    for (final item in store.filtersSnapshot()) {
+      if (item.sortOrder > order) order = item.sortOrder;
+    }
+    order += 1;
+    final filter = SavedFilterItem(
+      id: newSyncId(),
+      name: value,
+      color: color,
+      conditions: conditions,
+      sortOrder: order,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    await store.batch(() async {
+      await store.saveFilter(filter);
+      await store.saveOp(
+        opId: newSyncId(),
+        entity: 'filter',
+        entityId: filter.id,
+        action: 'create',
+        patch: {
+          'name': value,
+          'color': color,
+          'conditions': conditions.toJson(),
+          'order': order,
+          'pinned': false,
+        },
+      );
+    });
+    onLocalChange?.call();
+    return filter;
+  }
+
+  Future<void> updateFilter(
+    String id, {
+    String? name,
+    String? color,
+    FilterConditions? conditions,
+  }) async {
+    final filter = store.filter(id);
+    if (filter == null) return;
+    final patch = <String, dynamic>{};
+    var updated = filter;
+    if (name != null) {
+      final value = name.trim();
+      if (value.isEmpty) throw const FormatException('筛选器名称不能为空');
+      if (value != filter.name) {
+        patch['name'] = value;
+        updated = updated.copyWith(name: value);
+      }
+    }
+    if (color != null && color != filter.color) {
+      patch['color'] = color;
+      updated = updated.copyWith(color: color);
+    }
+    if (conditions != null) {
+      patch['conditions'] = conditions.toJson();
+      updated = updated.copyWith(conditions: conditions);
+    }
+    if (patch.isEmpty) return;
+    final now = DateTime.now().toUtc();
+    final existing = store.pendingOp('filter', id);
+    await store.batch(() async {
+      await store.saveFilter(updated.copyWith(updatedAt: now));
+      if (existing?.action == 'create') {
+        await store.replaceOp(
+          oldOpId: existing!.opId,
+          replacement: existing.copyWith(patch: {...existing.patch, ...patch}),
+        );
+      } else {
+        await store.saveOp(
+          opId: newSyncId(),
+          entity: 'filter',
+          entityId: id,
+          action: 'update',
+          patch: patch,
+          baseEtag: filter.etag,
+        );
+      }
+    });
+    onLocalChange?.call();
+  }
+
+  Future<void> deleteFilter(String id) async {
+    final filter = store.filter(id);
+    if (filter == null) return;
+    final existing = store.pendingOp('filter', id);
+    await store.batch(() async {
+      if (existing != null) await store.removeOp(existing.opId);
+      if (existing?.action != 'create') {
+        await store.saveOp(
+          opId: newSyncId(),
+          entity: 'filter',
+          entityId: id,
+          action: 'delete',
+          patch: const {},
+          baseEtag: filter.etag,
+        );
+      }
+      await store.hardDeleteFilter(id);
+    });
+    onLocalChange?.call();
+  }
+
   Future<void> moveTaskToList(String taskId, String listId) async {
     final task = store.task(taskId);
     if (task == null || task.listId == listId) return;

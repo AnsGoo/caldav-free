@@ -176,6 +176,7 @@ class LocalStore {
   final Map<String, TaskListItem> _lists = {};
   final Map<String, TaskSection> _sections = {};
   final Map<String, FolderItem> _folders = {};
+  final Map<String, SavedFilterItem> _filters = {};
   final Map<String, OutboxRecord> _outbox = {};
   final Map<String, ConflictRecord> _conflicts = {};
 
@@ -185,6 +186,7 @@ class LocalStore {
   final Set<String> _wLists = {};
   final Set<String> _wSections = {};
   final Set<String> _wFolders = {};
+  final Set<String> _wFilters = {};
   final Set<String> _wOutbox = {};
   final Set<String> _wConflicts = {};
   bool _wMeta = false;
@@ -336,6 +338,26 @@ class LocalStore {
 
   FolderItem? folder(String id) => _folders[id];
 
+  SavedFilterItem? filter(String id) => _filters[id];
+
+  List<SavedFilterItem> filtersSnapshot() {
+    final items = _filters.values.toList();
+    items.sort((a, b) {
+      if (a.pinned != b.pinned) return a.pinned ? -1 : 1;
+      final order = a.sortOrder.compareTo(b.sortOrder);
+      if (order != 0) return order;
+      return a.name.compareTo(b.name);
+    });
+    return items;
+  }
+
+  Stream<List<SavedFilterItem>> watchFilters() async* {
+    yield filtersSnapshot();
+    await for (final _ in _changes.stream) {
+      yield filtersSnapshot();
+    }
+  }
+
   TaskSection? section(String id) => _sections[id];
 
   List<TaskSection> sectionsSnapshot({String? listId}) {
@@ -432,6 +454,20 @@ class LocalStore {
     return _mutate(() {
       _folders[folder.id] = folder;
       _wFolders.add(folder.id);
+    });
+  }
+
+  Future<void> saveFilter(SavedFilterItem filter) {
+    return _mutate(() {
+      _filters[filter.id] = filter;
+      _wFilters.add(filter.id);
+    });
+  }
+
+  Future<void> hardDeleteFilter(String id) {
+    return _mutate(() {
+      _filters.remove(id);
+      _wFilters.add(id);
     });
   }
 
@@ -590,6 +626,7 @@ class LocalStore {
       _lists.clear();
       _sections.clear();
       _folders.clear();
+      _filters.clear();
       _outbox.clear();
       _conflicts.clear();
       _cursor = '0';
@@ -598,6 +635,7 @@ class LocalStore {
       _wLists.clear();
       _wSections.clear();
       _wFolders.clear();
+      _wFilters.clear();
       _wOutbox.clear();
       _wConflicts.clear();
       _sidebarTags = null;
@@ -655,6 +693,9 @@ class LocalStore {
     }
     for (final row in await db.select(db.folders).get()) {
       _folders[row.syncId] = row.toModel();
+    }
+    for (final row in await db.select(db.savedFilters).get()) {
+      _filters[row.syncId] = row.toModel();
     }
     for (final row in await db.select(db.outbox).get()) {
       _outbox[row.opId] = _outboxFrom(row);
@@ -738,6 +779,7 @@ class LocalStore {
     _wLists.addAll(_lists.keys);
     _wSections.addAll(_sections.keys);
     _wFolders.addAll(_folders.keys);
+    _wFilters.addAll(_filters.keys);
     _wOutbox.addAll(_outbox.keys);
     _wConflicts.addAll(_conflicts.keys);
     _wMeta = true;
@@ -754,6 +796,7 @@ class LocalStore {
       _lists.isNotEmpty ||
       _sections.isNotEmpty ||
       _folders.isNotEmpty ||
+      _filters.isNotEmpty ||
       _outbox.isNotEmpty ||
       _conflicts.isNotEmpty ||
       _cursor != '0';
@@ -856,6 +899,7 @@ class LocalStore {
     final listIds = _wLists.toList();
     final sectionIds = _wSections.toList();
     final folderIds = _wFolders.toList();
+    final filterIds = _wFilters.toList();
     final opIds = _wOutbox.toList();
     final conflictKeys = _wConflicts.toList();
     final writeMeta = _wMeta;
@@ -864,6 +908,7 @@ class LocalStore {
     _wLists.clear();
     _wSections.clear();
     _wFolders.clear();
+    _wFilters.clear();
     _wOutbox.clear();
     _wConflicts.clear();
     _wMeta = false;
@@ -873,6 +918,7 @@ class LocalStore {
         listIds.isEmpty &&
         sectionIds.isEmpty &&
         folderIds.isEmpty &&
+        filterIds.isEmpty &&
         opIds.isEmpty &&
         conflictKeys.isEmpty) {
       return;
@@ -883,6 +929,7 @@ class LocalStore {
         await db.delete(db.taskLists).go();
         await db.delete(db.taskSections).go();
         await db.delete(db.folders).go();
+        await db.delete(db.savedFilters).go();
         await db.delete(db.outbox).go();
         await db.delete(db.conflicts).go();
         await db.delete(db.meta).go();
@@ -937,6 +984,19 @@ class LocalStore {
         final row = item.toRow();
         await db
             .into(db.folders)
+            .insert(row, onConflict: DoUpdate((_) => row));
+      }
+      for (final id in filterIds) {
+        final item = _filters[id];
+        if (item == null) {
+          await (db.delete(db.savedFilters)
+                ..where((row) => row.syncId.equals(id)))
+              .go();
+          continue;
+        }
+        final row = item.toRow();
+        await db
+            .into(db.savedFilters)
             .insert(row, onConflict: DoUpdate((_) => row));
       }
       for (final id in opIds) {

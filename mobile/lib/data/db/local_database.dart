@@ -162,6 +162,31 @@ class Folders extends Table {
   Set<Column> get primaryKey => {syncId};
 }
 
+@DataClassName('SavedFilterRow')
+class SavedFilters extends Table {
+  TextColumn get syncId => text().named('sync_id')();
+
+  TextColumn get name => text().withDefault(const Constant(''))();
+
+  TextColumn get color => text().withDefault(const Constant(''))();
+
+  TextColumn get conditions => text().withDefault(const Constant('{}'))();
+
+  IntColumn get orderIndex =>
+      integer().named('order_index').withDefault(const Constant(0))();
+
+  BoolColumn get pinned => boolean().withDefault(const Constant(false))();
+
+  TextColumn get etag => text().withDefault(const Constant(''))();
+
+  IntColumn get version => integer().withDefault(const Constant(0))();
+
+  DateTimeColumn get modifiedAt => dateTime().named('modified_at')();
+
+  @override
+  Set<Column> get primaryKey => {syncId};
+}
+
 /// Client push journal, one row per queued operation (server `SyncOp`).
 @TableIndex(name: 'idx_outbox_entity', columns: {#entity, #entityId})
 @TableIndex(name: 'idx_outbox_next_try', columns: {#nextTryAt})
@@ -508,6 +533,7 @@ const String focusStatsKey = 'focus_stats';
     TaskLists,
     TaskSections,
     Folders,
+    SavedFilters,
     Outbox,
     Conflicts,
     HabitOutbox,
@@ -529,7 +555,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.memory() : super(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -553,6 +579,10 @@ class AppDatabase extends _$AppDatabase {
         await migrator.addColumn(habits, habits.recordEnable);
         await migrator.addColumn(habits, habits.exDates);
         await migrator.addColumn(habits, habits.style);
+      }
+      if (from < 6) {
+        // v6: saved task filters shared with the web sidebar.
+        await migrator.createTable(savedFilters);
       }
       if (from < 5) {
         // v5: countdown form fields shared with the web editor.
@@ -797,6 +827,45 @@ extension FolderDbRow on FolderItem {
     version: version,
     modifiedAt: updatedAt,
   );
+}
+
+extension SavedFilterDbRow on SavedFilterItem {
+  SavedFilterRow toRow() => SavedFilterRow(
+    syncId: id,
+    name: name,
+    color: color,
+    conditions: jsonEncode(conditions.toJson()),
+    orderIndex: sortOrder,
+    pinned: pinned,
+    etag: etag,
+    version: version,
+    modifiedAt: updatedAt,
+  );
+}
+
+extension SavedFilterRowModel on SavedFilterRow {
+  SavedFilterItem toModel() {
+    Map<String, dynamic> decoded = const {};
+    try {
+      final value = jsonDecode(conditions);
+      if (value is Map) {
+        decoded = value.map((key, item) => MapEntry(key.toString(), item));
+      }
+    } catch (_) {
+      // A malformed condition blob renders as an empty filter.
+    }
+    return SavedFilterItem(
+      id: syncId,
+      name: name,
+      color: color,
+      conditions: FilterConditions.fromJson(decoded),
+      sortOrder: orderIndex,
+      pinned: pinned,
+      etag: etag,
+      version: version,
+      updatedAt: modifiedAt,
+    );
+  }
 }
 
 extension FolderRowModel on FolderRow {

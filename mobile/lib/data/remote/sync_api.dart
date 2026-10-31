@@ -12,6 +12,7 @@ class PullPage {
     required this.lists,
     required this.sections,
     required this.folders,
+    required this.filters,
     required this.tombstones,
   });
 
@@ -21,6 +22,7 @@ class PullPage {
   final List<Map<String, dynamic>> lists;
   final List<Map<String, dynamic>> sections;
   final List<Map<String, dynamic>> folders;
+  final List<Map<String, dynamic>> filters;
   final List<Tombstone> tombstones;
 }
 
@@ -190,6 +192,7 @@ class HttpSyncApi implements SyncApi {
     final lists = _mapList(body['lists']);
     final sections = _mapList(body['sections']);
     final folders = _mapList(body['folders']);
+    final filters = _mapList(body['filters']);
     final tombstones = (body['tombstones'] as List<dynamic>? ?? const [])
         .whereType<Map<String, dynamic>>()
         .map(
@@ -207,6 +210,7 @@ class HttpSyncApi implements SyncApi {
       lists: lists,
       sections: sections,
       folders: folders,
+      filters: filters,
       tombstones: tombstones,
     );
   }

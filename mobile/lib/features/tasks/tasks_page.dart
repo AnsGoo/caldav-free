@@ -19,6 +19,58 @@ import 'matrix_view.dart';
 import 'timeline_view.dart';
 import 'trash_page.dart';
 
+bool _filterDateMatches(TaskItem task, FilterConditions conditions) {
+  final due = task.dueAt?.toLocal();
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  const day = Duration(days: 1);
+  bool within(DateTime start, DateTime end) =>
+      due != null && !due.isBefore(start) && due.isBefore(end);
+  switch (conditions.date) {
+    case 'today':
+      return within(today, today.add(day));
+    case 'tomorrow':
+      final start = today.add(day);
+      return within(start, start.add(day));
+    case 'next7':
+      return within(today, today.add(const Duration(days: 7)));
+    case 'overdue':
+      return due != null && due.isBefore(today) && !task.completed;
+    case 'none':
+      return due == null;
+    case 'yesterday':
+      return within(today.subtract(day), today);
+    case 'thisWeek':
+      final start = today.subtract(Duration(days: today.weekday - 1));
+      return within(start, start.add(const Duration(days: 7)));
+    case 'lastWeek':
+      final start = today
+          .subtract(Duration(days: today.weekday - 1))
+          .subtract(const Duration(days: 7));
+      return within(start, start.add(const Duration(days: 7)));
+    case 'thisMonth':
+      final start = DateTime(today.year, today.month, 1);
+      return within(start, DateTime(today.year, today.month + 1, 1));
+    case 'lastMonth':
+      final start = DateTime(today.year, today.month - 1, 1);
+      return within(start, DateTime(today.year, today.month, 1));
+    case 'range':
+      final from = DateTime.tryParse(conditions.dateFrom)?.toLocal();
+      final to = DateTime.tryParse(conditions.dateTo)?.toLocal();
+      if (from != null) {
+        final start = DateTime(from.year, from.month, from.day);
+        if (due == null || due.isBefore(start)) return false;
+      }
+      if (to != null) {
+        final end = DateTime(to.year, to.month, to.day).add(day);
+        if (due == null || !due.isBefore(end)) return false;
+      }
+      return true;
+    default:
+      return true;
+  }
+}
+
 enum _TaskLayout { list, board, matrix, timeline }
 
 class TasksPage extends StatefulWidget {
@@ -43,6 +95,7 @@ class _TasksPageState extends State<TasksPage> {
   bool _searching = false;
   String _query = '';
   String? _selectedTag;
+  String? _activeFilterId;
   String _view = 'all';
   _TaskLayout _layout = _TaskLayout.list;
   TimelineScale _timelineScale = TimelineScale.day;
@@ -152,7 +205,10 @@ class _TasksPageState extends State<TasksPage> {
   }
 
   void _selectTag(String tag) {
-    setState(() => _selectedTag = _selectedTag == tag ? null : tag);
+    setState(() {
+      _activeFilterId = null;
+      _selectedTag = _selectedTag == tag ? null : tag;
+    });
   }
 
   void _renameTagSelection(String from, String to) {
@@ -165,8 +221,110 @@ class _TasksPageState extends State<TasksPage> {
     setState(() => _selectedTag = null);
   }
 
+  void _applyFilter(String? id) {
+    setState(() {
+      _activeFilterId = id;
+      if (id != null) {
+        _selectedListId = null;
+        _view = 'all';
+        _completed = false;
+        _selectedTag = null;
+        _manualSort = false;
+        _layout = _TaskLayout.list;
+        _selecting = false;
+        _selectedIds.clear();
+      }
+    });
+    _subscribeTasks();
+  }
+
+  void _selectFilter(String id) {
+    _applyFilter(_activeFilterId == id ? null : id);
+  }
+
+  List<String> _filterTagOptions() {
+    final tags = <String>{};
+    for (final task in context.read<AppState>().store.allTasks()) {
+      if (task.deleted) continue;
+      for (final tag in task.tags) {
+        final value = tag.trim();
+        if (value.isNotEmpty) tags.add(value);
+      }
+    }
+    return tags.toList()..sort();
+  }
+
+  Future<void> _createFilter() async {
+    final draft = await showDialog<_FilterDraft>(
+      context: context,
+      builder: (_) =>
+          _FilterEditorDialog(lists: _lists, tags: _filterTagOptions()),
+    );
+    if (draft == null || !mounted) return;
+    try {
+      final filter = await context.read<AppState>().repository.createFilter(
+        name: draft.name,
+        conditions: draft.conditions,
+      );
+      if (!mounted) return;
+      _applyFilter(filter.id);
+    } catch (error) {
+      if (mounted) _snack('新建筛选器失败：$error');
+    }
+  }
+
+  Future<void> _editFilter(SavedFilterItem filter) async {
+    final draft = await showDialog<_FilterDraft>(
+      context: context,
+      builder: (_) => _FilterEditorDialog(
+        initial: filter,
+        lists: _lists,
+        tags: _filterTagOptions(),
+      ),
+    );
+    if (draft == null || !mounted) return;
+    try {
+      await context.read<AppState>().repository.updateFilter(
+        filter.id,
+        name: draft.name,
+        conditions: draft.conditions,
+      );
+    } catch (error) {
+      if (mounted) _snack('保存筛选器失败：$error');
+    }
+  }
+
+  Future<void> _deleteFilter(SavedFilterItem filter) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('删除筛选器「${filter.name}」？'),
+        content: const Text('只会删除这个筛选条件，任务不会受到影响。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await context.read<AppState>().repository.deleteFilter(filter.id);
+      if (!mounted) return;
+      if (_activeFilterId == filter.id) _applyFilter(null);
+    } catch (error) {
+      if (mounted) _snack('删除筛选器失败：$error');
+    }
+  }
+
   void _selectListScope(String? listId) {
     setState(() {
+      _activeFilterId = null;
       _selectedListId = listId;
       _view = 'all';
       _completed = false;
@@ -177,6 +335,7 @@ class _TasksPageState extends State<TasksPage> {
 
   void _selectViewScope(String view) {
     setState(() {
+      _activeFilterId = null;
       _selectedListId = null;
       _view = view;
       _completed = false;
@@ -188,6 +347,7 @@ class _TasksPageState extends State<TasksPage> {
   void _selectCompletedScope() {
     setState(() {
       // Completed is a list-layout scope, mirroring _setLayout's reset.
+      _activeFilterId = null;
       _layout = _TaskLayout.list;
       _selectedListId = null;
       _view = 'all';
@@ -574,7 +734,10 @@ class _TasksPageState extends State<TasksPage> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final selected = _selectedList;
-    final title = _completed
+    final activeFilter = _activeFilter;
+    final title = activeFilter != null
+        ? activeFilter.name
+        : _completed
         ? '已完成'
         : (selected?.name ??
               (_view == 'today'
@@ -583,7 +746,7 @@ class _TasksPageState extends State<TasksPage> {
                   ? '最近 7 天'
                   : '任务'));
     final listsById = {for (final list in _lists) list.id: list};
-    final visible = _filteredTasks;
+    final visible = activeFilter != null ? _filterTasks : _filteredTasks;
     final completedCount = app.store.tasksSnapshot(completed: true).length;
     final trashCount = app.store.trashSnapshot().length;
     final wide = isWideLayout(context);
@@ -653,6 +816,7 @@ class _TasksPageState extends State<TasksPage> {
                     setState(() {
                       _layout = _TaskLayout.list;
                       _searching = true;
+                      _activeFilterId = null;
                       _selectedListId = null;
                       _view = 'all';
                       _completed = false;
@@ -696,6 +860,12 @@ class _TasksPageState extends State<TasksPage> {
               onTagSelected: _selectTag,
               onTagRenamed: _renameTagSelection,
               onTagDeleted: _clearTagSelection,
+              filters: app.store.filtersSnapshot(),
+              activeFilterId: _activeFilterId,
+              onFilterSelected: _selectFilter,
+              onCreateFilter: _createFilter,
+              onEditFilter: _editFilter,
+              onDeleteFilter: _deleteFilter,
             ),
           Expanded(
             child: Column(
@@ -753,6 +923,7 @@ class _TasksPageState extends State<TasksPage> {
                                         searching:
                                             _searching && _query.isNotEmpty,
                                         tag: _selectedTag,
+                                        filtering: _activeFilter != null,
                                       ),
                                     ),
                                   ),
@@ -845,7 +1016,9 @@ class _TasksPageState extends State<TasksPage> {
                           : BoardView(
                               list: _selectedList,
                               lists: _lists,
-                              tasks: _taggedTasks,
+                              tasks: _activeFilter != null
+                                  ? _filterTasks
+                                  : _taggedTasks,
                               manualSort: _manualSort,
                               onOpenTask: (task) =>
                                   _openEditor(task, listsById[task.listId]),
@@ -858,7 +1031,9 @@ class _TasksPageState extends State<TasksPage> {
                     child: SafeArea(
                       top: false,
                       child: MatrixView(
-                        tasks: _taggedTasks,
+                        tasks: _activeFilter != null
+                            ? _filterTasks
+                            : _taggedTasks,
                         lists: _lists,
                         groupByList: _selectedListId == null,
                         onOpenTask: (task) =>
@@ -880,7 +1055,9 @@ class _TasksPageState extends State<TasksPage> {
                     child: SafeArea(
                       top: false,
                       child: TimelineView(
-                        tasks: _taggedTasks,
+                        tasks: _activeFilter != null
+                            ? _filterTasks
+                            : _taggedTasks,
                         scale: _timelineScale,
                         anchor: _timelineAnchor,
                         onOpenTask: (task) =>
@@ -918,9 +1095,54 @@ class _TasksPageState extends State<TasksPage> {
         .toList(growable: false);
   }
 
-  List<TaskItem> get _filteredTasks {
+  SavedFilterItem? get _activeFilter {
+    final id = _activeFilterId;
+    if (id == null) return null;
+    return context.read<AppState>().store.filter(id);
+  }
+
+  /// Rows matching the selected saved filter, mirroring the web's conditions.
+  List<TaskItem> get _filterTasks {
+    final filter = _activeFilter;
+    if (filter == null) return const [];
+    final conditions = filter.conditions;
+    final store = context.read<AppState>().store;
+    final open = store.tasksSnapshot(completed: false);
+    final done = store.tasksSnapshot(completed: true);
+    final base = switch (conditions.status) {
+      'completed' => done,
+      'all' => [...open, ...done],
+      _ => open,
+    };
+    final keyword = conditions.keyword.trim().toLowerCase();
+    final matches = base.where((task) {
+      if (keyword.isNotEmpty) {
+        final haystack = '${task.title}\n${task.notes}'.toLowerCase();
+        if (!haystack.contains(keyword)) return false;
+      }
+      if (conditions.priorities.isNotEmpty &&
+          !conditions.priorities.contains(task.priority)) {
+        return false;
+      }
+      // Web filters store integer list ids that this client cannot resolve;
+      // only the sync-id list selection is applied here.
+      if (conditions.syncListIds.isNotEmpty &&
+          !conditions.syncListIds.contains(task.listId)) {
+        return false;
+      }
+      if (conditions.tags.isNotEmpty) {
+        final matched = conditions.tagMode == 'all'
+            ? conditions.tags.every(task.tags.contains)
+            : conditions.tags.any(task.tags.contains);
+        if (!matched) return false;
+      }
+      return _filterDateMatches(task, conditions);
+    }).toList(growable: false);
+    return _searchTasks(matches);
+  }
+
+  List<TaskItem> _searchTasks(List<TaskItem> tasks) {
     final query = _query;
-    final tasks = _taggedTasks;
     if (query.isEmpty) return tasks;
     return tasks
         .where((task) {
@@ -935,6 +1157,8 @@ class _TasksPageState extends State<TasksPage> {
         })
         .toList(growable: false);
   }
+
+  List<TaskItem> get _filteredTasks => _searchTasks(_taggedTasks);
 
   void _closeSearch() {
     _search.clear();
@@ -1528,6 +1752,12 @@ class _ListPane extends StatefulWidget {
     required this.onTagSelected,
     required this.onTagRenamed,
     required this.onTagDeleted,
+    required this.filters,
+    required this.activeFilterId,
+    required this.onFilterSelected,
+    required this.onCreateFilter,
+    required this.onEditFilter,
+    required this.onDeleteFilter,
   });
 
   final List<TaskListItem> lists;
@@ -1544,6 +1774,12 @@ class _ListPane extends StatefulWidget {
   final ValueChanged<String> onTagSelected;
   final void Function(String from, String to) onTagRenamed;
   final ValueChanged<String> onTagDeleted;
+  final List<SavedFilterItem> filters;
+  final String? activeFilterId;
+  final ValueChanged<String> onFilterSelected;
+  final VoidCallback onCreateFilter;
+  final ValueChanged<SavedFilterItem> onEditFilter;
+  final ValueChanged<SavedFilterItem> onDeleteFilter;
 
   @override
   State<_ListPane> createState() => _ListPaneState();
@@ -1764,6 +2000,33 @@ class _ListPaneState extends State<_ListPane> {
                 ))
                   _listRow(context, store, list),
               ],
+              _PaneSectionHeader(
+                title: '过滤器',
+                action: _PaneAction(
+                  icon: Icons.add_rounded,
+                  tooltip: '新建筛选器',
+                  onTap: widget.onCreateFilter,
+                ),
+              ),
+              if (widget.filters.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                  child: Text(
+                    '按清单、优先级、标签与日期组合筛选',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              else
+                for (final filter in widget.filters)
+                  _PaneFilterRow(
+                    filter: filter,
+                    selected: filter.id == widget.activeFilterId,
+                    onTap: () => widget.onFilterSelected(filter.id),
+                    onEdit: () => widget.onEditFilter(filter),
+                    onDelete: () => widget.onDeleteFilter(filter),
+                  ),
               _PaneSectionHeader(
                 title: '标签',
                 action: _PaneAction(
@@ -2005,6 +2268,88 @@ class _PaneListRowState extends State<_PaneListRow> {
                             ?.copyWith(color: foreground),
                       ),
                     ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Saved filter row with hover actions, styled like list rows.
+class _PaneFilterRow extends StatefulWidget {
+  const _PaneFilterRow({
+    required this.filter,
+    required this.selected,
+    required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final SavedFilterItem filter;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  State<_PaneFilterRow> createState() => _PaneFilterRowState();
+}
+
+class _PaneFilterRowState extends State<_PaneFilterRow> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = widget.selected
+        ? scheme.primary
+        : scheme.onSurfaceVariant;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Material(
+        color: widget.selected ? scheme.primaryContainer : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: widget.onTap,
+          child: SizedBox(
+            height: 40,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12, right: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.filter_alt_outlined, size: 15, color: foreground),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      widget.filter.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: foreground,
+                        fontWeight: widget.selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  if (_hovering || widget.selected) ...[
+                    _PaneAction(
+                      icon: Icons.edit_outlined,
+                      tooltip: '编辑筛选器',
+                      onTap: widget.onEdit,
+                    ),
+                    _PaneAction(
+                      icon: Icons.delete_outline_rounded,
+                      tooltip: '删除筛选器',
+                      onTap: widget.onDelete,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -2727,31 +3072,35 @@ class _EmptyState extends StatelessWidget {
     required this.hasLists,
     required this.searching,
     this.tag,
+    this.filtering = false,
   });
 
   final bool completed;
   final bool hasLists;
   final bool searching;
   final String? tag;
+  final bool filtering;
 
   @override
   Widget build(BuildContext context) {
     final tag = this.tag;
     return AppEmptyState(
-      icon: searching
+      icon: searching || filtering
           ? Icons.search_off_rounded
           : tag != null
           ? Icons.tag_rounded
           : completed
           ? Icons.task_alt_rounded
           : Icons.checklist_rounded,
-      title: searching
+      title: searching || filtering
           ? '没有匹配的任务'
           : tag != null
           ? '还没有带 #$tag 标签的任务'
           : (completed ? '还没有已完成任务' : '这里还没有任务'),
       message: searching
           ? '试试标题、备注、标签或子任务里的关键词'
+          : filtering
+          ? '调整筛选器条件，或取消侧栏中选中的筛选器'
           : tag != null
           ? '点击侧栏里已选中的标签可以取消筛选'
           : (completed
@@ -3776,6 +4125,351 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
         color: theme.colorScheme.onSurfaceVariant,
         fontWeight: FontWeight.w600,
       ),
+    );
+  }
+}
+
+class _FilterDraft {
+  const _FilterDraft({required this.name, required this.conditions});
+
+  final String name;
+  final FilterConditions conditions;
+}
+
+String _filterDayKey(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-'
+    '${date.month.toString().padLeft(2, '0')}-'
+    '${date.day.toString().padLeft(2, '0')}';
+
+class _FilterEditorDialog extends StatefulWidget {
+  const _FilterEditorDialog({
+    required this.lists,
+    required this.tags,
+    this.initial,
+  });
+
+  final List<TaskListItem> lists;
+  final List<String> tags;
+  final SavedFilterItem? initial;
+
+  @override
+  State<_FilterEditorDialog> createState() => _FilterEditorDialogState();
+}
+
+class _FilterEditorDialogState extends State<_FilterEditorDialog> {
+  static const _dateOptions = <String, String>{
+    'any': '不限',
+    'today': '今天',
+    'tomorrow': '明天',
+    'next7': '最近 7 天',
+    'overdue': '已逾期',
+    'none': '无日期',
+    'yesterday': '昨天',
+    'thisWeek': '本周',
+    'lastWeek': '上周',
+    'thisMonth': '本月',
+    'lastMonth': '上月',
+    'range': '时间段',
+  };
+
+  late final TextEditingController _name = TextEditingController(
+    text: widget.initial?.name ?? '',
+  );
+  late final TextEditingController _keyword = TextEditingController(
+    text: widget.initial?.conditions.keyword ?? '',
+  );
+  late String _status = widget.initial?.conditions.status ?? 'open';
+  late String _date = widget.initial?.conditions.date ?? 'any';
+  late String _tagMode = widget.initial?.conditions.tagMode ?? 'any';
+  late final Set<String> _listIds = {
+    ...?widget.initial?.conditions.syncListIds,
+  };
+  late final Set<String> _tags = {...?widget.initial?.conditions.tags};
+  late final Set<int> _priorities = {
+    ...?widget.initial?.conditions.priorities,
+  };
+  late DateTime? _dateFrom = DateTime.tryParse(
+    widget.initial?.conditions.dateFrom ?? '',
+  );
+  late DateTime? _dateTo = DateTime.tryParse(
+    widget.initial?.conditions.dateTo ?? '',
+  );
+  String? _error;
+
+  bool get _editing => widget.initial != null;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _keyword.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate({required bool from}) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: (from ? _dateFrom : _dateTo) ?? now,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 10),
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (from) {
+        _dateFrom = picked;
+      } else {
+        _dateTo = picked;
+      }
+    });
+  }
+
+  void _submit() {
+    final name = _name.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = '请输入筛选器名称');
+      return;
+    }
+    Navigator.of(context).pop(
+      _FilterDraft(
+        name: name,
+        conditions: FilterConditions(
+          syncListIds: _listIds.toList(growable: false),
+          tags: _tags.toList(growable: false),
+          tagMode: _tagMode,
+          priorities: _priorities.toList()..sort(),
+          status: _status,
+          date: _date,
+          dateFrom: _dateFrom == null ? '' : _filterDayKey(_dateFrom!),
+          dateTo: _dateTo == null ? '' : _filterDayKey(_dateTo!),
+          keyword: _keyword.text.trim(),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _chip({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onTap(),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      labelStyle: const TextStyle(fontSize: 12),
+      showCheckmark: false,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(_editing ? '编辑筛选器' : '新建筛选器'),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _label('名称'),
+              TextField(
+                controller: _name,
+                autofocus: !_editing,
+                maxLength: 40,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText: '例如：本周高优先级',
+                  counterText: '',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 10),
+              _label('关键词'),
+              TextField(
+                controller: _keyword,
+                maxLength: 100,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText: '标题或备注包含',
+                  counterText: '',
+                ),
+              ),
+              const SizedBox(height: 10),
+              _label('状态'),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final entry in const {
+                    'open': '未完成',
+                    'completed': '已完成',
+                    'all': '全部',
+                  }.entries)
+                    _chip(
+                      label: entry.value,
+                      selected: _status == entry.key,
+                      onTap: () => setState(() => _status = entry.key),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _label('优先级'),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final entry in const {
+                    3: '高',
+                    2: '中',
+                    1: '低',
+                    0: '无',
+                  }.entries)
+                    _chip(
+                      label: entry.value,
+                      selected: _priorities.contains(entry.key),
+                      onTap: () => setState(() {
+                        if (!_priorities.remove(entry.key)) {
+                          _priorities.add(entry.key);
+                        }
+                      }),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _label('日期'),
+              DropdownButtonFormField<String>(
+                initialValue: _date,
+                isDense: true,
+                decoration: const InputDecoration(isDense: true),
+                items: [
+                  for (final entry in _dateOptions.entries)
+                    DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+                ],
+                onChanged: (value) => setState(() => _date = value ?? 'any'),
+              ),
+              if (_date == 'range') ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _pickDate(from: true),
+                        child: Text(
+                          _dateFrom == null ? '开始日期' : _filterDayKey(_dateFrom!),
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => _pickDate(from: false),
+                        child: Text(
+                          _dateTo == null ? '结束日期' : _filterDayKey(_dateTo!),
+                          style: const TextStyle(fontSize: 12),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              if (widget.lists.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _label('清单'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final list in widget.lists)
+                      _chip(
+                        label: list.name,
+                        selected: _listIds.contains(list.id),
+                        onTap: () => setState(() {
+                          if (!_listIds.remove(list.id)) _listIds.add(list.id);
+                        }),
+                      ),
+                  ],
+                ),
+              ],
+              if (widget.tags.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _label('标签'),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final tag in widget.tags)
+                      _chip(
+                        label: '# $tag',
+                        selected: _tags.contains(tag),
+                        onTap: () => setState(() {
+                          if (!_tags.remove(tag)) _tags.add(tag);
+                        }),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      '标签匹配',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _chip(
+                      label: '任一',
+                      selected: _tagMode == 'any',
+                      onTap: () => setState(() => _tagMode = 'any'),
+                    ),
+                    const SizedBox(width: 6),
+                    _chip(
+                      label: '全部',
+                      selected: _tagMode == 'all',
+                      onTap: () => setState(() => _tagMode = 'all'),
+                    ),
+                  ],
+                ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _error!,
+                  style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: Text(_editing ? '保存' : '创建'),
+        ),
+      ],
     );
   }
 }

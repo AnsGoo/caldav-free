@@ -158,6 +158,10 @@ class SyncEngine {
         await _mergeRemoteFolder(json);
         pulled++;
       }
+      for (final json in page.filters) {
+        await _mergeRemoteFilter(json);
+        pulled++;
+      }
       for (final tombstone in page.tombstones) {
         await _applyTombstone(tombstone);
         pulled++;
@@ -249,6 +253,23 @@ class SyncEngine {
     await store.saveFolder(FolderItem.fromWireJson(merged));
   }
 
+  Future<void> _mergeRemoteFilter(Map<String, dynamic> json) async {
+    final remote = SavedFilterItem.fromWireJson(json);
+    if (remote.id.isEmpty) return;
+    final local = store.filter(remote.id);
+    final op = store.pendingOp('filter', remote.id);
+    if (local == null || op == null) {
+      await store.saveFilter(remote);
+      return;
+    }
+    final merged = mergeListMaps(
+      local: local.toWireJson(),
+      remote: remote.toWireJson(),
+      localFields: op.patch.keys.toSet(),
+    );
+    await store.saveFilter(SavedFilterItem.fromWireJson(merged));
+  }
+
   Future<void> _mergeRemoteList(Map<String, dynamic> json) async {
     final remote = TaskListItem.fromWireJson(json);
     if (remote.id.isEmpty) return;
@@ -305,8 +326,10 @@ class SyncEngine {
         await store.clearConflict('folder', tombstone.id);
         await store.hardDeleteFolder(tombstone.id);
         break;
-      default:
-        // Filters are not editable in the mobile client yet.
+      case 'filter':
+        await store.removeOpsForEntity('filter', tombstone.id);
+        await store.clearConflict('filter', tombstone.id);
+        await store.hardDeleteFilter(tombstone.id);
         break;
     }
   }
@@ -386,6 +409,8 @@ class SyncEngine {
             await store.hardDeleteSection(op.entityId);
           } else if (op.entity == 'folder') {
             await store.hardDeleteFolder(op.entityId);
+          } else if (op.entity == 'filter') {
+            await store.hardDeleteFilter(op.entityId);
           }
           break;
         default:
@@ -456,6 +481,14 @@ class SyncEngine {
         await store.hardDeleteFolder(op.entityId);
       } else if (result.entityJson != null) {
         await store.saveFolder(FolderItem.fromWireJson(result.entityJson!));
+      }
+      return;
+    }
+    if (op.entity == 'filter') {
+      if (op.action == 'delete') {
+        await store.hardDeleteFilter(op.entityId);
+      } else if (result.entityJson != null) {
+        await store.saveFilter(SavedFilterItem.fromWireJson(result.entityJson!));
       }
     }
   }
@@ -573,6 +606,31 @@ class SyncEngine {
         opId: newSyncId(),
         action: 'update',
         patch: retryPatch,
+        baseEtag: result.etag ?? '',
+        attempts: 0,
+        nextTryAt: now,
+      );
+      await store.replaceOp(oldOpId: op.opId, replacement: replacement);
+      return;
+    }
+
+    if (op.entity == 'filter') {
+      final local = store.filter(op.entityId);
+      if (local == null) {
+        await store.removeOp(op.opId);
+        return;
+      }
+      final merged = mergeListMaps(
+        local: local.toWireJson(),
+        remote: remoteJson,
+        localFields: op.patch.keys.toSet(),
+      );
+      final item = SavedFilterItem.fromWireJson(merged);
+      await store.saveFilter(item);
+      final replacement = op.copyWith(
+        opId: newSyncId(),
+        action: 'update',
+        patch: {for (final key in op.patch.keys) key: item.toWireJson()[key]},
         baseEtag: result.etag ?? '',
         attempts: 0,
         nextTryAt: now,

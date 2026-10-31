@@ -1064,6 +1064,82 @@ void main() {
     expect(find.text('# 项目'), findsOneWidget);
   });
 
+  testWidgets('the sidebar creates a saved filter and applies it', (
+    tester,
+  ) async {
+    tester.view
+      ..devicePixelRatio = 1
+      ..physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.reset);
+    final store = LocalStore.memory();
+    final now = DateTime.now().toUtc();
+    await store.saveList(
+      TaskListItem(id: 'work-1', name: '工作', updatedAt: now),
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'high',
+        listId: 'work-1',
+        title: '高优先任务',
+        priority: 3,
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    await store.saveTask(
+      TaskItem(
+        id: 'plain',
+        listId: 'work-1',
+        title: '普通任务',
+        updatedAt: now,
+      ),
+      dirty: false,
+    );
+    final app = AppState(
+      store: store,
+      credentials: MemoryCredentialsStore(),
+      repository: TaskRepository(store),
+    );
+    addTearDown(() async {
+      app.dispose();
+      await store.dispose();
+    });
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const MaterialApp(home: TasksPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('普通任务'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('新建筛选器'));
+    await tester.pumpAndSettle();
+    final dialog = find.byType(AlertDialog);
+    await tester.enterText(
+      find.descendant(of: dialog, matching: find.byType(TextField)).first,
+      '高优先',
+    );
+    await tester.tap(
+      find.descendant(of: dialog, matching: find.widgetWithText(FilterChip, '高')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('创建'));
+    await tester.pumpAndSettle();
+
+    expect(store.filtersSnapshot().single.name, '高优先');
+    expect(find.text('高优先任务'), findsOneWidget);
+    expect(find.text('普通任务'), findsNothing);
+
+    // Tapping the active filter again clears it.
+    await tester.tap(find.byTooltip('编辑筛选器'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑筛选器'), findsOneWidget);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('the mobile filter chips keep a compact highlight', (
     tester,
   ) async {

@@ -680,6 +680,7 @@ class _CalendarPageState extends State<CalendarPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 640),
       builder: (context) => _EventEditorSheet(
         calendars: sources,
         initialCalendarId: sources.first.id,
@@ -698,6 +699,8 @@ class _CalendarPageState extends State<CalendarPage> {
         location: draft.location,
         description: draft.description,
         reminders: draft.reminders,
+        rrule: draft.rrule,
+        attendees: draft.attendees,
       );
       await _load(showLoading: false);
     } catch (error) {
@@ -747,6 +750,7 @@ class _CalendarPageState extends State<CalendarPage> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
+      constraints: const BoxConstraints(maxWidth: 640),
       builder: (context) => _EventEditorSheet(
         calendars: sources,
         initialCalendarId: event.calendarId,
@@ -757,6 +761,8 @@ class _CalendarPageState extends State<CalendarPage> {
         initialEnd: event.end.toLocal(),
         initialAllDay: event.allDay,
         initialReminders: event.reminders,
+        initialRrule: event.rrule,
+        initialAttendees: event.attendees,
         lockCalendar: true,
         onDelete: () {
           Navigator.pop(context);
@@ -776,8 +782,8 @@ class _CalendarPageState extends State<CalendarPage> {
         location: draft.location,
         description: draft.description,
         reminders: draft.reminders,
-        rrule: event.rrule,
-        attendees: event.attendees,
+        rrule: draft.rrule,
+        attendees: draft.attendees,
         scope: scope == _EventScope.single ? 'single' : 'all',
         recurrenceId: scope == _EventScope.single ? event.recurrenceId : '',
       );
@@ -3118,6 +3124,8 @@ class _EventDraft {
     required this.location,
     required this.description,
     required this.reminders,
+    this.rrule = '',
+    this.attendees = const [],
   });
 
   final int calendarId;
@@ -3128,6 +3136,124 @@ class _EventDraft {
   final String location;
   final String description;
   final List<int> reminders;
+  final String rrule;
+  final List<String> attendees;
+}
+
+class _EventOption<T> {
+  const _EventOption(this.value, this.label);
+
+  final T value;
+  final String label;
+}
+
+class _EventSelect<T> extends StatelessWidget {
+  const _EventSelect({
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final T value;
+  final List<_EventOption<T>> options;
+  final ValueChanged<T> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final label = options
+        .firstWhere(
+          (option) => option.value == value,
+          orElse: () => options.first,
+        )
+        .label;
+    return Builder(
+      builder: (fieldContext) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _open(context, fieldContext),
+          borderRadius: BorderRadius.circular(12),
+          child: Ink(
+            decoration: BoxDecoration(
+              color:
+                  theme.inputDecorationTheme.fillColor ??
+                  scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 38),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 20,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open(BuildContext context, BuildContext fieldContext) async {
+    final overlay = Overlay.of(context).context.findRenderObject();
+    final box = fieldContext.findRenderObject();
+    if (overlay is! RenderBox || box is! RenderBox) return;
+    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final position = RelativeRect.fromRect(
+      Rect.fromLTWH(origin.dx, origin.dy + box.size.height, box.size.width, 0),
+      Offset.zero & overlay.size,
+    );
+    final scheme = Theme.of(context).colorScheme;
+    final selected = await showMenu<T>(
+      context: context,
+      position: position,
+      color: scheme.surface,
+      surfaceTintColor: Colors.transparent,
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+      items: [
+        for (final option in options)
+          PopupMenuItem<T>(
+            value: option.value,
+            height: 42,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    option.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (option.value == value)
+                  Icon(Icons.check_rounded, size: 18, color: scheme.primary),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (selected != null) onChanged(selected);
+  }
 }
 
 class _EventEditorSheet extends StatefulWidget {
@@ -3141,6 +3267,8 @@ class _EventEditorSheet extends StatefulWidget {
     this.initialDescription = '',
     this.initialAllDay = false,
     this.initialReminders = const [],
+    this.initialRrule = '',
+    this.initialAttendees = const [],
     this.lockCalendar = false,
     this.onDelete,
   });
@@ -3154,6 +3282,8 @@ class _EventEditorSheet extends StatefulWidget {
   final String initialDescription;
   final bool initialAllDay;
   final List<int> initialReminders;
+  final String initialRrule;
+  final List<String> initialAttendees;
   final bool lockCalendar;
   final VoidCallback? onDelete;
 
@@ -3162,14 +3292,34 @@ class _EventEditorSheet extends StatefulWidget {
 }
 
 class _EventEditorSheetState extends State<_EventEditorSheet> {
+  static const _repeatOptions = [
+    _EventOption('NONE', '不重复'),
+    _EventOption('FREQ=DAILY', '每天'),
+    _EventOption('FREQ=WEEKLY', '每周'),
+    _EventOption('FREQ=MONTHLY', '每月'),
+    _EventOption('FREQ=YEARLY', '每年'),
+    _EventOption('custom', '自定义…'),
+  ];
+  static const _reminderOptions = [
+    _EventOption<int?>(null, '不提醒'),
+    _EventOption<int?>(0, '准时提醒'),
+    _EventOption<int?>(5, '提前 5 分钟'),
+    _EventOption<int?>(15, '提前 15 分钟'),
+    _EventOption<int?>(60, '提前 1 小时'),
+    _EventOption<int?>(1440, '提前 1 天'),
+  ];
+
   late final TextEditingController _summary;
   late final TextEditingController _location;
   late final TextEditingController _description;
+  late final TextEditingController _attendees;
+  late final TextEditingController _customRrule;
   late int _calendarId;
   late DateTime _start;
   late DateTime _end;
   late bool _allDay;
-  late List<int> _reminders;
+  late int? _reminder;
+  late String _repeatChoice;
 
   @override
   void initState() {
@@ -3177,6 +3327,9 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     _summary = TextEditingController(text: widget.initialSummary);
     _location = TextEditingController(text: widget.initialLocation);
     _description = TextEditingController(text: widget.initialDescription);
+    _attendees = TextEditingController(
+      text: widget.initialAttendees.join(', '),
+    );
     _calendarId = widget.initialCalendarId;
     _allDay = widget.initialAllDay;
     _start = _allDay
@@ -3187,7 +3340,18 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         ? _dateOnly(rawEnd.subtract(const Duration(days: 1)))
         : rawEnd;
     if (_end.isBefore(_start)) _end = _start;
-    _reminders = List<int>.of(widget.initialReminders);
+    _reminder = widget.initialReminders.isEmpty
+        ? null
+        : widget.initialReminders.first;
+    final rrule = widget.initialRrule.trim();
+    _repeatChoice = rrule.isEmpty
+        ? 'NONE'
+        : _repeatOptions.any((option) => option.value == rrule)
+        ? rrule
+        : 'custom';
+    _customRrule = TextEditingController(
+      text: _repeatChoice == 'custom' ? rrule : '',
+    );
   }
 
   @override
@@ -3195,6 +3359,8 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
     _summary.dispose();
     _location.dispose();
     _description.dispose();
+    _attendees.dispose();
+    _customRrule.dispose();
     super.dispose();
   }
 
@@ -3277,6 +3443,16 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
           .showSnackBar(const SnackBar(content: Text('结束时间需要晚于开始时间')));
       return;
     }
+    final rrule = _repeatChoice == 'NONE'
+        ? ''
+        : _repeatChoice == 'custom'
+        ? _customRrule.text.trim()
+        : _repeatChoice;
+    final attendees = _attendees.text
+        .split(',')
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
     Navigator.pop(
       context,
       _EventDraft(
@@ -3287,134 +3463,195 @@ class _EventEditorSheetState extends State<_EventEditorSheet> {
         allDay: _allDay,
         location: _location.text.trim(),
         description: _description.text.trim(),
-        reminders: _reminders,
+        reminders: _reminder == null ? const [] : [_reminder!],
+        rrule: rrule,
+        attendees: attendees,
       ),
     );
   }
 
+  Widget _sectionTitle(String title) => Padding(
+    padding: const EdgeInsets.only(top: 12, bottom: 4),
+    child: Text(
+      title,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        fontWeight: FontWeight.w700,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        bottom:
-            MediaQuery.viewInsetsOf(context).bottom +
-            MediaQuery.paddingOf(context).bottom +
-            16,
+    final scheme = theme.colorScheme;
+    final compact = theme.copyWith(
+      visualDensity: VisualDensity.compact,
+      inputDecorationTheme: theme.inputDecorationTheme.copyWith(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        labelStyle: theme.textTheme.bodyMedium?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
+        floatingLabelStyle: theme.textTheme.labelSmall?.copyWith(
+          color: scheme.onSurfaceVariant,
+        ),
       ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              widget.initialSummary.isEmpty ? '新建日程' : '编辑日程',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _summary,
-              autofocus: widget.initialSummary.isEmpty,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(labelText: '标题'),
-            ),
-            const SizedBox(height: 10),
-            if (!widget.lockCalendar)
-              DropdownButtonFormField<int>(
-                initialValue: _calendarId,
-                decoration: const InputDecoration(labelText: '日历'),
-                items: [
-                  for (final calendar in widget.calendars)
-                    DropdownMenuItem(
-                      value: calendar.id,
-                      child: Text(calendar.name),
+    );
+    return Theme(
+      data: compact,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            bottom:
+                MediaQuery.viewInsetsOf(context).bottom +
+                MediaQuery.paddingOf(context).bottom +
+                12,
+          ),
+          child: Align(
+            alignment: Alignment.topCenter,
+            heightFactor: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.initialSummary.isEmpty ? '新建日程' : '编辑日程',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                ],
-                onChanged: (value) {
-                  if (value != null) setState(() => _calendarId = value);
-                },
-              )
-            else
-              _DetailRow(
-                icon: Icons.calendar_month_outlined,
-                text: widget.calendars
-                    .firstWhere(
-                      (calendar) => calendar.id == _calendarId,
-                      orElse: () => widget.calendars.first,
-                    )
-                    .name,
-              ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Text('全天', style: theme.textTheme.bodyMedium),
-                const SizedBox(width: 8),
-                Switch(value: _allDay, onChanged: _toggleAllDay),
-              ],
-            ),
-            _DateRow(
-              label: '开始',
-              value: formatDue(_start, allDay: _allDay),
-              onTap: () => _pickDate(start: true),
-            ),
-            _DateRow(
-              label: _allDay ? '结束（含）' : '结束',
-              value: formatDue(_end, allDay: _allDay),
-              onTap: () => _pickDate(start: false),
-            ),
-            const SizedBox(height: 6),
-            DropdownButtonFormField<int?>(
-              initialValue: _reminders.isEmpty ? null : _reminders.first,
-              decoration: const InputDecoration(labelText: '提醒'),
-              items: const [
-                DropdownMenuItem<int?>(value: null, child: Text('不提醒')),
-                DropdownMenuItem<int?>(value: 0, child: Text('准时')),
-                DropdownMenuItem<int?>(value: 10, child: Text('提前 10 分钟')),
-                DropdownMenuItem<int?>(value: 30, child: Text('提前 30 分钟')),
-                DropdownMenuItem<int?>(value: 60, child: Text('提前 1 小时')),
-                DropdownMenuItem<int?>(value: 1440, child: Text('提前 1 天')),
-              ],
-              onChanged: (value) => setState(
-                () => _reminders = value == null ? const [] : [value],
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _location,
-              decoration: const InputDecoration(labelText: '地点'),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _description,
-              minLines: 2,
-              maxLines: 4,
-              decoration: const InputDecoration(labelText: '描述'),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('取消'),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _summary,
+                      autofocus: widget.initialSummary.isEmpty,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(labelText: '标题'),
+                    ),
+                    _sectionTitle('日历'),
+                    if (!widget.lockCalendar)
+                      _EventSelect<int>(
+                        value: _calendarId,
+                        options: [
+                          for (final calendar in widget.calendars)
+                            _EventOption(calendar.id, calendar.name),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _calendarId = value),
+                      )
+                    else
+                      _DetailRow(
+                        icon: Icons.calendar_month_outlined,
+                        text: widget.calendars
+                            .firstWhere(
+                              (calendar) => calendar.id == _calendarId,
+                              orElse: () => widget.calendars.first,
+                            )
+                            .name,
+                      ),
+                    _sectionTitle('重复'),
+                    _EventSelect<String>(
+                      value: _repeatChoice,
+                      options: _repeatOptions,
+                      onChanged: (value) =>
+                          setState(() => _repeatChoice = value),
+                    ),
+                    if (_repeatChoice == 'custom') ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _customRrule,
+                        decoration: const InputDecoration(
+                          hintText: '例如 FREQ=WEEKLY;BYDAY=MO,WE',
+                        ),
+                      ),
+                    ],
+                    CheckboxListTile(
+                      value: _allDay,
+                      onChanged: (value) => _toggleAllDay(value ?? false),
+                      title: const Text('全天日程'),
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                    _sectionTitle('提醒'),
+                    _EventSelect<int?>(
+                      value: _reminder,
+                      options: _reminderOptions,
+                      onChanged: (value) => setState(() => _reminder = value),
+                    ),
+                    _sectionTitle('时间'),
+                    _DateRow(
+                      label: '开始',
+                      value: formatDue(_start, allDay: _allDay),
+                      onTap: () => _pickDate(start: true),
+                    ),
+                    _DateRow(
+                      label: _allDay ? '结束（含）' : '结束',
+                      value: formatDue(_end, allDay: _allDay),
+                      onTap: () => _pickDate(start: false),
+                    ),
+                    _sectionTitle('地点'),
+                    TextField(
+                      controller: _location,
+                      decoration: const InputDecoration(hintText: '可选'),
+                    ),
+                    _sectionTitle('参与人'),
+                    TextField(
+                      controller: _attendees,
+                      decoration: const InputDecoration(hintText: '邮箱，用逗号分隔'),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '参与人只写入日程，不会自动发送邀请邮件。',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    _sectionTitle('描述'),
+                    TextField(
+                      controller: _description,
+                      minLines: 2,
+                      maxLines: 4,
+                      decoration: const InputDecoration(hintText: '可选'),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('取消'),
+                        ),
+                        if (widget.onDelete != null)
+                          TextButton.icon(
+                            onPressed: widget.onDelete,
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                            ),
+                            label: const Text('删除'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: scheme.error,
+                            ),
+                          ),
+                        const Spacer(),
+                        FilledButton(onPressed: _save, child: const Text('保存')),
+                      ],
+                    ),
+                  ],
                 ),
-                if (widget.onDelete != null)
-                  TextButton.icon(
-                    onPressed: widget.onDelete,
-                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                    label: const Text('删除'),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                const Spacer(),
-                FilledButton(onPressed: _save, child: const Text('保存')),
-              ],
+              ),
             ),
-          ],
+          ),
         ),
       ),
     );

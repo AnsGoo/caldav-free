@@ -318,6 +318,8 @@ class CalendarApi {
     String location = '',
     String description = '',
     List<int> reminders = const [],
+    String rrule = '',
+    List<String> attendees = const [],
   }) async {
     await _writeEvent('POST', '/api/sync/events', {
       'calendarId': calendarId,
@@ -328,6 +330,8 @@ class CalendarApi {
       'location': location,
       'description': description,
       'reminders': reminders,
+      'rrule': rrule,
+      'attendees': attendees,
     });
   }
 

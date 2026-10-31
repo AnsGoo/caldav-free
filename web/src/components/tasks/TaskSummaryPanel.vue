@@ -108,7 +108,7 @@
         <div class="tw-summary-field">
           <span>状态</span>
           <a-select v-model="status" size="small">
-            <a-option value="all">所有状态</a-option>
+            <a-option value="all">所有</a-option>
             <a-option value="completed">已完成</a-option>
             <a-option value="open">未完成</a-option>
           </a-select>
@@ -116,7 +116,7 @@
         <div class="tw-summary-field">
           <span>优先级</span>
           <a-select v-model.number="priority" size="small">
-            <a-option :value="0">所有优先级</a-option>
+            <a-option :value="0">所有</a-option>
             <a-option :value="3">高优先级</a-option>
             <a-option :value="2">中优先级</a-option>
             <a-option :value="1">低优先级</a-option>
@@ -125,7 +125,7 @@
         <div class="tw-summary-field">
           <span>标签</span>
           <a-select v-model="tag" size="small">
-            <a-option value="">所有标签</a-option>
+            <a-option value="">所有</a-option>
             <a-option v-for="item in tags" :key="item.name" :value="item.name">#{{ item.name }}</a-option>
           </a-select>
         </div>

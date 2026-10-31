@@ -8708,10 +8708,80 @@ html[data-theme='dark'] .arco-picker-container .arco-picker-cell-today .arco-pic
   flex-direction: column;
 }
 
+.tw-split-calendar-scroll {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
 .tw-split-calendar .tw-calendar {
   flex: 1;
   min-height: 0;
   height: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-split-calendar .tw-calendar-head,
+.tw-split-calendar .tw-cal-legend,
+.tw-split-calendar .tw-habit-today {
+  flex: none;
+}
+
+/* 分割面板保持周/月视图的可读宽度，屏幕窄时横向滚动而不是挤压内容。 */
+.tw-split-calendar .tw-calendar.mode-week,
+.tw-split-calendar .tw-calendar.mode-month {
+  min-width: 560px;
+}
+
+/* 分割面板高度自适应：让时间网格和日程列表自己滚动，避免底部时段被裁掉。 */
+.tw-split-calendar .tw-timegrid-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-split-calendar .tw-tg-scroll {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.tw-split-calendar .tw-calendar.mode-month .tw-calendar-month {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tw-split-calendar .tw-calendar.mode-month .tw-calendar-grid {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+}
+
+.tw-split-calendar .tw-calendar.mode-month .tw-calendar-cell {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tw-split-calendar .tw-agenda {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+}
+
+/* 分割面板窄，年视图用两列排布，避免月份卡片被压得过窄。 */
+.tw-split-calendar .tw-year-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 8px 10px 20px;
 }
 
 .tw-split-calendar .tw-calendar-head {

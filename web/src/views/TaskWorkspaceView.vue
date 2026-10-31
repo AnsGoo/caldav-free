@@ -542,6 +542,7 @@
         :style="{ width: `${splitWidth}px` }"
       >
         <div class="tw-split-resizer" title="拖动调整宽度" @pointerdown="startSplitResize"></div>
+        <div class="tw-split-calendar-scroll">
         <TaskCalendar
           :cursor="splitCursor"
           :view-mode="splitViewMode"
@@ -559,6 +560,7 @@
           @next="stepSplitCalendar(1)"
           @today="splitCursor = new Date()"
         />
+        </div>
       </aside>
       </div>
     </main>

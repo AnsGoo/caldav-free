@@ -49,7 +49,8 @@ class LocalNotificationGateway implements NotificationGateway {
   }) async {
     tzdata.initializeTimeZones();
     const android = AndroidInitializationSettings('ic_notification');
-    const settings = InitializationSettings(android: android);
+    const darwin = DarwinInitializationSettings();
+    const settings = InitializationSettings(android: android, iOS: darwin);
     await _plugin.initialize(
       settings: settings,
       onDidReceiveNotificationResponse: (response) => onTap(response.payload),
@@ -68,8 +69,20 @@ class LocalNotificationGateway implements NotificationGateway {
       _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
 
+  IOSFlutterLocalNotificationsPlugin? get _ios =>
+      _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+
   @override
   Future<bool> requestPermissions() async {
+    if (Platform.isIOS) {
+      final granted = await _ios?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      return granted ?? true;
+    }
     final granted = await _android?.requestNotificationsPermission();
     return granted ?? true;
   }
@@ -100,6 +113,12 @@ class LocalNotificationGateway implements NotificationGateway {
         visibility: NotificationVisibility.public,
         playSound: true,
         enableVibration: true,
+      ),
+      iOS: const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBanner: true,
+        presentList: true,
+        presentSound: true,
       ),
     );
     final scheduled = tz.TZDateTime.from(item.at.toUtc(), tz.UTC);
@@ -164,6 +183,8 @@ class NoOpNotificationGateway implements NotificationGateway {
 }
 
 NotificationGateway createDefaultGateway() {
-  if (Platform.isAndroid) return LocalNotificationGateway();
+  if (Platform.isAndroid || Platform.isIOS) {
+    return LocalNotificationGateway();
+  }
   return NoOpNotificationGateway();
 }

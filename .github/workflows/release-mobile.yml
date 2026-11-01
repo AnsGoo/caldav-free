@@ -1,0 +1,286 @@
+# 一键构建四端客户端：Windows 安装包、macOS 应用包、Android APK/AAB、iOS IPA。
+#
+# 触发方式：
+#   * 发布 GitHub Release（published）—— 构建完成后自动把产物挂到该 Release。
+#   * Actions → “Release Mobile” → Run workflow —— 只构建并保留 workflow artifacts；
+#     如需挂到已有 Release，可填写 tag 输入框。
+#
+# 与旧的三条独立流水线一致，这里刻意不使用任何缓存（无 actions/cache，
+# flutter-action cache: false），保证每次发布都是干净 runner 上的全量构建。
+name: Release Mobile
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "可选：把本次构建挂到已有的 Release tag（留空则只保留 workflow artifacts）"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  # 从 pubspec.yaml 读取版本号，供三端产物命名和 Windows 安装包使用。
+  version:
+    name: Read version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      tag: ${{ steps.read.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: read
+        name: Read version from pubspec
+        run: |
+          version=$(sed -n 's/^version:[[:space:]]*//p' mobile/pubspec.yaml | head -n1 | cut -d+ -f1)
+          if [ -z "$version" ]; then
+            echo "::error::Cannot read version from mobile/pubspec.yaml"
+            exit 1
+          fi
+          tag="${{ github.event.release.tag_name }}"
+          if [ -z "$tag" ]; then
+            tag="${{ inputs.tag }}"
+          fi
+          if [ -z "$tag" ]; then
+            tag="v$version"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Version: $version ($tag)"
+
+  android:
+    name: Android APK + AAB
+    needs: version
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.8"
+          channel: stable
+          cache: false
+
+      - name: Build release APK and AAB
+        working-directory: mobile
+        run: |
+          flutter pub get
+          flutter build apk --release
+          flutter build appbundle --release
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/android
+          tag="${{ needs.version.outputs.tag }}"
+          cp mobile/build/app/outputs/flutter-apk/app-release.apk \
+            "dist/android/caldav-free-android-$tag.apk"
+          cp mobile/build/app/outputs/bundle/release/app-release.aab \
+            "dist/android/caldav-free-android-$tag.aab"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: dist/android/*
+
+  macos:
+    name: macOS .app
+    needs: version
+    timeout-minutes: 60
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.8"
+          channel: stable
+          cache: false
+
+      - name: Build release app
+        working-directory: mobile
+        run: |
+          command -v pod >/dev/null || brew install cocoapods
+          flutter pub get
+          flutter build macos --release
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p dist/macos
+          tag="${{ needs.version.outputs.tag }}"
+          cd mobile/build/macos/Build/Products/Release
+          ditto -c -k --keepParent caldav-free.app \
+            "$GITHUB_WORKSPACE/dist/macos/caldav-free-macos-arm64-$tag.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: dist/macos/*
+
+  windows:
+    name: Windows installer
+    needs: version
+    timeout-minutes: 60
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.8"
+          channel: stable
+          cache: false
+
+      - name: Build Windows release
+        working-directory: mobile
+        run: |
+          flutter pub get
+          flutter build windows --release
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress --yes
+
+      - name: Build installer
+        shell: pwsh
+        working-directory: mobile/windows/installer
+        run: |
+          $iscc = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            throw "ISCC.exe not found. Inno Setup install failed."
+          }
+          & $iscc /DMyAppVersion=${{ needs.version.outputs.version }} caldav-free.iss
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/windows | Out-Null
+          Copy-Item `
+            "mobile/windows/installer/output/caldav-free-windows-x64.exe" `
+            "dist/windows/caldav-free-windows-x64-${{ needs.version.outputs.tag }}.exe"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: dist/windows/*
+
+  ios:
+    name: iOS app / IPA
+    needs: version
+    # macos-15 ships Xcode 16.x; the UIScene/implicit-engine template needs a
+    # recent toolchain than macos-14's default Xcode.
+    runs-on: macos-15
+    timeout-minutes: 70
+    env:
+      # Optional signing material. Without it the job builds an unsigned app
+      # bundle; with it, a signed IPA is exported.
+      IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+      IOS_EXPORT_METHOD: ${{ secrets.IOS_EXPORT_METHOD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.8"
+          channel: stable
+          cache: false
+
+      - name: Import signing material
+        if: env.IOS_CERTIFICATE_BASE64 != ''
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/app-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 16)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" \
+            -P "$IOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security list-keychains -d user -s "$keychain" \
+            $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list \
+            -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/profile.mobileprovision"
+          uuid=$(security cms -D -i "$RUNNER_TEMP/profile.mobileprovision" | plutil -extract UUID raw -)
+          cp "$RUNNER_TEMP/profile.mobileprovision" \
+            "$HOME/Library/MobileDevice/Provisioning Profiles/$uuid.mobileprovision"
+
+      - name: Build signed IPA
+        if: env.IOS_CERTIFICATE_BASE64 != ''
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          method="${IOS_EXPORT_METHOD:-app-store}"
+          flutter pub get
+          # The generated project has no team id; inject it so xcodebuild can
+          # match the installed certificate and provisioning profile.
+          sed -i '' \
+            "s/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = $IOS_TEAM_ID;/g" \
+            ios/Runner.xcodeproj/project.pbxproj
+          flutter build ipa --release --export-method "$method"
+
+      - name: Build unsigned app
+        if: env.IOS_CERTIFICATE_BASE64 == ''
+        working-directory: mobile
+        run: |
+          flutter pub get
+          flutter build ios --release --no-codesign
+
+      - name: Collect artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p dist/ios
+          tag="${{ needs.version.outputs.tag }}"
+          if [ -n "${IOS_CERTIFICATE_BASE64:-}" ]; then
+            cp mobile/build/ios/ipa/*.ipa "dist/ios/caldav-free-ios-$tag.ipa"
+          else
+            cd mobile/build/ios/iphoneos
+            ditto -c -k --sequesterRsrc --keepParent Runner.app \
+              "$GITHUB_WORKSPACE/dist/ios/caldav-free-ios-$tag-unsigned.zip"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-release
+          path: dist/ios/*
+
+  # Release 事件，或手动运行且填写了 tag 时，把各端产物统一挂到该 Release。
+  publish:
+    name: Attach assets to release
+    if: github.event_name == 'release' || inputs.tag
+    needs: [version, android, macos, windows, ios]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || needs.version.outputs.tag }}
+        run: |
+          ls -l dist
+          gh release upload "$TAG" dist/* --repo "${{ github.repository }}" --clobber

@@ -68,8 +68,21 @@ focus, countdowns, statistics and remaining calendar polish are next.
 cd mobile
 flutter pub get          # add --offline when pub.dev is unreachable
 flutter test
-flutter run              # requires an Android device/emulator + SDK
+flutter run              # requires a connected device/emulator (Android or iOS)
 ```
+
+iOS (Xcode 15+; the project uses Swift Package Manager, no CocoaPods step):
+
+```bash
+flutter build ios --simulator          # simulator app, no signing
+./scripts/build-ios.sh                 # unsigned IPA -> build/ios/ipa/caldav-free-ios-unsigned.ipa
+IOS_SIGNED=1 ./scripts/build-ios.sh    # signed IPA, uses the Xcode signing setup
+```
+
+Open `ios/Runner.xcworkspace` in Xcode and pick a team under
+*Signing & Capabilities* to run on a physical iPhone. Xcode 27 with no installed
+simulator runtime needs *Settings → Components → iOS Simulator* downloaded
+first.
 
 Android toolchain used locally: JDK 17 at `~/development/jdk17`, SDK 36 at
 `~/development/android-sdk`.
@@ -197,6 +210,43 @@ The script starts a throwaway Go backend, then runs
 `test/integration/real_server_test.dart`, covering create, conflict/retry,
 idempotent replay, CalDAV import, and delete. Requires Go + Flutter.
 
+## Release builds
+
+One workflow builds every client: `.github/workflows/release-mobile.yml`.
+
+- Publishing a GitHub Release builds Windows, macOS, Android and iOS in
+  parallel and attaches the outputs to that release:
+  `caldav-free-windows-x64-<tag>.exe`, `caldav-free-macos-arm64-<tag>.zip`,
+  `caldav-free-android-<tag>.apk/.aab` and either `caldav-free-ios-<tag>.ipa`
+  (when signing secrets are configured) or `caldav-free-ios-<tag>-unsigned.zip`.
+- Actions → **Release Mobile** → **Run workflow** builds the same set and
+  keeps them as workflow artifacts; fill the optional `tag` input to also
+  attach them to an existing release.
+- The version is read from `mobile/pubspec.yaml`; the Windows installer embeds
+  it.
+
+### iOS signing secrets
+
+The iOS job builds an unsigned app bundle by default. To export an installable
+IPA, add these repository secrets:
+
+| Secret | Meaning |
+| --- | --- |
+| `IOS_CERTIFICATE_BASE64` | base64 of the distribution `.p12` |
+| `IOS_CERTIFICATE_PASSWORD` | password of the `.p12` |
+| `IOS_PROVISIONING_PROFILE_BASE64` | base64 of the `.mobileprovision` |
+| `IOS_TEAM_ID` | Apple Developer Team ID |
+| `IOS_EXPORT_METHOD` | optional: `app-store`, `ad-hoc`, `development`, `enterprise` (default `app-store`) |
+
+The App ID in the provisioning profile must match
+`com.caldavfree.caldavfree`. The profile is installed automatically and the
+team id is injected into the Xcode project at build time.
+
+For local debugging without a paid account, open `mobile/ios/Runner.xcworkspace`
+in Xcode, pick your personal team under *Signing & Capabilities*, and run on a
+connected iPhone (7-day provisioning). A simulator build needs no signing:
+`flutter build ios --simulator`.
+
 ## Layout
 
 ```text
@@ -235,4 +285,7 @@ build hook required Xcode and blocked `flutter test`).
   still required before a public release.
 - `android:usesCleartextTraffic="true"` is enabled for local development. Turn
   it off (or restrict it with a network security config) for production.
+- iOS also allows plain HTTP (`NSAllowsArbitraryLoads` in `ios/Runner/Info.plist`)
+  so LAN debugging against `http://<host>:5232` works; remove it for App Store
+  distribution and use HTTPS.
 - Logout clears the local task database, outbox, and credentials.

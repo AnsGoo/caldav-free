@@ -58,7 +58,7 @@ void main() {
         .timeout(const Duration(seconds: 2));
   });
 
-  testWidgets('task page exposes a working logout entry', (tester) async {
+  testWidgets('task page more menu no longer offers logout', (tester) async {
     final store = LocalStore.memory();
     await store.saveList(
       TaskListItem(
@@ -90,17 +90,9 @@ void main() {
 
     await tester.tap(find.byTooltip('更多'));
     await tester.pumpAndSettle();
-    expect(find.text('退出登录'), findsOneWidget);
 
-    await tester.tap(find.text('退出登录'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, '退出登录'));
-    await tester.pumpAndSettle();
-
-    expect(app.session, isNull);
-    expect(await credentials.load(), isNull);
-    await _stopReminders(app);
-    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('清单管理'), findsOneWidget);
+    expect(find.text('退出登录'), findsNothing);
   });
 
   testWidgets('settings offers a working logout', (tester) async {

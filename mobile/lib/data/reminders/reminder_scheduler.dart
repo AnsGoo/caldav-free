@@ -150,7 +150,9 @@ class ReminderScheduler {
     // keeps logout responsive.
     final subscription = _subscription;
     _subscription = null;
-    if (subscription != null) unawaited(subscription.cancel());
+    if (subscription != null) {
+      unawaited(subscription.cancel().catchError((Object _) {}));
+    }
     _lastSignature = null;
     _forceNext = false;
     if (cancelAll) {

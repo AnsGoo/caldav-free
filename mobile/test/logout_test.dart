@@ -1,6 +1,8 @@
 import 'package:caldav_free/app_state.dart';
 import 'package:caldav_free/core/models.dart';
 import 'package:caldav_free/data/db/local_store.dart';
+import 'package:caldav_free/data/reminders/notification_gateway.dart';
+import 'package:caldav_free/data/reminders/reminder_scheduler.dart';
 import 'package:caldav_free/data/session/credentials.dart';
 import 'package:caldav_free/data/tasks_repository.dart';
 import 'package:caldav_free/features/home/home_shell.dart';
@@ -40,6 +42,20 @@ void main() {
 
     expect(app.session, isNull);
     expect(credentials.invalidated, isTrue);
+  });
+
+  test('reminder stop finishes even while its task stream is idle', () async {
+    final store = LocalStore.memory();
+    final scheduler = ReminderScheduler(
+      store: store,
+      gateway: NoOpNotificationGateway(),
+    );
+    addTearDown(store.dispose);
+
+    await scheduler.start();
+    await scheduler
+        .stop(cancelAll: true)
+        .timeout(const Duration(seconds: 2));
   });
 
   testWidgets('task page exposes a working logout entry', (tester) async {

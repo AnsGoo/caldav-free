@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,11 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../data/remote/sync_api.dart';
 import '../../design/components.dart';
+
+/// Absolute ceiling for one login attempt. The transport already times out on
+/// its own, but local steps (database wipe, credentials write, platform
+/// channels) must not be able to leave the button spinning forever.
+const _connectDeadline = Duration(seconds: 40);
 
 class ConnectServerSheet extends StatefulWidget {
   const ConnectServerSheet({super.key});
@@ -38,18 +44,32 @@ class _ConnectServerSheetState extends State<ConnectServerSheet> {
 
   Future<void> _submit() async {
     if (_loading) return;
+    // Dismiss the keyboard so the error box and the button stay visible.
+    FocusScope.of(context).unfocus();
     setState(() {
       _loading = true;
       _error = null;
     });
     final app = context.read<AppState>();
+    final connecting = app.connect(
+      baseUrl: _server.text,
+      username: _username.text,
+      password: _password.text,
+    );
     try {
-      await app.connect(
-        baseUrl: _server.text,
-        username: _username.text,
-        password: _password.text,
-      );
+      await connecting.timeout(_connectDeadline);
       if (mounted) Navigator.of(context).pop();
+    } on TimeoutException {
+      if (mounted) {
+        setState(() => _error = '连接超时，请检查服务器地址、网络和 HTTPS 证书');
+      }
+      // The request is still in flight. If it eventually succeeds, close the
+      // sheet instead of leaving a stale error on screen.
+      unawaited(
+        connecting.then((_) {
+          if (mounted) Navigator.of(context).pop();
+        }, onError: (Object _) {}),
+      );
     } on FormatException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } on SyncApiException catch (error) {

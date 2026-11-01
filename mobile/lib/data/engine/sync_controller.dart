@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../db/local_store.dart';
+import '../remote/sync_api.dart';
 import 'sync_engine.dart';
 
 enum SyncPhase { idle, syncing, error }
@@ -101,6 +102,9 @@ class SyncController extends ChangeNotifier {
   }
 
   String _friendlyError(Object failure) {
+    if (failure is SyncApiException && failure.network) {
+      return '网络不可用，修改已保存在本地';
+    }
     final text = failure.toString();
     if (text.contains('SocketException') ||
         text.contains('Connection') ||

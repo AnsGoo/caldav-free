@@ -52,7 +52,8 @@ pushes it in the background.
 - Field-level patches: the editor sends only fields changed from its opening
   snapshot, so a concurrent server edit to an untouched field survives.
 - Sync diagnostics: cursor, pending/failed/conflict counts, last error.
-- Logout wipes local data, cancels pending reminders, and clears credentials.
+- Logout clears credentials and cancels pending reminders. Local data stays
+  usable offline; connecting an account next clears it and syncs fresh.
 
 P1 intentionally does **not** include habits, focus, countdowns, attachments,
 comments, sharing, SSE, background sync, or a drift/secure-storage migration.

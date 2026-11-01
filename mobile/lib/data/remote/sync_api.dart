@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 
 /// One page of the server change feed.
 class PullPage {
@@ -109,11 +111,21 @@ class PushResult {
 }
 
 class SyncApiException implements Exception {
-  SyncApiException(this.message, {this.statusCode, this.code});
+  SyncApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.network = false,
+  });
 
   final String message;
   final int? statusCode;
   final String? code;
+
+  /// True when the request never got an HTTP response (DNS, TCP, TLS or
+  /// timeout). Callers use it to say "offline" instead of echoing a raw
+  /// transport exception.
+  final bool network;
 
   bool get unauthorized => statusCode == 401 || statusCode == 403;
 
@@ -143,13 +155,45 @@ class HttpSyncApi implements SyncApi {
     required this.username,
     required this.password,
     http.Client? client,
+    this.pullTimeout = const Duration(seconds: 30),
+    this.pushTimeout = const Duration(seconds: 45),
   }) : baseUrl = normalizeBaseUrl(baseUrl),
-       _client = client ?? http.Client();
+       _client = client ?? _defaultClient();
 
   final String baseUrl;
   final String username;
   final String password;
   final http.Client _client;
+
+  /// Upper bound for one pull / push request, including body download.
+  final Duration pullTimeout;
+  final Duration pushTimeout;
+
+  /// Uses a real `dart:io` client with a bounded connect timeout so an
+  /// unreachable host fails in seconds instead of waiting for the OS.
+  static http.Client _defaultClient() {
+    final inner = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10)
+      ..idleTimeout = const Duration(seconds: 15);
+    return IOClient(inner);
+  }
+
+  /// Turns transport failures into a readable [SyncApiException] instead of
+  /// leaking `SocketException` / `TimeoutException` strings to the UI.
+  static Future<http.Response> _send(Future<http.Response> request) async {
+    try {
+      return await request;
+    } on TimeoutException {
+      throw SyncApiException('连接服务器超时，请检查地址、网络和 HTTPS 证书', network: true);
+    } on HandshakeException {
+      throw SyncApiException('HTTPS 证书校验失败，请检查服务器证书', network: true);
+    } on SocketException catch (error) {
+      final detail = error.osError?.message ?? error.message;
+      throw SyncApiException('无法连接服务器：$detail', network: true);
+    } on http.ClientException catch (error) {
+      throw SyncApiException('无法连接服务器：${error.message}', network: true);
+    }
+  }
 
   static String normalizeBaseUrl(String raw) {
     var value = raw.trim();
@@ -178,9 +222,9 @@ class HttpSyncApi implements SyncApi {
         if (refresh) 'refresh': '1',
       },
     );
-    final response = await _client
-        .get(uri, headers: _headers)
-        .timeout(const Duration(seconds: 30));
+    final response = await _send(
+      _client.get(uri, headers: _headers).timeout(pullTimeout),
+    );
     final body = _decodeBody(response);
     if (response.statusCode != 200) {
       throw SyncApiException(
@@ -221,19 +265,21 @@ class HttpSyncApi implements SyncApi {
     required String deviceId,
   }) async {
     final uri = Uri.parse('$baseUrl/api/sync/push');
-    final response = await _client
-        .post(
-          uri,
-          headers: {
-            ..._headers,
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-          body: jsonEncode({
-            'deviceId': deviceId,
-            'ops': ops.map((op) => op.toJson()).toList(),
-          }),
-        )
-        .timeout(const Duration(seconds: 45));
+    final response = await _send(
+      _client
+          .post(
+            uri,
+            headers: {
+              ..._headers,
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode({
+              'deviceId': deviceId,
+              'ops': ops.map((op) => op.toJson()).toList(),
+            }),
+          )
+          .timeout(pushTimeout),
+    );
     final body = _decodeBody(response);
     if (response.statusCode != 200) {
       throw SyncApiException(

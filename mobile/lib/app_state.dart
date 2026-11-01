@@ -16,6 +16,14 @@ import 'data/remote/sync_api.dart';
 import 'data/session/credentials.dart';
 import 'data/tasks_repository.dart';
 
+/// Creates the sync transport for one account. Tests inject a fake so login
+/// and wiring can be exercised without a network.
+typedef SyncApiFactory = SyncApi Function({
+  required String baseUrl,
+  required String username,
+  required String password,
+});
+
 /// Application-scoped session + sync wiring. Kept as a ChangeNotifier so the
 /// widget tree can rebuild on connect/disconnect without a router dependency.
 class AppState extends ChangeNotifier {
@@ -26,13 +34,22 @@ class AppState extends ChangeNotifier {
     HabitStore? habits,
     CountdownStore? countdowns,
     FocusStore? focus,
+    SyncApiFactory? apiFactory,
   }) : habits = habits ?? HabitStore.inMemory(),
        countdowns = countdowns ?? CountdownStore.inMemory(),
-       focus = focus ?? FocusStore.inMemory();
+       focus = focus ?? FocusStore.inMemory(),
+       apiFactory = apiFactory ?? _httpSyncApi;
+
+  static SyncApi _httpSyncApi({
+    required String baseUrl,
+    required String username,
+    required String password,
+  }) => HttpSyncApi(baseUrl: baseUrl, username: username, password: password);
 
   final LocalStore store;
   final CredentialsStore credentials;
   final TaskRepository repository;
+  final SyncApiFactory apiFactory;
 
   /// Habit, countdown and focus read mirrors. Pages render from these, never
   /// from the network; the sync thread fills them in the background.
@@ -64,7 +81,7 @@ class AppState extends ChangeNotifier {
   Future<void> restore() async {
     session = await credentials.load();
     if (session != null) {
-      await _wireSync();
+      await _wireSync(session!);
     } else {
       await _startOffline();
     }
@@ -82,6 +99,9 @@ class AppState extends ChangeNotifier {
     required String username,
     required String password,
   }) async {
+    if (busy) {
+      throw SyncApiException('正在连接服务器，请稍候');
+    }
     final normalized = HttpSyncApi.normalizeBaseUrl(baseUrl);
     final uri = Uri.tryParse(normalized);
     if (uri == null ||
@@ -97,8 +117,9 @@ class AppState extends ChangeNotifier {
     busy = true;
     error = null;
     notifyListeners();
+    var credentialsSaved = false;
     try {
-      final probe = HttpSyncApi(
+      final probe = apiFactory(
         baseUrl: normalized,
         username: user,
         password: password,
@@ -126,12 +147,50 @@ class AppState extends ChangeNotifier {
         password: password,
         deviceId: deviceId,
       );
+      // Set the flag before writing: a partially written file must still be
+      // rolled back if the write throws.
+      credentialsSaved = true;
       await credentials.save(next);
+      // Wire sync before publishing the session. Otherwise a wiring failure
+      // leaves the UI showing "已连接" while nothing ever syncs.
+      await _wireSync(next);
       session = next;
-      await _wireSync();
+    } catch (error) {
+      if (credentialsSaved && session == null) {
+        await _rollbackFailedConnect();
+      }
+      rethrow;
     } finally {
       busy = false;
       notifyListeners();
+    }
+  }
+
+  /// Best-effort cleanup when credentials were written but the session could
+  /// not be wired. Keeps the device id (logout semantics) so retrying does not
+  /// create a new device identity.
+  Future<void> _rollbackFailedConnect() async {
+    try {
+      _detachSync();
+      syncController?.dispose();
+      syncController = null;
+      final scheduler = reminders;
+      reminders = null;
+      await scheduler
+          ?.stop(cancelAll: true)
+          .timeout(const Duration(seconds: 2));
+    } catch (error) {
+      debugPrint('rollback failed login sync failed: $error');
+    }
+    try {
+      await credentials.clear().timeout(const Duration(seconds: 5));
+    } catch (error) {
+      debugPrint('rollback failed login credentials failed: $error');
+      try {
+        await credentials.invalidate();
+      } catch (invalidateError) {
+        debugPrint('invalidate credentials failed: $invalidateError');
+      }
     }
   }
 
@@ -190,15 +249,25 @@ class AppState extends ChangeNotifier {
     await syncController?.sync(full: full);
   }
 
-  Future<void> _wireSync() async {
+  Future<void> _wireSync(Session current) async {
     _detachSync();
     syncController?.dispose();
+    syncController = null;
     final previousReminders = reminders;
     reminders = null;
     if (previousReminders != null) {
-      await previousReminders.stop(cancelAll: true);
+      // Cancelling platform notifications can block on a channel; the login
+      // sheet must never wait on it forever.
+      try {
+        await previousReminders
+            .stop(cancelAll: true)
+            .timeout(const Duration(seconds: 3));
+      } on TimeoutException catch (error) {
+        debugPrint('stop offline reminders before connect timed out: $error');
+      } catch (error) {
+        debugPrint('stop offline reminders before connect failed: $error');
+      }
     }
-    final current = session!;
     // Local-only write queues (habits, countdowns) are replayed here, in the
     // background sync pass. Pages never touch the network for writes.
     final habitApi = HabitApi(
@@ -221,7 +290,7 @@ class AppState extends ChangeNotifier {
     _focusApi = focusApi;
     final engine = SyncEngine(
       store: store,
-      api: HttpSyncApi(
+      api: apiFactory(
         baseUrl: current.baseUrl,
         username: current.username,
         password: current.password,

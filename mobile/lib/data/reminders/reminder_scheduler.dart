@@ -144,13 +144,20 @@ class ReminderScheduler {
   Future<void> stop({bool cancelAll = false}) async {
     _started = false;
     _debounce?.cancel();
-    await _subscription?.cancel();
+    // Do not await the cancellation: the subscription wraps an async*
+    // generator over a broadcast stream, and awaiting it can block forever.
+    // `_started` already gates any late event, so fire and forget is safe and
+    // keeps logout responsive.
+    final subscription = _subscription;
     _subscription = null;
+    if (subscription != null) unawaited(subscription.cancel());
     _lastSignature = null;
     _forceNext = false;
     if (cancelAll) {
       try {
-        await _gateway.cancelAll();
+        await _gateway
+            .cancelAll()
+            .timeout(const Duration(seconds: 2));
       } catch (error) {
         debugPrint('cancel reminders failed: $error');
       }

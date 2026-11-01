@@ -129,8 +129,8 @@ class SyncDiagnosticsPage extends StatelessWidget {
               final confirmed = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('断开连接？'),
-                  content: const Text('断开后仍可正常使用本地功能，凭据会被清除，本地数据保留。'),
+                  title: const Text('退出登录？'),
+                  content: const Text('退出后仍可正常使用本地功能，凭据会被清除，本地数据保留。'),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context, false),
@@ -138,19 +138,29 @@ class SyncDiagnosticsPage extends StatelessWidget {
                     ),
                     FilledButton(
                       onPressed: () => Navigator.pop(context, true),
-                      child: const Text('断开'),
+                      child: const Text('退出登录'),
                     ),
                   ],
                 ),
               );
               if (confirmed != true) return;
-              await app.disconnect();
-              if (context.mounted) {
-                Navigator.of(context).popUntil((route) => route.isFirst);
+              try {
+                await app.disconnect();
+                if (context.mounted) {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context)
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(content: Text('退出登录失败：$error')),
+                    );
+                }
               }
             },
-            icon: Icon(Icons.cloud_off_rounded, size: 18, color: scheme.error),
-            label: Text('断开连接', style: TextStyle(color: scheme.error)),
+            icon: Icon(Icons.logout_rounded, size: 18, color: scheme.error),
+            label: Text('退出登录', style: TextStyle(color: scheme.error)),
           ),
         ],
       ),

@@ -32,6 +32,10 @@ abstract class CredentialsStore {
   Future<Session?> load();
   Future<void> save(Session session);
   Future<void> clear();
+
+  /// Drops the persisted credentials without trying to keep the device id.
+  /// Used as a last resort when [clear] cannot finish (slow or failing disk).
+  Future<void> invalidate();
   Future<String> deviceId();
 }
 
@@ -99,7 +103,23 @@ class FileCredentialsStore implements CredentialsStore {
   Future<void> clear() async {
     await _ensureLoaded();
     _data = {'deviceId': _data['deviceId'] ?? newSyncId()};
-    await _write();
+    try {
+      await _write();
+    } catch (_) {
+      // Never leave a usable credentials file behind when the atomic rewrite
+      // fails. Dropping the file also drops the device id, but signing out
+      // must win over device continuity.
+      final file = await _resolveFile();
+      if (await file.exists()) await file.delete();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> invalidate() async {
+    await _ensureLoaded();
+    final file = await _resolveFile();
+    if (await file.exists()) await file.delete();
   }
 
   @override
@@ -133,6 +153,11 @@ class MemoryCredentialsStore implements CredentialsStore {
 
   @override
   Future<void> clear() async {
+    _session = null;
+  }
+
+  @override
+  Future<void> invalidate() async {
     _session = null;
   }
 

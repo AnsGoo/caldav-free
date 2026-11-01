@@ -136,17 +136,54 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> disconnect() async {
-    _detachSync();
-    syncController?.dispose();
-    syncController = null;
-    await reminders?.stop(cancelAll: true);
+    final previousReminders = reminders;
+    final previousController = syncController;
     reminders = null;
+    syncController = null;
     repository.onLocalChange = null;
-    await credentials.clear();
+
+    // Leave the connected state before any I/O. Cancelling notifications or
+    // rewriting credentials can block on a platform channel, and the logout
+    // button must still respond immediately in that case.
     session = null;
     error = null;
-    await _startOffline();
     notifyListeners();
+
+    try {
+      _detachSync();
+      previousController?.dispose();
+    } catch (error) {
+      debugPrint('detach sync on logout failed: $error');
+    }
+
+    // Reminder cancellation is best-effort: a platform failure must not leave
+    // the client looking signed in.
+    try {
+      await previousReminders
+          ?.stop(cancelAll: true)
+          .timeout(const Duration(seconds: 2));
+    } on TimeoutException catch (error) {
+      debugPrint('cancel reminders on logout timed out: $error');
+    } catch (error) {
+      debugPrint('cancel reminders on logout failed: $error');
+    }
+
+    try {
+      await _startOffline();
+    } catch (error) {
+      debugPrint('start offline reminders after logout failed: $error');
+    }
+    notifyListeners();
+
+    // Persisted credentials must go, otherwise the next launch signs straight
+    // back in. If the normal atomic rewrite hangs or fails, delete the file.
+    try {
+      await credentials.clear().timeout(const Duration(seconds: 5));
+    } catch (error) {
+      debugPrint('clear credentials failed: $error');
+      await credentials.invalidate();
+      rethrow;
+    }
   }
 
   Future<void> syncNow({bool full = false}) async {

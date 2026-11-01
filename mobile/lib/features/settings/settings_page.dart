@@ -115,8 +115,8 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => _connect(context),
                   )
                 : _SettingsTile(
-                    icon: Icons.link_off_rounded,
-                    title: '断开连接',
+                    icon: Icons.logout_rounded,
+                    title: '退出登录',
                     subtitle: '回到离线模式，本地数据仍会保留',
                     danger: true,
                     onTap: () => _disconnect(context, app),
@@ -208,8 +208,8 @@ class SettingsPage extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('断开连接'),
-        content: const Text('断开后将回到离线模式，本地数据仍会保留。'),
+        title: const Text('退出登录'),
+        content: const Text('退出后将回到离线模式，本地数据仍会保留。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -217,14 +217,18 @@ class SettingsPage extends StatelessWidget {
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('断开'),
+            child: const Text('退出登录'),
           ),
         ],
       ),
     );
     if (confirmed != true) return;
-    await app.disconnect();
-    if (context.mounted) _snack(context, '已断开连接');
+    try {
+      await app.disconnect();
+      if (context.mounted) _snack(context, '已退出登录');
+    } catch (error) {
+      if (context.mounted) _snack(context, '退出登录失败：$error');
+    }
   }
 
   Future<void> _sync(

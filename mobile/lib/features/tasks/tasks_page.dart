@@ -920,12 +920,32 @@ class _TasksPageState extends State<TasksPage> {
                 PopupMenuButton<String>(
                   tooltip: '更多',
                   icon: const Icon(Icons.more_vert_rounded),
-                  onSelected: (_) => _openLists(),
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'lists':
+                        _openLists();
+                        break;
+                      case 'logout':
+                        _logout();
+                        break;
+                    }
+                  },
                   itemBuilder: (context) => [
                     PopupMenuItem(
                       value: 'lists',
                       child: _menuRow(Icons.folder_outlined, '清单管理'),
                     ),
+                    if (app.connected) ...[
+                      const PopupMenuDivider(),
+                      PopupMenuItem(
+                        value: 'logout',
+                        child: _menuRow(
+                          Icons.logout_rounded,
+                          '退出登录',
+                          color: scheme.error,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 const SizedBox(width: 6),
@@ -1320,13 +1340,14 @@ class _TasksPageState extends State<TasksPage> {
     }
   }
 
-  Widget _menuRow(IconData icon, String label) {
-    final color = Theme.of(context).colorScheme;
+  Widget _menuRow(IconData icon, String label, {Color? color}) {
+    final scheme = Theme.of(context).colorScheme;
+    final foreground = color ?? scheme.onSurfaceVariant;
     return Row(
       children: [
-        Icon(icon, size: 19, color: color.onSurfaceVariant),
+        Icon(icon, size: 19, color: foreground),
         const SizedBox(width: 12),
-        Text(label),
+        Text(label, style: color == null ? null : TextStyle(color: color)),
       ],
     );
   }
@@ -1334,6 +1355,34 @@ class _TasksPageState extends State<TasksPage> {
   void _openLists() {
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const ListsPage()));
+  }
+
+  Future<void> _logout() async {
+    final app = context.read<AppState>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('退出登录'),
+        content: const Text('退出后回到离线模式，本地任务和日程仍会保留。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('退出登录'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await app.disconnect();
+      _snack('已退出登录');
+    } catch (error) {
+      _snack('退出登录失败：$error');
+    }
   }
 
   void _openEditor(TaskItem task, TaskListItem? list) {

@@ -87,6 +87,7 @@
               >
                 <i :style="{ background: item.task!.listColor || '#4772fa' }" />
                 <span>{{ item.title }}</span>
+                <CalendarTaskStatus :task="item.task" :size="10" />
               </button>
               <button
                 v-else-if="item.kind === 'habit'"
@@ -153,7 +154,8 @@
               @dragstart="!item.task?.virtual && startDrag(item, $event)"
               @click="openCalendarItem(item)"
             >
-              {{ item.title }}
+              <span class="tw-tg-chip-text">{{ item.title }}</span>
+              <CalendarTaskStatus :task="item.task" :size="9" />
             </button>
             <button
               v-else-if="item.kind === 'habit'"
@@ -194,7 +196,7 @@
               v-for="item in layoutItems(day.key)"
               :key="item.key"
               class="tw-tg-block"
-              :class="item.kind"
+              :class="[item.kind, { 'has-status': item.task?.virtual || item.task?.postponed }]"
               :style="[item.style, resizeStyle(item)]"
               :title="`${item.title}${item.timeLabel ? ' · ' + item.timeLabel : ''}`"
               :draggable="!item.task?.virtual && !item.event?.readonly"
@@ -203,6 +205,7 @@
             >
               <strong>{{ item.title }}</strong>
               <small v-if="item.height > 34">{{ item.timeLabel }}</small>
+              <CalendarTaskStatus :task="item.task" :size="9" />
               <span
                 v-if="item.kind === 'event' && item.event && !item.event.allDay"
                 class="tw-tg-resize"
@@ -263,6 +266,7 @@
           <span class="tw-agenda-title" :class="{ done: item.task?.completed || item.habitDone }">{{ item.title }}</span>
           <small v-if="item.location">{{ item.location }}</small>
           <span class="tw-agenda-kind">{{ item.kind === 'task' ? '任务' : item.kind === 'habit' ? '习惯' : item.event?.calendarName }}</span>
+          <CalendarTaskStatus :task="item.task" :size="10" />
         </button>
       </section>
       <div v-if="!agendaGroups.length" class="tw-agenda-empty">
@@ -299,6 +303,7 @@
             <i v-else :style="{ background: item.color }" class="tw-day-event-dot" :class="{ habit: item.kind === 'habit', done: item.habitDone }" />
             <span class="tw-day-title" :class="{ done: item.task?.completed || item.habitDone }">{{ item.title }}</span>
             <small>{{ item.allDay ? '全天' : item.timeLabel }}</small>
+            <CalendarTaskStatus :task="item.task" :size="10" />
           </button>
           <p v-if="!dayItems.length" class="tw-day-empty">这一天还没有安排</p>
         </div>
@@ -329,6 +334,7 @@ import { dayKey, startOfToday, taskDayKey } from '../../tasks-utils'
 import { Message } from '@arco-design/web-vue'
 import { completeTaskOccurrence, fetchCalendarEvents, fetchHabitCalendar, postponeTaskOccurrence, skipTaskOccurrence } from '../../tasks-api'
 import TaskIcon from './TaskIcon.vue'
+import CalendarTaskStatus from './CalendarTaskStatus.vue'
 import CalendarSubscriptionDialog from './CalendarSubscriptionDialog.vue'
 import TaskOccurrenceDialog from './TaskOccurrenceDialog.vue'
 
@@ -598,7 +604,7 @@ const itemsByDay = computed(() => {
     push(key, {
       key: `task-${task.id}-${task.occurrence || task.due || key}`,
       kind: 'task',
-      title: task.postponed ? `${task.title}（顺延）` : task.virtual ? `${task.title}（重复）` : task.title,
+      title: task.title,
       color: task.listColor || '#4772fa',
       allDay: task.allDay,
       start: task.allDay ? undefined : start,

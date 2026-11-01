@@ -1726,10 +1726,64 @@
   flex: 1;
 }
 
+/* The status wrapper must stay compact and pinned to the right edge. */
+.tw-calendar-task .tw-cal-status,
+.tw-calendar-task .tw-cal-status span {
+  flex: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.tw-calendar-task > .tw-cal-status {
+  margin-left: auto;
+}
+
 .tw-calendar-task small {
   color: var(--tw-text-3);
   font-size: 10px;
   flex: none;
+}
+
+/* Status is conveyed by icons, never by title suffixes. */
+.tw-cal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  color: var(--tw-text-3);
+}
+
+.tw-cal-status-ico {
+  display: inline-flex;
+  align-items: center;
+}
+
+.tw-cal-status-ico.postponed {
+  color: #8a63d2;
+}
+
+.tw-tg-allday-chip.task {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tw-tg-chip-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tw-tg-block .tw-cal-status {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+}
+
+.tw-tg-block.has-status strong {
+  padding-right: 18px;
 }
 
 .tw-calendar-task.done {

@@ -4,7 +4,8 @@
       <span class="tw-brand-mark">
         <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
           <rect x="2" y="2" width="28" height="28" rx="9" fill="currentColor" />
-          <path d="m9.5 16.5 4.2 4.3 8.8-9.6" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+          <path fill="#fff" d="M7.5 7.5H24.5V10.47H7.5ZM7.5 21.52H24.5V24.5H7.5ZM7.5 7.5H10.47V24.5H7.5ZM21.52 7.5H24.5V12.01H21.52ZM21.52 19.99H24.5V24.5H21.52Z" />
+          <path fill="#fff" d="M14.04 14.04H17.95V17.95H14.04Z" />
         </svg>
       </span>
       <span class="tw-brand-name">我的任务</span>

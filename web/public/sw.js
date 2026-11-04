@@ -1,4 +1,4 @@
-const CACHE = 'caldav-free-shell-v2'
+const CACHE = 'caldav-free-shell-v3'
 const SHELL = [
   '/admin/',
   '/admin/index.html',

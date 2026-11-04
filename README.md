@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/svg/logo-horizontal-inverse.svg">
+    <img src="brand/svg/logo-horizontal.svg" alt="CalFree 历记" width="360">
+  </picture>
+</p>
+
 # caldav-free
 
 一个完整、可自托管的 **CalDAV 日历服务器**，使用 Go 编写，内置 Web 管理后台。

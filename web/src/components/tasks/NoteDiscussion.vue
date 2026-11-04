@@ -1,19 +1,5 @@
 <template>
   <div class="tw-note-discussion-body">
-    <section v-if="activities.length" class="tw-activity-section">
-      <header class="tw-detail-section-head"><span>动态</span></header>
-      <div class="tw-activity-list">
-        <div v-for="activity in activities" :key="activity.id" class="tw-activity-row">
-          <span class="tw-activity-dot" />
-          <span class="tw-activity-text">
-            <strong>{{ activity.displayName || activity.username }}</strong>
-            {{ activity.detail }}
-          </span>
-          <small>{{ formatCommentTime(activity.createdAt) }}</small>
-        </div>
-      </div>
-    </section>
-
     <section class="tw-comments-section">
       <header class="tw-detail-section-head">
         <span>评论</span>
@@ -130,12 +116,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { Message } from '@arco-design/web-vue'
-import type { CommentAttachment, TaskActivity, TaskComment, TaskListMember } from '../../types'
+import type { CommentAttachment, TaskComment, TaskListMember } from '../../types'
 import {
   createTaskComment,
   deleteCommentAttachment,
   deleteTaskComment,
-  fetchTaskActivities,
   fetchTaskComments,
   fetchTaskListMembers,
   updateTaskComment,
@@ -149,7 +134,6 @@ const props = defineProps<{
   readonly?: boolean
 }>()
 
-const activities = ref<TaskActivity[]>([])
 const comments = ref<TaskComment[]>([])
 const members = ref<TaskListMember[]>([])
 const commentsLoading = ref(false)
@@ -161,17 +145,6 @@ const editingCommentId = ref(0)
 const editingCommentText = ref('')
 
 const mentionMembers = computed(() => members.value.slice(0, 6))
-
-async function loadActivities() {
-  const id = props.taskId
-  if (!id) return
-  try {
-    const result = await fetchTaskActivities(id)
-    if (id === props.taskId) activities.value = result.activities
-  } catch {
-    if (id === props.taskId) activities.value = []
-  }
-}
 
 async function loadComments() {
   const id = props.taskId
@@ -310,7 +283,6 @@ watch(
     commentFiles.value = []
     editingCommentId.value = 0
     editingCommentText.value = ''
-    void loadActivities()
     void loadComments()
   },
   { immediate: true },

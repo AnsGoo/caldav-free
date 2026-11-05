@@ -51,6 +51,7 @@ class BoardView extends StatelessWidget {
     required this.onToggleTask,
     required this.manualSort,
     this.group = BoardGroup.list,
+    this.pageLabel,
   });
 
   final TaskListItem? list;
@@ -61,11 +62,16 @@ class BoardView extends StatelessWidget {
   final bool manualSort;
   final BoardGroup group;
 
+  /// 横屏时页码由外层合并到「看板分组」那一行显示；传 null 则由分页器
+  /// 自己在看板上方单独占一行（竖屏行为）。
+  final ValueNotifier<String>? pageLabel;
+
   @override
   Widget build(BuildContext context) {
     final list = this.list;
     if (group != BoardGroup.list) {
       return _GroupedBoardView(
+        pageLabel: pageLabel,
         group: group,
         list: list,
         lists: lists,
@@ -85,6 +91,7 @@ class BoardView extends StatelessWidget {
         builder: (context, constraints) {
           if (constraints.maxWidth < 600) {
             return _BoardPager(
+              pageLabel: pageLabel,
               itemCount: lists.length,
               builder: (context, index, width) {
                 final item = lists[index];
@@ -222,6 +229,7 @@ class BoardView extends StatelessWidget {
             final count = sections.length + 1;
             if (constraints.maxWidth < 600) {
               return _BoardPager(
+                pageLabel: pageLabel,
                 key: ValueKey('board-pages-${list.id}'),
                 itemCount: count,
                 trailing: IconButton(
@@ -754,6 +762,7 @@ class _GroupColumnSpec {
 /// column, mirroring the web board behavior.
 class _GroupedBoardView extends StatelessWidget {
   const _GroupedBoardView({
+    this.pageLabel,
     required this.group,
     required this.list,
     required this.lists,
@@ -761,6 +770,9 @@ class _GroupedBoardView extends StatelessWidget {
     required this.onOpenTask,
     required this.onToggleTask,
   });
+
+  /// 横屏时页码并入外层行显示；null 表示分页器自带一行。
+  final ValueNotifier<String>? pageLabel;
 
   final BoardGroup group;
   final TaskListItem? list;
@@ -977,6 +989,7 @@ class _GroupedBoardView extends StatelessWidget {
 
         if (constraints.maxWidth < 600) {
           return _BoardPager(
+            pageLabel: pageLabel,
             key: ValueKey('board-pages-${group.name}'),
             itemCount: columns.length,
             builder: (context, index, width) =>
@@ -1244,11 +1257,15 @@ class _BoardPager extends StatefulWidget {
     required this.itemCount,
     required this.builder,
     this.trailing,
+    this.pageLabel,
   });
 
   final int itemCount;
   final Widget Function(BuildContext context, int index, double width) builder;
   final Widget? trailing;
+
+  /// 非 null 时页码交给外层显示，分页器自己不再占一行。
+  final ValueNotifier<String>? pageLabel;
 
   @override
   State<_BoardPager> createState() => _BoardPagerState();
@@ -1259,9 +1276,31 @@ class _BoardPagerState extends State<_BoardPager> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    _publishPage();
+  }
+
+  /// 把「1/3」这种页码同步给外层，横屏时并进看板分组那一行。
+  void _publishPage() {
+    final notifier = widget.pageLabel;
+    if (notifier == null) return;
+    final label = widget.itemCount <= 0
+        ? ''
+        : '${_index + 1}/${widget.itemCount}';
+    if (notifier.value == label) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) notifier.value = label;
+    });
+  }
+
+  @override
   void didUpdateWidget(covariant _BoardPager oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.itemCount <= 0 || _index < widget.itemCount) return;
+    if (widget.itemCount <= 0 || _index < widget.itemCount) {
+      _publishPage();
+      return;
+    }
     _index = widget.itemCount - 1;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _controller.hasClients) {
@@ -1281,41 +1320,43 @@ class _BoardPagerState extends State<_BoardPager> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     if (widget.itemCount <= 0) return const SizedBox.shrink();
+    final showHeader = widget.pageLabel == null;
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  '${_index + 1}/${widget.itemCount}',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    color: scheme.primary,
-                    fontWeight: FontWeight.w700,
+        if (showHeader)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    '${_index + 1}/${widget.itemCount}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '左右滑动切换分组',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+                const SizedBox(width: 8),
+                Text(
+                  '左右滑动切换分组',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
-              ),
-              const Spacer(),
-              if (widget.trailing != null) widget.trailing!,
-            ],
+                const Spacer(),
+                if (widget.trailing != null) widget.trailing!,
+              ],
+            ),
           ),
-        ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -1323,7 +1364,10 @@ class _BoardPagerState extends State<_BoardPager> {
               return PageView.builder(
                 controller: _controller,
                 itemCount: widget.itemCount,
-                onPageChanged: (index) => setState(() => _index = index),
+                onPageChanged: (index) {
+                  setState(() => _index = index);
+                  _publishPage();
+                },
                 itemBuilder: (context, index) => Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: widget.builder(context, index, width),

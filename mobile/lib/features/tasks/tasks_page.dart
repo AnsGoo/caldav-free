@@ -92,6 +92,9 @@ class _TasksPageState extends State<TasksPage> {
   List<TaskItem> _tasks = const [];
   StreamSubscription<List<TaskListItem>>? _listsSub;
   StreamSubscription<List<TaskItem>>? _tasksSub;
+
+  /// 看板分页器在横屏时把「1/3」交给「看板分组」那一行显示。
+  final _boardPage = ValueNotifier<String>('');
   final _quickAdd = TextEditingController();
   final _quickAddFocus = FocusNode();
   final _search = TextEditingController();
@@ -120,6 +123,7 @@ class _TasksPageState extends State<TasksPage> {
   void dispose() {
     _listsSub?.cancel();
     _tasksSub?.cancel();
+    _boardPage.dispose();
     _quickAdd.dispose();
     _quickAddFocus.dispose();
     _search.dispose();
@@ -1155,6 +1159,51 @@ class _TasksPageState extends State<TasksPage> {
                           onChanged: (value) =>
                               setState(() => _boardGroup = value),
                         ),
+                        // 横屏时把分页器的「1/3 左右滑动切换分组」并到这一行，
+                        // 不再单独占一行高度。
+                        if (wide) ...[
+                          const SizedBox(width: 14),
+                          ValueListenableBuilder<String>(
+                            valueListenable: _boardPage,
+                            builder: (context, label, _) {
+                              if (label.isEmpty) {
+                                return const SizedBox.shrink();
+                              }
+                              return Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 9,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: scheme.primary.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      label,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: scheme.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    '左右滑动切换分组',
+                                    style: theme.textTheme.labelSmall?.copyWith(
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ],
                         const Spacer(),
                         Tooltip(
                           message: '拖动任务到其他列会自动修改对应字段',
@@ -1180,6 +1229,7 @@ class _TasksPageState extends State<TasksPage> {
                               ),
                             )
                           : BoardView(
+                              pageLabel: wide ? _boardPage : null,
                               list: _selectedList,
                               lists: _lists,
                               tasks: _activeFilter != null

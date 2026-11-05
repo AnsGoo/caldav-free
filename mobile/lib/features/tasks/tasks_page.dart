@@ -191,6 +191,18 @@ class _TasksPageState extends State<TasksPage> {
   TaskListItem? get _defaultList =>
       _selectedList ?? _inbox ?? (_lists.isNotEmpty ? _lists.first : null);
 
+  IconData _layoutIcon(_TaskLayout layout) => switch (layout) {
+    _TaskLayout.list => Icons.view_list_rounded,
+    _TaskLayout.board => Icons.view_kanban_outlined,
+    _TaskLayout.matrix => Icons.grid_view_outlined,
+  };
+
+  String _layoutLabel(_TaskLayout layout) => switch (layout) {
+    _TaskLayout.list => '列表',
+    _TaskLayout.board => '看板',
+    _TaskLayout.matrix => '矩阵',
+  };
+
   void _setLayout(_TaskLayout layout) {
     setState(() {
       _trash = false;
@@ -895,6 +907,36 @@ class _TasksPageState extends State<TasksPage> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
+                // 视图切换改成图标 + 弹窗，和日历一致，省掉一行高度。
+                PopupMenuButton<_TaskLayout>(
+                  tooltip: '切换视图',
+                  icon: Icon(_layoutIcon(_layout)),
+                  onSelected: _setLayout,
+                  itemBuilder: (context) => [
+                    for (final option in _TaskLayout.values)
+                      PopupMenuItem(
+                        value: option,
+                        child: Row(
+                          children: [
+                            Icon(
+                              _layoutIcon(option),
+                              size: 19,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 12),
+                            Text(_layoutLabel(option)),
+                            const SizedBox(width: 20),
+                            if (_layout == option)
+                              Icon(
+                                Icons.check_rounded,
+                                size: 18,
+                                color: scheme.primary,
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
                 // 清单筛选只在小屏放在顶部，大屏用侧栏；主题入口统一收进设置。
                 if (!wide)
                   _ListFilterButton(
@@ -967,14 +1009,6 @@ class _TasksPageState extends State<TasksPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (!_searching && !_selecting && !_trash)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 0, 0, 2),
-                    child: _LayoutSwitcher(
-                      layout: _layout,
-                      onChanged: _setLayout,
-                    ),
-                  ),
                 if (_selecting && _layout == _TaskLayout.list)
                   _BatchBar(
                     count: _selectedIds.length,
@@ -1474,27 +1508,6 @@ class _BoardGroupMenuItem extends StatelessWidget {
         if (selected)
           Icon(Icons.check_rounded, size: 17, color: scheme.primary),
       ],
-    );
-  }
-}
-
-class _LayoutSwitcher extends StatelessWidget {
-  const _LayoutSwitcher({required this.layout, required this.onChanged});
-
-  final _TaskLayout layout;
-  final ValueChanged<_TaskLayout> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
-      child: AppUnderlineTabs<_TaskLayout>(
-        values: _TaskLayout.values,
-        labels: const ['列表', '看板', '矩阵'],
-        selected: layout,
-        onChanged: onChanged,
-        padding: EdgeInsets.zero,
-      ),
     );
   }
 }

@@ -12,6 +12,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+/// 视图切换改成了图标 + 弹窗：先点开菜单再选。
+Future<void> _switchLayout(WidgetTester tester, String label) async {
+  await tester.tap(find.byTooltip('切换视图'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(label).last);
+  await tester.pumpAndSettle();
+}
+
 void main() {
   testWidgets('connect sheet renders the connection form', (tester) async {
     final store = LocalStore.memory();
@@ -235,8 +243,7 @@ void main() {
     await tester.tap(find.byTooltip('取消选择'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('看板'));
-    await tester.pumpAndSettle();
+    await _switchLayout(tester, '看板');
     // 宽屏通过侧栏选择清单，主区不再显示范围筛选条。
     expect(find.text('全部清单'), findsNothing);
     expect(find.text('看板里的任务'), findsOneWidget);
@@ -259,8 +266,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(store.task('task-drag')?.sectionId, 'section-doing');
 
-    await tester.tap(find.text('矩阵'));
-    await tester.pumpAndSettle();
+    await _switchLayout(tester, '矩阵');
     expect(find.text('重要且紧急'), findsOneWidget);
     expect(find.text('重要不紧急'), findsOneWidget);
     expect(find.text('紧急不重要'), findsOneWidget);
@@ -311,8 +317,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('看板'));
-    await tester.pumpAndSettle();
+    await _switchLayout(tester, '看板');
     expect(find.text('1/1'), findsOneWidget);
 
     await tester.tap(find.text('按清单'));
@@ -372,8 +377,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('矩阵'));
-    await tester.pumpAndSettle();
+    await _switchLayout(tester, '矩阵');
 
     Finder inQuadrant(String quadrant, String title) => find.descendant(
       of: find.byKey(ValueKey('matrix-q$quadrant')),

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -175,6 +177,30 @@ class SettingsPage extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 18),
+          const AppSectionLabel(title: '提醒'),
+          AppCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                _SettingsTile(
+                  icon: Icons.notifications_active_outlined,
+                  title: '通知权限',
+                  subtitle: _notificationSubtitle(app),
+                  onTap: () => _requestNotificationPermission(context, app),
+                ),
+                if (Platform.isAndroid) ...[
+                  const Divider(height: 1, indent: 56),
+                  _SettingsTile(
+                    icon: Icons.alarm_rounded,
+                    title: '精确闹钟',
+                    subtitle: 'Android 12+ 需单独授权，否则提醒可能延迟',
+                    onTap: () => _ensureExactAlarms(context, app),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
           const AppSectionLabel(title: '外观'),
           AppCard(
             padding: EdgeInsets.zero,
@@ -233,6 +259,40 @@ class SettingsPage extends StatelessWidget {
     } catch (error) {
       if (context.mounted) _snack(context, '退出登录失败：$error');
     }
+  }
+
+  String _notificationSubtitle(AppState app) {
+    final scheduler = app.reminders;
+    if (scheduler == null) return '提醒服务未启动';
+    final parts = <String>['已排程 ${scheduler.scheduledCount} 条'];
+    if (scheduler.permissionGranted == false) parts.add('权限未授予');
+    final error = scheduler.lastError;
+    if (error != null) parts.add('上次失败：$error');
+    return parts.join(' · ');
+  }
+
+  Future<void> _requestNotificationPermission(
+    BuildContext context,
+    AppState app,
+  ) async {
+    final scheduler = app.reminders;
+    if (scheduler == null) return;
+    final granted = await scheduler.requestPermissions();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(granted ? '通知权限已开启' : '通知权限未授予，请到系统设置开启')),
+    );
+    await scheduler.reschedule();
+  }
+
+  Future<void> _ensureExactAlarms(BuildContext context, AppState app) async {
+    final scheduler = app.reminders;
+    if (scheduler == null) return;
+    final granted = await scheduler.ensureExactAlarms();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(granted ? '已允许精确闹钟' : '未允许精确闹钟，提醒可能延后')),
+    );
   }
 
   Future<void> _sync(

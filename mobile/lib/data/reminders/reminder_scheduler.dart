@@ -2,8 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'dart:io';
+
 import '../../core/models.dart';
+import '../countdowns/countdown_api.dart';
+import '../countdowns/countdown_store.dart';
 import '../db/local_store.dart';
+import '../habits/habit_api.dart';
+import '../habits/habit_store.dart';
 import 'notification_gateway.dart';
 import 'reminder_plan.dart';
 
@@ -14,13 +20,20 @@ import 'reminder_plan.dart';
 /// P1: cancel all pending (not displayed) notifications, then schedule the new
 /// plan.
 class ReminderScheduler {
-  ReminderScheduler({required this.store, NotificationGateway? gateway})
-    : _gateway = gateway ?? createDefaultGateway();
+  ReminderScheduler({
+    required this.store,
+    this.habits,
+    this.countdowns,
+    NotificationGateway? gateway,
+  }) : _gateway = gateway ?? createDefaultGateway();
 
   final LocalStore store;
+  final HabitStore? habits;
+  final CountdownStore? countdowns;
   final NotificationGateway _gateway;
 
   StreamSubscription<List<TaskItem>>? _subscription;
+  bool _listeningExtra = false;
   Timer? _debounce;
   bool _started = false;
   bool _refreshing = false;
@@ -31,20 +44,28 @@ class ReminderScheduler {
   int scheduledCount = 0;
   String? lastError;
 
+  /// null = 还没问过系统。
+  bool? permissionGranted;
+
   Future<void> start({void Function(String? taskId)? onTap}) async {
     if (_started) return;
     _started = true;
     try {
       await _gateway.initialize(onTap: onTap ?? (_) {});
-      unawaited(_gateway.requestPermissions());
+      permissionGranted = await _gateway.requestPermissions();
     } catch (error) {
       lastError = error.toString();
       debugPrint('reminder init failed: $error');
     }
     if (!_started) return;
     _subscription = store.watchAllTasks().listen((_) => _scheduleSoon());
+    habits?.addListener(_onExtraChanged);
+    countdowns?.addListener(_onExtraChanged);
+    _listeningExtra = true;
     await _refresh();
   }
+
+  void _onExtraChanged() => _scheduleSoon();
 
   void _scheduleSoon() {
     if (!_started) return;
@@ -63,12 +84,28 @@ class ReminderScheduler {
     _refreshing = true;
     try {
       final tasks = store.allTasks();
+      final now = DateTime.now();
       final signature = _reminderSignature(tasks);
       if (!_forceNext && signature == _lastSignature) {
         return;
       }
       _forceNext = false;
-      final plan = buildReminderPlan(tasks, now: DateTime.now().toUtc());
+      // iOS 只保留最早的 64 条待处理通知，留一点余量。
+      final cap = Platform.isIOS ? 60 : 120;
+      final merged = <ReminderPlanItem>[
+        ...buildReminderPlan(tasks, now: now.toUtc(), max: cap),
+        ...buildCountdownPlan(
+          countdowns?.items ?? const <CountdownItem>[],
+          now: now,
+          max: cap,
+        ),
+        ...buildHabitPlan(
+          habits?.snapshot.habits ?? const <HabitItem>[],
+          now: now,
+          max: cap,
+        ),
+      ]..sort((a, b) => a.at.compareTo(b.at));
+      final plan = merged.length > cap ? merged.sublist(0, cap) : merged;
       await _gateway.cancelPending();
       final exact = await _gateway.exactAlarmsAllowed();
       var scheduled = 0;
@@ -115,6 +152,16 @@ class ReminderScheduler {
         ].join('|'),
       );
     }
+    for (final habit in habits?.snapshot.habits ?? const <HabitItem>[]) {
+      if (habit.archived) continue;
+      rows.add('habit:${habit.id}:${habit.reminders.join(",")}');
+    }
+    for (final item in countdowns?.items ?? const <CountdownItem>[]) {
+      rows.add(
+        'countdown:${item.id}:${item.occurrenceDate}:'
+        '${item.reminders.join(",")}:${item.reminderTime}',
+      );
+    }
     rows.sort();
     return rows.join('\n');
   }
@@ -132,7 +179,11 @@ class ReminderScheduler {
   }
 
   /// Requests the runtime notification permission (Android 13+).
-  Future<bool> requestPermissions() => _gateway.requestPermissions();
+  Future<bool> requestPermissions() async {
+    final granted = await _gateway.requestPermissions();
+    permissionGranted = granted;
+    return granted;
+  }
 
   Future<bool> exactAlarmsAllowed() => _gateway.exactAlarmsAllowed();
 
@@ -149,6 +200,11 @@ class ReminderScheduler {
     _subscription = null;
     if (subscription != null) {
       unawaited(subscription.cancel().catchError((Object _) {}));
+    }
+    if (_listeningExtra) {
+      habits?.removeListener(_onExtraChanged);
+      countdowns?.removeListener(_onExtraChanged);
+      _listeningExtra = false;
     }
     _lastSignature = null;
     _forceNext = false;

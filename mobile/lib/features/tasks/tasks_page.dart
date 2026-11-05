@@ -862,6 +862,17 @@ class _TasksPageState extends State<TasksPage> {
     final trashCount = app.store.trashSnapshot().length;
     final wide = isWideLayout(context);
 
+    // 从通知点进来：打开对应任务详情。
+    final pendingTaskId = app.pendingTaskId;
+    if (pendingTaskId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final task = app.store.task(pendingTaskId);
+        app.consumePendingTask();
+        if (task != null) _openEditor(task, listsById[task.listId]);
+      });
+    }
+
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: compactAppBarHeight(context),

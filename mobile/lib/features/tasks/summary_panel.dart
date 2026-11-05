@@ -1040,8 +1040,9 @@ class _PreviewTaskRow extends StatelessWidget {
     Color metaColor(String value) {
       final listColor = listColors[value];
       if (listColor != null) return listColor;
-      if (value.startsWith('#'))
+      if (value.startsWith('#')) {
         return tagColorForName(value.substring(1).trim());
+      }
       if (value.contains('高优先级')) return const Color(0xFFE5484D);
       if (value.contains('中优先级')) return const Color(0xFFF76B15);
       if (value.contains('低优先级')) return const Color(0xFF3B82F6);

@@ -124,6 +124,10 @@ class LocalNotificationGateway implements NotificationGateway {
       ),
     );
     final scheduled = tz.TZDateTime.from(item.at.toUtc(), tz.UTC);
+    // 习惯是每天同一时间重复，其余提醒都是一次性。
+    final repeat = item.repeat == ReminderRepeat.daily
+        ? DateTimeComponents.time
+        : null;
     try {
       await _plugin.zonedSchedule(
         id: item.id,
@@ -132,9 +136,10 @@ class LocalNotificationGateway implements NotificationGateway {
         androidScheduleMode: exact
             ? AndroidScheduleMode.exactAllowWhileIdle
             : AndroidScheduleMode.inexactAllowWhileIdle,
-        title: '任务提醒',
+        title: item.title,
         body: item.body,
-        payload: item.taskId,
+        payload: item.payload,
+        matchDateTimeComponents: repeat,
       );
     } on PlatformException catch (error) {
       if (!exact ||
@@ -147,9 +152,10 @@ class LocalNotificationGateway implements NotificationGateway {
         scheduledDate: scheduled,
         notificationDetails: details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        title: '任务提醒',
+        title: item.title,
         body: item.body,
-        payload: item.taskId,
+        payload: item.payload,
+        matchDateTimeComponents: repeat,
       );
     }
   }

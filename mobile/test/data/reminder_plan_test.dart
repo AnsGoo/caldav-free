@@ -1,4 +1,6 @@
 import 'package:caldav_free/core/models.dart';
+import 'package:caldav_free/data/countdowns/countdown_api.dart';
+import 'package:caldav_free/data/habits/habit_api.dart';
 import 'package:caldav_free/data/reminders/reminder_plan.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,7 +38,7 @@ void main() {
       DateTime.utc(2026, 10, 25, 12),
     ]);
     expect(plan.map((item) => item.offsetMinutes).toList(), [60, 30, 0]);
-    expect(plan.every((item) => item.taskId == 'task-1'), true);
+    expect(plan.every((item) => item.payload == 'task:task-1'), true);
   });
 
   test('skips past, completed, deleted, missing-due and note rows', () {
@@ -82,9 +84,9 @@ void main() {
   });
 
   test('notification ids are stable, positive and offset-specific', () {
-    final a = reminderNotificationId('task-1', 0);
-    final b = reminderNotificationId('task-1', 0);
-    final c = reminderNotificationId('task-1', 5);
+    final a = reminderNotificationId('task:task-1:0');
+    final b = reminderNotificationId('task:task-1:0');
+    final c = reminderNotificationId('task:task-1:5');
     expect(a, b);
     expect(a, isNot(c));
     expect(a, greaterThan(0));
@@ -100,6 +102,55 @@ void main() {
     );
     expect(plan.length, 2);
     expect(plan.first.offsetMinutes, 5);
+  });
+
+  test('countdown reminders fire N days before at the reminder clock', () {
+    final item = CountdownItem.fromJson({
+      'id': 7,
+      'name': '发布日',
+      'type': 'countdown',
+      'repeat': 'none',
+      'occurrenceDate': 20261110,
+      'reminders': [0, 3],
+      'reminderTime': '08:30',
+    });
+    final plan = buildCountdownPlan(
+      [item],
+      now: DateTime(2026, 11, 1, 9),
+    );
+
+    expect(plan.length, 2);
+    expect(plan.first.at, DateTime(2026, 11, 7, 8, 30));
+    expect(plan.first.body, '距离「发布日」还有 3 天');
+    expect(plan.last.at, DateTime(2026, 11, 10, 8, 30));
+    expect(plan.last.body, '今天是「发布日」');
+    expect(plan.every((entry) => entry.payload == 'countdown:7'), true);
+  });
+
+  test('habit reminders repeat daily at the chosen time', () {
+    final habit = HabitItem.fromJson({
+      'id': 3,
+      'name': '喝水',
+      'reminders': ['08:00'],
+      'status': 0,
+    });
+    final plan = buildHabitPlan([habit], now: DateTime(2026, 11, 5, 12));
+
+    expect(plan.length, 1);
+    expect(plan.single.at, DateTime(2026, 11, 6, 8));
+    expect(plan.single.repeat, ReminderRepeat.daily);
+    expect(plan.single.payload, 'habit:3');
+    expect(plan.single.body, '喝水 今天还没有打卡');
+  });
+
+  test('archived habits are skipped', () {
+    final habit = HabitItem.fromJson({
+      'id': 4,
+      'name': '旧习惯',
+      'reminders': ['08:00'],
+      'status': 1,
+    });
+    expect(buildHabitPlan([habit], now: DateTime(2026, 11, 5)), isEmpty);
   });
 
   test('labels common offsets in Chinese', () {

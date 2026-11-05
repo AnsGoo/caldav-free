@@ -60,6 +60,9 @@ class AppState extends ChangeNotifier {
   Session? session;
   SyncController? syncController;
   ReminderScheduler? reminders;
+
+  /// 点击通知后要打开的任务 id，由任务页消费。
+  String? pendingTaskId;
   bool busy = false;
   String? error;
 
@@ -89,9 +92,27 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _startOffline() async {
-    final scheduler = ReminderScheduler(store: store);
+    final scheduler = ReminderScheduler(
+      store: store,
+      habits: habits,
+      countdowns: countdowns,
+    );
     reminders = scheduler;
-    unawaited(scheduler.start());
+    unawaited(scheduler.start(onTap: _handleReminderTap));
+  }
+
+  void _handleReminderTap(String? payload) {
+    final value = payload?.trim() ?? '';
+    if (!value.startsWith('task:')) return;
+    final id = value.substring('task:'.length).trim();
+    if (id.isEmpty) return;
+    pendingTaskId = id;
+    notifyListeners();
+  }
+
+  /// 任务页打开对应任务后调用，避免重复触发。
+  void consumePendingTask() {
+    pendingTaskId = null;
   }
 
   Future<void> connect({
@@ -313,9 +334,13 @@ class AppState extends ChangeNotifier {
     controller.addListener(_syncListener!);
     unawaited(controller.start());
 
-    final scheduler = ReminderScheduler(store: store);
+    final scheduler = ReminderScheduler(
+      store: store,
+      habits: habits,
+      countdowns: countdowns,
+    );
     reminders = scheduler;
-    unawaited(scheduler.start());
+    unawaited(scheduler.start(onTap: _handleReminderTap));
   }
 
   void _detachSync() {

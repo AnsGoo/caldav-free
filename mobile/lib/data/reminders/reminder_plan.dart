@@ -1,20 +1,31 @@
 import '../../core/models.dart';
+import '../countdowns/countdown_api.dart';
+import '../habits/habit_api.dart';
 
-/// One notification we want Android to deliver.
+/// 通知的重复方式。日程/倒数日/任务都是一次性，习惯是每天固定时间。
+enum ReminderRepeat { none, daily }
+
+/// One native notification we want the OS to deliver.
 class ReminderPlanItem {
   const ReminderPlanItem({
     required this.id,
-    required this.taskId,
+    required this.payload,
+    required this.title,
     required this.body,
     required this.at,
-    required this.offsetMinutes,
+    this.offsetMinutes = 0,
+    this.repeat = ReminderRepeat.none,
   });
 
   final int id;
-  final String taskId;
+
+  /// `task:12` / `countdown:3` / `habit:7`，点击通知时用来跳转。
+  final String payload;
+  final String title;
   final String body;
   final DateTime at;
   final int offsetMinutes;
+  final ReminderRepeat repeat;
 }
 
 /// Builds the desired notification set from local tasks.
@@ -27,7 +38,7 @@ class ReminderPlanItem {
 /// - require a due time and at least one reminder offset;
 /// - skip reminders whose fire time is at or before [now] (or outside the
 ///   scheduling window);
-/// - stable ID = FNV-1a of `taskId:offset`, positive 31-bit;
+/// - stable ID = FNV-1a of the payload, positive 31-bit;
 /// - at most [max] future notifications, earliest first.
 List<ReminderPlanItem> buildReminderPlan(
   Iterable<TaskItem> tasks, {
@@ -51,10 +62,12 @@ List<ReminderPlanItem> buildReminderPlan(
       if (offset < 0 || offset > 10080) continue;
       final at = task.dueAt!.toUtc().subtract(Duration(minutes: offset));
       if (!at.isAfter(cutoff) || at.isAfter(until)) continue;
-      final id = reminderNotificationId(task.id, offset);
+      final payload = 'task:${task.id}';
+      final id = reminderNotificationId('$payload:$offset');
       byId[id] = ReminderPlanItem(
         id: id,
-        taskId: task.id,
+        payload: payload,
+        title: '任务提醒',
         body: task.title,
         at: at,
         offsetMinutes: offset,
@@ -62,7 +75,91 @@ List<ReminderPlanItem> buildReminderPlan(
     }
   }
 
-  final plan = byId.values.toList()
+  return _sortedCapped(byId.values, max);
+}
+
+/// 倒数日：在「发生日 - 偏移天数」当天的 reminderTime 提醒，和 Web 端一致。
+List<ReminderPlanItem> buildCountdownPlan(
+  Iterable<CountdownItem> countdowns, {
+  required DateTime now,
+  int max = 60,
+  Duration window = const Duration(days: 366),
+}) {
+  final cutoff = now;
+  final until = now.add(window);
+  final byId = <int, ReminderPlanItem>{};
+
+  for (final item in countdowns) {
+    if (item.reminders.isEmpty) continue;
+    final day = _countdownDay(item.occurrenceDate);
+    if (day == null) continue;
+    final clock = _parseClock(item.reminderTime) ?? (9, 0);
+    for (final offset in item.reminders) {
+      if (offset < 0 || offset > 3650) continue;
+      final at = DateTime(
+        day.year,
+        day.month,
+        day.day - offset,
+        clock.$1,
+        clock.$2,
+      );
+      if (!at.isAfter(cutoff) || at.isAfter(until)) continue;
+      final payload = 'countdown:${item.id}';
+      final id = reminderNotificationId(
+        '$payload:${item.occurrenceDate}:$offset',
+      );
+      byId[id] = ReminderPlanItem(
+        id: id,
+        payload: payload,
+        title: '倒数日提醒',
+        body: offset == 0
+            ? '今天是「${item.name}」'
+            : '距离「${item.name}」还有 $offset 天',
+        at: at,
+        offsetMinutes: offset,
+      );
+    }
+  }
+
+  return _sortedCapped(byId.values, max);
+}
+
+/// 习惯：每天在设定的时间提醒（和 Web 端一致，按天重复，不区分频率）。
+List<ReminderPlanItem> buildHabitPlan(
+  Iterable<HabitItem> habits, {
+  required DateTime now,
+  int max = 60,
+}) {
+  final byId = <int, ReminderPlanItem>{};
+
+  for (final habit in habits) {
+    if (habit.archived || habit.reminders.isEmpty) continue;
+    for (final raw in habit.reminders) {
+      final clock = _parseClock(raw);
+      if (clock == null) continue;
+      var at = DateTime(now.year, now.month, now.day, clock.$1, clock.$2);
+      if (!at.isAfter(now)) at = at.add(const Duration(days: 1));
+      final payload = 'habit:${habit.id}';
+      final id = reminderNotificationId('$payload:${clock.$1}:${clock.$2}');
+      byId[id] = ReminderPlanItem(
+        id: id,
+        payload: payload,
+        title: '习惯提醒',
+        body: '${habit.name} 今天还没有打卡',
+        at: at,
+        repeat: ReminderRepeat.daily,
+      );
+    }
+  }
+
+  return _sortedCapped(byId.values, max);
+}
+
+List<ReminderPlanItem> _sortedCapped(
+  Iterable<ReminderPlanItem> items,
+  int max,
+) {
+  final plan = items.toList()
     ..sort((a, b) {
       final byTime = a.at.compareTo(b.at);
       if (byTime != 0) return byTime;
@@ -72,10 +169,33 @@ List<ReminderPlanItem> buildReminderPlan(
   return plan.sublist(0, max);
 }
 
-/// Stable positive 31-bit ID for (taskId, offset).
-int reminderNotificationId(String taskId, int offsetMinutes) {
+/// `occurrenceDate` 是 YYYYMMDD 形式的整数。
+DateTime? _countdownDay(int stamp) {
+  if (stamp <= 0) return null;
+  final raw = stamp.toString().padLeft(8, '0');
+  if (raw.length != 8) return null;
+  final year = int.tryParse(raw.substring(0, 4));
+  final month = int.tryParse(raw.substring(4, 6));
+  final day = int.tryParse(raw.substring(6, 8));
+  if (year == null || month == null || day == null) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return DateTime(year, month, day);
+}
+
+(int, int)? _parseClock(String value) {
+  final parts = value.split(':');
+  if (parts.length != 2) return null;
+  final hour = int.tryParse(parts[0]);
+  final minute = int.tryParse(parts[1]);
+  if (hour == null || minute == null) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return (hour, minute);
+}
+
+/// Stable positive 31-bit ID for a notification key.
+int reminderNotificationId(String key) {
   var hash = 0x811c9dc5;
-  for (final code in '$taskId:$offsetMinutes'.codeUnits) {
+  for (final code in key.codeUnits) {
     hash ^= code;
     hash = (hash * 0x01000193) & 0xffffffff;
   }

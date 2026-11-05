@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../core/ui_utils.dart';
 import '../../data/habits/habit_api.dart';
 import '../../data/habits/habit_store.dart';
 import '../../design/components.dart';
@@ -220,20 +221,24 @@ class _HabitsPageState extends State<HabitsPage> {
     }
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 88,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('习惯'),
-            const SizedBox(height: 5),
-            Text(
-              subtitle,
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 88),
+        title: compactAppBarTitle(
+          context,
+          title: Text(
+            '习惯',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontSize: compactTitleFontSize(context),
+              letterSpacing: -0.9,
             ),
-          ],
+          ),
+          subtitle: Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
         ),
         actions: [
           if (!_selectedIsToday)

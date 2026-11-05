@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../core/ui_utils.dart';
 import '../../data/engine/sync_controller.dart';
 import '../../design/format.dart';
 
@@ -17,7 +18,10 @@ class SyncDiagnosticsPage extends StatelessWidget {
     final scheme = theme.colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('同步诊断')),
+      appBar: AppBar(
+        title: const Text('同步诊断'),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 76),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [

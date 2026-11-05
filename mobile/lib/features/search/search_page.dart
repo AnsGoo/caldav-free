@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/models.dart';
+import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
 import '../../data/countdowns/countdown_api.dart';
 import '../../data/habits/habit_api.dart';
@@ -444,6 +445,7 @@ class _SearchPageState extends State<SearchPage> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 76),
         title: Padding(
           padding: const EdgeInsets.only(right: 2),
           child: AppSearchField(

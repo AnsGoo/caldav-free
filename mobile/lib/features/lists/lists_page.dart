@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/models.dart';
+import '../../core/ui_utils.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
@@ -27,6 +28,7 @@ class ListsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('清单管理'),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 76),
         actions: [
           IconButton(
             tooltip: '新建文件夹',

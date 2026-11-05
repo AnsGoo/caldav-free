@@ -106,20 +106,24 @@ class _CountdownPageState extends State<CountdownPage> {
     final scheme = theme.colorScheme;
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 88,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('倒数日'),
-            const SizedBox(height: 5),
-            Text(
-              _items.isEmpty ? '记住值得期待的日子' : '${_items.length} 个日子',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 88),
+        title: compactAppBarTitle(
+          context,
+          title: Text(
+            '倒数日',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontSize: compactTitleFontSize(context),
+              letterSpacing: -0.9,
             ),
-          ],
+          ),
+          subtitle: Text(
+            _items.isEmpty ? '记住值得期待的日子' : '${_items.length} 个日子',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
         ),
         actions: [const SizedBox(width: 6)],
       ),

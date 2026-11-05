@@ -1,5 +1,6 @@
 import 'package:caldav_free/app_state.dart';
 import 'package:caldav_free/core/models.dart';
+import 'package:caldav_free/core/ui_utils.dart';
 import 'package:caldav_free/data/db/local_store.dart';
 import 'package:caldav_free/data/session/credentials.dart';
 import 'package:caldav_free/data/tasks_repository.dart';
@@ -92,6 +93,21 @@ void main() {
     expect(find.byType(AppBottomNav), findsNothing);
   });
 
+  testWidgets('landscape title clears the list pane and hugs the task column', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(2400, 1080)); // 800 x 360 logical
+
+    final rail = tester.getRect(find.byType(AppSideNav));
+    final title = tester.getRect(
+      find.descendant(of: find.byType(AppBar), matching: find.byType(Text)).first,
+    );
+
+    // 64dp rail + 232dp list pane + 20dp inset: the title must sit directly
+    // above the task column, not float over the sidebar.
+    expect(title.left, closeTo(rail.right + 232 + 20, 0.6));
+  });
+
   testWidgets('portrait keeps the bottom bar', (tester) async {
     await _pumpShell(tester, const Size(1080, 2400));
 
@@ -117,5 +133,47 @@ void main() {
     final avatar = tester.getCenter(find.byTooltip('设置'));
     final icon = tester.getCenter(find.byIcon(Icons.checklist_rtl_rounded));
     expect(avatar.dy, closeTo(icon.dy, 0.1));
+  });
+
+  Future<void> pumpTitleProbe(WidgetTester tester, Size size) async {
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          appBar: AppBar(
+            title: Builder(
+              builder: (context) => compactAppBarTitle(
+                context,
+                title: const Text('习惯', key: Key('probe-title')),
+                subtitle: const Text('12 项', key: Key('probe-subtitle')),
+              ),
+            ),
+          ),
+          body: const SizedBox.shrink(),
+        ),
+      ),
+    );
+  }
+
+  testWidgets('landscape puts the subtitle on the title row', (tester) async {
+    await pumpTitleProbe(tester, const Size(2400, 1080)); // 800 x 360 logical
+
+    final title = tester.getRect(find.byKey(const Key('probe-title')));
+    final subtitle = tester.getRect(find.byKey(const Key('probe-subtitle')));
+
+    // Same line: the subtitle's vertical centre falls inside the title's band.
+    expect(subtitle.center.dy, inInclusiveRange(title.top, title.bottom));
+    expect(subtitle.left, greaterThan(title.right));
+  });
+
+  testWidgets('portrait stacks the subtitle under the title', (tester) async {
+    await pumpTitleProbe(tester, const Size(1080, 2400));
+
+    final title = tester.getRect(find.byKey(const Key('probe-title')));
+    final subtitle = tester.getRect(find.byKey(const Key('probe-subtitle')));
+
+    expect(subtitle.top, greaterThanOrEqualTo(title.bottom));
   });
 }

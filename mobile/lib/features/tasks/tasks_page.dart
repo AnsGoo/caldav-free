@@ -71,6 +71,13 @@ bool _filterDateMatches(TaskItem task, FilterConditions conditions) {
 
 enum _TaskLayout { list, board, matrix }
 
+/// 宽屏侧栏（清单/视图面板）的固定宽度。标题在宽屏下按这个宽度缩进，
+/// 才能和右侧任务内容区的左边缘对齐，而不是悬在侧栏上方。
+const double _kListPaneWidth = 232;
+
+/// 标题与内容区的左侧缩进，竖屏与宽屏共用，保证两种布局的视觉关系一致。
+const double _kTitleInset = 20;
+
 class TasksPage extends StatefulWidget {
   const TasksPage({super.key});
 
@@ -842,12 +849,15 @@ class _TasksPageState extends State<TasksPage> {
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 82,
-        titleSpacing: 20,
+        toolbarHeight: compactAppBarHeight(context),
+        // 宽屏下标题要让开左侧清单面板，直接贴着任务内容区的左边缘。
+        titleSpacing: wide ? _kListPaneWidth + _kTitleInset : _kTitleInset,
         title: _selecting
             ? Text(
                 '已选 ${_selectedIds.length} 项',
-                style: theme.textTheme.titleLarge,
+                style: wide
+                    ? theme.textTheme.titleMedium
+                    : theme.textTheme.titleLarge,
               )
             : _searching
             ? AppSearchField(
@@ -858,18 +868,12 @@ class _TasksPageState extends State<TasksPage> {
                 onChanged: (value) =>
                     setState(() => _query = value.trim().toLowerCase()),
               )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontSize: 30,
-                      letterSpacing: -0.9,
-                    ),
-                  ),
-                ],
+            : Text(
+                title,
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontSize: compactTitleFontSize(context),
+                  letterSpacing: -0.9,
+                ),
               ),
         actions: _selecting
             ? [
@@ -2065,7 +2069,7 @@ class _ListPaneState extends State<_ListPane> {
                   .where((entry) => selection.contains(entry.key))
                   .toList(growable: false);
         return Container(
-          width: 232,
+          width: _kListPaneWidth,
           color: scheme.surfaceContainerLow,
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 12),
           child: ListView(

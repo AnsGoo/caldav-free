@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/models.dart';
 import '../../core/recurrence.dart';
+import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
 import '../../design/app_theme.dart';
 import '../../design/components.dart';
@@ -422,20 +423,24 @@ class _CalendarPageState extends State<CalendarPage> {
     final snapshot = _snapshot;
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 88,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('日历'),
-            const SizedBox(height: 5),
-            Text(
-              _viewLabel(_view),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 88),
+        title: compactAppBarTitle(
+          context,
+          title: Text(
+            '日历',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontSize: compactTitleFontSize(context),
+              letterSpacing: -0.9,
             ),
-          ],
+          ),
+          subtitle: Text(
+            _viewLabel(_view),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
         ),
         actions: [
           PopupMenuButton<CalendarView>(

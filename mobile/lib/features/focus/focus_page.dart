@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../core/ui_utils.dart';
 import '../../data/focus/focus_api.dart';
 import '../../data/focus/focus_store.dart';
 import '../../design/components.dart';
@@ -182,24 +183,24 @@ class _FocusPageState extends State<FocusPage> {
 
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 88,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '专注',
-              style: theme.textTheme.headlineMedium?.copyWith(fontSize: 30),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 88),
+        title: compactAppBarTitle(
+          context,
+          title: Text(
+            '专注',
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontSize: compactTitleFontSize(context),
             ),
-            const SizedBox(height: 5),
-            Text(
-              '今日 ${stats.todayFocusMinutes} 分钟 · '
-              '${stats.todayPomodoroCount}/${stats.goal} 番茄',
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+          ),
+          subtitle: Text(
+            '今日 ${stats.todayFocusMinutes} 分钟 · '
+            '${stats.todayPomodoroCount}/${stats.goal} 番茄',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
             ),
-          ],
+          ),
         ),
       ),
       body: ListView(

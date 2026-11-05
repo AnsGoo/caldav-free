@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
+import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
 import '../../design/components.dart';
 import '../auth/login_page.dart';
@@ -25,7 +26,10 @@ class SettingsPage extends StatelessWidget {
         : String.fromCharCode(username.runes.first).toUpperCase();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(
+        title: const Text('设置'),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 76),
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [

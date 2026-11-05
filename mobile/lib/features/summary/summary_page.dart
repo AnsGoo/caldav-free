@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../core/models.dart';
+import '../../core/ui_utils.dart';
 import '../tasks/summary_panel.dart';
 
 /// Top-level summary tab. The rail/bottom bar owns its entry so the task
@@ -14,7 +15,10 @@ class SummaryPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     return Scaffold(
-      appBar: AppBar(title: const Text('摘要'), toolbarHeight: 64),
+      appBar: AppBar(
+        title: const Text('摘要'),
+        toolbarHeight: compactAppBarHeight(context, defaultHeight: 64),
+      ),
       body: StreamBuilder<List<TaskItem>>(
         stream: app.store.watchAllTasks(),
         builder: (context, snapshot) {

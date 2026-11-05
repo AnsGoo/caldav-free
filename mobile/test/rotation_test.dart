@@ -23,7 +23,11 @@ const _destinations = [
   ),
 ];
 
-Future<void> _pumpShell(WidgetTester tester, Size size) async {
+Future<void> _pumpShell(
+  WidgetTester tester,
+  Size size, {
+  FakeViewPadding? padding,
+}) async {
   final store = LocalStore.memory();
   final now = DateTime.now().toUtc();
   await store.saveList(
@@ -47,6 +51,7 @@ Future<void> _pumpShell(WidgetTester tester, Size size) async {
   });
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 3.0;
+  if (padding != null) tester.view.padding = padding;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ChangeNotifierProvider<AppState>.value(
@@ -105,6 +110,27 @@ void main() {
 
     // 64dp rail + 232dp list pane + 20dp inset: the title must sit directly
     // above the task column, not float over the sidebar.
+    expect(title.left, closeTo(rail.right + 232 + 20, 0.6));
+  });
+
+  testWidgets('landscape safe area is consumed once by the rail', (
+    tester,
+  ) async {
+    // iPhone 横屏：左侧刘海安全区约 59dp。侧栏已经用 SafeArea 占用这段空间，
+    // 页面若再吃一次，标题会整体右移一个刘海宽度。
+    await _pumpShell(
+      tester,
+      const Size(2622, 1206),
+      padding: const FakeViewPadding(left: 59 * 3, bottom: 21 * 3),
+    );
+
+    final rail = tester.getRect(find.byType(AppSideNav));
+    final title = tester.getRect(
+      find.descendant(of: find.byType(AppBar), matching: find.byType(Text)).first,
+    );
+
+    expect(rail.right, closeTo(59 + 64, 0.6));
+    // 任务页：标题 = 侧栏右边缘 + 清单面板 232 + 缩进 20，不能再叠加安全区。
     expect(title.left, closeTo(rail.right + 232 + 20, 0.6));
   });
 

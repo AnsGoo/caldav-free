@@ -120,12 +120,26 @@ class _HomeShellState extends State<HomeShell> {
           else
             const SizedBox.shrink(),
           Expanded(
-            child: IndexedStack(
-              index: _index,
-              children: [
-                for (var i = 0; i < _destinations.length; i++) _slot(i),
-              ],
-            ),
+            child: useRail
+                // 横屏时刘海在左侧留下安全区，侧栏已经用 SafeArea 占用了这段
+                // 空间；页面再吃一次会让标题和内容整体右移一个刘海宽度。
+                ? MediaQuery.removePadding(
+                    context: context,
+                    removeLeft: true,
+                    child: IndexedStack(
+                      index: _index,
+                      children: [
+                        for (var i = 0; i < _destinations.length; i++)
+                          _slot(i),
+                      ],
+                    ),
+                  )
+                : IndexedStack(
+                    index: _index,
+                    children: [
+                      for (var i = 0; i < _destinations.length; i++) _slot(i),
+                    ],
+                  ),
           ),
         ],
       ),

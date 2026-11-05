@@ -71,11 +71,10 @@ bool _filterDateMatches(TaskItem task, FilterConditions conditions) {
 
 enum _TaskLayout { list, board, matrix }
 
-/// 宽屏侧栏（清单/视图面板）的固定宽度。标题在宽屏下按这个宽度缩进，
-/// 才能和右侧任务内容区的左边缘对齐，而不是悬在侧栏上方。
+/// 宽屏侧栏（清单/视图面板）的固定宽度。
 const double _kListPaneWidth = 232;
 
-/// 标题与内容区的左侧缩进，竖屏与宽屏共用，保证两种布局的视觉关系一致。
+/// 标题距图标栏的左侧缩进，所有页面统一使用，保证切页时标题不跳动。
 const double _kTitleInset = 20;
 
 class TasksPage extends StatefulWidget {
@@ -850,8 +849,8 @@ class _TasksPageState extends State<TasksPage> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: compactAppBarHeight(context),
-        // 宽屏下标题要让开左侧清单面板，直接贴着任务内容区的左边缘。
-        titleSpacing: wide ? _kListPaneWidth + _kTitleInset : _kTitleInset,
+        // 与其他页面一致：标题贴着图标栏，位于清单面板上方而不是内容区左侧。
+        titleSpacing: _kTitleInset,
         title: _selecting
             ? Text(
                 '已选 ${_selectedIds.length} 项',

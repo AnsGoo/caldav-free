@@ -4,6 +4,7 @@ import 'package:caldav_free/core/ui_utils.dart';
 import 'package:caldav_free/data/db/local_store.dart';
 import 'package:caldav_free/data/session/credentials.dart';
 import 'package:caldav_free/data/tasks_repository.dart';
+import 'package:caldav_free/design/app_theme.dart';
 import 'package:caldav_free/design/components.dart';
 import 'package:caldav_free/features/home/home_shell.dart';
 import 'package:flutter/material.dart';
@@ -56,7 +57,10 @@ Future<void> _pumpShell(
   await tester.pumpWidget(
     ChangeNotifierProvider<AppState>.value(
       value: app,
-      child: const MaterialApp(home: HomeShell()),
+      child: MaterialApp(
+        theme: buildAppTheme(Brightness.light),
+        home: const HomeShell(),
+      ),
     ),
   );
   await tester.pump();
@@ -98,7 +102,7 @@ void main() {
     expect(find.byType(AppBottomNav), findsNothing);
   });
 
-  testWidgets('landscape title clears the list pane and hugs the task column', (
+  testWidgets('landscape title sits above the list pane like other pages', (
     tester,
   ) async {
     await _pumpShell(tester, const Size(2400, 1080)); // 800 x 360 logical
@@ -108,9 +112,8 @@ void main() {
       find.descendant(of: find.byType(AppBar), matching: find.byType(Text)).first,
     );
 
-    // 64dp rail + 232dp list pane + 20dp inset: the title must sit directly
-    // above the task column, not float over the sidebar.
-    expect(title.left, closeTo(rail.right + 232 + 20, 0.6));
+    // 所有页面统一：标题紧贴图标栏 20dp，位于清单面板上方。
+    expect(title.left, closeTo(rail.right + 20, 0.6));
   });
 
   testWidgets('landscape safe area is consumed once by the rail', (
@@ -130,8 +133,41 @@ void main() {
     );
 
     expect(rail.right, closeTo(59 + 64, 0.6));
-    // 任务页：标题 = 侧栏右边缘 + 清单面板 232 + 缩进 20，不能再叠加安全区。
-    expect(title.left, closeTo(rail.right + 232 + 20, 0.6));
+    // 标题 = 侧栏右边缘 + 20 缩进，不能再叠加安全区。
+    expect(title.left, closeTo(rail.right + 20, 0.6));
+  });
+
+  testWidgets('every page title lines up in landscape', (tester) async {
+    await _pumpShell(
+      tester,
+      const Size(2622, 1206),
+      padding: const FakeViewPadding(left: 59 * 3, bottom: 21 * 3),
+    );
+
+    final rail = tester.getRect(find.byType(AppSideNav));
+    const tabs = [
+      (Icons.calendar_month_outlined, '日历'),
+      (Icons.local_fire_department_outlined, '习惯'),
+      (Icons.timer_outlined, '专注'),
+      (Icons.hourglass_bottom_rounded, '倒数日'),
+      (Icons.summarize_outlined, '摘要'),
+      (Icons.checklist_rounded, '任务'),
+    ];
+
+    for (final (icon, label) in tabs) {
+      await tester.tap(find.byIcon(icon).first);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      final title = tester.getRect(
+        find.descendant(of: find.byType(AppBar), matching: find.text(label)),
+      );
+
+      expect(
+        title.left,
+        closeTo(rail.right + 20, 0.6),
+        reason: '$label 的标题没有和其他页面对齐',
+      );
+    }
   });
 
   testWidgets('portrait keeps the bottom bar', (tester) async {

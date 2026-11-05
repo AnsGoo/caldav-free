@@ -2799,51 +2799,86 @@ class _YearView extends StatelessWidget {
   /// Height the floating action button claims in the bottom-right corner.
   final double bottomInset;
 
+  /// 月份卡内部（标题 + 星期行）的固定高度下限。低于这个高度时 Row 会
+  /// 被压扁，_MiniMonth 的 Column 就会 overflow。
+  static const double _minRowHeight = 72;
+
   @override
   Widget build(BuildContext context) {
     final today = _dateOnly(DateTime.now());
     final scheme = Theme.of(context).colorScheme;
-    // One screen, no scrolling: the four rows split the available height and
-    // each mini month squeezes its week rows into whatever is left.
     return Padding(
       padding: EdgeInsets.fromLTRB(12, 2, 12, bottomInset),
-      child: Column(
-        children: [
-          for (var row = 0; row < 4; row++)
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: row == 3 ? 0 : 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var column = 0; column < 3; column++)
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(left: column == 0 ? 0 : 8),
-                          // PC frames each month with the canvas showing
-                          // through and a hairline border, not a filled card.
-                          child: Container(
-                            padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: scheme.outline),
-                            ),
-                            child: _MiniMonth(
-                              year: anchor.year,
-                              month: row * 3 + column + 1,
-                              snapshot: snapshot,
-                              today: today,
-                              onSelectDay: onSelectDay,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = 8.0;
+          // 空间够时四行平分一屏；不够（横屏 + 大字号）就保持每月可读的
+          // 最小高度并允许滚动，否则标题行会把卡片挤爆。
+          final fits = constraints.maxHeight >= _minRowHeight * 4 + gap * 3;
+          if (fits) {
+            return Column(
+              children: [
+                for (var row = 0; row < 4; row++)
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: row == 3 ? 0 : gap),
+                      child: _row(context, row, today, scheme),
+                    ),
+                  ),
+              ],
+            );
+          }
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                for (var row = 0; row < 4; row++)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: row == 3 ? 0 : gap),
+                    child: SizedBox(
+                      height: _minRowHeight,
+                      child: _row(context, row, today, scheme),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _row(
+    BuildContext context,
+    int row,
+    DateTime today,
+    ColorScheme scheme,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var column = 0; column < 3; column++)
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: column == 0 ? 0 : 8),
+              // PC frames each month with the canvas showing through and a
+              // hairline border, not a filled card.
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(8, 7, 8, 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: scheme.outline),
+                ),
+                child: _MiniMonth(
+                  year: anchor.year,
+                  month: row * 3 + column + 1,
+                  snapshot: snapshot,
+                  today: today,
+                  onSelectDay: onSelectDay,
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

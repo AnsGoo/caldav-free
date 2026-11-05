@@ -70,6 +70,38 @@ class _FocusPageState extends State<FocusPage> {
     super.dispose();
   }
 
+  Widget _primaryButton(BuildContext context) {
+    return SizedBox(
+      width: 148,
+      child: FilledButton(
+        onPressed: _running ? _pause : _start,
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 42),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(21),
+          ),
+        ),
+        child: Text(_running ? '暂停' : '开始'),
+      ),
+    );
+  }
+
+  Widget _resetButton(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: '重置计时',
+      onPressed: _reset,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(42, 42),
+        maximumSize: const Size(42, 42),
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurfaceVariant,
+        shape: const CircleBorder(),
+      ),
+      icon: const Icon(Icons.refresh_rounded, size: 19),
+    );
+  }
+
   void _setMinutes(int minutes) {
     if (_running) return;
     setState(() {
@@ -180,6 +212,50 @@ class _FocusPageState extends State<FocusPage> {
       228.0,
       286.0,
     );
+    final wide = isWideLayout(context);
+    final ring = SizedBox(
+      width: ringSize,
+      height: ringSize,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _RingPainter(
+                progress: progress,
+                track: scheme.surfaceContainerHighest,
+                color: scheme.primary,
+              ),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$minutes:${seconds.toString().padLeft(2, '0')}',
+                style: theme.textTheme.displayLarge?.copyWith(
+                  fontSize: 58,
+                  fontWeight: FontWeight.w300,
+                  letterSpacing: -2.4,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _running
+                    ? '专注中'
+                    : _startedAt == null
+                    ? '准备开始'
+                    : '已暂停',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -208,49 +284,19 @@ class _FocusPageState extends State<FocusPage> {
         children: [
           const SizedBox(height: 18),
           Center(
-            child: SizedBox(
-              width: ringSize,
-              height: ringSize,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _RingPainter(
-                        progress: progress,
-                        track: scheme.surfaceContainerHighest,
-                        color: scheme.primary,
-                      ),
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
+            child: wide
+                // 横屏：开始/暂停放左边、重置放右边，纵向不再额外占行。
+                ? Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(
-                        '$minutes:${seconds.toString().padLeft(2, '0')}',
-                        style: theme.textTheme.displayLarge?.copyWith(
-                          fontSize: 58,
-                          fontWeight: FontWeight.w300,
-                          letterSpacing: -2.4,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        child: Text(
-                          _running ? '专注中' : '准备开始',
-                          key: ValueKey(_running),
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
+                      _primaryButton(context),
+                      const SizedBox(width: 20),
+                      ring,
+                      const SizedBox(width: 20),
+                      _resetButton(context),
                     ],
-                  ),
-                ],
-              ),
-            ),
+                  )
+                : ring,
           ),
           const SizedBox(height: 28),
           Row(
@@ -267,39 +313,18 @@ class _FocusPageState extends State<FocusPage> {
               ],
             ],
           ),
-          const SizedBox(height: 22),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 148,
-                child: FilledButton(
-                  onPressed: _running ? _pause : _start,
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size(0, 42),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(21),
-                    ),
-                  ),
-                  child: Text(_running ? '暂停' : '开始'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              IconButton(
-                tooltip: '重置计时',
-                onPressed: _reset,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size(42, 42),
-                  maximumSize: const Size(42, 42),
-                  backgroundColor: scheme.surface,
-                  foregroundColor: scheme.onSurfaceVariant,
-                  shape: const CircleBorder(),
-                ),
-                icon: const Icon(Icons.refresh_rounded, size: 19),
-              ),
-            ],
-          ),
-          const SizedBox(height: 36),
+          if (!wide) ...[
+            const SizedBox(height: 22),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _primaryButton(context),
+                const SizedBox(width: 10),
+                _resetButton(context),
+              ],
+            ),
+          ],
+          const SizedBox(height: 30),
           AppSectionLabel(
             title: '最近专注',
             trailing: Text(

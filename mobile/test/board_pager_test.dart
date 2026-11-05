@@ -69,13 +69,13 @@ void main() {
     await _openBoard(tester, const Size(874, 402));
 
     final groupLabel = tester.getRect(find.text('看板分组'));
-    final hint = tester.getRect(find.text('左右滑动切换分组'));
+    final page = tester.getRect(find.text('1/3'));
 
-    // 同一行：垂直中心基本重合，且提示在分组标题右侧。
-    expect(hint.center.dy, closeTo(groupLabel.center.dy, 8));
-    expect(hint.left, greaterThan(groupLabel.right));
-    // 页码也在这一行。
-    expect(find.text('1/3'), findsOneWidget);
+    // 页码和分组标题在同一行，且在其右侧。
+    expect(page.center.dy, closeTo(groupLabel.center.dy, 8));
+    expect(page.left, greaterThan(groupLabel.right));
+    // 「左右滑动切换分组」的说明文字已移除。
+    expect(find.text('左右滑动切换分组'), findsNothing);
   });
 
   testWidgets('portrait also merges the hint into the group row', (
@@ -84,11 +84,11 @@ void main() {
     await _openBoard(tester, const Size(402, 874));
 
     final groupLabel = tester.getRect(find.text('看板分组'));
-    final hint = tester.getRect(find.text('左右滑动切换分组'));
+    final page = tester.getRect(find.text('1/3'));
 
-    expect(hint.center.dy, closeTo(groupLabel.center.dy, 8));
-    expect(hint.left, greaterThan(groupLabel.right));
-    expect(find.text('1/3'), findsOneWidget);
+    expect(page.center.dy, closeTo(groupLabel.center.dy, 8));
+    expect(page.left, greaterThan(groupLabel.right));
+    expect(find.text('左右滑动切换分组'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

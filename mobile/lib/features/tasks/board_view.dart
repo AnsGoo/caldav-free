@@ -1345,13 +1345,6 @@ class _BoardPagerState extends State<_BoardPager> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  '左右滑动切换分组',
-                  style: theme.textTheme.labelSmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                  ),
-                ),
                 const Spacer(),
                 if (widget.trailing != null) widget.trailing!,
               ],

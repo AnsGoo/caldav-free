@@ -1159,7 +1159,7 @@ class _TasksPageState extends State<TasksPage> {
                           onChanged: (value) =>
                               setState(() => _boardGroup = value),
                         ),
-                        // 把分页器的「1/3 左右滑动切换分组」并到这一行，
+                        // 把分页器的「1/3」页码并到这一行，
                         // 横竖屏都不再单独占一行高度。
                         const SizedBox(width: 14),
                         Flexible(
@@ -1189,18 +1189,6 @@ class _TasksPageState extends State<TasksPage> {
                                           ?.copyWith(
                                             color: scheme.primary,
                                             fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Flexible(
-                                    child: Text(
-                                      '左右滑动切换分组',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: theme.textTheme.labelSmall
-                                          ?.copyWith(
-                                            color: scheme.onSurfaceVariant,
                                           ),
                                     ),
                                   ),

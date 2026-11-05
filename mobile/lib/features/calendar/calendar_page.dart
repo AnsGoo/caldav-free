@@ -515,8 +515,6 @@ class _CalendarPageState extends State<CalendarPage> {
               ],
             ),
           ),
-          if (snapshot != null && snapshot.sources.isNotEmpty)
-            _SourceLegend(sources: snapshot.sources),
           Expanded(
             child: Builder(
               builder: (context) {
@@ -876,48 +874,6 @@ String _weekday(DateTime day) {
 
 DateTime _sundayOf(DateTime day) =>
     _dateOnly(day).subtract(Duration(days: day.weekday % 7));
-
-class _SourceLegend extends StatelessWidget {
-  const _SourceLegend({required this.sources});
-
-  final List<CalendarSource> sources;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: sources.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final source = sources[index];
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: colorFromHex(source.color),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                source.name,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
 
 class _Entry {
   const _Entry.event(this.event) : task = null;

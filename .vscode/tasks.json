@@ -2,6 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "ios: boot simulator",
+      "type": "shell",
+      "command": "xcrun simctl bootstatus \"caldav-free iPhone 17 Pro\" -b && open -a Simulator",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
       "label": "web: dev",
       "type": "shell",
       "command": "npm run dev",

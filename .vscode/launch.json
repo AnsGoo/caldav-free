@@ -23,6 +23,22 @@
       "toolArgs": ["-d", "android"]
     },
     {
+      "name": "Flutter (iOS 模拟器)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "program": "${workspaceFolder}/mobile/lib/main.dart",
+      "toolArgs": ["-d", "caldav-free"],
+      "preLaunchTask": "ios: boot simulator"
+    },
+    {
+      "name": "Flutter (iOS 真机 / 选择设备)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/mobile",
+      "program": "${workspaceFolder}/mobile/lib/main.dart"
+    },
+    {
       "name": "Flutter (macOS)",
       "request": "launch",
       "type": "dart",

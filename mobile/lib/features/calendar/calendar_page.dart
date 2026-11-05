@@ -1042,243 +1042,252 @@ class _MonthViewState extends State<_MonthView> {
     final weeks = ((firstIndex + daysInMonth) / 7).ceil();
     final today = _dateOnly(DateTime.now());
     final scheme = Theme.of(context).colorScheme;
-    return Column(
-      children: [
-        Row(
-          children: [
-            for (final day in const ['一', '二', '三', '四', '五', '六', '日'])
-              Expanded(
-                child: Center(
-                  child: Text(
-                    day,
-                    style: Theme.of(context).textTheme.labelSmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
+    // 卡片内留出上下呼吸感，星期行和最后一行不要贴着卡片边缘。
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              for (final day in const ['一', '二', '三', '四', '五', '六', '日'])
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      day,
+                      style: Theme.of(context).textTheme.labelSmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
-            child: LayoutBuilder(
-              builder: (context, constraints) => GridView.builder(
-                padding: EdgeInsets.zero,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 7,
-                  // 只渲染本月实际占用的周数，不再补足 6 行。
-                  mainAxisExtent: constraints.maxHeight / weeks,
-                ),
-                itemCount: weeks * 7,
-                itemBuilder: (context, index) {
-                  final day = gridStart.add(Duration(days: index));
-                  final inMonth = day.month == anchor.month;
-                  // 前后补位的日期不展示，也不画边框。
-                  if (!inMonth) return const SizedBox.shrink();
-                  final entries = _entriesForDay(snapshot, day);
-                  final isToday = day == today;
-                  final hovered = _hoveredCell == index;
-                  final dayAlmanac = almanac[_dateKey(day)];
-                  final holiday = _holidayLabel(snapshot, day);
-                  final label = dayAlmanac?.label ?? holiday ?? '';
-                  final special =
-                      dayAlmanac?.special == true || holiday != null;
-                  final composing = day == widget.composingDay;
-                  return Container(
-                    decoration: BoxDecoration(
-                      // 与年视图一致：画布透出，仅用细线勾勒，而不是填充卡片。
-                      color: isToday
-                          ? scheme.primary.withValues(alpha: 0.07)
-                          : hovered
-                          ? scheme.primary.withValues(alpha: 0.035)
-                          : null,
-                      // 只给本月日期绘制边框，网格保持直角。
-                      border: Border(
-                        top: index - 7 < firstIndex
-                            ? BorderSide(color: scheme.outline)
-                            : BorderSide.none,
-                        left: index == firstIndex || index % 7 == 0
-                            ? BorderSide(color: scheme.outline)
-                            : BorderSide.none,
-                        right: BorderSide(color: scheme.outline),
-                        bottom: BorderSide(color: scheme.outline),
-                      ),
-                    ),
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: MouseRegion(
-                        onEnter: (_) {
-                          if (_hoveredCell != index) {
-                            setState(() => _hoveredCell = index);
-                          }
-                        },
-                        onExit: (_) {
-                          if (_hoveredCell == index) {
-                            setState(() => _hoveredCell = null);
-                          }
-                        },
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            InkWell(
-                              onTap: () => widget.onSelectDay(day),
-                              onLongPress: () => widget.onStartCompose(day),
-                              child: LayoutBuilder(
-                                builder: (context, cell) => Center(
-                                  child: FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    child: SizedBox(
-                                      width: cell.maxWidth,
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          AnimatedContainer(
-                                            duration: const Duration(
-                                              milliseconds: 180,
-                                            ),
-                                            width: 32,
-                                            height: 32,
-                                            alignment: Alignment.center,
-                                            decoration: BoxDecoration(
-                                              color: isToday
-                                                  ? scheme.primary
-                                                  : Colors.transparent,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            child: Text(
-                                              '${day.day}',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .labelLarge
-                                                  ?.copyWith(
-                                                    fontSize: 14,
-                                                    fontWeight: isToday
-                                                        ? FontWeight.w700
-                                                        : FontWeight.w500,
-                                                    color: isToday
-                                                        ? scheme.onPrimary
-                                                        : inMonth
-                                                        ? scheme.onSurface
-                                                        : scheme
-                                                              .onSurfaceVariant
-                                                              .withValues(
-                                                                alpha: 0.45,
-                                                              ),
-                                                  ),
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          if (composing)
-                                            _DayComposer(
-                                              key: ValueKey(day),
-                                              onCommit: widget.onCommitCompose,
-                                              onCancel: widget.onCancelCompose,
-                                            )
-                                          else ...[
-                                            SizedBox(
-                                              height: 10,
-                                              child: Center(
-                                                child: Text(
-                                                  label,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: Theme.of(context)
-                                                      .textTheme
-                                                      .labelSmall
-                                                      ?.copyWith(
-                                                        fontSize: 7.5,
-                                                        height: 1,
-                                                        color: special
-                                                            ? AppColors.festivalFor(
-                                                                Theme.of(
-                                                                  context,
-                                                                ).brightness,
-                                                              )
-                                                            : scheme
-                                                                  .onSurfaceVariant
-                                                                  .withValues(
-                                                                    alpha: 0.8,
-                                                                  ),
-                                                        fontWeight: special
-                                                            ? FontWeight.w600
-                                                            : FontWeight.w500,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(
-                                              height: 6,
-                                              child: Row(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                children: [
-                                                  for (final entry
-                                                      in entries.take(3))
-                                                    Container(
-                                                      width: 5,
-                                                      height: 5,
-                                                      margin:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 1,
-                                                          ),
-                                                      decoration: BoxDecoration(
-                                                        color: entry.completed
-                                                            ? scheme
-                                                                  .onSurfaceVariant
-                                                                  .withValues(
-                                                                    alpha: 0.35,
-                                                                  )
-                                                            : entry.color,
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            if (!composing && _hoveredCell == index)
-                              Positioned(
-                                top: 1,
-                                right: 2,
-                                child: Tooltip(
-                                  message: '在 ${day.month}月${day.day}日新建任务',
-                                  waitDuration: const Duration(
-                                    milliseconds: 400,
-                                  ),
-                                  child: InkWell(
-                                    borderRadius: BorderRadius.circular(7),
-                                    onTap: () => widget.onStartCompose(day),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(2),
-                                      child: Icon(
-                                        Icons.add_rounded,
-                                        size: 15,
-                                        color: scheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                          ],
+            ],
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 2, 8, 12),
+              child: LayoutBuilder(
+                builder: (context, constraints) => GridView.builder(
+                  padding: EdgeInsets.zero,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 7,
+                    // 只渲染本月实际占用的周数，不再补足 6 行。
+                    mainAxisExtent: constraints.maxHeight / weeks,
+                  ),
+                  itemCount: weeks * 7,
+                  itemBuilder: (context, index) {
+                    final day = gridStart.add(Duration(days: index));
+                    final inMonth = day.month == anchor.month;
+                    // 前后补位的日期不展示，也不画边框。
+                    if (!inMonth) return const SizedBox.shrink();
+                    final entries = _entriesForDay(snapshot, day);
+                    final isToday = day == today;
+                    final hovered = _hoveredCell == index;
+                    final dayAlmanac = almanac[_dateKey(day)];
+                    final holiday = _holidayLabel(snapshot, day);
+                    final label = dayAlmanac?.label ?? holiday ?? '';
+                    final special =
+                        dayAlmanac?.special == true || holiday != null;
+                    final composing = day == widget.composingDay;
+                    return Container(
+                      decoration: BoxDecoration(
+                        // 与年视图一致：画布透出，仅用细线勾勒，而不是填充卡片。
+                        color: isToday
+                            ? scheme.primary.withValues(alpha: 0.07)
+                            : hovered
+                            ? scheme.primary.withValues(alpha: 0.035)
+                            : null,
+                        // 只给本月日期绘制边框，网格保持直角。
+                        border: Border(
+                          top: index - 7 < firstIndex
+                              ? BorderSide(color: scheme.outline)
+                              : BorderSide.none,
+                          left: index == firstIndex || index % 7 == 0
+                              ? BorderSide(color: scheme.outline)
+                              : BorderSide.none,
+                          right: BorderSide(color: scheme.outline),
+                          bottom: BorderSide(color: scheme.outline),
                         ),
                       ),
-                    ),
-                  );
-                },
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: MouseRegion(
+                          onEnter: (_) {
+                            if (_hoveredCell != index) {
+                              setState(() => _hoveredCell = index);
+                            }
+                          },
+                          onExit: (_) {
+                            if (_hoveredCell == index) {
+                              setState(() => _hoveredCell = null);
+                            }
+                          },
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              InkWell(
+                                onTap: () => widget.onSelectDay(day),
+                                onLongPress: () => widget.onStartCompose(day),
+                                child: LayoutBuilder(
+                                  builder: (context, cell) => Center(
+                                    child: FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: SizedBox(
+                                        width: cell.maxWidth,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            AnimatedContainer(
+                                              duration: const Duration(
+                                                milliseconds: 180,
+                                              ),
+                                              width: 32,
+                                              height: 32,
+                                              alignment: Alignment.center,
+                                              decoration: BoxDecoration(
+                                                color: isToday
+                                                    ? scheme.primary
+                                                    : Colors.transparent,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Text(
+                                                '${day.day}',
+                                                style: Theme.of(context)
+                                                    .textTheme
+                                                    .labelLarge
+                                                    ?.copyWith(
+                                                      fontSize: 14,
+                                                      fontWeight: isToday
+                                                          ? FontWeight.w700
+                                                          : FontWeight.w500,
+                                                      color: isToday
+                                                          ? scheme.onPrimary
+                                                          : inMonth
+                                                          ? scheme.onSurface
+                                                          : scheme
+                                                                .onSurfaceVariant
+                                                                .withValues(
+                                                                  alpha: 0.45,
+                                                                ),
+                                                    ),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            if (composing)
+                                              _DayComposer(
+                                                key: ValueKey(day),
+                                                onCommit:
+                                                    widget.onCommitCompose,
+                                                onCancel:
+                                                    widget.onCancelCompose,
+                                              )
+                                            else ...[
+                                              SizedBox(
+                                                height: 10,
+                                                child: Center(
+                                                  child: Text(
+                                                    label,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .labelSmall
+                                                        ?.copyWith(
+                                                          fontSize: 7.5,
+                                                          height: 1,
+                                                          color: special
+                                                              ? AppColors.festivalFor(
+                                                                  Theme.of(
+                                                                    context,
+                                                                  ).brightness,
+                                                                )
+                                                              : scheme
+                                                                    .onSurfaceVariant
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.8,
+                                                                    ),
+                                                          fontWeight: special
+                                                              ? FontWeight.w600
+                                                              : FontWeight.w500,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                height: 6,
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    for (final entry
+                                                        in entries.take(3))
+                                                      Container(
+                                                        width: 5,
+                                                        height: 5,
+                                                        margin:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 1,
+                                                            ),
+                                                        decoration: BoxDecoration(
+                                                          color: entry.completed
+                                                              ? scheme
+                                                                    .onSurfaceVariant
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.35,
+                                                                    )
+                                                              : entry.color,
+                                                          shape:
+                                                              BoxShape.circle,
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (!composing && _hoveredCell == index)
+                                Positioned(
+                                  top: 1,
+                                  right: 2,
+                                  child: Tooltip(
+                                    message: '在 ${day.month}月${day.day}日新建任务',
+                                    waitDuration: const Duration(
+                                      milliseconds: 400,
+                                    ),
+                                    child: InkWell(
+                                      borderRadius: BorderRadius.circular(7),
+                                      onTap: () => widget.onStartCompose(day),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(2),
+                                        child: Icon(
+                                          Icons.add_rounded,
+                                          size: 15,
+                                          color: scheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

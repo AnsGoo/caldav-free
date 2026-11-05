@@ -10,6 +10,9 @@ class FakeGateway implements NotificationGateway {
   bool granted = true;
   bool? status = true;
 
+  /// 模拟「应用被杀后点通知/通知按钮冷启动」。
+  NotificationLaunch? launch;
+
   void Function(String? payload)? onTap;
   void Function(String? actionId, String? payload)? onAction;
 
@@ -55,7 +58,7 @@ class FakeGateway implements NotificationGateway {
   }
 
   @override
-  Future<String?> launchPayload() async => null;
+  Future<NotificationLaunch?> launchResponse() async => launch;
 
   @override
   Future<bool> openSystemSettings() async => true;
@@ -105,6 +108,40 @@ void main() {
     await scheduler.start(onTap: (_) {}, onAction: (_, _) {});
     expect(gateway.onAction, isNotNull);
     expect(gateway.onTap, isNotNull);
+  });
+
+  test('cold-start action tap runs the action instead of navigating', () async {
+    gateway.launch = const NotificationLaunch(
+      actionId: NotificationActionId.complete,
+      payload: 'task:t1',
+    );
+    String? tapped;
+    String? seenAction;
+    String? seenPayload;
+    await scheduler.start(
+      onTap: (payload) => tapped = payload,
+      onAction: (actionId, payload) {
+        seenAction = actionId;
+        seenPayload = payload;
+      },
+    );
+
+    expect(tapped, isNull);
+    expect(seenAction, NotificationActionId.complete);
+    expect(seenPayload, 'task:t1');
+  });
+
+  test('cold-start tap without an action navigates', () async {
+    gateway.launch = const NotificationLaunch(payload: 'habit:7');
+    String? tapped;
+    var actions = 0;
+    await scheduler.start(
+      onTap: (payload) => tapped = payload,
+      onAction: (_, _) => actions++,
+    );
+
+    expect(tapped, 'habit:7');
+    expect(actions, 0);
   });
 
   test('publishes the badge count for open tasks due today', () async {

@@ -17,6 +17,16 @@ abstract final class NotificationActionId {
   static const snooze = 'snooze';
 }
 
+/// 冷启动时被点击的那条通知。Android/iOS 在应用被系统杀掉后点通知（或通知
+/// 上的按钮）拉起应用时，事件只会出现在 launch details 里，[actionId] 为空
+/// 表示点的是通知本体，非空表示点的是某个按钮。
+class NotificationLaunch {
+  const NotificationLaunch({this.actionId, this.payload});
+
+  final String? actionId;
+  final String? payload;
+}
+
 abstract class NotificationGateway {
   /// [onTap] 处理点击通知本身；[onAction] 处理通知按钮（完成 / 稍后提醒），
   /// 参数依次是按钮标识和通知携带的 payload。
@@ -53,11 +63,11 @@ abstract class NotificationGateway {
     String? payload,
   });
 
-  /// The payload of the notification that cold-started the app, if any.
+  /// 冷启动时被点击的通知（含按钮点击的 actionId）。
   ///
   /// Tapping a notification while the app is terminated does not fire
   /// [initialize]'s callback on iOS/Android — the tap is only visible here.
-  Future<String?> launchPayload();
+  Future<NotificationLaunch?> launchResponse();
 
   /// Opens the OS notification settings for this app. Returns false when the
   /// platform has no such entry point.
@@ -335,13 +345,21 @@ class LocalNotificationGateway implements NotificationGateway {
   }
 
   @override
-  Future<String?> launchPayload() async {
+  Future<NotificationLaunch?> launchResponse() async {
     try {
       final details = await _plugin.getNotificationAppLaunchDetails();
       if (details == null || details.didNotificationLaunchApp != true) {
         return null;
       }
-      return details.notificationResponse?.payload;
+      final response = details.notificationResponse;
+      if (response == null) return null;
+      // 冷启动点按钮（例如「完成」）时 actionId 才有值；只取 payload 会让按钮
+      // 退化成普通点击，任务不会被勾掉（Android 进程被回收后很常见）。
+      final actionId = response.actionId?.trim() ?? '';
+      return NotificationLaunch(
+        actionId: actionId.isEmpty ? null : actionId,
+        payload: response.payload,
+      );
     } catch (error) {
       debugPrint('read notification launch details failed: $error');
       return null;
@@ -412,7 +430,7 @@ class NoOpNotificationGateway implements NotificationGateway {
   }) async {}
 
   @override
-  Future<String?> launchPayload() async => null;
+  Future<NotificationLaunch?> launchResponse() async => null;
 
   @override
   Future<bool> openSystemSettings() async => false;

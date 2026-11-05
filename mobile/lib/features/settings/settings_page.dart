@@ -197,7 +197,7 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => _ensureExactAlarms(context, app),
                   ),
                 ],
-                if (Platform.isMacOS || Platform.isIOS) ...[
+                if (Platform.isAndroid || Platform.isMacOS || Platform.isIOS) ...[
                   const Divider(height: 1, indent: 56),
                   _SettingsTile(
                     icon: Icons.notifications_outlined,
@@ -206,7 +206,7 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => _sendTestNotification(context, app),
                   ),
                 ],
-                if (Platform.isMacOS || Platform.isIOS) ...[
+                if (Platform.isAndroid || Platform.isMacOS || Platform.isIOS) ...[
                   const Divider(height: 1, indent: 56),
                   _SettingsTile(
                     icon: Icons.settings_outlined,
@@ -296,11 +296,7 @@ class SettingsPage extends StatelessWidget {
     final scheduler = app.reminders;
     if (scheduler == null) return;
     if (scheduler.permissionGranted == false) {
-      if (Platform.isMacOS || Platform.isIOS) {
-        await _openSystemNotificationSettings(context, app);
-      } else if (context.mounted) {
-        _snack(context, '通知权限已关闭，请到系统设置中开启');
-      }
+      await _openSystemNotificationSettings(context, app);
       return;
     }
     final sent = await scheduler.sendTestNotification();
@@ -330,11 +326,7 @@ class SettingsPage extends StatelessWidget {
     if (scheduler == null) return;
     // 已经拒过一次就不再弹系统授权框（系统也不会再弹），直接引导到系统设置。
     if (scheduler.permissionGranted == false) {
-      if (Platform.isMacOS || Platform.isIOS) {
-        await _openSystemNotificationSettings(context, app);
-      } else if (context.mounted) {
-        _snack(context, '通知权限已关闭，请到系统设置中开启');
-      }
+      await _openSystemNotificationSettings(context, app);
       return;
     }
     final granted = await scheduler.requestPermissions();

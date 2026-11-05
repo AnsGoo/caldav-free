@@ -82,9 +82,18 @@ class ReminderScheduler {
       await _gateway.initialize(onTap: tap, onAction: onAction);
       permissionGranted = await _gateway.requestPermissions();
       // 冷启动（应用是被点击通知拉起的）时，点击事件不会走 initialize 的
-      // 回调，只在 launch details 里。
-      final launch = await _gateway.launchPayload();
-      if (launch != null && launch.trim().isNotEmpty) tap(launch);
+      // 回调，只在 launch details 里。点的是通知按钮时要按 action 分发，否则
+      // Android/iOS 被回收进程后「完成」「稍后」会退化成单纯跳转。
+      final launch = await _gateway.launchResponse();
+      if (launch != null) {
+        final actionId = launch.actionId?.trim() ?? '';
+        final payload = launch.payload;
+        if (actionId.isNotEmpty && onAction != null) {
+          onAction(actionId, payload);
+        } else if (payload != null && payload.trim().isNotEmpty) {
+          tap(payload);
+        }
+      }
     } catch (error) {
       lastError = error.toString();
       debugPrint('reminder init failed: $error');

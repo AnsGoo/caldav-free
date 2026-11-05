@@ -62,8 +62,8 @@ class BoardView extends StatelessWidget {
   final bool manualSort;
   final BoardGroup group;
 
-  /// 横屏时页码由外层合并到「看板分组」那一行显示；传 null 则由分页器
-  /// 自己在看板上方单独占一行（竖屏行为）。
+  /// 页码由外层合并到「看板分组」那一行显示，分页器自己不再占一行。
+  /// 传 null 时才会退回到分页器自带的头部行。
   final ValueNotifier<String>? pageLabel;
 
   @override

@@ -78,12 +78,17 @@ void main() {
     expect(find.text('1/3'), findsOneWidget);
   });
 
-  testWidgets('portrait keeps the pager hint on its own row', (tester) async {
+  testWidgets('portrait also merges the hint into the group row', (
+    tester,
+  ) async {
     await _openBoard(tester, const Size(402, 874));
 
     final groupLabel = tester.getRect(find.text('看板分组'));
     final hint = tester.getRect(find.text('左右滑动切换分组'));
 
-    expect(hint.top, greaterThan(groupLabel.bottom));
+    expect(hint.center.dy, closeTo(groupLabel.center.dy, 8));
+    expect(hint.left, greaterThan(groupLabel.right));
+    expect(find.text('1/3'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

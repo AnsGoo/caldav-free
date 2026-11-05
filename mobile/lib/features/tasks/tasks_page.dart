@@ -1159,11 +1159,11 @@ class _TasksPageState extends State<TasksPage> {
                           onChanged: (value) =>
                               setState(() => _boardGroup = value),
                         ),
-                        // 横屏时把分页器的「1/3 左右滑动切换分组」并到这一行，
-                        // 不再单独占一行高度。
-                        if (wide) ...[
-                          const SizedBox(width: 14),
-                          ValueListenableBuilder<String>(
+                        // 把分页器的「1/3 左右滑动切换分组」并到这一行，
+                        // 横竖屏都不再单独占一行高度。
+                        const SizedBox(width: 14),
+                        Flexible(
+                          child: ValueListenableBuilder<String>(
                             valueListenable: _boardPage,
                             builder: (context, label, _) {
                               if (label.isEmpty) {
@@ -1193,17 +1193,22 @@ class _TasksPageState extends State<TasksPage> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    '左右滑动切换分组',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      color: scheme.onSurfaceVariant,
+                                  Flexible(
+                                    child: Text(
+                                      '左右滑动切换分组',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                          ),
                                     ),
                                   ),
                                 ],
                               );
                             },
                           ),
-                        ],
+                        ),
                         const Spacer(),
                         Tooltip(
                           message: '拖动任务到其他列会自动修改对应字段',
@@ -1229,7 +1234,7 @@ class _TasksPageState extends State<TasksPage> {
                               ),
                             )
                           : BoardView(
-                              pageLabel: wide ? _boardPage : null,
+                              pageLabel: _boardPage,
                               list: _selectedList,
                               lists: _lists,
                               tasks: _activeFilter != null

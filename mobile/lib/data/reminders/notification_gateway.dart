@@ -7,6 +7,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
+import 'ohos_notification_gateway.dart';
 import 'reminder_plan.dart';
 
 /// Abstraction over local notifications so the planner/scheduler can be tested
@@ -452,9 +453,12 @@ NotificationGateway createDefaultGateway() {
   if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
     return LocalNotificationGateway();
   }
-  // 鸿蒙暂时走 NoOp：flutter_local_notifications 没有 ohos 实现，
-  // 直接调用会抛 MissingPluginException。P1 用 ArkTS 的
-  // reminderAgentManager 写一个 NotificationGateway 实现接上即可
-  // （接口已经隔离好，不需要改调度器）。
+  // 鸿蒙：flutter_local_notifications 没有 ohos 实现，改用系统原生的
+  // notificationManager / reminderAgentManager（见 ohos_notification_gateway.dart）。
+  // 判定用 operatingSystem 而不是 TargetPlatform，测试里不会被
+  // debugDefaultTargetPlatformOverride 影响。
+  if (Platform.operatingSystem == 'ohos') {
+    return OhosNotificationGateway();
+  }
   return NoOpNotificationGateway();
 }

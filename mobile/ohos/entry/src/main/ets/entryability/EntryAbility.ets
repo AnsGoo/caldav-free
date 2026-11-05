@@ -7,6 +7,7 @@ import MethodCall from '@ohos/flutter_ohos/src/main/ets/plugin/common/MethodCall
 import { BinaryMessenger } from '@ohos/flutter_ohos/src/main/ets/plugin/common/BinaryMessenger';
 import { GeneratedPluginRegistrant } from '../plugins/GeneratedPluginRegistrant';
 import { RdbBridge } from '../rdb/RdbBridge';
+import { NotifyBridge } from '../notify/NotifyBridge';
 
 /// 与 Dart 侧 lib/data/storage_paths.dart 约定的通道。
 const PATH_CHANNEL: string = 'caldav_free/paths';
@@ -27,6 +28,8 @@ export default class EntryAbility extends FlutterAbility {
       flutterEngine.getDartExecutor().getBinaryMessenger();
     this.registerPathsChannel(messenger);
     new RdbBridge(this.context).attach(messenger);
+    // 原生通知：即时通知走 notificationManager，定时提醒走 reminderAgentManager
+    new NotifyBridge(this.context).attach(messenger);
   }
 
   private registerPathsChannel(messenger: BinaryMessenger): void {

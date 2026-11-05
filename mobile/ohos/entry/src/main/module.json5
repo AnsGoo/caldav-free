@@ -37,6 +37,8 @@
     ],
     "requestPermissions": [
       {"name" :  "ohos.permission.INTERNET"},
+      // reminderAgentManager 发布定时提醒需要；正常级别，安装即授予
+      {"name" :  "ohos.permission.PUBLISH_AGENT_REMINDER"},
     ]
   }
 }

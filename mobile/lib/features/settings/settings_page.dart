@@ -197,7 +197,10 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => _ensureExactAlarms(context, app),
                   ),
                 ],
-                if (Platform.isAndroid || Platform.isMacOS || Platform.isIOS) ...[
+                if (Platform.isAndroid ||
+                    Platform.isMacOS ||
+                    Platform.isIOS ||
+                    Platform.operatingSystem == 'ohos') ...[
                   const Divider(height: 1, indent: 56),
                   _SettingsTile(
                     icon: Icons.notifications_outlined,

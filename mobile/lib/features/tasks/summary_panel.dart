@@ -410,7 +410,7 @@ class _SummaryPanelState extends State<SummaryPanel> {
   }
 
   Future<void> _openSettings() async {
-    final next = await showModalBottomSheet<_SummaryFilter>(
+    final next = await showAppSheet<_SummaryFilter>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

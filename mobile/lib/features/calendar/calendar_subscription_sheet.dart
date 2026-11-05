@@ -5,13 +5,14 @@ import 'package:flutter/material.dart';
 import '../../core/ui_utils.dart';
 import '../../data/calendar/calendar_api.dart';
 import '../../design/format.dart';
+import '../../design/components.dart';
 
 /// Opens the iCal subscription manager used by the settings page.
 Future<void> showCalendarSubscriptionSheet(
   BuildContext context,
   CalendarApi api,
 ) async {
-  await showModalBottomSheet<void>(
+  await showAppSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

@@ -42,7 +42,8 @@ Map<String, dynamic> mergeTaskMaps({
   // Deletion wins, whether it came from this device or another one.
   if (localDeleted || remote['deleted'] == true) {
     merged['deleted'] = true;
-    merged['deletedAt'] = remote['deletedAt'] ??
+    merged['deletedAt'] =
+        remote['deletedAt'] ??
         local['deletedAt'] ??
         DateTime.now().toUtc().toIso8601String();
   }

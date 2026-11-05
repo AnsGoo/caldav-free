@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../design/app_theme.dart';
+import '../../design/components.dart';
 
 Future<String?> showThemeSheet(
   BuildContext context, {
   required String current,
 }) {
-  return showModalBottomSheet<String>(
+  return showAppSheet<String>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,

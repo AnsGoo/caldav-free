@@ -26,10 +26,12 @@ Future<void> main() async {
       focus: focus,
     );
     await app.restore();
-    runApp(ChangeNotifierProvider<AppState>.value(
-      value: app,
-      child: const CalDavApp(),
-    ));
+    runApp(
+      ChangeNotifierProvider<AppState>.value(
+        value: app,
+        child: const CalDavApp(),
+      ),
+    );
   } catch (error) {
     runApp(_BootFailure(error: error));
   }

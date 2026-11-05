@@ -43,21 +43,24 @@ class SyncDiagnosticsPage extends StatelessWidget {
                       session == null
                           ? Icons.cloud_off_rounded
                           : sync?.error == null
-                              ? Icons.cloud_done_rounded
-                              : Icons.cloud_off_rounded,
+                          ? Icons.cloud_done_rounded
+                          : Icons.cloud_off_rounded,
                       color: session == null
                           ? scheme.onSurfaceVariant
                           : sync?.error == null
-                              ? const Color(0xFF22C55E)
-                              : scheme.error,
+                          ? const Color(0xFF22C55E)
+                          : scheme.error,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       session == null
                           ? '未连接服务器'
-                          : sync?.error == null ? '同步正常' : '同步异常',
-                      style: theme.textTheme.titleMedium
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                          : sync?.error == null
+                          ? '同步正常'
+                          : '同步异常',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -117,15 +120,19 @@ class SyncDiagnosticsPage extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             '全量同步会从游标 0 重新拉取全部任务与清单，不会清空本地未推送的修改。',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 10),
           Text(
             '本地库为 SQLite（drift，caldav_free.db），表结构与服务端字段对齐；'
             '读写走内存快照，写入经同一事务落库。',
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant, height: 1.5),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           const SizedBox(height: 28),
           OutlinedButton.icon(
@@ -157,9 +164,7 @@ class SyncDiagnosticsPage extends StatelessWidget {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context)
                     ..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      SnackBar(content: Text('退出登录失败：$error')),
-                    );
+                    ..showSnackBar(SnackBar(content: Text('退出登录失败：$error')));
                 }
               }
             },
@@ -192,8 +197,9 @@ class _InfoRow extends StatelessWidget {
             width: 76,
             child: Text(
               label,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
           Expanded(

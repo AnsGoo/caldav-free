@@ -664,7 +664,7 @@ class _CalendarPageState extends State<CalendarPage> {
       await _editEvent(event);
       return;
     }
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -681,7 +681,7 @@ class _CalendarPageState extends State<CalendarPage> {
     }
     final now = DateTime.now();
     final start = DateTime(now.year, now.month, now.day, now.hour + 1);
-    final draft = await showModalBottomSheet<_EventDraft>(
+    final draft = await showAppSheet<_EventDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -719,7 +719,7 @@ class _CalendarPageState extends State<CalendarPage> {
     if (!event.recurring || event.recurrenceId.isEmpty) {
       return _EventScope.all;
     }
-    return showModalBottomSheet<_EventScope>(
+    return showAppSheet<_EventScope>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -751,7 +751,7 @@ class _CalendarPageState extends State<CalendarPage> {
     if (sources.isEmpty || event.href.isEmpty) return;
     final scope = await _chooseScope(event, '编辑');
     if (scope == null || !mounted) return;
-    final draft = await showModalBottomSheet<_EventDraft>(
+    final draft = await showAppSheet<_EventDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -857,7 +857,7 @@ class _CalendarPageState extends State<CalendarPage> {
       if (mounted) await _load(showLoading: false);
       return;
     }
-    await showModalBottomSheet<void>(
+    await showAppSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

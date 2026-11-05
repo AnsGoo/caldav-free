@@ -546,7 +546,7 @@ class _TasksPageState extends State<TasksPage> {
 
   Future<void> _batchMove() async {
     if (_selectedIds.isEmpty) return;
-    final targetId = await showModalBottomSheet<String>(
+    final targetId = await showAppSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -607,7 +607,7 @@ class _TasksPageState extends State<TasksPage> {
 
   Future<void> _batchPriority() async {
     const labels = ['无', '低', '中', '高'];
-    final priority = await showModalBottomSheet<int>(
+    final priority = await showAppSheet<int>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -644,7 +644,7 @@ class _TasksPageState extends State<TasksPage> {
   Future<void> _batchDue() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final choice = await showModalBottomSheet<String>(
+    final choice = await showAppSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -1182,10 +1182,7 @@ class _TasksPageState extends State<TasksPage> {
         ],
       ),
       bottomNavigationBar:
-          _layout == _TaskLayout.list &&
-              !_completed &&
-              !_trash &&
-              !_selecting
+          _layout == _TaskLayout.list && !_completed && !_trash && !_selecting
           ? _QuickAddBar(
               controller: _quickAdd,
               focusNode: _quickAddFocus,
@@ -1226,29 +1223,31 @@ class _TasksPageState extends State<TasksPage> {
       _ => open,
     };
     final keyword = conditions.keyword.trim().toLowerCase();
-    final matches = base.where((task) {
-      if (keyword.isNotEmpty) {
-        final haystack = '${task.title}\n${task.notes}'.toLowerCase();
-        if (!haystack.contains(keyword)) return false;
-      }
-      if (conditions.priorities.isNotEmpty &&
-          !conditions.priorities.contains(task.priority)) {
-        return false;
-      }
-      // Web filters store integer list ids that this client cannot resolve;
-      // only the sync-id list selection is applied here.
-      if (conditions.syncListIds.isNotEmpty &&
-          !conditions.syncListIds.contains(task.listId)) {
-        return false;
-      }
-      if (conditions.tags.isNotEmpty) {
-        final matched = conditions.tagMode == 'all'
-            ? conditions.tags.every(task.tags.contains)
-            : conditions.tags.any(task.tags.contains);
-        if (!matched) return false;
-      }
-      return _filterDateMatches(task, conditions);
-    }).toList(growable: false);
+    final matches = base
+        .where((task) {
+          if (keyword.isNotEmpty) {
+            final haystack = '${task.title}\n${task.notes}'.toLowerCase();
+            if (!haystack.contains(keyword)) return false;
+          }
+          if (conditions.priorities.isNotEmpty &&
+              !conditions.priorities.contains(task.priority)) {
+            return false;
+          }
+          // Web filters store integer list ids that this client cannot resolve;
+          // only the sync-id list selection is applied here.
+          if (conditions.syncListIds.isNotEmpty &&
+              !conditions.syncListIds.contains(task.listId)) {
+            return false;
+          }
+          if (conditions.tags.isNotEmpty) {
+            final matched = conditions.tagMode == 'all'
+                ? conditions.tags.every(task.tags.contains)
+                : conditions.tags.any(task.tags.contains);
+            if (!matched) return false;
+          }
+          return _filterDateMatches(task, conditions);
+        })
+        .toList(growable: false);
     return _searchTasks(matches);
   }
 
@@ -1352,7 +1351,6 @@ class _TasksPageState extends State<TasksPage> {
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
   }
-
 }
 
 class _BoardGroupMenu extends StatelessWidget {
@@ -2087,16 +2085,14 @@ class _ListPaneState extends State<_ListPane> {
                 label: '今天',
                 dot: const Color(0xFFF59E0B),
                 selected:
-                    widget.selectedId == null &&
-                    widget.selectedView == 'today',
+                    widget.selectedId == null && widget.selectedView == 'today',
                 onTap: () => widget.onViewSelected('today'),
               ),
               _PaneRow(
                 label: '最近 7 天',
                 dot: const Color(0xFF3B82F6),
                 selected:
-                    widget.selectedId == null &&
-                    widget.selectedView == 'next7',
+                    widget.selectedId == null && widget.selectedView == 'next7',
                 onTap: () => widget.onViewSelected('next7'),
               ),
               _PaneRow(
@@ -2131,9 +2127,8 @@ class _ListPaneState extends State<_ListPane> {
                     onSubmitted: (_) => _submitList(),
                     onTapOutside: (_) => _cancelAdding(),
                     textAlignVertical: TextAlignVertical.center,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(fontSize: 12.5),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(fontSize: 12.5),
                     decoration: InputDecoration(
                       hintText: '清单名称，回车创建',
                       hintStyle: Theme.of(context).textTheme.bodySmall
@@ -2175,9 +2170,8 @@ class _ListPaneState extends State<_ListPane> {
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                   child: Text(
                     '按清单、优先级、标签与日期组合筛选',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    style: Theme.of(context).textTheme.labelSmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 )
               else
@@ -2201,12 +2195,9 @@ class _ListPaneState extends State<_ListPane> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
                   child: Text(
-                    allTags.isEmpty
-                        ? '在任务里添加标签后，可在这里筛选'
-                        : '在「管理标签」里勾选要显示的标签',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
+                    allTags.isEmpty ? '在任务里添加标签后，可在这里筛选' : '在「管理标签」里勾选要显示的标签',
+                    style: Theme.of(context).textTheme.labelSmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                 )
               else
@@ -2374,7 +2365,8 @@ class _PaneListRowState extends State<_PaneListRow> {
     final foreground = widget.selected
         ? scheme.primary
         : scheme.onSurfaceVariant;
-    final showDelete = widget.onDelete != null && (_hovering || widget.selected);
+    final showDelete =
+        widget.onDelete != null && (_hovering || widget.selected);
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -2535,8 +2527,7 @@ class _TagManagerDialog extends StatefulWidget {
 class _TagManagerDialogState extends State<_TagManagerDialog> {
   bool _busy = false;
   String? _editing;
-  late final TextEditingController _renameController =
-      TextEditingController();
+  late final TextEditingController _renameController = TextEditingController();
 
   @override
   void dispose() {
@@ -2560,10 +2551,7 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
       _editing = tag;
       _renameController
         ..text = tag
-        ..selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: tag.length,
-        );
+        ..selection = TextSelection(baseOffset: 0, extentOffset: tag.length);
     });
   }
 
@@ -2735,8 +2723,7 @@ class _TagManagerDialogState extends State<_TagManagerDialog> {
                             selected:
                                 selection == null ||
                                 selection.contains(entry.key),
-                            onTap: () =>
-                                _toggleSidebarTag(entry.key, allNames),
+                            onTap: () => _toggleSidebarTag(entry.key, allNames),
                           ),
                           Container(
                             width: 8,
@@ -3424,8 +3411,12 @@ class _QuickAddBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // 只留底部安全区：左右交给页面自身（左侧图标栏已吃掉刘海），
+    // 否则横屏时右侧会多出一整条空白，看起来像没铺满。
     return SafeArea(
       top: false,
+      left: false,
+      right: false,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
         child: Container(
@@ -3497,7 +3488,7 @@ Future<void> showTaskEditor(
   BuildContext context, {
   required TaskItem task,
   TaskListItem? list,
-}) => showModalBottomSheet<void>(
+}) => showAppSheet<void>(
   context: context,
   isScrollControlled: true,
   showDragHandle: true,
@@ -3578,7 +3569,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
         .listsSnapshot()
         .where((list) => list.kind == TaskKind.task)
         .toList();
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -3677,7 +3668,7 @@ class _TaskEditorSheetState extends State<_TaskEditorSheet> {
 
   Future<void> _addReminder() async {
     const presets = [0, 5, 15, 60, 1440, 10080];
-    final picked = await showModalBottomSheet<int>(
+    final picked = await showAppSheet<int>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -4479,9 +4470,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
     ...?widget.initial?.conditions.syncListIds,
   };
   late final Set<String> _tags = {...?widget.initial?.conditions.tags};
-  late final Set<int> _priorities = {
-    ...?widget.initial?.conditions.priorities,
-  };
+  late final Set<int> _priorities = {...?widget.initial?.conditions.priorities};
   late DateTime? _dateFrom = DateTime.tryParse(
     widget.initial?.conditions.dateFrom ?? '',
   );
@@ -4714,7 +4703,9 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                         style: _dateButtonStyle,
                         onPressed: () => _pickDate(from: true),
                         child: Text(
-                          _dateFrom == null ? '开始日期' : _filterDayKey(_dateFrom!),
+                          _dateFrom == null
+                              ? '开始日期'
+                              : _filterDayKey(_dateFrom!),
                           style: const TextStyle(fontSize: 12),
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -4798,7 +4789,10 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
                 const SizedBox(height: 8),
                 Text(
                   _error!,
-                  style: TextStyle(color: theme.colorScheme.error, fontSize: 12),
+                  style: TextStyle(
+                    color: theme.colorScheme.error,
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ],
@@ -4810,10 +4804,7 @@ class _FilterEditorDialogState extends State<_FilterEditorDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: Text(_editing ? '保存' : '创建'),
-        ),
+        FilledButton(onPressed: _submit, child: Text(_editing ? '保存' : '创建')),
       ],
     );
   }

@@ -55,7 +55,7 @@ class _CountdownPageState extends State<CountdownPage> {
   }
 
   Future<void> _create() async {
-    final draft = await showModalBottomSheet<CountdownDraft>(
+    final draft = await showAppSheet<CountdownDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -67,7 +67,7 @@ class _CountdownPageState extends State<CountdownPage> {
   }
 
   Future<void> _edit(CountdownItem item) async {
-    final draft = await showModalBottomSheet<CountdownDraft>(
+    final draft = await showAppSheet<CountdownDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

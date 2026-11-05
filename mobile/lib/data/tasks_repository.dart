@@ -433,9 +433,7 @@ class TaskRepository {
     }
     final selection = store.sidebarTagsSnapshot();
     if (selection != null) {
-      await store.setSidebarTags(
-        selection.where((name) => name != target),
-      );
+      await store.setSidebarTags(selection.where((name) => name != target));
     }
     return changed;
   }

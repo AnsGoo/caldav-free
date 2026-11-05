@@ -69,7 +69,7 @@ class MatrixView extends StatelessWidget {
                     subtitle: '优先处理',
                     icon: Icons.local_fire_department_rounded,
                     color: const Color(0xFFEF4444),
-                      index: 0,
+                    index: 0,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -79,7 +79,7 @@ class MatrixView extends StatelessWidget {
                     subtitle: '计划推进',
                     icon: Icons.flag_rounded,
                     color: const Color(0xFF3B82F6),
-                      index: 1,
+                    index: 1,
                   ),
                 ),
               ],
@@ -96,7 +96,7 @@ class MatrixView extends StatelessWidget {
                     subtitle: '尽快处理',
                     icon: Icons.bolt_rounded,
                     color: const Color(0xFFF59E0B),
-                      index: 2,
+                    index: 2,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -106,7 +106,7 @@ class MatrixView extends StatelessWidget {
                     subtitle: '有空再做',
                     icon: Icons.spa_rounded,
                     color: const Color(0xFF22C55E),
-                      index: 3,
+                    index: 3,
                   ),
                 ),
               ],
@@ -161,13 +161,11 @@ class _Quadrant extends StatelessWidget {
     for (final task in tasks) {
       (byList[task.listId] ??= <TaskItem>[]).add(task);
     }
-    final ids =
-        byList.keys.toList()
-          ..sort(
-            (a, b) => (order[a] ?? lists.length).compareTo(
-              order[b] ?? lists.length,
-            ),
-          );
+    final ids = byList.keys.toList()
+      ..sort(
+        (a, b) =>
+            (order[a] ?? lists.length).compareTo(order[b] ?? lists.length),
+      );
     final rows = <Widget>[];
     for (final id in ids) {
       TaskListItem? list;

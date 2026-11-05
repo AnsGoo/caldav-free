@@ -147,7 +147,11 @@ class BoardView extends StatelessWidget {
         }
         return LayoutBuilder(
           builder: (context, constraints) {
-            Widget columnAt(int index, double width, EdgeInsetsGeometry margin) {
+            Widget columnAt(
+              int index,
+              double width,
+              EdgeInsetsGeometry margin,
+            ) {
               if (index < sections.length) {
                 final section = sections[index];
                 return _BoardColumn(
@@ -223,10 +227,7 @@ class BoardView extends StatelessWidget {
                 trailing: IconButton(
                   tooltip: '添加列',
                   onPressed: () => _createSection(context, list.id),
-                  icon: const Icon(
-                    Icons.view_column_outlined,
-                    size: 20,
-                  ),
+                  icon: const Icon(Icons.view_column_outlined, size: 20),
                 ),
                 builder: (context, index, width) =>
                     columnAt(index, width, EdgeInsets.zero),
@@ -242,11 +243,7 @@ class BoardView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               children: [
                 for (var index = 0; index < count; index++)
-                  columnAt(
-                    index,
-                    width,
-                    const EdgeInsets.only(right: 10),
-                  ),
+                  columnAt(index, width, const EdgeInsets.only(right: 10)),
                 _AddColumnButton(listId: list.id),
               ],
             );
@@ -328,9 +325,7 @@ class _BoardColumn extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.9),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
       ),
       child: Column(
         children: [
@@ -594,9 +589,7 @@ class _ListBoardColumn extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.9),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
       ),
       child: Column(
         children: [
@@ -978,8 +971,7 @@ class _GroupedBoardView extends StatelessWidget {
           tasks: column.tasks,
           onOpenTask: onOpenTask,
           onToggleTask: onToggleTask,
-          onAcceptTask: (taskId) =>
-              _applyGroupChange(context, column, taskId),
+          onAcceptTask: (taskId) => _applyGroupChange(context, column, taskId),
           onAddTask: () => _addTask(context, column),
         );
 
@@ -997,11 +989,7 @@ class _GroupedBoardView extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           children: [
             for (final column in columns)
-              groupColumn(
-                column,
-                width,
-                const EdgeInsets.only(right: 10),
-              ),
+              groupColumn(column, width, const EdgeInsets.only(right: 10)),
           ],
         );
       },
@@ -1136,9 +1124,7 @@ class _GroupBoardColumn extends StatelessWidget {
       decoration: BoxDecoration(
         color: scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: scheme.outlineVariant.withValues(alpha: 0.9),
-        ),
+        border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.9)),
       ),
       child: Column(
         children: [

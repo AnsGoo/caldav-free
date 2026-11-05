@@ -129,8 +129,7 @@ class _HomeShellState extends State<HomeShell> {
                     child: IndexedStack(
                       index: _index,
                       children: [
-                        for (var i = 0; i < _destinations.length; i++)
-                          _slot(i),
+                        for (var i = 0; i < _destinations.length; i++) _slot(i),
                       ],
                     ),
                   )

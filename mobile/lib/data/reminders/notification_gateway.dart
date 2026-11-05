@@ -36,7 +36,7 @@ abstract class NotificationGateway {
 
 class LocalNotificationGateway implements NotificationGateway {
   LocalNotificationGateway({FlutterLocalNotificationsPlugin? plugin})
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
   static const _channelId = 'task_reminders';
@@ -65,13 +65,15 @@ class LocalNotificationGateway implements NotificationGateway {
     );
   }
 
-  AndroidFlutterLocalNotificationsPlugin? get _android =>
-      _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+  AndroidFlutterLocalNotificationsPlugin? get _android => _plugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
 
-  IOSFlutterLocalNotificationsPlugin? get _ios =>
-      _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+  IOSFlutterLocalNotificationsPlugin? get _ios => _plugin
+      .resolvePlatformSpecificImplementation<
+        IOSFlutterLocalNotificationsPlugin
+      >();
 
   @override
   Future<bool> requestPermissions() async {
@@ -161,7 +163,9 @@ class LocalNotificationGateway implements NotificationGateway {
 
 class NoOpNotificationGateway implements NotificationGateway {
   @override
-  Future<void> initialize({required void Function(String? payload) onTap}) async {}
+  Future<void> initialize({
+    required void Function(String? payload) onTap,
+  }) async {}
 
   @override
   Future<bool> requestPermissions() async => true;

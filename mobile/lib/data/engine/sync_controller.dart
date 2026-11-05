@@ -36,10 +36,7 @@ class SyncController extends ChangeNotifier {
     refreshStats();
     await sync();
     if (_disposed) return;
-    _periodic = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) => sync(),
-    );
+    _periodic = Timer.periodic(const Duration(seconds: 15), (_) => sync());
   }
 
   void requestSync() {

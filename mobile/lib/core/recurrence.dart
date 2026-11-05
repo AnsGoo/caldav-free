@@ -49,23 +49,17 @@ String recurrenceLabel(String rule) {
   final every = parsed.interval > 1 ? '每 ${parsed.interval} ' : '每';
   return switch (parsed.freq) {
     'DAILY' => '$every天',
-    'WEEKLY' => parsed.byDay.isEmpty
-        ? '$every周'
-        : '$every周 ${parsed.byDay.map(_weekdayLabel).join('、')}',
+    'WEEKLY' =>
+      parsed.byDay.isEmpty
+          ? '$every周'
+          : '$every周 ${parsed.byDay.map(_weekdayLabel).join('、')}',
     'MONTHLY' => '$every月',
     _ => '$every年',
   };
 }
 
-String _weekdayLabel(int weekday) => const [
-  '周一',
-  '周二',
-  '周三',
-  '周四',
-  '周五',
-  '周六',
-  '周日',
-][weekday - 1];
+String _weekdayLabel(int weekday) =>
+    const ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][weekday - 1];
 
 bool _inside(DateTime value, DateTime from, DateTime to) =>
     !value.isBefore(from) && !value.isAfter(to);
@@ -90,8 +84,8 @@ DateTime? _at(int year, int month, int day, DateTime time) {
     time.second,
   );
   return candidate.year == year &&
-      candidate.month == month &&
-      candidate.day == day
+          candidate.month == month &&
+          candidate.day == day
       ? candidate
       : null;
 }
@@ -196,7 +190,7 @@ class _Rule {
             anchor.minute,
             anchor.second,
           );
-          for (var week = 0;; week++) {
+          for (var week = 0; ; week++) {
             final base = _shiftDays(monday, 7 * interval * week);
             if (base.isAfter(bound)) break;
             for (final weekday in byDay) {

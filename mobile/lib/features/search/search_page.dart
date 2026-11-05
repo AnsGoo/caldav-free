@@ -241,7 +241,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Future<void> _openFilters() async {
-    final selected = await showModalBottomSheet<_SearchFilters>(
+    final selected = await showAppSheet<_SearchFilters>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -256,7 +256,7 @@ class _SearchPageState extends State<SearchPage> {
   void _showEvent(CalendarEvent event) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -301,7 +301,7 @@ class _SearchPageState extends State<SearchPage> {
   void _showHabit(HabitItem habit) {
     final theme = Theme.of(context);
     final color = colorFromHex(habit.color);
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -355,7 +355,7 @@ class _SearchPageState extends State<SearchPage> {
   void _showCountdown(CountdownItem item) {
     final theme = Theme.of(context);
     final color = colorFromHex(item.color);
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(

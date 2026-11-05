@@ -14,10 +14,8 @@ import 'reminder_plan.dart';
 /// P1: cancel all pending (not displayed) notifications, then schedule the new
 /// plan.
 class ReminderScheduler {
-  ReminderScheduler({
-    required this.store,
-    NotificationGateway? gateway,
-  }) : _gateway = gateway ?? createDefaultGateway();
+  ReminderScheduler({required this.store, NotificationGateway? gateway})
+    : _gateway = gateway ?? createDefaultGateway();
 
   final LocalStore store;
   final NotificationGateway _gateway;
@@ -70,10 +68,7 @@ class ReminderScheduler {
         return;
       }
       _forceNext = false;
-      final plan = buildReminderPlan(
-        tasks,
-        now: DateTime.now().toUtc(),
-      );
+      final plan = buildReminderPlan(tasks, now: DateTime.now().toUtc());
       await _gateway.cancelPending();
       final exact = await _gateway.exactAlarmsAllowed();
       var scheduled = 0;
@@ -109,14 +104,16 @@ class ReminderScheduler {
           task.dueAt == null) {
         continue;
       }
-      rows.add([
-        task.id,
-        task.title,
-        task.dueAt!.toUtc().toIso8601String(),
-        task.reminderOffsets.join(','),
-        task.completed ? 'completed' : 'open',
-        task.deleted ? 'deleted' : 'live',
-      ].join('|'));
+      rows.add(
+        [
+          task.id,
+          task.title,
+          task.dueAt!.toUtc().toIso8601String(),
+          task.reminderOffsets.join(','),
+          task.completed ? 'completed' : 'open',
+          task.deleted ? 'deleted' : 'live',
+        ].join('|'),
+      );
     }
     rows.sort();
     return rows.join('\n');
@@ -157,9 +154,7 @@ class ReminderScheduler {
     _forceNext = false;
     if (cancelAll) {
       try {
-        await _gateway
-            .cancelAll()
-            .timeout(const Duration(seconds: 2));
+        await _gateway.cancelAll().timeout(const Duration(seconds: 2));
       } catch (error) {
         debugPrint('cancel reminders failed: $error');
       }

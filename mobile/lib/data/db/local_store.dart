@@ -607,9 +607,8 @@ class LocalStore {
   }
 
   /// `null` means the user never customized the sidebar: show every tag.
-  List<String>? sidebarTagsSnapshot() => _sidebarTags == null
-      ? null
-      : List<String>.unmodifiable(_sidebarTags!);
+  List<String>? sidebarTagsSnapshot() =>
+      _sidebarTags == null ? null : List<String>.unmodifiable(_sidebarTags!);
 
   Future<void> setSidebarTags(Iterable<String> names) {
     final next = <String>{
@@ -982,22 +981,20 @@ class LocalStore {
       for (final id in taskIds) {
         final item = _tasks[id];
         if (item == null) {
-          await (db.delete(db.tasks)
-                ..where((row) => row.syncId.equals(id)))
-              .go();
+          await (db.delete(
+            db.tasks,
+          )..where((row) => row.syncId.equals(id))).go();
           continue;
         }
         final row = item.toRow(dirty: _dirtyTasks.contains(id));
-        await db
-            .into(db.tasks)
-            .insert(row, onConflict: DoUpdate((_) => row));
+        await db.into(db.tasks).insert(row, onConflict: DoUpdate((_) => row));
       }
       for (final id in listIds) {
         final item = _lists[id];
         if (item == null) {
-          await (db.delete(db.taskLists)
-                ..where((row) => row.syncId.equals(id)))
-              .go();
+          await (db.delete(
+            db.taskLists,
+          )..where((row) => row.syncId.equals(id))).go();
           continue;
         }
         final row = item.toRow();
@@ -1008,9 +1005,9 @@ class LocalStore {
       for (final id in sectionIds) {
         final item = _sections[id];
         if (item == null) {
-          await (db.delete(db.taskSections)
-                ..where((row) => row.syncId.equals(id)))
-              .go();
+          await (db.delete(
+            db.taskSections,
+          )..where((row) => row.syncId.equals(id))).go();
           continue;
         }
         final row = item.toRow();
@@ -1021,22 +1018,20 @@ class LocalStore {
       for (final id in folderIds) {
         final item = _folders[id];
         if (item == null) {
-          await (db.delete(db.folders)
-                ..where((row) => row.syncId.equals(id)))
-              .go();
+          await (db.delete(
+            db.folders,
+          )..where((row) => row.syncId.equals(id))).go();
           continue;
         }
         final row = item.toRow();
-        await db
-            .into(db.folders)
-            .insert(row, onConflict: DoUpdate((_) => row));
+        await db.into(db.folders).insert(row, onConflict: DoUpdate((_) => row));
       }
       for (final id in filterIds) {
         final item = _filters[id];
         if (item == null) {
-          await (db.delete(db.savedFilters)
-                ..where((row) => row.syncId.equals(id)))
-              .go();
+          await (db.delete(
+            db.savedFilters,
+          )..where((row) => row.syncId.equals(id))).go();
           continue;
         }
         final row = item.toRow();
@@ -1047,15 +1042,13 @@ class LocalStore {
       for (final id in opIds) {
         final op = _outbox[id];
         if (op == null) {
-          await (db.delete(db.outbox)
-                ..where((row) => row.opId.equals(id)))
-              .go();
+          await (db.delete(
+            db.outbox,
+          )..where((row) => row.opId.equals(id))).go();
           continue;
         }
         final row = _outboxRow(op);
-        await db
-            .into(db.outbox)
-            .insert(row, onConflict: DoUpdate((_) => row));
+        await db.into(db.outbox).insert(row, onConflict: DoUpdate((_) => row));
       }
       for (final key in conflictKeys) {
         final record = _conflicts[key];
@@ -1063,11 +1056,10 @@ class LocalStore {
           final sep = key.indexOf(':');
           final entity = sep < 0 ? key : key.substring(0, sep);
           final entityId = sep < 0 ? '' : key.substring(sep + 1);
-          await (db.delete(db.conflicts)
-                ..where(
-                  (row) =>
-                      row.entity.equals(entity) & row.entityId.equals(entityId),
-                ))
+          await (db.delete(db.conflicts)..where(
+                (row) =>
+                    row.entity.equals(entity) & row.entityId.equals(entityId),
+              ))
               .go();
           continue;
         }

@@ -22,9 +22,7 @@ class ConnectServerSheet extends StatefulWidget {
 
 class _ConnectServerSheetState extends State<ConnectServerSheet> {
   final _server = TextEditingController(
-    text: Platform.isAndroid
-        ? 'http://10.0.2.2:5232'
-        : 'http://localhost:5232',
+    text: Platform.isAndroid ? 'http://10.0.2.2:5232' : 'http://localhost:5232',
   );
   final _username = TextEditingController();
   final _password = TextEditingController();
@@ -105,10 +103,7 @@ class _ConnectServerSheetState extends State<ConnectServerSheet> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        '连接服务器',
-                        style: theme.textTheme.titleLarge,
-                      ),
+                      Text('连接服务器', style: theme.textTheme.titleLarge),
                       const SizedBox(height: 6),
                       Text(
                         '填入 CalDAV 账号信息，连接后数据会自动同步。',
@@ -170,9 +165,7 @@ class _ConnectServerSheetState extends State<ConnectServerSheet> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: scheme.errorContainer.withValues(
-                              alpha: 0.7,
-                            ),
+                            color: scheme.errorContainer.withValues(alpha: 0.7),
                             borderRadius: BorderRadius.circular(14),
                           ),
                           child: Row(
@@ -187,10 +180,9 @@ class _ConnectServerSheetState extends State<ConnectServerSheet> {
                               Expanded(
                                 child: Text(
                                   _error!,
-                                  style: theme.textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: scheme.onErrorContainer,
-                                      ),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: scheme.onErrorContainer,
+                                  ),
                                 ),
                               ),
                             ],

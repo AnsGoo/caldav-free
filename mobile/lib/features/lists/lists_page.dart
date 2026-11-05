@@ -284,7 +284,7 @@ class ListsPage extends StatelessWidget {
     TaskListItem list,
     List<FolderItem> folders,
   ) async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showAppSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(

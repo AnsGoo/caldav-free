@@ -446,15 +446,16 @@ class SummaryTemplate {
     'createdAt': createdAt.toUtc().toIso8601String(),
   };
 
-  factory SummaryTemplate.fromJson(Map<String, dynamic> json) => SummaryTemplate(
-    id: (json['id'] ?? '').toString(),
-    name: (json['name'] ?? '').toString(),
-    range: (json['range'] ?? 'week').toString(),
-    content: (json['content'] ?? '').toString(),
-    createdAt:
-        DateTime.tryParse((json['createdAt'] ?? '').toString())?.toUtc() ??
-        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-  );
+  factory SummaryTemplate.fromJson(Map<String, dynamic> json) =>
+      SummaryTemplate(
+        id: (json['id'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+        range: (json['range'] ?? 'week').toString(),
+        content: (json['content'] ?? '').toString(),
+        createdAt:
+            DateTime.tryParse((json['createdAt'] ?? '').toString())?.toUtc() ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      );
 }
 
 /// Conditions of a saved task filter, mirroring the web's filter dialog.
@@ -515,9 +516,7 @@ class FilterConditions {
         listIds: _stringList(json['listIds']),
         syncListIds: _stringList(json['syncListIds']),
         tags: _stringList(json['tags']),
-        tagMode: (json['tagMode'] ?? 'any').toString() == 'all'
-            ? 'all'
-            : 'any',
+        tagMode: (json['tagMode'] ?? 'any').toString() == 'all' ? 'all' : 'any',
         priorities: _intList(json['priorities']),
         status: switch ((json['status'] ?? 'open').toString()) {
           'completed' => 'completed',

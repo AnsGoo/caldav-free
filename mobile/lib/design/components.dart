@@ -346,6 +346,28 @@ bool isWideLayout(BuildContext context) {
 /// Vertical companion of [AppBottomNav] for landscape phones and tablets,
 /// where a 62dp bar would eat the height the page content needs. Same icon
 /// language, same selection dot, no labels and no tooltips.
+/// 统一的底部弹窗入口。
+///
+/// Flutter M3 的 [showModalBottomSheet] 默认把宽度限制在 640dp，手机横屏时
+/// 两侧会各空出一大块；手机上改为铺满宽度，平板仍沿用调用方/框架的限制。
+Future<T?> showAppSheet<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+  bool isScrollControlled = false,
+  bool showDragHandle = true,
+  BoxConstraints? constraints,
+}) {
+  final size = MediaQuery.sizeOf(context);
+  final isPhone = size.shortestSide < 600;
+  return showModalBottomSheet<T>(
+    context: context,
+    builder: builder,
+    isScrollControlled: isScrollControlled,
+    showDragHandle: showDragHandle,
+    constraints: isPhone ? BoxConstraints(maxWidth: size.width) : constraints,
+  );
+}
+
 class AppSideNav extends StatelessWidget {
   const AppSideNav({
     super.key,

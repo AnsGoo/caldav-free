@@ -95,7 +95,7 @@ class _HabitsPageState extends State<HabitsPage> {
   bool get _selectedIsPast => _selectedStamp < _todayStamp;
 
   Future<void> _create() async {
-    final draft = await showModalBottomSheet<HabitDraft>(
+    final draft = await showAppSheet<HabitDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -111,7 +111,7 @@ class _HabitsPageState extends State<HabitsPage> {
   }
 
   Future<void> _edit(HabitItem habit) async {
-    final draft = await showModalBottomSheet<HabitDraft>(
+    final draft = await showAppSheet<HabitDraft>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -158,7 +158,7 @@ class _HabitsPageState extends State<HabitsPage> {
 
   void _openDetail(HabitItem habit) {
     final snapshot = _snapshot;
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,

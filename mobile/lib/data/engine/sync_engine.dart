@@ -488,7 +488,9 @@ class SyncEngine {
       if (op.action == 'delete') {
         await store.hardDeleteFilter(op.entityId);
       } else if (result.entityJson != null) {
-        await store.saveFilter(SavedFilterItem.fromWireJson(result.entityJson!));
+        await store.saveFilter(
+          SavedFilterItem.fromWireJson(result.entityJson!),
+        );
       }
     }
   }

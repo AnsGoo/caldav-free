@@ -50,7 +50,8 @@ class FileCredentialsStore implements CredentialsStore {
   Future<File> _resolveFile() async {
     final existing = _file;
     if (existing != null) return existing;
-    final path = _explicitPath ??
+    final path =
+        _explicitPath ??
         p.join((await appStorageDirectory()).path, 'credentials.json');
     return _file = File(path);
   }
@@ -145,8 +146,8 @@ class FileCredentialsStore implements CredentialsStore {
 
 class MemoryCredentialsStore implements CredentialsStore {
   MemoryCredentialsStore({Session? storedSession, String? deviceId})
-      : _session = storedSession,
-        _deviceId = deviceId ?? newSyncId();
+    : _session = storedSession,
+      _deviceId = deviceId ?? newSyncId();
 
   Session? _session;
   String _deviceId;

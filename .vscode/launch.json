@@ -6,21 +6,21 @@
       "request": "launch",
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
-      "toolArgs": ["-d", "windows"]
+      "deviceId": "windows"
     },
     {
       "name": "Flutter (Chrome)",
       "request": "launch",
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
-      "toolArgs": ["-d", "chrome"]
+      "deviceId": "chrome"
     },
     {
       "name": "Flutter (Android)",
       "request": "launch",
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
-      "toolArgs": ["-d", "android"]
+      "program": "${workspaceFolder}/mobile/lib/main.dart"
     },
     {
       "name": "Flutter (iOS 模拟器)",
@@ -28,7 +28,7 @@
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
       "program": "${workspaceFolder}/mobile/lib/main.dart",
-      "toolArgs": ["-d", "caldav-free"],
+      "deviceId": "caldav-free",
       "preLaunchTask": "ios: boot simulator"
     },
     {
@@ -44,7 +44,7 @@
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
       "program": "${workspaceFolder}/mobile/lib/main.dart",
-      "toolArgs": ["-d", "macos"]
+      "deviceId": "macos"
     },
     {
       "name": "Flutter (macOS, Profile)",
@@ -52,8 +52,8 @@
       "type": "dart",
       "cwd": "${workspaceFolder}/mobile",
       "program": "${workspaceFolder}/mobile/lib/main.dart",
-      "flutterMode": "profile",
-      "toolArgs": ["-d", "macos"]
+      "deviceId": "macos",
+      "flutterMode": "profile"
     }
   ]
 }

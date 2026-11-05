@@ -4,7 +4,7 @@
     {
       "label": "ios: boot simulator",
       "type": "shell",
-      "command": "xcrun simctl bootstatus \"caldav-free iPhone 17 Pro\" -b && open -a Simulator",
+      "command": "xcrun simctl bootstatus \"caldav-free iPhone 17 Pro\" -b && sleep 2 && open -a Simulator",
       "options": {
         "cwd": "${workspaceFolder}"
       },

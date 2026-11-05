@@ -433,13 +433,15 @@ class _CalendarPageState extends State<CalendarPage> {
               letterSpacing: -0.9,
             ),
           ),
-          subtitle: Text(
-            _viewLabel(_view),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: scheme.onSurfaceVariant,
-            ),
+          // 上一段 / 当前区间 / 下一段 收进标题区，省掉原来单独的一行；
+          // 区间文字点一下回到今天，替代原来的「今天」按钮。
+          subtitle: _PeriodNavigator(
+            label: _title(_view, _anchor),
+            onPrevious: () => _move(-1),
+            onNext: () => _move(1),
+            onToday: _today,
+            color: scheme.onSurfaceVariant,
+            textStyle: theme.textTheme.titleSmall,
           ),
         ),
         actions: [
@@ -490,31 +492,6 @@ class _CalendarPageState extends State<CalendarPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 2, 8, 2),
-            child: Row(
-              children: [
-                IconButton(
-                  tooltip: '上一段',
-                  onPressed: () => _move(-1),
-                  icon: const Icon(Icons.chevron_left_rounded),
-                ),
-                Expanded(
-                  child: Text(
-                    _title(_view, _anchor),
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                ),
-                IconButton(
-                  tooltip: '下一段',
-                  onPressed: () => _move(1),
-                  icon: const Icon(Icons.chevron_right_rounded),
-                ),
-                TextButton(onPressed: _today, child: const Text('今天')),
-              ],
-            ),
-          ),
           Expanded(
             child: Builder(
               builder: (context) {
@@ -874,6 +851,67 @@ String _weekday(DateTime day) {
 
 DateTime _sundayOf(DateTime day) =>
     _dateOnly(day).subtract(Duration(days: day.weekday % 7));
+
+/// 日期区间导航：◀ 2026年11月 ▶。放在 AppBar 标题区，点文字回到今天。
+class _PeriodNavigator extends StatelessWidget {
+  const _PeriodNavigator({
+    required this.label,
+    required this.onPrevious,
+    required this.onNext,
+    required this.onToday,
+    required this.color,
+    this.textStyle,
+  });
+
+  final String label;
+  final VoidCallback onPrevious;
+  final VoidCallback onNext;
+  final VoidCallback onToday;
+  final Color color;
+  final TextStyle? textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _arrow(Icons.chevron_left_rounded, '上一段', onPrevious),
+        Flexible(
+          child: Tooltip(
+            message: '回到今天',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: onToday,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: textStyle?.copyWith(color: color),
+                ),
+              ),
+            ),
+          ),
+        ),
+        _arrow(Icons.chevron_right_rounded, '下一段', onNext),
+      ],
+    );
+  }
+
+  Widget _arrow(IconData icon, String tooltip, VoidCallback onTap) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onTap,
+      iconSize: 20,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      icon: Icon(icon),
+    );
+  }
+}
 
 class _Entry {
   const _Entry.event(this.event) : task = null;

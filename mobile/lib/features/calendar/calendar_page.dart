@@ -424,25 +424,29 @@ class _CalendarPageState extends State<CalendarPage> {
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: compactAppBarHeight(context, defaultHeight: 88),
-        title: compactAppBarTitle(
-          context,
-          title: Text(
-            '日历',
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontSize: compactTitleFontSize(context),
-              letterSpacing: -0.9,
+        // 标题和日期切换放在同一行，竖屏也和右侧操作图标同一高度。
+        title: Row(
+          children: [
+            Text(
+              '日历',
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontSize: compactTitleFontSize(context),
+                letterSpacing: -0.9,
+              ),
             ),
-          ),
-          // 上一段 / 当前区间 / 下一段 收进标题区，省掉原来单独的一行；
-          // 区间文字点一下回到今天，替代原来的「今天」按钮。
-          subtitle: _PeriodNavigator(
-            label: _title(_view, _anchor),
-            onPrevious: () => _move(-1),
-            onNext: () => _move(1),
-            onToday: _today,
-            color: scheme.onSurfaceVariant,
-            textStyle: theme.textTheme.titleSmall,
-          ),
+            const SizedBox(width: 10),
+            // 上一段 / 当前区间 / 下一段；区间文字点一下回到今天。
+            Flexible(
+              child: _PeriodNavigator(
+                label: _title(_view, _anchor),
+                onPrevious: () => _move(-1),
+                onNext: () => _move(1),
+                onToday: _today,
+                color: scheme.onSurfaceVariant,
+                textStyle: theme.textTheme.titleSmall,
+              ),
+            ),
+          ],
         ),
         actions: [
           PopupMenuButton<CalendarView>(

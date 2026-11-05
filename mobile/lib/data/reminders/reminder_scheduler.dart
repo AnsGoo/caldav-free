@@ -179,11 +179,59 @@ class ReminderScheduler {
   }
 
   /// Requests the runtime notification permission (Android 13+).
+  ///
+  /// 拒绝过之后系统不会再弹授权框，这里也只返回当前状态，由设置页引导用户
+  /// 去系统设置重新开启，避免每次启动都去骚扰一遍。
   Future<bool> requestPermissions() async {
+    if (permissionGranted == false) {
+      final current = await permissionStatus();
+      if (current == false) return false;
+    }
     final granted = await _gateway.requestPermissions();
     permissionGranted = granted;
     return granted;
   }
+
+  /// Reads the OS authorization without prompting and refreshes the cached
+  /// state. Returns null when the platform cannot report it.
+  Future<bool?> permissionStatus() async {
+    final status = await _gateway.permissionStatus();
+    if (status != null) permissionGranted = status;
+    return status;
+  }
+
+  /// Called when the app returns to the foreground. Picks up a permission the
+  /// user may have granted in the system settings while we were away and
+  /// rebuilds the plan so pending reminders start firing again.
+  /// Returns true when notifications became available just now.
+  Future<bool> refreshPermissionAfterResume() async {
+    final previous = permissionGranted;
+    final status = await permissionStatus();
+    if (status == null) return false;
+    if (status && previous != true) {
+      await reschedule();
+      return true;
+    }
+    return false;
+  }
+
+  /// Sends an immediate notification. Useful for verifying that the OS really
+  /// delivers notifications instead of trusting the scheduled count.
+  Future<bool> sendTestNotification() async {
+    try {
+      final sent = await _gateway.showTestNotification(
+        title: '通知测试',
+        body: '看到这条说明系统通知已正常工作。',
+      );
+      if (sent) lastError = null;
+      return sent;
+    } catch (error) {
+      lastError = error.toString();
+      return false;
+    }
+  }
+
+  Future<bool> openSystemNotificationSettings() => _gateway.openSystemSettings();
 
   Future<bool> exactAlarmsAllowed() => _gateway.exactAlarmsAllowed();
 

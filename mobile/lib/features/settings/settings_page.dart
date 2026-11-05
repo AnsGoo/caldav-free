@@ -197,6 +197,24 @@ class SettingsPage extends StatelessWidget {
                     onTap: () => _ensureExactAlarms(context, app),
                   ),
                 ],
+                if (Platform.isMacOS || Platform.isIOS) ...[
+                  const Divider(height: 1, indent: 56),
+                  _SettingsTile(
+                    icon: Icons.notifications_outlined,
+                    title: '发送测试通知',
+                    subtitle: '立即弹一条系统通知，确认提醒链路可用',
+                    onTap: () => _sendTestNotification(context, app),
+                  ),
+                ],
+                if (Platform.isMacOS || Platform.isIOS) ...[
+                  const Divider(height: 1, indent: 56),
+                  _SettingsTile(
+                    icon: Icons.settings_outlined,
+                    title: '系统通知设置',
+                    subtitle: '被拒绝后可在这里重新开启，返回应用自动生效',
+                    onTap: () => _openSystemNotificationSettings(context, app),
+                  ),
+                ],
               ],
             ),
           ),
@@ -264,11 +282,44 @@ class SettingsPage extends StatelessWidget {
   String _notificationSubtitle(AppState app) {
     final scheduler = app.reminders;
     if (scheduler == null) return '提醒服务未启动';
+    if (scheduler.permissionGranted == false) {
+      return '通知权限已关闭 · 点击前往系统设置重新开启';
+    }
     final parts = <String>['已排程 ${scheduler.scheduledCount} 条'];
-    if (scheduler.permissionGranted == false) parts.add('权限未授予');
+    if (scheduler.permissionGranted == true) parts.add('权限已开启');
     final error = scheduler.lastError;
     if (error != null) parts.add('上次失败：$error');
     return parts.join(' · ');
+  }
+
+  Future<void> _sendTestNotification(BuildContext context, AppState app) async {
+    final scheduler = app.reminders;
+    if (scheduler == null) return;
+    if (scheduler.permissionGranted == false) {
+      if (Platform.isMacOS || Platform.isIOS) {
+        await _openSystemNotificationSettings(context, app);
+      } else if (context.mounted) {
+        _snack(context, '通知权限已关闭，请到系统设置中开启');
+      }
+      return;
+    }
+    final sent = await scheduler.sendTestNotification();
+    if (!context.mounted) return;
+    _snack(context, sent ? '已发送测试通知' : '测试通知发送失败，请检查通知权限');
+  }
+
+  Future<void> _openSystemNotificationSettings(
+    BuildContext context,
+    AppState app,
+  ) async {
+    final scheduler = app.reminders;
+    if (scheduler == null) return;
+    final opened = await scheduler.openSystemNotificationSettings();
+    if (!context.mounted) return;
+    _snack(
+      context,
+      opened ? '允许通知后返回应用即可生效' : '请手动打开「系统设置 → 通知 → caldav-free」',
+    );
   }
 
   Future<void> _requestNotificationPermission(
@@ -277,12 +328,23 @@ class SettingsPage extends StatelessWidget {
   ) async {
     final scheduler = app.reminders;
     if (scheduler == null) return;
+    // 已经拒过一次就不再弹系统授权框（系统也不会再弹），直接引导到系统设置。
+    if (scheduler.permissionGranted == false) {
+      if (Platform.isMacOS || Platform.isIOS) {
+        await _openSystemNotificationSettings(context, app);
+      } else if (context.mounted) {
+        _snack(context, '通知权限已关闭，请到系统设置中开启');
+      }
+      return;
+    }
     final granted = await scheduler.requestPermissions();
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(granted ? '通知权限已开启' : '通知权限未授予，请到系统设置开启')),
-    );
-    await scheduler.reschedule();
+    if (granted) {
+      _snack(context, '通知权限已开启');
+      await scheduler.reschedule();
+    } else {
+      _snack(context, '通知权限未授予，可在系统设置中重新开启');
+    }
   }
 
   Future<void> _ensureExactAlarms(BuildContext context, AppState app) async {

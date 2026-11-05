@@ -370,4 +370,16 @@ class AppState extends ChangeNotifier {
     focus.dispose();
     super.dispose();
   }
+
+  /// 回到前台时调用：用户在系统设置里刚开启的通知权限在这里生效，
+  /// 不需要重启应用。
+  Future<void> refreshNotificationPermission() async {
+    final scheduler = reminders;
+    if (scheduler == null) return;
+    final before = scheduler.permissionGranted;
+    final newlyGranted = await scheduler.refreshPermissionAfterResume();
+    if (newlyGranted || scheduler.permissionGranted != before) {
+      notifyListeners();
+    }
+  }
 }

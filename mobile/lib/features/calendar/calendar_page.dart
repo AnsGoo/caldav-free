@@ -529,8 +529,15 @@ class _CalendarPageState extends State<CalendarPage> {
                           .toDouble();
                       return Column(
                         children: [
-                          SizedBox(
+                          // 月历放在一张卡片底上，和页面其它卡片保持同一套视觉。
+                          Container(
                             height: gridHeight,
+                            margin: const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            clipBehavior: Clip.antiAlias,
                             child: _MonthView(
                               anchor: _anchor,
                               snapshot: effective,

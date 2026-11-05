@@ -1035,7 +1035,6 @@ class _MonthViewState extends State<_MonthView> {
     final firstIndex = first.weekday - 1;
     final daysInMonth = DateTime(anchor.year, anchor.month + 1, 0).day;
     final weeks = ((firstIndex + daysInMonth) / 7).ceil();
-    final lastIndex = firstIndex + daysInMonth - 1;
     final today = _dateOnly(DateTime.now());
     final scheme = Theme.of(context).colorScheme;
     return Column(
@@ -1081,11 +1080,6 @@ class _MonthViewState extends State<_MonthView> {
                   final special =
                       dayAlmanac?.special == true || holiday != null;
                   final composing = day == widget.composingDay;
-                  final corner = Radius.circular(12);
-                  final isTopLeft = index == firstIndex;
-                  final isTopRight = index == 6;
-                  final isBottomLeft = index == lastIndex - (lastIndex % 7);
-                  final isBottomRight = index == lastIndex;
                   return Container(
                     decoration: BoxDecoration(
                       // 与年视图一致：画布透出，仅用细线勾勒，而不是填充卡片。
@@ -1094,13 +1088,7 @@ class _MonthViewState extends State<_MonthView> {
                           : hovered
                           ? scheme.primary.withValues(alpha: 0.035)
                           : null,
-                      borderRadius: BorderRadius.only(
-                        topLeft: isTopLeft ? corner : Radius.zero,
-                        topRight: isTopRight ? corner : Radius.zero,
-                        bottomLeft: isBottomLeft ? corner : Radius.zero,
-                        bottomRight: isBottomRight ? corner : Radius.zero,
-                      ),
-                      // 只给本月日期绘制边框，四个最外角做圆润处理。
+                      // 只给本月日期绘制边框，网格保持直角。
                       border: Border(
                         top: index - 7 < firstIndex
                             ? BorderSide(color: scheme.outline)
@@ -1129,7 +1117,6 @@ class _MonthViewState extends State<_MonthView> {
                           fit: StackFit.expand,
                           children: [
                             InkWell(
-                              borderRadius: BorderRadius.circular(14),
                               onTap: () => widget.onSelectDay(day),
                               onLongPress: () => widget.onStartCompose(day),
                               child: LayoutBuilder(

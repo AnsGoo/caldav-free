@@ -357,14 +357,24 @@ Future<T?> showAppSheet<T>({
   bool showDragHandle = true,
   BoxConstraints? constraints,
 }) {
-  final size = MediaQuery.sizeOf(context);
+  final media = MediaQuery.of(context);
+  final size = media.size;
   final isPhone = size.shortestSide < 600;
+  // 顶部有刘海/状态栏时，弹窗最高只到安全区下方，留出一条可以点击关闭的
+  // 遮罩。否则内容一高（例如新建倒数日 + 键盘）整个弹窗顶到屏幕最上方，
+  // 拖拽把手压在刘海下面、外面也没地方可点，弹窗就关不掉了。
+  final maxHeight = media.padding.top > 0
+      ? size.height - media.padding.top - 16
+      : double.infinity;
   return showModalBottomSheet<T>(
     context: context,
     builder: builder,
     isScrollControlled: isScrollControlled,
     showDragHandle: showDragHandle,
-    constraints: isPhone ? BoxConstraints(maxWidth: size.width) : constraints,
+    constraints: BoxConstraints(
+      maxWidth: isPhone ? size.width : (constraints?.maxWidth ?? 640),
+      maxHeight: maxHeight,
+    ),
   );
 }
 

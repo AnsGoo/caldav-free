@@ -48,22 +48,38 @@ class ReminderScheduler {
   bool? permissionGranted;
 
   static const _heartbeatKey = 'reminder.heartbeat';
+  static const _scheduledSlotsKey = 'reminder.scheduled_slots';
   static const _missedNotificationId = 990002;
 
   /// 上次进程还活着的时间点。启动时读出来，用来界定「应用不在运行时」到点
   /// 的那些提醒。
   DateTime? _resumeSince;
+
+  /// 上次进程退出前已经排进系统队列的通知槽位（`id@触发时刻`）。
+  ///
+  /// 这些提醒到点后系统会正常投递，补发时必须排除，否则用户会同时收到系统
+  /// 通知和「错过的提醒」汇总。只在 start 时读一次并留在内存里，后续
+  /// [_refresh] 覆盖的是数据库里的值，不影响本次启动的判定。
+  Set<String> _scheduledBeforeExit = <String>{};
+
   DateTime? _heartbeatAt;
   bool _missedChecked = false;
   final Set<int> _notifiedMissed = <int>{};
   Timer? _heartbeatTimer;
 
-  Future<void> start({void Function(String? taskId)? onTap}) async {
+  /// 用户点“稍后10分钟”后排期的一次性提醒。它们不在任务的提醒偏移里，
+  /// 但每次重建计划都必须带上，否则下一轮 cancelPending 会把它清掉。
+  final Map<int, ReminderPlanItem> _snoozes = <int, ReminderPlanItem>{};
+
+  Future<void> start({
+    void Function(String? taskId)? onTap,
+    void Function(String? actionId, String? payload)? onAction,
+  }) async {
     if (_started) return;
     _started = true;
     final tap = onTap ?? (_) {};
     try {
-      await _gateway.initialize(onTap: tap);
+      await _gateway.initialize(onTap: tap, onAction: onAction);
       permissionGranted = await _gateway.requestPermissions();
       // 冷启动（应用是被点击通知拉起的）时，点击事件不会走 initialize 的
       // 回调，只在 launch details 里。
@@ -75,6 +91,7 @@ class ReminderScheduler {
     }
     if (!_started) return;
     _resumeSince = await _readHeartbeat();
+    _scheduledBeforeExit = await _readScheduledSlots();
     _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (_) {
       _writeHeartbeat(DateTime.now());
     });
@@ -119,6 +136,7 @@ class ReminderScheduler {
       _forceNext = false;
       // iOS 只保留最早的 64 条待处理通知，留一点余量。
       final cap = Platform.isIOS ? 60 : 120;
+      _snoozes.removeWhere((_, item) => !item.at.isAfter(now));
       final merged = <ReminderPlanItem>[
         ...buildReminderPlan(tasks, now: now.toUtc(), max: cap),
         ...buildCountdownPlan(
@@ -131,15 +149,23 @@ class ReminderScheduler {
           now: now,
           max: cap,
         ),
+        ..._snoozes.values,
       ]..sort((a, b) => a.at.compareTo(b.at));
       final plan = merged.length > cap ? merged.sublist(0, cap) : merged;
+      // 角标跟着待办数走，和通知一起更新。
+      await _gateway.setBadge(badgeCount(tasks, now: now));
       await _gateway.cancelPending();
       final exact = await _gateway.exactAlarmsAllowed();
       var scheduled = 0;
+      final slots = <String>[];
       for (final item in plan) {
         try {
           await _gateway.schedule(item, exact: exact);
           scheduled++;
+          // 习惯是每天重复的，补发逻辑本来就排除它们，不必进快照。
+          if (item.repeat == ReminderRepeat.none) {
+            slots.add(reminderSlotKey(item));
+          }
         } catch (error) {
           lastError = error.toString();
           debugPrint('schedule reminder failed: $error');
@@ -148,6 +174,8 @@ class ReminderScheduler {
       _lastSignature = scheduled == plan.length ? signature : null;
       scheduledCount = scheduled;
       if (scheduled == plan.length) lastError = null;
+      // 记下这一轮实际排进系统队列的通知，供下次启动判断哪些已经送达。
+      await _writeScheduledSlots(slots);
     } catch (error) {
       lastError = error.toString();
       debugPrint('reminder refresh failed: $error');
@@ -263,6 +291,76 @@ class ReminderScheduler {
 
   Future<bool> openSystemNotificationSettings() => _gateway.openSystemSettings();
 
+  /// 「稍后10分钟」：按 payload 找回提醒内容，重新排一条一次性通知。
+  ///
+  /// 排好的通知会记在 [_snoozes] 里，后续重建计划时一并带上，否则下一轮
+  /// cancelPending 会把它取消掉。
+  Future<bool> snooze(String? payload, {int minutes = 10}) async {
+    final value = payload?.trim() ?? '';
+    if (value.isEmpty || minutes <= 0) return false;
+    final content = _snoozeContent(value);
+    if (content == null) return false;
+    final at = DateTime.now().add(Duration(minutes: minutes));
+    final id = reminderNotificationId(
+      'snooze:$value:${at.millisecondsSinceEpoch}',
+    );
+    final item = ReminderPlanItem(
+      id: id,
+      payload: value,
+      title: content.$1,
+      body: content.$2,
+      at: at,
+    );
+    _snoozes[id] = item;
+    try {
+      final exact = await _gateway.exactAlarmsAllowed();
+      await _gateway.schedule(item, exact: exact);
+      lastError = null;
+      return true;
+    } catch (error) {
+      _snoozes.remove(id);
+      lastError = error.toString();
+      debugPrint('snooze reminder failed: $error');
+      return false;
+    }
+  }
+
+  (String, String)? _snoozeContent(String payload) {
+    if (payload.startsWith('task:')) {
+      final id = payload.substring('task:'.length).trim();
+      for (final task in store.allTasks()) {
+        if (task.id == id) return ('任务提醒', task.title);
+      }
+      return null;
+    }
+    if (payload.startsWith('habit:')) {
+      final id = int.tryParse(payload.substring('habit:'.length).trim());
+      if (id == null) return null;
+      for (final habit in habits?.snapshot.habits ?? const <HabitItem>[]) {
+        if (habit.id == id) return ('习惯提醒', '${habit.name} 今天还没有打卡');
+      }
+      return null;
+    }
+    if (payload.startsWith('countdown:')) {
+      final id = int.tryParse(payload.substring('countdown:'.length).trim());
+      if (id == null) return null;
+      for (final item in countdowns?.items ?? const <CountdownItem>[]) {
+        if (item.id == id) return ('倒数日提醒', '「${item.name}」');
+      }
+      return null;
+    }
+    return null;
+  }
+
+  /// 重新按当前待办数刷新图标角标，不重建排期。
+  Future<void> refreshBadge() async {
+    try {
+      await _gateway.setBadge(badgeCount(store.allTasks(), now: DateTime.now()));
+    } catch (error) {
+      debugPrint('refresh badge failed: $error');
+    }
+  }
+
   Future<bool> exactAlarmsAllowed() => _gateway.exactAlarmsAllowed();
 
   /// 把上次应用不在运行期间到点、没能送达的提醒合成一条即时通知。
@@ -277,6 +375,7 @@ class ReminderScheduler {
       countdowns?.items ?? const <CountdownItem>[],
       now: now,
       since: since,
+      alreadyScheduled: _scheduledBeforeExit,
     ).where((item) => !_notifiedMissed.contains(item.id)).toList();
     if (missed.isEmpty) return;
     for (final item in missed) {
@@ -332,6 +431,33 @@ class ReminderScheduler {
     }
   }
 
+  Future<Set<String>> _readScheduledSlots() async {
+    final db = store.database;
+    if (db == null) return <String>{};
+    try {
+      final raw = await db.metaValue(_scheduledSlotsKey);
+      if (raw == null || raw.isEmpty) return <String>{};
+      return raw
+          .split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toSet();
+    } catch (error) {
+      debugPrint('read scheduled reminder slots failed: $error');
+      return <String>{};
+    }
+  }
+
+  Future<void> _writeScheduledSlots(Iterable<String> slots) async {
+    final db = store.database;
+    if (db == null) return;
+    try {
+      await db.putMeta(_scheduledSlotsKey, slots.join('\n'));
+    } catch (error) {
+      debugPrint('write scheduled reminder slots failed: $error');
+    }
+  }
+
   /// Stops listening. Set [cancelAll] on logout so the previous account's
   /// reminders do not fire.
   Future<void> stop({bool cancelAll = false}) async {
@@ -356,9 +482,11 @@ class ReminderScheduler {
     _lastSignature = null;
     _forceNext = false;
     _resumeSince = null;
+    _scheduledBeforeExit = <String>{};
     _heartbeatAt = null;
     _missedChecked = false;
     _notifiedMissed.clear();
+    _snoozes.clear();
     if (cancelAll) {
       try {
         await _gateway.cancelAll().timeout(const Duration(seconds: 2));

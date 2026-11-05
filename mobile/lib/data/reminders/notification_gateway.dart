@@ -11,8 +11,19 @@ import 'reminder_plan.dart';
 
 /// Abstraction over local notifications so the planner/scheduler can be tested
 /// without a platform channel.
+/// 通知上的快捷操作标识，点击后由 [NotificationGateway] 回传给上层。
+abstract final class NotificationActionId {
+  static const complete = 'complete';
+  static const snooze = 'snooze';
+}
+
 abstract class NotificationGateway {
-  Future<void> initialize({required void Function(String? payload) onTap});
+  /// [onTap] 处理点击通知本身；[onAction] 处理通知按钮（完成 / 稍后提醒），
+  /// 参数依次是按钮标识和通知携带的 payload。
+  Future<void> initialize({
+    required void Function(String? payload) onTap,
+    void Function(String? actionId, String? payload)? onAction,
+  });
 
   /// Requests the Android 13+ notification permission. Older Android returns
   /// true without prompting.
@@ -52,6 +63,11 @@ abstract class NotificationGateway {
   /// platform has no such entry point.
   Future<bool> openSystemSettings();
 
+  /// Sets the app icon badge. 0 clears it. Platforms without a badge API
+  /// (Android 8+) simply ignore the call — launchers derive the dot from
+  /// notifications themselves.
+  Future<void> setBadge(int count);
+
   /// Cancels pending (not yet delivered) notifications only.
   Future<void> cancelPending();
 
@@ -68,27 +84,70 @@ class LocalNotificationGateway implements NotificationGateway {
   static const _channelName = '任务提醒';
   static const _channelDescription = '任务到期和自定义提醒';
 
+  /// 通知分类标识。Darwin 侧必须先注册分类，通知上才会出现按钮。
+  static const _categoryId = 'caldav_reminder';
+
+  /// iOS/macOS 的角标要写进应用本身（通知体里的 badge 只是“顺带设值”，
+  /// 清不掉旧角标），所以走一个小 channel 直接改系统图标。
+  static const _badgeChannel = MethodChannel('caldav_free/badge');
+
   @override
   Future<void> initialize({
     required void Function(String? payload) onTap,
+    void Function(String? actionId, String? payload)? onAction,
   }) async {
     tzdata.initializeTimeZones();
     const android = AndroidInitializationSettings('ic_notification');
     // iOS 和 macOS 共用 Darwin 配置，但 macOS 必须显式传给 macOS 字段：
     // 只传 iOS 字段时 macOS 侧拿不到初始化参数，插件不会注册通知。
-    const darwin = DarwinInitializationSettings(
+    final darwin = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
+      notificationCategories: <DarwinNotificationCategory>[
+        DarwinNotificationCategory(
+          _categoryId,
+          actions: <DarwinNotificationAction>[
+            // foreground：按钮点击时把应用带到前台，回调一定送达（否则应用被
+            // 杀进程时按钮事件只会进后台 isolate，拿不到本地数据库）。
+            DarwinNotificationAction.plain(
+              NotificationActionId.complete,
+              '完成',
+              options: <DarwinNotificationActionOption>{
+                DarwinNotificationActionOption.foreground,
+              },
+            ),
+            DarwinNotificationAction.plain(
+              NotificationActionId.snooze,
+              '稍后10分钟',
+              options: <DarwinNotificationActionOption>{
+                DarwinNotificationActionOption.foreground,
+              },
+            ),
+          ],
+        ),
+      ],
     );
-    const settings = InitializationSettings(
+    final settings = InitializationSettings(
       android: android,
       iOS: darwin,
       macOS: darwin,
     );
     await _plugin.initialize(
       settings: settings,
-      onDidReceiveNotificationResponse: (response) => onTap(response.payload),
+      onDidReceiveNotificationResponse: (response) {
+        final actionId = response.actionId?.trim() ?? '';
+        if (actionId.isEmpty) {
+          // 点通知本体（而不是某个按钮）时才做跳转。
+          onTap(response.payload);
+          return;
+        }
+        if (onAction != null) {
+          onAction(actionId, response.payload);
+          return;
+        }
+        onTap(response.payload);
+      },
     );
     await _android?.createNotificationChannel(
       const AndroidNotificationChannel(
@@ -207,7 +266,11 @@ class LocalNotificationGateway implements NotificationGateway {
     }
   }
 
-  NotificationDetails _details() => const NotificationDetails(
+  /// 当前角标数。排期和即时通知都会带上它，这样系统在投递时顺手把图标
+  /// 角标设成最新值（iOS/macOS 的 badgeNumber、Android 的 number）。
+  int _badge = 0;
+
+  NotificationDetails _details() => NotificationDetails(
     android: AndroidNotificationDetails(
       _channelId,
       _channelName,
@@ -219,18 +282,39 @@ class LocalNotificationGateway implements NotificationGateway {
       visibility: NotificationVisibility.public,
       playSound: true,
       enableVibration: true,
+      number: _badge > 0 ? _badge : null,
+      actions: <AndroidNotificationAction>[
+        // showsUserInterface: false 会让按钮在后台 isolate 里执行，那里拿不到
+        // 本地数据库，完不成任务；所以让它把应用带到前台再处理。
+        const AndroidNotificationAction(
+          NotificationActionId.complete,
+          '完成',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+        const AndroidNotificationAction(
+          NotificationActionId.snooze,
+          '稍后10分钟',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+      ],
     ),
     iOS: DarwinNotificationDetails(
       presentAlert: true,
       presentBanner: true,
       presentList: true,
       presentSound: true,
+      categoryIdentifier: _categoryId,
+      badgeNumber: _badge > 0 ? _badge : null,
     ),
     macOS: DarwinNotificationDetails(
       presentAlert: true,
       presentBanner: true,
       presentList: true,
       presentSound: true,
+      categoryIdentifier: _categoryId,
+      badgeNumber: _badge > 0 ? _badge : null,
     ),
   );
 
@@ -276,6 +360,21 @@ class LocalNotificationGateway implements NotificationGateway {
   }
 
   @override
+  Future<void> setBadge(int count) async {
+    final value = count < 0 ? 0 : count;
+    _badge = value;
+    // Android 的角标由通知自带的 number 决定，没有可直接调用的系统接口。
+    if (!Platform.isIOS && !Platform.isMacOS) return;
+    try {
+      await _badgeChannel.invokeMethod<void>('setBadge', <String, int>{
+        'count': value,
+      });
+    } catch (error) {
+      debugPrint('set app badge failed: $error');
+    }
+  }
+
+  @override
   Future<void> cancelPending() => _plugin.cancelAllPendingNotifications();
 
   @override
@@ -286,6 +385,7 @@ class NoOpNotificationGateway implements NotificationGateway {
   @override
   Future<void> initialize({
     required void Function(String? payload) onTap,
+    void Function(String? actionId, String? payload)? onAction,
   }) async {}
 
   @override
@@ -316,6 +416,9 @@ class NoOpNotificationGateway implements NotificationGateway {
 
   @override
   Future<bool> openSystemSettings() async => false;
+
+  @override
+  Future<void> setBadge(int count) async {}
 
   @override
   Future<void> cancelPending() async {}

@@ -124,17 +124,29 @@ List<ReminderPlanItem> buildCountdownPlan(
   return _sortedCapped(byId.values, max);
 }
 
+/// 一条「具体投递」的唯一标识：通知 id + 触发时刻。
+///
+/// 任务改了截止时间后通知 id 不变（id 只由 payload 和偏移算出），但投递时刻
+/// 会变，所以必须两者一起才代表这一条通知。
+String reminderSlotKey(ReminderPlanItem item) =>
+    '${item.id}@${item.at.toUtc().millisecondsSinceEpoch}';
+
 /// 应用不在运行期间到点、没能送达的提醒。
 ///
 /// 补发窗口由 [since] 决定（通常是上一次进程存活的心跳时间），只取
 /// `since < at <= now` 的提醒；习惯是每天重复、错过一次不影响下一次，
 /// 因此不参与补发。
+///
+/// [alreadyScheduled] 是上一进程退出前已经排进系统队列的槽位（见
+/// [reminderSlotKey]）。这些提醒到点后系统会照常投递，不能再算「错过」，
+/// 否则用户会同时收到系统通知和这条补发汇总。
 List<ReminderPlanItem> buildMissedPlan(
   Iterable<TaskItem> tasks,
   Iterable<CountdownItem> countdowns, {
   required DateTime now,
   required DateTime since,
   int max = 50,
+  Set<String> alreadyScheduled = const <String>{},
 }) {
   final cutoff = now.toUtc();
   final floor = since.toUtc();
@@ -154,7 +166,7 @@ List<ReminderPlanItem> buildMissedPlan(
       if (!at.isAfter(floor) || at.isAfter(cutoff)) continue;
       final payload = 'task:${task.id}';
       final id = reminderNotificationId('$payload:$offset');
-      byId[id] = ReminderPlanItem(
+      final item = ReminderPlanItem(
         id: id,
         payload: payload,
         title: '任务提醒',
@@ -162,6 +174,9 @@ List<ReminderPlanItem> buildMissedPlan(
         at: at,
         offsetMinutes: offset,
       );
+      // 退出前已经排进系统队列的，系统会自己送达，这里不再补。
+      if (alreadyScheduled.contains(reminderSlotKey(item))) continue;
+      byId[id] = item;
     }
   }
 
@@ -184,7 +199,7 @@ List<ReminderPlanItem> buildMissedPlan(
       final id = reminderNotificationId(
         '$payload:${item.occurrenceDate}:$offset',
       );
-      byId[id] = ReminderPlanItem(
+      final planItem = ReminderPlanItem(
         id: id,
         payload: payload,
         title: '倒数日提醒',
@@ -194,10 +209,33 @@ List<ReminderPlanItem> buildMissedPlan(
         at: at,
         offsetMinutes: offset,
       );
+      if (alreadyScheduled.contains(reminderSlotKey(planItem))) continue;
+      byId[id] = planItem;
     }
   }
 
   return _sortedCapped(byId.values, max);
+}
+
+/// 应用图标角标数：今天到期或已经逾期、但仍未完成的任务数。
+///
+/// 只算任务，不把习惯和倒数日算进去——角标是“还有几件待办压着”的提示，
+/// 每天重复的习惯会让数字永远降不下来。
+int badgeCount(Iterable<TaskItem> tasks, {required DateTime now}) {
+  final local = now.toLocal();
+  final endOfDay = DateTime(
+    local.year,
+    local.month,
+    local.day,
+  ).add(const Duration(days: 1));
+  var count = 0;
+  for (final task in tasks) {
+    if (task.kind != TaskKind.task || task.deleted || task.completed) continue;
+    final due = task.dueAt?.toLocal();
+    if (due == null) continue;
+    if (due.isBefore(endOfDay)) count++;
+  }
+  return count;
 }
 
 /// 习惯：每天在设定的时间提醒（和 Web 端一致，按天重复，不区分频率）。

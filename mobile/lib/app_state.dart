@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'core/models.dart';
 import 'data/countdowns/countdown_api.dart';
 import 'data/countdowns/countdown_store.dart';
 import 'data/db/local_store.dart';
@@ -11,6 +12,7 @@ import 'data/focus/focus_api.dart';
 import 'data/focus/focus_store.dart';
 import 'data/habits/habit_api.dart';
 import 'data/habits/habit_store.dart';
+import 'data/reminders/notification_gateway.dart';
 import 'data/reminders/reminder_scheduler.dart';
 import 'data/remote/sync_api.dart';
 import 'data/session/credentials.dart';
@@ -102,7 +104,12 @@ class AppState extends ChangeNotifier {
       countdowns: countdowns,
     );
     reminders = scheduler;
-    unawaited(scheduler.start(onTap: _handleReminderTap));
+    unawaited(
+      scheduler.start(
+        onTap: _handleReminderTap,
+        onAction: _handleReminderAction,
+      ),
+    );
   }
 
   void _handleReminderTap(String? payload) {
@@ -128,6 +135,43 @@ class AppState extends ChangeNotifier {
   /// 任务页打开对应任务后调用，避免重复触发。
   void consumePendingTask() {
     pendingTaskId = null;
+  }
+
+  /// 通知按钮（完成 / 稍后10分钟）的回调。没有按钮标识时按普通点击处理。
+  void _handleReminderAction(String? actionId, String? payload) {
+    switch (actionId) {
+      case NotificationActionId.complete:
+        unawaited(_completeFromNotification(payload));
+      case NotificationActionId.snooze:
+        unawaited(_snoozeFromNotification(payload));
+      default:
+        _handleReminderTap(payload);
+    }
+  }
+
+  Future<void> _completeFromNotification(String? payload) async {
+    final value = payload?.trim() ?? '';
+    if (!value.startsWith('task:')) return;
+    final id = value.substring('task:'.length).trim();
+    if (id.isEmpty) return;
+    TaskItem? target;
+    for (final task in store.allTasks()) {
+      if (task.id == id) {
+        target = task;
+        break;
+      }
+    }
+    if (target == null || target.completed) return;
+    await repository.toggleCompleted(id);
+    await reminders?.reschedule();
+    notifyListeners();
+  }
+
+  Future<void> _snoozeFromNotification(String? payload) async {
+    final scheduler = reminders;
+    if (scheduler == null) return;
+    await scheduler.snooze(payload);
+    notifyListeners();
   }
 
   /// 首页切到目标标签页后调用。
@@ -360,7 +404,12 @@ class AppState extends ChangeNotifier {
       countdowns: countdowns,
     );
     reminders = scheduler;
-    unawaited(scheduler.start(onTap: _handleReminderTap));
+    unawaited(
+      scheduler.start(
+        onTap: _handleReminderTap,
+        onAction: _handleReminderAction,
+      ),
+    );
   }
 
   void _detachSync() {
@@ -398,6 +447,8 @@ class AppState extends ChangeNotifier {
     if (scheduler == null) return;
     final before = scheduler.permissionGranted;
     final newlyGranted = await scheduler.refreshPermissionAfterResume();
+    // 回到前台时角标可能已经过时（用户可能在别处完成了任务），顺手对齐一次。
+    await scheduler.refreshBadge();
     if (newlyGranted || scheduler.permissionGranted != before) {
       notifyListeners();
     }

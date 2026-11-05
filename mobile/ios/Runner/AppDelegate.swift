@@ -5,6 +5,7 @@ import UserNotifications
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var pathsChannel: FlutterMethodChannel?
+  private var badgeChannel: FlutterMethodChannel?
 
   override func application(
     _ application: UIApplication,
@@ -53,6 +54,30 @@ import UserNotifications
       }
     }
     pathsChannel = channel
+
+    // 应用角标：通知体里的 badge 只在投递时生效，用户读完要清零必须
+    // 直接调系统接口，所以补一个 channel。
+    let badge = FlutterMethodChannel(
+      name: "caldav_free/badge",
+      binaryMessenger: engineBridge.applicationRegistrar.messenger()
+    )
+    badge.setMethodCallHandler { call, result in
+      guard call.method == "setBadge" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      let arguments = call.arguments as? [String: Any]
+      let count = arguments?["count"] as? Int ?? 0
+      if #available(iOS 16.0, *) {
+        UNUserNotificationCenter.current().setBadgeCount(count) { _ in }
+      } else {
+        DispatchQueue.main.async {
+          UIApplication.shared.applicationIconBadgeNumber = count
+        }
+      }
+      result(nil)
+    }
+    badgeChannel = badge
   }
 
   override func userNotificationCenter(

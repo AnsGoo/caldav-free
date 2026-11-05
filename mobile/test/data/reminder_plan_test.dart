@@ -208,6 +208,31 @@ void main() {
     expect(plan.single.body, '今天是「发布日」');
   });
 
+  test('missed plan skips reminders that were already queued in the OS', () {
+    final since = DateTime.utc(2026, 10, 25, 9);
+    final at = DateTime.utc(2026, 10, 25, 9, 30);
+    // a 在退出前已经排进系统队列，系统会自己送达；b 从未排期。
+    final queued = task(id: 'a', due: at);
+    final neverQueued = task(id: 'b', due: at);
+    final slot = reminderSlotKey(
+      ReminderPlanItem(
+        id: reminderNotificationId('task:a:0'),
+        payload: 'task:a',
+        title: '任务提醒',
+        body: '',
+        at: at,
+      ),
+    );
+    final plan = buildMissedPlan(
+      [queued, neverQueued],
+      const <CountdownItem>[],
+      now: now,
+      since: since,
+      alreadyScheduled: {slot},
+    );
+    expect(plan.map((item) => item.payload).toList(), ['task:b']);
+  });
+
   test('labels common offsets in Chinese', () {
     expect(reminderLabel(0), '准时');
     expect(reminderLabel(5), '提前 5 分钟');
@@ -215,5 +240,32 @@ void main() {
     expect(reminderLabel(90), '提前 90 分钟');
     expect(reminderLabel(1440), '提前 1 天');
     expect(reminderLabel(10080), '提前 7 天');
+  });
+
+  group('badgeCount', () {
+    final today = DateTime(2026, 11, 5, 21, 30);
+
+    test('counts overdue and same-day open tasks', () {
+      final count = badgeCount([
+        task(id: 'a', due: DateTime(2026, 11, 5, 9)),
+        task(id: 'b', due: DateTime(2026, 11, 5, 23, 59)),
+        task(id: 'c', due: DateTime(2026, 11, 1, 8)),
+      ], now: today);
+      expect(count, 3);
+    });
+
+    test('ignores tomorrow, completed, deleted and undated rows', () {
+      final count = badgeCount([
+        task(id: 'later', due: DateTime(2026, 11, 6, 9)),
+        task(id: 'done', due: DateTime(2026, 11, 5, 9), completedAt: DateTime(2026, 11, 5, 10)),
+        task(id: 'gone', due: DateTime(2026, 11, 5, 9), deleted: true),
+        task(id: 'note', due: null),
+      ], now: today);
+      expect(count, 0);
+    });
+
+    test('is zero for an empty list', () {
+      expect(badgeCount(const <TaskItem>[], now: today), 0);
+    });
   });
 }

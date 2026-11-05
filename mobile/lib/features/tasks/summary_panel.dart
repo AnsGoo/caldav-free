@@ -5,16 +5,57 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
+import '../../core/ui_utils.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
 /// Summary editor mirroring the web panel: the generated Markdown is editable,
 /// regenerated from the chosen filters, and templates stay on this device.
+/// 让摘要页把人到 AppBar 的操作按钮接到面板上（横屏时按钮移到标题行）。
+class SummaryPanelController {
+  VoidCallback? _regenerate;
+  VoidCallback? _copy;
+  VoidCallback? _saveTemplate;
+  VoidCallback? _openSettings;
+
+  void regenerate() => _regenerate?.call();
+  void copy() => _copy?.call();
+  void saveTemplate() => _saveTemplate?.call();
+  void openSettings() => _openSettings?.call();
+
+  void _bind({
+    required VoidCallback regenerate,
+    required VoidCallback copy,
+    required VoidCallback saveTemplate,
+    required VoidCallback openSettings,
+  }) {
+    _regenerate = regenerate;
+    _copy = copy;
+    _saveTemplate = saveTemplate;
+    _openSettings = openSettings;
+  }
+
+  void _unbind() {
+    _regenerate = null;
+    _copy = null;
+    _saveTemplate = null;
+    _openSettings = null;
+  }
+}
+
 class SummaryPanel extends StatefulWidget {
-  const SummaryPanel({super.key, required this.tasks, required this.lists});
+  const SummaryPanel({
+    super.key,
+    required this.tasks,
+    required this.lists,
+    this.controller,
+  });
 
   final List<TaskItem> tasks;
   final List<TaskListItem> lists;
+
+  /// Optional bridge so the page can drive the toolbar actions from the AppBar.
+  final SummaryPanelController? controller;
 
   @override
   State<SummaryPanel> createState() => _SummaryPanelState();
@@ -105,6 +146,31 @@ class _SummaryPanelState extends State<SummaryPanel> {
   void initState() {
     super.initState();
     _markdown = _buildMarkdown();
+    _bindController();
+  }
+
+  @override
+  void didUpdateWidget(SummaryPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._unbind();
+      _bindController();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller?._unbind();
+    super.dispose();
+  }
+
+  void _bindController() {
+    widget.controller?._bind(
+      regenerate: _regenerate,
+      copy: _copy,
+      saveTemplate: _saveTemplate,
+      openSettings: _openSettings,
+    );
   }
 
   ({DateTime from, DateTime to}) _bounds(_SummaryFilter filter) {
@@ -158,9 +224,7 @@ class _SummaryPanelState extends State<SummaryPanel> {
     return true;
   }
 
-  ({List<TaskItem> done, List<TaskItem> open}) _collect(
-    _SummaryFilter filter,
-  ) {
+  ({List<TaskItem> done, List<TaskItem> open}) _collect(_SummaryFilter filter) {
     final bounds = _bounds(filter);
     final done = <TaskItem>[];
     final open = <TaskItem>[];
@@ -204,7 +268,9 @@ class _SummaryPanelState extends State<SummaryPanel> {
         out.add(task);
       }
     }
-    out.sort((a, b) => (a.dueAt ?? a.updatedAt).compareTo(b.dueAt ?? b.updatedAt));
+    out.sort(
+      (a, b) => (a.dueAt ?? a.updatedAt).compareTo(b.dueAt ?? b.updatedAt),
+    );
     return out;
   }
 
@@ -255,7 +321,11 @@ class _SummaryPanelState extends State<SummaryPanel> {
     if (fields.contains('list') && list != null) parts.add('· ${list.name}');
     if (fields.contains('priority') && task.priority > 0) {
       parts.add(
-        '· ${switch (task.priority) { 3 => '高优先级', 2 => '中优先级', _ => '低优先级' }}',
+        '· ${switch (task.priority) {
+          3 => '高优先级',
+          2 => '中优先级',
+          _ => '低优先级',
+        }}',
       );
     }
     if (fields.contains('status')) {
@@ -367,9 +437,7 @@ class _SummaryPanelState extends State<SummaryPanel> {
   Future<void> _saveTemplate() async {
     final name = await showDialog<String>(
       context: context,
-      builder: (_) => _SaveTemplateDialog(
-        initial: '${_filter.range.label}摘要',
-      ),
+      builder: (_) => _SaveTemplateDialog(initial: '${_filter.range.label}摘要'),
     );
     final value = (name ?? '').trim();
     if (value.isEmpty || !mounted) return;
@@ -454,55 +522,46 @@ class _SummaryPanelState extends State<SummaryPanel> {
   Widget _buildEditor(BuildContext context, bool wide) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final templates = context
-        .read<AppState>()
-        .store
-        .summaryTemplatesSnapshot();
+    final templates = context.read<AppState>().store.summaryTemplatesSnapshot();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '摘要编辑器',
-                  style: theme.textTheme.labelMedium?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: '重新生成',
-                onPressed: _regenerate,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.refresh_rounded, size: 18),
-              ),
-              if (!wide)
+        // 横屏时这些操作已经挪到 AppBar 标题行，这里不再额外占一行。
+        if (!isCompactAppBar(context))
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
                 IconButton(
-                  tooltip: '筛选与分组',
-                  onPressed: _openSettings,
+                  tooltip: '重新生成',
+                  onPressed: _regenerate,
                   visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.tune_rounded, size: 18),
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
                 ),
-              IconButton(
-                tooltip: '复制摘要',
-                onPressed: _copy,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.copy_rounded, size: 18),
-              ),
-              IconButton(
-                tooltip: '保存为模板',
-                onPressed: _saveTemplate,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-              ),
-            ],
+                if (!wide)
+                  IconButton(
+                    tooltip: '筛选与分组',
+                    onPressed: _openSettings,
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                  ),
+                IconButton(
+                  tooltip: '复制摘要',
+                  onPressed: _copy,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.copy_rounded, size: 18),
+                ),
+                IconButton(
+                  tooltip: '保存为模板',
+                  onPressed: _saveTemplate,
+                  visualDensity: VisualDensity.compact,
+                  icon: const Icon(Icons.bookmark_add_outlined, size: 18),
+                ),
+              ],
+            ),
           ),
-        ),
         if (templates.isNotEmpty)
           SizedBox(
             height: 38,
@@ -809,7 +868,9 @@ class _MarkdownPreview extends StatelessWidget {
   static final _checkbox = RegExp(r'^- \[([ xX])\]\s?(.*)$');
   static final _datePrefix = RegExp(r'^\[([^\]]+)\]\s*(.*)$');
   static final _stats = RegExp(r'^已完成\s*(\d+)\s*项\s*·\s*未完成\s*(\d+)\s*项$');
-  static final _dayRange = RegExp(r'^\d+\s*月\s*\d+\s*日\s*-\s*\d+\s*月\s*\d+\s*日$');
+  static final _dayRange = RegExp(
+    r'^\d+\s*月\s*\d+\s*日\s*-\s*\d+\s*月\s*\d+\s*日$',
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -1008,12 +1069,15 @@ class _PreviewTaskRow extends StatelessWidget {
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
     final title = parts.isEmpty ? rest : parts.first;
-    final meta = parts.length > 1 ? parts.skip(1).toList(growable: false) : const <String>[];
+    final meta = parts.length > 1
+        ? parts.skip(1).toList(growable: false)
+        : const <String>[];
 
     Color metaColor(String value) {
       final listColor = listColors[value];
       if (listColor != null) return listColor;
-      if (value.startsWith('#')) return tagColorForName(value.substring(1).trim());
+      if (value.startsWith('#'))
+        return tagColorForName(value.substring(1).trim());
       if (value.contains('高优先级')) return const Color(0xFFE5484D);
       if (value.contains('中优先级')) return const Color(0xFFF76B15);
       if (value.contains('低优先级')) return const Color(0xFF3B82F6);
@@ -1072,11 +1136,10 @@ class _PreviewTaskRow extends StatelessWidget {
                           height: 1.4,
                           fontWeight: FontWeight.w600,
                           color: done ? scheme.onSurfaceVariant : null,
-                          decoration: done
-                              ? TextDecoration.lineThrough
-                              : null,
-                          decorationColor: scheme.onSurfaceVariant
-                              .withValues(alpha: 0.6),
+                          decoration: done ? TextDecoration.lineThrough : null,
+                          decorationColor: scheme.onSurfaceVariant.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ),
@@ -1339,12 +1402,7 @@ class _SummarySettingsForm extends StatelessWidget {
         Wrap(
           spacing: 6,
           children: [
-            for (final entry in const {
-              0: '所有',
-              3: '高',
-              2: '中',
-              1: '低',
-            }.entries)
+            for (final entry in const {0: '所有', 3: '高', 2: '中', 1: '低'}.entries)
               _chip(
                 label: entry.value,
                 selected: filter.priority == entry.key,

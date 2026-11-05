@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../app_state.dart';
 import '../../core/ids.dart';
 import '../../core/models.dart';
-import '../../core/ui_utils.dart';
 import '../../design/components.dart';
 import '../../design/format.dart';
 
@@ -527,41 +526,6 @@ class _SummaryPanelState extends State<SummaryPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 横屏时这些操作已经挪到 AppBar 标题行，这里不再额外占一行。
-        if (!isCompactAppBar(context))
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 8, 4),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                IconButton(
-                  tooltip: '重新生成',
-                  onPressed: _regenerate,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                ),
-                if (!wide)
-                  IconButton(
-                    tooltip: '筛选与分组',
-                    onPressed: _openSettings,
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.tune_rounded, size: 18),
-                  ),
-                IconButton(
-                  tooltip: '复制摘要',
-                  onPressed: _copy,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.copy_rounded, size: 18),
-                ),
-                IconButton(
-                  tooltip: '保存为模板',
-                  onPressed: _saveTemplate,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.bookmark_add_outlined, size: 18),
-                ),
-              ],
-            ),
-          ),
         if (templates.isNotEmpty)
           SizedBox(
             height: 38,

@@ -22,7 +22,6 @@ class _SummaryPageState extends State<SummaryPage> {
   Widget build(BuildContext context) {
     final app = context.watch<AppState>();
     final theme = Theme.of(context);
-    final compact = isCompactAppBar(context);
     // Tablets pin the filter panel on the right, so the tune button is redundant.
     final wide = MediaQuery.sizeOf(context).shortestSide >= 600;
 
@@ -36,33 +35,31 @@ class _SummaryPageState extends State<SummaryPage> {
             letterSpacing: -0.9,
           ),
         ),
-        // 横屏时把工具栏按钮并入标题行，省掉编辑器顶上的一整行。
-        actions: compact
-            ? [
-                IconButton(
-                  tooltip: '重新生成',
-                  onPressed: _panel.regenerate,
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
-                if (!wide)
-                  IconButton(
-                    tooltip: '筛选与分组',
-                    onPressed: _panel.openSettings,
-                    icon: const Icon(Icons.tune_rounded),
-                  ),
-                IconButton(
-                  tooltip: '复制摘要',
-                  onPressed: _panel.copy,
-                  icon: const Icon(Icons.copy_rounded),
-                ),
-                IconButton(
-                  tooltip: '保存为模板',
-                  onPressed: _panel.saveTemplate,
-                  icon: const Icon(Icons.bookmark_add_outlined),
-                ),
-                const SizedBox(width: 4),
-              ]
-            : null,
+        // 作用按钮统一放标题行，横竖屏都不再在编辑器上方单独占一行。
+        actions: [
+          IconButton(
+            tooltip: '重新生成',
+            onPressed: _panel.regenerate,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+          if (!wide)
+            IconButton(
+              tooltip: '筛选与分组',
+              onPressed: _panel.openSettings,
+              icon: const Icon(Icons.tune_rounded),
+            ),
+          IconButton(
+            tooltip: '复制摘要',
+            onPressed: _panel.copy,
+            icon: const Icon(Icons.copy_rounded),
+          ),
+          IconButton(
+            tooltip: '保存为模板',
+            onPressed: _panel.saveTemplate,
+            icon: const Icon(Icons.bookmark_add_outlined),
+          ),
+          const SizedBox(width: 4),
+        ],
       ),
       body: StreamBuilder<List<TaskItem>>(
         stream: app.store.watchAllTasks(),

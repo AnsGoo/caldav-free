@@ -103,17 +103,23 @@ void main() {
     expect(refresh.center.dy, lessThan(appBar.bottom));
   });
 
-  testWidgets('portrait keeps the toolbar row but drops the label', (
-    tester,
-  ) async {
+  testWidgets('portrait puts the actions on the title row', (tester) async {
     await _pumpShell(tester, const Size(1206, 2622));
     await _openSummary(tester);
 
     expect(find.text('摘要编辑器'), findsNothing);
-    // 竖屏按钮仍在编辑器上方，不在 AppBar 里。
+
     final appBar = tester.getRect(find.byType(AppBar));
     final refresh = tester.getRect(find.byTooltip('重新生成'));
-    expect(refresh.center.dy, greaterThan(appBar.bottom));
+    final title = tester.getRect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('摘要')),
+    );
+
+    // 按钮在 AppBar 内，且与标题同一高度。
+    expect(refresh.center.dy, inInclusiveRange(appBar.top, appBar.bottom));
+    expect(refresh.center.dy, closeTo(title.center.dy, 8));
+    expect(find.byTooltip('复制摘要'), findsOneWidget);
+    expect(find.byTooltip('保存为模板'), findsOneWidget);
   });
 
   testWidgets('summary page renders standalone', (tester) async {

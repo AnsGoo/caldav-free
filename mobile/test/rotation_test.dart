@@ -230,12 +230,14 @@ void main() {
     expect(subtitle.left, greaterThan(title.right));
   });
 
-  testWidgets('portrait stacks the subtitle under the title', (tester) async {
+  testWidgets('portrait keeps the subtitle on the title row', (tester) async {
     await pumpTitleProbe(tester, const Size(1080, 2400));
 
     final title = tester.getRect(find.byKey(const Key('probe-title')));
     final subtitle = tester.getRect(find.byKey(const Key('probe-subtitle')));
 
-    expect(subtitle.top, greaterThanOrEqualTo(title.bottom));
+    // 同一行：副标题的垂直中心落在标题的行高范围内，且在右侧。
+    expect(subtitle.center.dy, inInclusiveRange(title.top, title.bottom));
+    expect(subtitle.left, greaterThan(title.right));
   });
 }

@@ -30,24 +30,16 @@ double compactTitleFontSize(BuildContext context, {double defaultSize = 30}) {
 /// Whether the AppBar title should drop its two-line layout.
 bool isCompactAppBar(BuildContext context) => _isWide(context);
 
-/// AppBar title paired with a secondary line (counts, view label, stats).
+/// AppBar title paired with a secondary label (counts, view label, stats).
 ///
-/// Portrait keeps the original stacked look. In landscape the two lines are
-/// merged into a single row, since the extra line costs vertical space that
-/// the page content needs more.
+/// 横竖屏都用同一行：竖屏堆叠会让标题落在第二行、和右侧操作图标错位，
+/// 也多占一行的纵向空间。副标题用 Expanded + 省略号，不会被标题挤掉。
 Widget compactAppBarTitle(
   BuildContext context, {
   required Widget title,
   required Widget subtitle,
   double gap = 10,
 }) {
-  if (!isCompactAppBar(context)) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [title, const SizedBox(height: 5), subtitle],
-    );
-  }
   return Row(
     crossAxisAlignment: CrossAxisAlignment.baseline,
     textBaseline: TextBaseline.alphabetic,

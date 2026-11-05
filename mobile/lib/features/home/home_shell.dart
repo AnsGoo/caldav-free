@@ -102,10 +102,13 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     final useRail = isWideLayout(context);
     final app = context.watch<AppState>();
-    // 点通知进来时先切到任务页，具体任务由任务页自己打开。
-    if (app.pendingTaskId != null && _index != 0) {
+    // 点通知进来时先切到对应标签页，具体任务由任务页自己打开。
+    final pendingTab = app.pendingTab;
+    if (pendingTab != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _select(0);
+        if (!mounted) return;
+        if (_index != pendingTab) _select(pendingTab);
+        app.consumePendingTab();
       });
     }
     final username = app.session?.username.trim() ?? '';

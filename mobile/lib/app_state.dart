@@ -63,6 +63,10 @@ class AppState extends ChangeNotifier {
 
   /// 点击通知后要打开的任务 id，由任务页消费。
   String? pendingTaskId;
+
+  /// 点击通知后要切到的底部标签页，由首页消费。0 任务 / 1 日历 / 2 习惯 /
+  /// 3 专注 / 4 倒数 / 5 摘要。
+  int? pendingTab;
   bool busy = false;
   String? error;
 
@@ -103,16 +107,32 @@ class AppState extends ChangeNotifier {
 
   void _handleReminderTap(String? payload) {
     final value = payload?.trim() ?? '';
-    if (!value.startsWith('task:')) return;
-    final id = value.substring('task:'.length).trim();
-    if (id.isEmpty) return;
-    pendingTaskId = id;
+    if (value.isEmpty) return;
+    if (value.startsWith('task:')) {
+      final id = value.substring('task:'.length).trim();
+      if (id.isEmpty) return;
+      pendingTaskId = id;
+      pendingTab = 0;
+    } else if (value.startsWith('habit:')) {
+      pendingTab = 2;
+    } else if (value.startsWith('countdown:')) {
+      pendingTab = 4;
+    } else if (value == 'missed') {
+      pendingTab = 0;
+    } else {
+      return;
+    }
     notifyListeners();
   }
 
   /// 任务页打开对应任务后调用，避免重复触发。
   void consumePendingTask() {
     pendingTaskId = null;
+  }
+
+  /// 首页切到目标标签页后调用。
+  void consumePendingTab() {
+    pendingTab = null;
   }
 
   Future<void> connect({

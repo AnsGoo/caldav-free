@@ -33,9 +33,20 @@ abstract class NotificationGateway {
 
   Future<void> schedule(ReminderPlanItem item, {required bool exact});
 
-  /// Fires a notification immediately so the user can verify the whole chain
-  /// (permission + banner + sound) without waiting for a task to come due.
-  Future<bool> showTestNotification({required String title, required String body});
+  /// Fires a notification immediately, bypassing the OS scheduler. Used for the
+  /// settings-page test and for the "missed reminders" digest.
+  Future<void> showNow({
+    required int id,
+    required String title,
+    required String body,
+    String? payload,
+  });
+
+  /// The payload of the notification that cold-started the app, if any.
+  ///
+  /// Tapping a notification while the app is terminated does not fire
+  /// [initialize]'s callback on iOS/Android — the tap is only visible here.
+  Future<String?> launchPayload();
 
   /// Opens the OS notification settings for this app. Returns false when the
   /// platform has no such entry point.
@@ -56,7 +67,6 @@ class LocalNotificationGateway implements NotificationGateway {
   static const _channelId = 'task_reminders';
   static const _channelName = '任务提醒';
   static const _channelDescription = '任务到期和自定义提醒';
-  static const _testNotificationId = 990001;
 
   @override
   Future<void> initialize({
@@ -225,17 +235,33 @@ class LocalNotificationGateway implements NotificationGateway {
   );
 
   @override
-  Future<bool> showTestNotification({
+  Future<void> showNow({
+    required int id,
     required String title,
     required String body,
+    String? payload,
   }) async {
     await _plugin.show(
-      id: _testNotificationId,
+      id: id,
       title: title,
       body: body,
+      payload: payload,
       notificationDetails: _details(),
     );
-    return true;
+  }
+
+  @override
+  Future<String?> launchPayload() async {
+    try {
+      final details = await _plugin.getNotificationAppLaunchDetails();
+      if (details == null || details.didNotificationLaunchApp != true) {
+        return null;
+      }
+      return details.notificationResponse?.payload;
+    } catch (error) {
+      debugPrint('read notification launch details failed: $error');
+      return null;
+    }
   }
 
   @override
@@ -278,10 +304,15 @@ class NoOpNotificationGateway implements NotificationGateway {
   Future<void> schedule(ReminderPlanItem item, {required bool exact}) async {}
 
   @override
-  Future<bool> showTestNotification({
+  Future<void> showNow({
+    required int id,
     required String title,
     required String body,
-  }) async => false;
+    String? payload,
+  }) async {}
+
+  @override
+  Future<String?> launchPayload() async => null;
 
   @override
   Future<bool> openSystemSettings() async => false;

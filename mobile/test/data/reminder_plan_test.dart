@@ -153,6 +153,61 @@ void main() {
     expect(buildHabitPlan([habit], now: DateTime(2026, 11, 5)), isEmpty);
   });
 
+  test('missed plan only covers the window since the last heartbeat', () {
+    final since = DateTime.utc(2026, 10, 25, 9);
+    final inWindow = task(id: 'a', due: DateTime.utc(2026, 10, 25, 9, 30));
+    final beforeWindow = task(id: 'b', due: DateTime.utc(2026, 10, 25, 8, 30));
+    final future = task(id: 'c', due: DateTime.utc(2026, 10, 25, 12));
+    final plan = buildMissedPlan(
+      [inWindow, beforeWindow, future],
+      const <CountdownItem>[],
+      now: now,
+      since: since,
+    );
+    expect(plan.map((item) => item.payload).toList(), ['task:a']);
+    expect(plan.single.at, DateTime.utc(2026, 10, 25, 9, 30));
+    expect(plan.single.title, '任务提醒');
+  });
+
+  test('missed plan skips completed and deleted tasks', () {
+    final since = DateTime.utc(2026, 10, 25, 9);
+    final done = task(
+      id: 'done',
+      due: DateTime.utc(2026, 10, 25, 9, 30),
+      completedAt: DateTime.utc(2026, 10, 25, 9, 40),
+    );
+    final trash = task(
+      id: 'trash',
+      due: DateTime.utc(2026, 10, 25, 9, 30),
+      deleted: true,
+    );
+    expect(
+      buildMissedPlan([done, trash], const <CountdownItem>[], now: now, since: since),
+      isEmpty,
+    );
+  });
+
+  test('missed plan covers countdowns, habits never take part', () {
+    final item = CountdownItem.fromJson({
+      'id': 7,
+      'name': '发布日',
+      'type': 'countdown',
+      'repeat': 'none',
+      'occurrenceDate': 20261105,
+      'reminders': [0],
+      'reminderTime': '08:00',
+    });
+    final plan = buildMissedPlan(
+      const <TaskItem>[],
+      [item],
+      now: DateTime(2026, 11, 5, 12),
+      since: DateTime(2026, 11, 5, 6),
+    );
+    expect(plan.single.payload, 'countdown:7');
+    expect(plan.single.at, DateTime(2026, 11, 5, 8));
+    expect(plan.single.body, '今天是「发布日」');
+  });
+
   test('labels common offsets in Chinese', () {
     expect(reminderLabel(0), '准时');
     expect(reminderLabel(5), '提前 5 分钟');

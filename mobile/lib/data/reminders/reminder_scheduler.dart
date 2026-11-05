@@ -47,17 +47,37 @@ class ReminderScheduler {
   /// null = 还没问过系统。
   bool? permissionGranted;
 
+  static const _heartbeatKey = 'reminder.heartbeat';
+  static const _missedNotificationId = 990002;
+
+  /// 上次进程还活着的时间点。启动时读出来，用来界定「应用不在运行时」到点
+  /// 的那些提醒。
+  DateTime? _resumeSince;
+  DateTime? _heartbeatAt;
+  bool _missedChecked = false;
+  final Set<int> _notifiedMissed = <int>{};
+  Timer? _heartbeatTimer;
+
   Future<void> start({void Function(String? taskId)? onTap}) async {
     if (_started) return;
     _started = true;
+    final tap = onTap ?? (_) {};
     try {
-      await _gateway.initialize(onTap: onTap ?? (_) {});
+      await _gateway.initialize(onTap: tap);
       permissionGranted = await _gateway.requestPermissions();
+      // 冷启动（应用是被点击通知拉起的）时，点击事件不会走 initialize 的
+      // 回调，只在 launch details 里。
+      final launch = await _gateway.launchPayload();
+      if (launch != null && launch.trim().isNotEmpty) tap(launch);
     } catch (error) {
       lastError = error.toString();
       debugPrint('reminder init failed: $error');
     }
     if (!_started) return;
+    _resumeSince = await _readHeartbeat();
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 2), (_) {
+      _writeHeartbeat(DateTime.now());
+    });
     _subscription = store.watchAllTasks().listen((_) => _scheduleSoon());
     habits?.addListener(_onExtraChanged);
     countdowns?.addListener(_onExtraChanged);
@@ -85,6 +105,13 @@ class ReminderScheduler {
     try {
       final tasks = store.allTasks();
       final now = DateTime.now();
+      // 只在本次启动的头一次刷新里补发，之后应用一直活着，到点的提醒由系统
+      // 正常投递，不再算「错过」。
+      if (!_missedChecked) {
+        _missedChecked = true;
+        await _notifyMissed(tasks, now);
+      }
+      await _writeHeartbeat(now);
       final signature = _reminderSignature(tasks);
       if (!_forceNext && signature == _lastSignature) {
         return;
@@ -219,12 +246,13 @@ class ReminderScheduler {
   /// delivers notifications instead of trusting the scheduled count.
   Future<bool> sendTestNotification() async {
     try {
-      final sent = await _gateway.showTestNotification(
+      await _gateway.showNow(
+        id: _missedNotificationId + 1,
         title: '通知测试',
         body: '看到这条说明系统通知已正常工作。',
       );
-      if (sent) lastError = null;
-      return sent;
+      lastError = null;
+      return true;
     } catch (error) {
       lastError = error.toString();
       return false;
@@ -235,11 +263,80 @@ class ReminderScheduler {
 
   Future<bool> exactAlarmsAllowed() => _gateway.exactAlarmsAllowed();
 
+  /// 把上次应用不在运行期间到点、没能送达的提醒合成一条即时通知。
+  ///
+  /// 只补最近一个心跳窗口，且每个提醒在一个进程生命周期内只补一次，避免
+  /// 数据反复变更时重复弹。
+  Future<void> _notifyMissed(Iterable<TaskItem> tasks, DateTime now) async {
+    final since = _resumeSince;
+    if (since == null || permissionGranted == false) return;
+    final missed = buildMissedPlan(
+      tasks,
+      countdowns?.items ?? const <CountdownItem>[],
+      now: now,
+      since: since,
+    ).where((item) => !_notifiedMissed.contains(item.id)).toList();
+    if (missed.isEmpty) return;
+    for (final item in missed) {
+      _notifiedMissed.add(item.id);
+    }
+    missed.sort((a, b) => a.at.compareTo(b.at));
+    final first = missed.first;
+    final at = first.at.toLocal();
+    final clock =
+        '${at.hour.toString().padLeft(2, '0')}:'
+        '${at.minute.toString().padLeft(2, '0')}';
+    final body = missed.length == 1
+        ? '${first.body}（$clock）'
+        : '${missed.length} 条提醒未送达，最早：${first.body}（$clock）';
+    try {
+      await _gateway.showNow(
+        id: _missedNotificationId,
+        title: '错过的提醒',
+        body: body,
+        payload: 'missed',
+      );
+    } catch (error) {
+      lastError = error.toString();
+      debugPrint('missed reminder digest failed: $error');
+    }
+  }
+
+  Future<DateTime?> _readHeartbeat() async {
+    final db = store.database;
+    if (db == null) return null;
+    try {
+      final raw = await db.metaValue(_heartbeatKey);
+      if (raw == null || raw.isEmpty) return null;
+      return DateTime.tryParse(raw)?.toLocal();
+    } catch (error) {
+      debugPrint('read reminder heartbeat failed: $error');
+      return null;
+    }
+  }
+
+  Future<void> _writeHeartbeat(DateTime now) async {
+    final db = store.database;
+    if (db == null) return;
+    final last = _heartbeatAt;
+    if (last != null && now.difference(last) < const Duration(minutes: 1)) {
+      return;
+    }
+    _heartbeatAt = now;
+    try {
+      await db.putMeta(_heartbeatKey, now.toUtc().toIso8601String());
+    } catch (error) {
+      debugPrint('write reminder heartbeat failed: $error');
+    }
+  }
+
   /// Stops listening. Set [cancelAll] on logout so the previous account's
   /// reminders do not fire.
   Future<void> stop({bool cancelAll = false}) async {
     _started = false;
     _debounce?.cancel();
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     // Do not await the cancellation: the subscription wraps an async*
     // generator over a broadcast stream, and awaiting it can block forever.
     // `_started` already gates any late event, so fire and forget is safe and
@@ -256,6 +353,10 @@ class ReminderScheduler {
     }
     _lastSignature = null;
     _forceNext = false;
+    _resumeSince = null;
+    _heartbeatAt = null;
+    _missedChecked = false;
+    _notifiedMissed.clear();
     if (cancelAll) {
       try {
         await _gateway.cancelAll().timeout(const Duration(seconds: 2));

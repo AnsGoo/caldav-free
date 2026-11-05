@@ -124,6 +124,82 @@ List<ReminderPlanItem> buildCountdownPlan(
   return _sortedCapped(byId.values, max);
 }
 
+/// 应用不在运行期间到点、没能送达的提醒。
+///
+/// 补发窗口由 [since] 决定（通常是上一次进程存活的心跳时间），只取
+/// `since < at <= now` 的提醒；习惯是每天重复、错过一次不影响下一次，
+/// 因此不参与补发。
+List<ReminderPlanItem> buildMissedPlan(
+  Iterable<TaskItem> tasks,
+  Iterable<CountdownItem> countdowns, {
+  required DateTime now,
+  required DateTime since,
+  int max = 50,
+}) {
+  final cutoff = now.toUtc();
+  final floor = since.toUtc();
+  final byId = <int, ReminderPlanItem>{};
+
+  for (final task in tasks) {
+    if (task.kind != TaskKind.task ||
+        task.deleted ||
+        task.completed ||
+        task.dueAt == null ||
+        task.reminderOffsets.isEmpty) {
+      continue;
+    }
+    for (final offset in task.reminderOffsets) {
+      if (offset < 0 || offset > 10080) continue;
+      final at = task.dueAt!.toUtc().subtract(Duration(minutes: offset));
+      if (!at.isAfter(floor) || at.isAfter(cutoff)) continue;
+      final payload = 'task:${task.id}';
+      final id = reminderNotificationId('$payload:$offset');
+      byId[id] = ReminderPlanItem(
+        id: id,
+        payload: payload,
+        title: '任务提醒',
+        body: task.title,
+        at: at,
+        offsetMinutes: offset,
+      );
+    }
+  }
+
+  for (final item in countdowns) {
+    if (item.reminders.isEmpty) continue;
+    final day = _countdownDay(item.occurrenceDate);
+    if (day == null) continue;
+    final clock = _parseClock(item.reminderTime) ?? (9, 0);
+    for (final offset in item.reminders) {
+      if (offset < 0 || offset > 3650) continue;
+      final at = DateTime(
+        day.year,
+        day.month,
+        day.day - offset,
+        clock.$1,
+        clock.$2,
+      );
+      if (!at.isAfter(since) || at.isAfter(now)) continue;
+      final payload = 'countdown:${item.id}';
+      final id = reminderNotificationId(
+        '$payload:${item.occurrenceDate}:$offset',
+      );
+      byId[id] = ReminderPlanItem(
+        id: id,
+        payload: payload,
+        title: '倒数日提醒',
+        body: offset == 0
+            ? '今天是「${item.name}」'
+            : '距离「${item.name}」还有 $offset 天',
+        at: at,
+        offsetMinutes: offset,
+      );
+    }
+  }
+
+  return _sortedCapped(byId.values, max);
+}
+
 /// 习惯：每天在设定的时间提醒（和 Web 端一致，按天重复，不区分频率）。
 List<ReminderPlanItem> buildHabitPlan(
   Iterable<HabitItem> habits, {

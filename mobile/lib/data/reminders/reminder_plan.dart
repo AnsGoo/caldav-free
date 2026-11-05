@@ -124,12 +124,15 @@ List<ReminderPlanItem> buildCountdownPlan(
   return _sortedCapped(byId.values, max);
 }
 
-/// 一条「具体投递」的唯一标识：通知 id + 触发时刻。
+/// 一条「具体投递」的唯一标识：通知 id + 触发时刻（秒级）。
 ///
 /// 任务改了截止时间后通知 id 不变（id 只由 payload 和偏移算出），但投递时刻
 /// 会变，所以必须两者一起才代表这一条通知。
+///
+/// 时刻取到秒：`due_at` 在本地库里是以秒为单位的 Unix 时间戳，重启后从库里
+/// 读回来的时间戳毫秒位为 0，如果这里带上毫秒就会和排期时算出的值对不上。
 String reminderSlotKey(ReminderPlanItem item) =>
-    '${item.id}@${item.at.toUtc().millisecondsSinceEpoch}';
+    '${item.id}@${item.at.toUtc().millisecondsSinceEpoch ~/ 1000}';
 
 /// 应用不在运行期间到点、没能送达的提醒。
 ///

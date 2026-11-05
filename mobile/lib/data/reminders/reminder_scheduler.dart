@@ -265,7 +265,10 @@ class ReminderScheduler {
     if (status == null) return false;
     if (status && previous != true) {
       // 权限刚打开：之前因为没权限而没送达的提醒，这时候可以补一次汇总。
+      // 权限关闭期间系统不可能投递，所以「已排期」在这里不代表「已送达」，
+      // 清掉快照才能把这段时间的提醒补回来。
       _missedChecked = false;
+      _scheduledBeforeExit = <String>{};
       await reschedule();
       return true;
     }
@@ -404,10 +407,8 @@ class ReminderScheduler {
   }
 
   Future<DateTime?> _readHeartbeat() async {
-    final db = store.database;
-    if (db == null) return null;
     try {
-      final raw = await db.metaValue(_heartbeatKey);
+      final raw = await store.metaValue(_heartbeatKey);
       if (raw == null || raw.isEmpty) return null;
       return DateTime.tryParse(raw)?.toLocal();
     } catch (error) {
@@ -417,25 +418,21 @@ class ReminderScheduler {
   }
 
   Future<void> _writeHeartbeat(DateTime now) async {
-    final db = store.database;
-    if (db == null) return;
     final last = _heartbeatAt;
     if (last != null && now.difference(last) < const Duration(minutes: 1)) {
       return;
     }
     _heartbeatAt = now;
     try {
-      await db.putMeta(_heartbeatKey, now.toUtc().toIso8601String());
+      await store.putMeta(_heartbeatKey, now.toUtc().toIso8601String());
     } catch (error) {
       debugPrint('write reminder heartbeat failed: $error');
     }
   }
 
   Future<Set<String>> _readScheduledSlots() async {
-    final db = store.database;
-    if (db == null) return <String>{};
     try {
-      final raw = await db.metaValue(_scheduledSlotsKey);
+      final raw = await store.metaValue(_scheduledSlotsKey);
       if (raw == null || raw.isEmpty) return <String>{};
       return raw
           .split('\n')
@@ -449,10 +446,8 @@ class ReminderScheduler {
   }
 
   Future<void> _writeScheduledSlots(Iterable<String> slots) async {
-    final db = store.database;
-    if (db == null) return;
     try {
-      await db.putMeta(_scheduledSlotsKey, slots.join('\n'));
+      await store.putMeta(_scheduledSlotsKey, slots.join('\n'));
     } catch (error) {
       debugPrint('write scheduled reminder slots failed: $error');
     }

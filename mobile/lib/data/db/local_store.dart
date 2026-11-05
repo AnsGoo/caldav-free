@@ -171,6 +171,24 @@ class LocalStore {
   /// countdown mirrors open their tables on the same connection.
   AppDatabase? get database => _db;
 
+  /// 内存模式下的元数据兜底，让不依赖 SQLite 的测试也能跑通提醒调度逻辑。
+  final Map<String, String> _memoryMeta = <String, String>{};
+
+  Future<String?> metaValue(String key) async {
+    final db = _db;
+    if (db == null) return _memoryMeta[key];
+    return db.metaValue(key);
+  }
+
+  Future<void> putMeta(String key, String value) async {
+    final db = _db;
+    if (db == null) {
+      _memoryMeta[key] = value;
+      return;
+    }
+    await db.putMeta(key, value);
+  }
+
   final Map<String, TaskItem> _tasks = {};
   final Set<String> _dirtyTasks = {};
   final Map<String, TaskListItem> _lists = {};

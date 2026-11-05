@@ -15,6 +15,7 @@ class FakeGateway implements NotificationGateway {
 
   final List<ReminderPlanItem> scheduled = <ReminderPlanItem>[];
   final List<int> badges = <int>[];
+  final List<String> shownTitles = <String>[];
   int cancelPendingCalls = 0;
 
   @override
@@ -49,7 +50,9 @@ class FakeGateway implements NotificationGateway {
     required String title,
     required String body,
     String? payload,
-  }) async {}
+  }) async {
+    shownTitles.add(title);
+  }
 
   @override
   Future<String?> launchPayload() async => null;
@@ -158,5 +161,91 @@ void main() {
     expect(await scheduler.snooze('unknown:1'), false);
     expect(await scheduler.snooze(null), false);
     expect(gateway.scheduled, isEmpty);
+  });
+
+  group('missed digest', () {
+    /// 本地库把 `due_at` 存成秒级时间戳，读回来毫秒位是 0。
+    DateTime truncatedToSecond(DateTime value) =>
+        DateTime.fromMillisecondsSinceEpoch(
+          value.millisecondsSinceEpoch ~/ 1000 * 1000,
+        );
+
+    String slotFor(String payload, int offset, DateTime at) =>
+        reminderSlotKey(
+          ReminderPlanItem(
+            id: reminderNotificationId('$payload:$offset'),
+            payload: payload,
+            title: '',
+            body: '',
+            at: at,
+          ),
+        );
+
+    test('skips reminders the OS had already queued before the app quit', () async {
+      final now = DateTime.now();
+      final due = truncatedToSecond(
+        now.subtract(const Duration(minutes: 2)),
+      );
+      await store.saveTask(
+        task(due: due, reminders: const [0]),
+        dirty: false,
+      );
+      await store.putMeta(
+        'reminder.heartbeat',
+        now.subtract(const Duration(minutes: 10)).toUtc().toIso8601String(),
+      );
+      // 退出前这条已经排进系统队列，到点由系统投递，不能再补一次。
+      await store.putMeta(
+        'reminder.scheduled_slots',
+        slotFor('task:t1', 0, due),
+      );
+
+      await scheduler.start();
+
+      expect(gateway.shownTitles, isNot(contains('错过的提醒')));
+    });
+
+    test('still reports reminders that were never queued', () async {
+      final now = DateTime.now();
+      final due = truncatedToSecond(
+        now.subtract(const Duration(minutes: 2)),
+      );
+      await store.saveTask(
+        task(due: due, reminders: const [0]),
+        dirty: false,
+      );
+      await store.putMeta(
+        'reminder.heartbeat',
+        now.subtract(const Duration(minutes: 10)).toUtc().toIso8601String(),
+      );
+
+      await scheduler.start();
+
+      expect(gateway.shownTitles, contains('错过的提醒'));
+    });
+
+    test('a slot with a different time does not mask the reminder', () async {
+      final now = DateTime.now();
+      final due = truncatedToSecond(
+        now.subtract(const Duration(minutes: 2)),
+      );
+      await store.saveTask(
+        task(due: due, reminders: const [0]),
+        dirty: false,
+      );
+      await store.putMeta(
+        'reminder.heartbeat',
+        now.subtract(const Duration(minutes: 10)).toUtc().toIso8601String(),
+      );
+      // 同一个任务 id，但这是改动截止时间之前的旧槽位。
+      await store.putMeta(
+        'reminder.scheduled_slots',
+        slotFor('task:t1', 0, due.subtract(const Duration(days: 1))),
+      );
+
+      await scheduler.start();
+
+      expect(gateway.shownTitles, contains('错过的提醒'));
+    });
   });
 }

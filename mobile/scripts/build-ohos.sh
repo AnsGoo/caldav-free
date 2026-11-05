@@ -204,8 +204,8 @@ if [ "$INSTALL" = "1" ] && [ -n "${HAP:-}" ]; then
       note "没有连着设备/模拟器，跳过安装（先在 DevEco 里启动模拟器）"
     else
       note "安装到 $TARGET ……"
-      "$HDC_BIN" -t "$TARGET" install -r "$HAP"
-      BUNDLE="$(grep -o '"bundleName"[^,]*' AppScope/app.json5 2>/dev/null | head -1 | sed 's/.*"\(.*\)"/\1/')"
+      "$HDC_BIN" -t "$TARGET" install -r "$HAP" || true
+      BUNDLE="$(grep -o '"bundleName"[^,]*' ohos/AppScope/app.json5 2>/dev/null | head -1 | sed 's/.*"\(.*\)"/\1/' || true)"
       if [ -n "$BUNDLE" ]; then
         "$HDC_BIN" -t "$TARGET" shell aa force-stop "$BUNDLE" >/dev/null 2>&1 || true
         "$HDC_BIN" -t "$TARGET" shell aa start -a EntryAbility -b "$BUNDLE" || true

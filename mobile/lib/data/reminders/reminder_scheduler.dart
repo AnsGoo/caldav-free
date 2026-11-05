@@ -236,6 +236,8 @@ class ReminderScheduler {
     final status = await permissionStatus();
     if (status == null) return false;
     if (status && previous != true) {
+      // 权限刚打开：之前因为没权限而没送达的提醒，这时候可以补一次汇总。
+      _missedChecked = false;
       await reschedule();
       return true;
     }

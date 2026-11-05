@@ -1,0 +1,28 @@
+{
+  "modelVersion": "5.1.0",
+  "dependencies": {
+  },
+  // 任务级缓存与调度优化。hvigor 6.26.9 已核对键名：
+  //   execution.*                → hvigor/res/hvigor-config-schema.json
+  //   hvigor.*                   → hvigor/src/common/const/const.js
+  //   ohos.*                     → hvigor-ohos-plugin/src/const/common-const.js
+  "execution": {
+    "daemon": true,
+    "incremental": true,
+    "parallel": true,
+    "optimizationStrategy": "performance"
+  },
+  "properties": {
+    // 缓存任务输入输出指纹，减少增量构建里的重复判定
+    "hvigor.enableMemoryCache": true,
+    "hvigor.incremental.optimization": true,
+    // 让 CompileArkTS 尽早开始：它是关键路径，实测占整轮 70%
+    "hvigor.task.schedule.optimization": true,
+    // Debug 不产出 JS 中间码，省掉 ArkTS 编译中的 emit 部分
+    // Release 混淆构建下该开关不生效，属预期
+    "ohos.arkCompile.noEmitJs": true,
+    // so 增量判定提速（本工程只有 libsqlite3.so，收益有限但无副作用）
+    "ohos.processLib.optimization": true,
+    "ohos.obfuscationRules.optimization": true
+  }
+}

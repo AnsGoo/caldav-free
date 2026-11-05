@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/backends.dart' show DelegatedDatabase;
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/models.dart';
+import '../storage_paths.dart' show isOhosPlatform;
+import 'ohos_rdb_database.dart';
 
 part 'local_database.g.dart';
 
@@ -553,7 +557,7 @@ const String focusStatsKey = 'focus_stats';
 class AppDatabase extends _$AppDatabase {
   AppDatabase(super.executor);
 
-  AppDatabase.file(String path) : super(_openFile(path));
+  AppDatabase.file(String path) : super(_openStore(path));
 
   AppDatabase.memory() : super(NativeDatabase.memory());
 
@@ -622,6 +626,30 @@ class AppDatabase extends _$AppDatabase {
 
   Future<void> deleteMeta(String key) =>
       (delete(meta)..where((t) => t.key.equals(key))).go();
+}
+
+/// 鸿蒙没有可用的 sqlite3 FFI 实现（`sqlite3_flutter_libs` 不支持 ohos，
+/// 而且鸿蒙侧 FFI 钩子会把 targetOS 报成 linux，下载到 glibc 版原生库直接
+/// 加载失败），所以鸿蒙改走系统 RelationalStore；其余平台仍然用
+/// NativeDatabase 直接开文件。
+QueryExecutor _openStore(String path) {
+  if (isOhosPlatform) {
+    return DelegatedDatabase(
+      OhosRdbDelegate(name: _rdbDatabaseName(path)),
+      isSequential: true,
+    );
+  }
+  return _openFile(path);
+}
+
+/// RDB 用「数据库名」而不是文件路径（文件位置由系统托管），
+/// 这里从路径里取一个稳定的名字，保证同名库复用同一份数据。
+String _rdbDatabaseName(String path) {
+  final base = p.basename(path);
+  final stem = base.contains('.')
+      ? base.substring(0, base.lastIndexOf('.'))
+      : base;
+  return stem.isEmpty ? 'caldav_free' : stem;
 }
 
 LazyDatabase _openFile(String path) {

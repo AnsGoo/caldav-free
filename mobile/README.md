@@ -289,3 +289,23 @@ build hook required Xcode and blocked `flutter test`).
   so LAN debugging against `http://<host>:5232` works; remove it for App Store
   distribution and use HTTPS.
 - Logout clears the local task database, outbox, and credentials.
+
+## HarmonyOS
+
+The `ohos/` directory is a standard HarmonyOS app project; build it with the
+OpenHarmony Flutter fork (`oh-3.47.7-*`), not upstream Flutter:
+
+```bash
+./scripts/build-ohos.sh --check   # environment check
+./scripts/build-ohos.sh           # produce a HAP
+```
+
+Storage on HarmonyOS does **not** use `sqlite3`/FFI (no ohos support, and the
+OHOS FFI hook reports `targetOS: linux`, which would bundle a glibc binary).
+Instead drift talks to the system `RelationalStore` (ArkTS RDB) through a
+`DatabaseDelegate` — see `lib/data/db/ohos_rdb_database.dart` and
+`ohos/entry/src/main/ets/rdb/RdbBridge.ets`. Business code is unchanged.
+
+Local notifications are a no-op on HarmonyOS for now (`flutter_local_notifications`
+has no ohos implementation). Full setup, signing steps, and the remaining gaps
+are documented in `../docs/鸿蒙打包.md`.

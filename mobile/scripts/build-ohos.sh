@@ -1,0 +1,221 @@
+#!/usr/bin/env bash
+# 构建鸿蒙 HAP。需要鸿蒙版 Flutter（flutter_flutter 的 oh-* 分支）+ DevEco Studio
+# 的 SDK / hvigor / ohpm / JDK 17，官方 Flutter 编不出 HAP。
+#
+# 用法：
+#   ./scripts/build-ohos.sh              # release，需要签名配置
+#   MODE=debug ./scripts/build-ohos.sh   # debug，可直接装到已授权设备
+#   ./scripts/build-ohos.sh --fast       # 只改过 ets 时用：起 hvigor 守护进程做增量，跳过 pub get
+#   ./scripts/build-ohos.sh --fast --install  # 出包后直接装到当前连着的设备/模拟器并拉起
+#   ./scripts/build-ohos.sh --check      # 只体检环境，不出包
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+MODE="${MODE:-release}"
+CHECK_ONLY=0
+FAST=0
+INSTALL=0
+for arg in "$@"; do
+  case "$arg" in
+    --check) CHECK_ONLY=1 ;;
+    --fast) FAST=1 ;;
+    --install) INSTALL=1 ;;
+    release) MODE=release ;;
+    debug) MODE=debug ;;
+  esac
+done
+
+fail() {
+  printf '\n[✗] %s\n' "$1" >&2
+  exit 1
+}
+
+note() { printf '[·] %s\n' "$1"; }
+
+# ---- 1. Flutter 必须是鸿蒙分支 ----
+# PATH 里没有的话，退回 ohos/local.properties 里记的 flutter.sdk（少一次来回折腾）
+if ! command -v flutter >/dev/null 2>&1; then
+  SDK_FROM_PROP="$(grep -E '^flutter\.sdk=' ohos/local.properties 2>/dev/null | cut -d= -f2-)"
+  if [ -n "${SDK_FROM_PROP:-}" ] && [ -x "$SDK_FROM_PROP/bin/flutter" ]; then
+    export PATH="$SDK_FROM_PROP/bin:$PATH"
+    note "PATH 里没有 flutter，改用 local.properties 记录的 $SDK_FROM_PROP"
+  fi
+fi
+command -v flutter >/dev/null 2>&1 || fail "找不到 flutter，请把鸿蒙版 flutter_flutter 的 bin 加进 PATH"
+FLUTTER_BIN="$(command -v flutter)"
+FLUTTER_VER="$(flutter --version 2>/dev/null | head -1)"
+# 鸿蒙分支的版本字符串是 "Flutter 3.47.7+ohos-0.0.1-pre"，注意是 +ohos 不是 -ohos
+if ! printf '%s' "$FLUTTER_VER" | grep -q 'ohos'; then
+  cat <<EOF
+
+[!] 当前 flutter 不是鸿蒙分支：
+      $FLUTTER_BIN
+      $(flutter --version 2>/dev/null | head -1)
+
+    官方 Flutter 没有 ohos target，必须改用：
+      git clone -b oh-3.47.7-preview https://gitcode.com/openharmony-tpc/flutter_flutter.git
+      export PATH="\$HOME/flutter_flutter/bin:\$PATH"
+
+EOF
+  [ "$CHECK_ONLY" = "1" ] || exit 1
+fi
+
+# ---- 2. DevEco SDK / JDK / hvigor ----
+HWSKDK="$(grep -E '^hwsdk\.dir=' ohos/local.properties 2>/dev/null | cut -d= -f2-)"
+if [ -n "${HWSKDK:-}" ]; then
+  note "OpenHarmony SDK：$HWSKDK"
+else
+  [ -n "${DEVECO_SDK_HOME:-}" ] || note "DEVECO_SDK_HOME 未设置，local.properties 里也没有 hwsdk.dir"
+fi
+command -v ohpm >/dev/null 2>&1 || note "PATH 里没有 ohpm（通常随 DevEco Studio 安装）"
+command -v hvigorw >/dev/null 2>&1 || note "PATH 里没有 hvigorw"
+command -v java >/dev/null 2>&1 || fail "没有 JDK，hvigor 打包和签名必须 JDK 17"
+java -version 2>&1 | head -1
+
+if [ ! -d ohos ]; then
+  fail "缺少 ohos/ 目录：请先用鸿蒙版 flutter 执行 flutter create --platforms ohos ."
+fi
+
+# ---- 2.5 flutter-hvigor-plugin：hvigorfile.ts 的第一行 import ----
+# flutter 不会替你建这个链接。之前三次构建在 200ms 内失败，报的就是
+# "Cannot find module 'flutter-hvigor-plugin'"；手工补上链接后立刻跳到下一个错误。
+FLUTTER_SDK="${FLUTTER_SDK:-$(cd "$(dirname "$FLUTTER_BIN")/.." && pwd)}"
+PLUGIN_SRC="$FLUTTER_SDK/packages/flutter_tools/hvigor"
+PLUGIN_LINK="ohos/node_modules/flutter-hvigor-plugin"
+if [ -d "$PLUGIN_SRC" ]; then
+  if [ ! -e "$PLUGIN_LINK" ]; then
+    note "补建 $PLUGIN_LINK → $PLUGIN_SRC"
+    mkdir -p ohos/node_modules
+    ln -sfn "$PLUGIN_SRC" "$PLUGIN_LINK"
+  fi
+else
+  note "flutter SDK 里找不到 packages/flutter_tools/hvigor：$PLUGIN_SRC"
+fi
+
+if [ "$CHECK_ONLY" = "1" ]; then
+  note "环境体检结束（未出包）"
+  note "构建日志：ohos/.hvigor/outputs/build-logs/build.log"
+  note "失败定位：./scripts/ohos-diag.sh --history（1 秒出结论，不用再看 exit code 255）"
+  flutter doctor -v 2>/dev/null | sed -n '1,40p' || true
+  exit 0
+fi
+
+# ---- 3. 出包 ----
+# app.signingConfigs 是否非空。flutter build hap 在 hvigor 打包完之后还会查这一项，
+# 空数组就 throwToolExit —— 此时 HAP 其实已经躺在 outputs 里了（unsigned）。
+has_signing_config() {
+  awk '
+    /"signingConfigs"/ {
+      rest = $0
+      sub(/.*"signingConfigs"[[:space:]]*:[[:space:]]*\[/, "", rest)
+      if (rest !~ /\]/) { inblock = 1; next }
+      if (rest ~ /^[[:space:]]*\],?[[:space:]]*$/) { next }
+      found = 1; next
+    }
+    inblock {
+      if ($0 ~ /^[[:space:]]*\]/) { inblock = 0; next }
+      if ($0 ~ /[^[:space:],]/) { found = 1 }
+    }
+    END { exit(found ? 0 : 1) }
+  ' ohos/build-profile.json5 2>/dev/null
+}
+
+last_build_line() {
+  grep -E "BUILD (FAILED|SUCCESSFUL) in" ohos/.hvigor/outputs/build-logs/build.log 2>/dev/null | tail -1
+}
+
+find_hap() {
+  find ohos/entry/build -maxdepth 6 -name "*.hap" 2>/dev/null | head -1
+}
+
+build_failed() {
+  echo
+  local hap last
+  hap="$(find_hap)"
+  last="$(last_build_line)"
+  # hvigor 说成功、产物也在 → flutter 只是死在后面的签名检查，不是编译失败。
+  if [ -n "$hap" ] && printf '%s' "$last" | grep -q "BUILD SUCCESSFUL"; then
+    note "打包本身成功：${last#*] }"
+    note "HAP 已产出：$hap"
+    note "flutter 是在打包之后的签名检查处退出的 —— 当前 app.signingConfigs 为空，只有 unsigned 包，装不了机"
+    note "补签名：DevEco Studio 打开 mobile/ohos → File > Project Structure > Signing Configs"
+    note "        勾选 Automatically generate signature（需登录华为账号），之后重跑本脚本即可出签名包"
+    exit 0
+  fi
+  # 真失败：真报错在 hvigor 的 debug 日志里，flutter 只会吐 exit code 255。
+  note "构建失败，正在从 hvigor 日志里提取真正的报错……"
+  ./scripts/ohos-diag.sh
+  exit 1
+}
+
+if ! has_signing_config; then
+  note "app.signingConfigs 为空：本轮只能产出 unsigned HAP（编译打包照常跑）"
+fi
+
+if [ "$FAST" = "1" ]; then
+  # hvigorw 经常不在非交互 shell 的 PATH 里，按几个已知位置兜底
+  HVIGORW="$(command -v hvigorw 2>/dev/null || true)"
+  for cand in \
+    /Users/chenghaiwen/Documents/command-line-tools/bin/hvigorw \
+    /Applications/DevEco-Studio.app/Contents/tools/hvigor/bin/hvigorw; do
+    [ -n "$HVIGORW" ] && break
+    [ -x "$cand" ] && HVIGORW="$cand"
+  done
+  [ -n "$HVIGORW" ] || fail "--fast 需要 hvigorw（DevEco Studio / command-line-tools 自带），当前 PATH 里没有"
+  # 只改过 ets / dart 时走这条：hvigor 守护进程 + 增量，跳过 pub get。
+  # 注意：flutter build hap 固定带 --no-daemon，等于每次全量重编，慢 5~10 倍。
+  note "快速模式：hvigor 守护进程 + 增量编译"
+  (cd ohos && "$HVIGORW" assembleHap -p product=default -p buildMode="$MODE" --daemon) || build_failed
+else
+  flutter pub get
+  if [ "$MODE" = "debug" ]; then
+    flutter build hap --debug --target-platform ohos-arm64 || build_failed
+  else
+    flutter build hap --release --target-platform ohos-arm64 || build_failed
+  fi
+fi
+
+echo
+HAP="$(find_hap)"
+if [ -n "$HAP" ]; then
+  note "产物：${HAP}（$(du -h "$HAP" | cut -f1)）"
+  case "$HAP" in
+    *unsigned*)
+      # 模拟器的系统镜像不校验签名，能直接装；真机必须签名。
+      note "unsigned 包：模拟器可以直接装，真机需要先配签名（步骤见文末）。" ;;
+    *) note "已签名，真机/模拟器都能装。" ;;
+  esac
+else
+  note "产物：没有找到 .hap（构建没走到打包阶段）"
+fi
+
+# ---- 4. 可选：直接装到当前设备并拉起 ----
+if [ "$INSTALL" = "1" ] && [ -n "${HAP:-}" ]; then
+  HDC_BIN="$(command -v hdc || true)"
+  if [ -z "$HDC_BIN" ]; then
+    HDC_BIN="$(ls /Users/chenghaiwen/Documents/command-line-tools/sdk/default/openharmony/toolchains/hdc 2>/dev/null | head -1)"
+  fi
+  if [ -z "$HDC_BIN" ]; then
+    note "找不到 hdc，跳过安装（DevEco 的 SDK toolchains 里带 hdc）"
+  else
+    TARGET="$("$HDC_BIN" list targets 2>/dev/null | grep -v '^\s*$' | grep -v '\[Empty\]' | head -1)"
+    if [ -z "$TARGET" ]; then
+      note "没有连着设备/模拟器，跳过安装（先在 DevEco 里启动模拟器）"
+    else
+      note "安装到 $TARGET ……"
+      "$HDC_BIN" -t "$TARGET" install -r "$HAP"
+      BUNDLE="$(grep -o '"bundleName"[^,]*' AppScope/app.json5 2>/dev/null | head -1 | sed 's/.*"\(.*\)"/\1/')"
+      if [ -n "$BUNDLE" ]; then
+        "$HDC_BIN" -t "$TARGET" shell aa force-stop "$BUNDLE" >/dev/null 2>&1 || true
+        "$HDC_BIN" -t "$TARGET" shell aa start -a EntryAbility -b "$BUNDLE" || true
+        note "已启动 $BUNDLE"
+      fi
+    fi
+  fi
+fi
+
+echo
+echo "安装到设备： hdc install -r <hap 路径>"
+echo "签名：DevEco Studio 打开 mobile/ohos → File > Project Structure > Signing Configs"
+echo "      勾选 Automatically generate signature，登录华为账号后重新构建。"

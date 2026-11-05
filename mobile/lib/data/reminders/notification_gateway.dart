@@ -452,5 +452,9 @@ NotificationGateway createDefaultGateway() {
   if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
     return LocalNotificationGateway();
   }
+  // 鸿蒙暂时走 NoOp：flutter_local_notifications 没有 ohos 实现，
+  // 直接调用会抛 MissingPluginException。P1 用 ArkTS 的
+  // reminderAgentManager 写一个 NotificationGateway 实现接上即可
+  // （接口已经隔离好，不需要改调度器）。
   return NoOpNotificationGateway();
 }

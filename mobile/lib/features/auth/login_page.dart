@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../../app_state.dart';
 import '../../data/remote/sync_api.dart';
+import '../../data/storage_paths.dart' show isOhosPlatform;
 import '../../design/components.dart';
 
 /// Absolute ceiling for one login attempt. The transport already times out on
@@ -22,7 +23,10 @@ class ConnectServerSheet extends StatefulWidget {
 
 class _ConnectServerSheetState extends State<ConnectServerSheet> {
   final _server = TextEditingController(
-    text: Platform.isAndroid ? 'http://10.0.2.2:5232' : 'http://localhost:5232',
+    // 鸿蒙模拟器和 Android 模拟器一样，用 10.0.2.2 访问宿主机。
+    text: Platform.isAndroid || isOhosPlatform
+        ? 'http://10.0.2.2:5232'
+        : 'http://localhost:5232',
   );
   final _username = TextEditingController();
   final _password = TextEditingController();
@@ -208,7 +212,7 @@ class _ConnectServerSheetState extends State<ConnectServerSheet> {
               ),
               const SizedBox(height: 14),
               Text(
-                Platform.isAndroid
+                Platform.isAndroid || isOhosPlatform
                     ? '模拟器访问本机服务用 10.0.2.2；真机请填写局域网地址。公网部署请使用 HTTPS。'
                     : '如服务器在本机，使用 localhost 即可。公网部署请使用 HTTPS。',
                 textAlign: TextAlign.center,

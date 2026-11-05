@@ -1,0 +1,27 @@
+{
+  "apiType": 'stageMode',
+  "buildOption": {
+  },
+  // Debug 跳过 so 符号裁剪：DoNativeStrip 实测 96s，改一行 ets 不该每轮都付这个代价。
+  // Release 保持默认裁剪（减小包体）。字段见
+  // hvigor-ohos-plugin/src/options/build/build-opt.d.ts 里的 NativeLib.debugSymbol。
+  "buildOptionSet": [
+    {
+      "name": "debug",
+      "nativeLib": {
+        "debugSymbol": {
+          "strip": false
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "name": "default",
+      "runtimeOS": "HarmonyOS"
+    },
+    {
+      "name": "ohosTest",
+    }
+  ]
+}

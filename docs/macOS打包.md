@@ -115,13 +115,26 @@ flutter build macos --release
 
 ## 七、实测记录
 
-在本机用 CI 产出的真实 `.app`（`run #5` 的 `macos-release` 产物）跑通：
+本地用 run #5 的 `macos-release` 产物跑通三档，随后在 CI（run #7）上真跑了一遍。
 
 | 检查项 | 结果 |
 |---|---|
-| 通用 DMG | 25 MB，`hdiutil verify` 通过 |
+| 通用 DMG（本地打） | 25 MB，`hdiutil verify` CRC32 有效 |
 | arm64 DMG | 12 MB，挂载后主二进制 `arm64` |
 | x64 DMG | 13 MB，挂载后主二进制 `x86_64` |
 | 重签校验 | 三个包 `codesign --verify --strict` 均通过 |
-| 实际启动 | arm64 与 x64（Rosetta）都能起，进程存活到超时被杀（exit 124） |
+| 实际启动 | `open -a` 经 launchd 拉起后进程存活：通用版、arm64、x64（Rosetta）三个都通过 |
 | Gatekeeper | `rejected`，符合预期（无 Developer ID） |
+| CI 复核 | run #7 macOS job 289 s，产出 25 MB DMG，下载后挂载、验签、启动全通过 |
+
+**验证启动别直接执行二进制。** 在宿主应用（终端、IDE）里跑
+`caldav-free.app/Contents/MacOS/caldav-free` 会挂在 `libsecinit` 的
+`_libsecinit_appsandbox` 上，SIGTRAP（exit 133）——那是因为进程继承了宿主进程的
+sandbox coalition，跟包本身无关。走 `open -a` 交给 launchd 启动才是真实用户路径：
+
+```bash
+open -a /tmp/cidmg/caldav-free.app
+sleep 5
+pgrep -f 'caldav-free.app/Contents/MacOS' >/dev/null && echo 启动成功
+```
+

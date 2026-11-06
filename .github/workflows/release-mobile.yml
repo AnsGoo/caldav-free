@@ -265,11 +265,126 @@ jobs:
           name: ios-release
           path: dist/ios/*
 
+  # 鸿蒙 HAP（未签名）。
+  #
+  # 为什么这个 job 必须跑在自托管 runner 上：鸿蒙 SDK（command-line-tools，
+  # 解压后约 6.5 GB）需要在华为开发者站点登录后下载，GitHub 托管 runner 上
+  # 既拿不到、也放不下；用第三方镜像分发 SDK 还有授权问题。而开发机本来就已经
+  # 装好了整套工具链，自托管还能复用 hvigor 的增量缓存。
+  #
+  # 一次性前置：
+  #   1. 在装着 DevEco Studio + 鸿蒙版 flutter_flutter 的 Mac 上注册 runner，
+  #      给它打上 harmonyos 标签（Settings → Actions → Runners → New self-hosted runner）
+  #   2. 确认该机器上 ./mobile/scripts/build-ohos.sh 能正常出包
+  #   3. 路径不一致时用仓库变量覆盖：
+  #        HARMONY_FLUTTER_DIR   鸿蒙版 flutter_flutter 根目录（默认 ~/flutter_flutter）
+  #        HARMONY_SDK_DIR       command-line-tools/sdk（默认 ~/Documents/command-line-tools/sdk）
+  #
+  # 产物是 unsigned 包：模拟器可直接装，真机需要先配签名（见 docs/鸿蒙签名.md）。
+  harmony:
+    name: HarmonyOS HAP (unsigned)
+    needs: version
+    timeout-minutes: 60
+    # runner 离线时 job 会一直排队并把 publish 拖住；临时不想要鸿蒙产物就设仓库变量
+    # HARMONY_CI=false 跳过本 job。
+    if: vars.HARMONY_CI != 'false'
+    # 标签改了记得同步这里。
+    runs-on: [self-hosted, macOS, harmonyos]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare ohos toolchain
+        env:
+          HARMONY_FLUTTER_DIR: ${{ vars.HARMONY_FLUTTER_DIR }}
+          HARMONY_SDK_DIR: ${{ vars.HARMONY_SDK_DIR }}
+        run: |
+          set -euo pipefail
+          FLUTTER_DIR="${HARMONY_FLUTTER_DIR:-$HOME/flutter_flutter}"
+          SDK_DIR="${HARMONY_SDK_DIR:-$HOME/Documents/command-line-tools/sdk}"
+
+          if [ ! -x "$FLUTTER_DIR/bin/flutter" ]; then
+            echo "::error::找不到鸿蒙版 flutter：$FLUTTER_DIR —— 设置仓库变量 HARMONY_FLUTTER_DIR"
+            exit 1
+          fi
+          if [ ! -d "$SDK_DIR/default" ]; then
+            echo "::error::找不到鸿蒙 SDK：$SDK_DIR —— 设置仓库变量 HARMONY_SDK_DIR"
+            exit 1
+          fi
+
+          echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
+          echo "$(dirname "$SDK_DIR")/bin" >> "$GITHUB_PATH"
+
+          if [ -d /Applications/DevEco-Studio.app/Contents/jbr/Contents/Home ]; then
+            echo "JAVA_HOME=/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home" >> "$GITHUB_ENV"
+            echo "/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home/bin" >> "$GITHUB_PATH"
+            export JAVA_HOME=/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home
+          fi
+
+          # GITHUB_PATH 只对后续 step 生效，本 step 里要自己 export，否则下面的
+          # flutter --version 会 command not found。set -u 下 $JAVA_HOME 可能未定义，
+          # 所以用 extra_java 兜一层，避免拼出空的 PATH 段。
+          extra_java=""
+          if [ -n "${JAVA_HOME:-}" ]; then extra_java=":$JAVA_HOME/bin"; fi
+          export PATH="$FLUTTER_DIR/bin:$(dirname "$SDK_DIR")/bin$extra_java:$PATH"
+
+          # local.properties 被 .gitignore 排除，checkout 后是空的。
+          # hvigor 靠 hwsdk.dir 定位 SDK、flutter 靠 flutter.sdk 定位自己，缺一则构建直接失败。
+          version=$(sed -n 's/^version:[[:space:]]*//p' mobile/pubspec.yaml | head -n1 || true)
+          name=${version%%+*}
+          code=${version##*+}
+          if [ "$code" = "$version" ]; then code=1; fi
+          {
+            echo "hwsdk.dir=$SDK_DIR"
+            echo "flutter.sdk=$FLUTTER_DIR"
+            echo "flutter.versionName=$name"
+            echo "flutter.versionCode=$code"
+          } > mobile/ohos/local.properties
+
+          # 注意 pipefail：flutter --version 输出多行，head 提前关管道会让 flutter
+          # 吃 SIGPIPE 退出 141，不加 || true 整个 step 会被 set -e 干掉。
+          ver="$(flutter --version 2>/dev/null | head -n1 || true)"
+          printf '%s\n' "$ver"
+          if ! printf '%s' "$ver" | grep -q ohos; then
+            echo "::error::这个 flutter 不是鸿蒙分支，编不出 HAP：$ver"
+            exit 1
+          fi
+
+      # 不能用 --fast：那只跑 hvigor，Dart 代码不会重新 AOT 编译，产物会是旧逻辑。
+      - name: Build HAP
+        working-directory: mobile
+        run: MODE=release ./scripts/build-ohos.sh
+
+      - name: Collect artifact
+        run: |
+          set -euo pipefail
+          hap=$(find mobile/ohos/entry/build -name '*.hap' | head -1 || true)
+          if [ -z "$hap" ]; then
+            echo "::error::构建结束但没有产出 .hap"
+            ls -R mobile/ohos/entry/build 2>/dev/null | head -40 || true
+            exit 1
+          fi
+          case "$hap" in
+            *unsigned*) ;;
+            *) echo "::warning::产物带签名，与预期不符：$hap" ;;
+          esac
+          mkdir -p dist/harmony
+          out="dist/harmony/caldav-free-harmony-${{ needs.version.outputs.tag }}-unsigned.hap"
+          cp "$hap" "$out"
+          ls -lh "$out"
+          shasum -a 256 "$out"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: harmony-release
+          path: dist/harmony/*
+
   # Release 事件，或手动运行且填写了 tag 时，把各端产物统一挂到该 Release。
   publish:
     name: Attach assets to release
-    if: github.event_name == 'release' || inputs.tag
-    needs: [version, android, macos, windows, ios]
+    # always()：只要 version 读到了，就别因为某一端失败（或 harmony 的 runner 没上线）
+    # 而让其他平台的产物上不了 Release。缺哪个端就少传哪个产物。
+    if: always() && !cancelled() && (github.event_name == 'release' || inputs.tag) && needs.version.result == 'success'
+    needs: [version, android, macos, windows, ios, harmony]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

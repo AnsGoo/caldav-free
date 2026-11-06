@@ -1,5 +1,7 @@
 /node_modules
 /oh_modules
+# 签名素材：密钥库和证书绝不入库
+/signature
 /local.properties
 /.idea
 **/build

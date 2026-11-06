@@ -208,6 +208,13 @@ class SettingsPage extends StatelessWidget {
                     subtitle: '立即弹一条系统通知，确认提醒链路可用',
                     onTap: () => _sendTestNotification(context, app),
                   ),
+                  const Divider(height: 1, indent: 56),
+                  _SettingsTile(
+                    icon: Icons.alarm_on_outlined,
+                    title: '测试定时提醒',
+                    subtitle: '60 秒后触发，验证定时排程通道',
+                    onTap: () => _sendTestScheduledReminder(context, app),
+                  ),
                 ],
                 if (Platform.isAndroid || Platform.isMacOS || Platform.isIOS) ...[
                   const Divider(height: 1, indent: 56),
@@ -289,7 +296,11 @@ class SettingsPage extends StatelessWidget {
       return '通知权限已关闭 · 点击前往系统设置重新开启';
     }
     final parts = <String>['已排程 ${scheduler.scheduledCount} 条'];
-    if (scheduler.permissionGranted == true) parts.add('权限已开启');
+    if (scheduler.systemRemindersUnavailable) {
+      parts.add('系统提醒不可用，仅在应用运行时生效');
+    } else if (scheduler.permissionGranted == true) {
+      parts.add('权限已开启');
+    }
     final error = scheduler.lastError;
     if (error != null) parts.add('上次失败：$error');
     return parts.join(' · ');
@@ -305,6 +316,25 @@ class SettingsPage extends StatelessWidget {
     final sent = await scheduler.sendTestNotification();
     if (!context.mounted) return;
     _snack(context, sent ? '已发送测试通知' : '测试通知发送失败，请检查通知权限');
+  }
+
+  Future<void> _sendTestScheduledReminder(
+    BuildContext context,
+    AppState app,
+  ) async {
+    final scheduler = app.reminders;
+    if (scheduler == null) return;
+    final sent = await scheduler.sendTestScheduledReminder();
+    if (!context.mounted) return;
+    if (!sent) {
+      _snack(context, '定时提醒排程失败：${scheduler.lastError ?? '未知错误'}');
+      return;
+    }
+    if (scheduler.systemRemindersUnavailable) {
+      _snack(context, '系统提醒配额不可用，已改为应用内定时，60 秒后弹出');
+      return;
+    }
+    _snack(context, '已排程，60 秒后系统会投递这条提醒');
   }
 
   Future<void> _openSystemNotificationSettings(

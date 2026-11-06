@@ -11,6 +11,7 @@ import '../db/local_store.dart';
 import '../habits/habit_api.dart';
 import '../habits/habit_store.dart';
 import 'notification_gateway.dart';
+import 'ohos_notification_gateway.dart';
 import 'reminder_plan.dart';
 
 /// Keeps Android's pending notification set in sync with local tasks.
@@ -302,6 +303,41 @@ class ReminderScheduler {
   }
 
   Future<bool> openSystemNotificationSettings() => _gateway.openSystemSettings();
+
+  /// 鸿蒙未签名包的系统提醒配额是 0，此时排程降级成应用内定时。
+  /// 设置页用它把"排程 N 条"解释清楚，避免用户以为是系统级提醒。
+  bool get systemRemindersUnavailable {
+    final gateway = _gateway;
+    return gateway is OhosNotificationGateway &&
+        gateway.nativeRemindersUnavailable;
+  }
+
+  /// 排一条 [seconds] 秒后触发的系统级提醒。
+  ///
+  /// 和 [sendTestNotification] 的分工：那个验证的是即时通道
+  /// （`notificationManager.publish`），这个验证的是定时通道
+  /// （鸿蒙的 `reminderAgentManager` / Android 的 AlarmManager），
+  /// 也就是真实任务提醒走的那条路。可以用它排除"到点不响"到底是
+  /// 排程没进去还是系统不投递。
+  Future<bool> sendTestScheduledReminder({int seconds = 60}) async {
+    final at = DateTime.now().add(Duration(seconds: seconds));
+    final item = ReminderPlanItem(
+      id: _missedNotificationId + 2,
+      payload: 'test',
+      title: '定时提醒测试',
+      body: '$seconds 秒后触发的系统提醒',
+      at: at,
+    );
+    try {
+      await _gateway.schedule(item, exact: await _gateway.exactAlarmsAllowed());
+      lastError = null;
+      return true;
+    } catch (error) {
+      lastError = error.toString();
+      debugPrint('test scheduled reminder failed: $error');
+      return false;
+    }
+  }
 
   /// 「稍后10分钟」：按 payload 找回提醒内容，重新排一条一次性通知。
   ///

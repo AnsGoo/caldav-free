@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'notification_gateway.dart';
@@ -25,6 +26,23 @@ class OhosNotificationGateway implements NotificationGateway {
 
   static const String _kChannelName = 'caldav_free/notify';
   final MethodChannel _channel;
+
+  /// 系统提醒（`reminderAgentManager`）不可用时的兜底定时器。
+  ///
+  /// 未签名 / 没有 provisioning profile 的包在系统里 `reminder_capability`
+  /// 为空，`ReminderControl` 给它的提醒配额是 0，`publishReminder` 必抛
+  /// 1700002。真机签名包不受影响，所以这里只在命中 1700002 时降级，
+  /// 其它错误照旧上抛。
+  final Map<int, Timer> _fallbackTimers = <int, Timer>{};
+
+  /// 系统提醒是否已被判定为不可用。设置页据此提示"仅应用内有效"。
+  bool nativeRemindersUnavailable = false;
+
+  static bool _isQuotaError(PlatformException error) {
+    final message = error.message ?? '';
+    // 鸿蒙侧的 errText 会把 BusinessError 拼成 "code=1700002 message=..."
+    return message.contains('1700002');
+  }
 
   @override
   Future<void> initialize({
@@ -67,13 +85,50 @@ class OhosNotificationGateway implements NotificationGateway {
 
   @override
   Future<void> schedule(ReminderPlanItem item, {required bool exact}) async {
-    await _channel.invokeMethod<void>('schedule', <String, Object?>{
-      'id': item.id,
-      'at': item.at.millisecondsSinceEpoch,
-      'title': item.title,
-      'body': item.body,
-      'payload': item.payload,
-      'repeatDaily': item.repeat == ReminderRepeat.daily,
+    if (nativeRemindersUnavailable) {
+      _armFallback(item);
+      return;
+    }
+    try {
+      await _channel.invokeMethod<void>('schedule', <String, Object?>{
+        'id': item.id,
+        'at': item.at.millisecondsSinceEpoch,
+        'title': item.title,
+        'body': item.body,
+        'payload': item.payload,
+        'repeatDaily': item.repeat == ReminderRepeat.daily,
+      });
+    } on PlatformException catch (error) {
+      if (!_isQuotaError(error)) rethrow;
+      // 配额为 0：以后不再白试系统提醒，直接走应用内定时。
+      nativeRemindersUnavailable = true;
+      debugPrint(
+        'ohos reminder quota is 0, falling back to in-app timers: '
+        '${error.message}',
+      );
+      _armFallback(item);
+    }
+  }
+
+  /// 用 Dart 定时器在目标时刻弹一条即时通知。
+  ///
+  /// 局限：进程被系统回收后不会触发。它的价值是在未签名包上把"到点完全
+  /// 不响"变成"应用活着就响"，签名包里永远不会走到这条路径。
+  void _armFallback(ReminderPlanItem item) {
+    _fallbackTimers.remove(item.id)?.cancel();
+    final delay = item.at.difference(DateTime.now());
+    if (delay.isNegative) return;
+    _fallbackTimers[item.id] = Timer(delay, () {
+      _fallbackTimers.remove(item.id);
+      // 失败不抛：这里已经是兜底路径，再抛只会污染调度器的 lastError
+      showNow(
+        id: item.id,
+        title: item.title,
+        body: item.body,
+        payload: item.payload,
+      ).catchError((Object error) {
+        debugPrint('ohos fallback notification failed: $error');
+      });
     });
   }
 
@@ -109,6 +164,11 @@ class OhosNotificationGateway implements NotificationGateway {
 
   @override
   Future<void> cancelPending() async {
+    // 兜底定时器必须一起撤，否则 cancelPending 之后还会弹旧提醒。
+    for (final timer in _fallbackTimers.values) {
+      timer.cancel();
+    }
+    _fallbackTimers.clear();
     try {
       await _channel.invokeMethod<void>('cancelPending');
     } on PlatformException {
@@ -118,6 +178,10 @@ class OhosNotificationGateway implements NotificationGateway {
 
   @override
   Future<void> cancelAll() async {
+    for (final timer in _fallbackTimers.values) {
+      timer.cancel();
+    }
+    _fallbackTimers.clear();
     try {
       await _channel.invokeMethod<void>('cancelAll');
     } on PlatformException {

@@ -1,0 +1,3 @@
+/* 非中文系统（及未匹配语言）的兜底显示名 */
+"CFBundleDisplayName" = "Cal Free";
+"CFBundleName" = "Cal Free";

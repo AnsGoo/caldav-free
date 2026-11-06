@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 兜底显示名：非中文系统 -->
+    <string name="app_name">Cal Free</string>
+</resources>

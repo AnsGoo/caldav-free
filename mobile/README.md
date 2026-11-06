@@ -214,9 +214,10 @@ idempotent replay, CalDAV import, and delete. Requires Go + Flutter.
 
 One workflow builds every client: `.github/workflows/release-mobile.yml`.
 
-- Publishing a GitHub Release builds Windows, macOS, Android and iOS in
-  parallel and attaches the outputs to that release:
-  `caldav-free-windows-x64-<tag>.exe`, `caldav-free-macos-arm64-<tag>.zip`,
+- Publishing a GitHub Release builds Windows, macOS, HarmonyOS, Android and iOS
+  in parallel and attaches the outputs to that release:
+  `caldav-free-windows-x64-<tag>.exe`, `caldav-free-macos-universal-<tag>.zip`,
+  `caldav-free-harmony-<tag>-unsigned.hap`,
   `caldav-free-android-<tag>.apk/.aab` and either `caldav-free-ios-<tag>.ipa`
   (when signing secrets are configured) or `caldav-free-ios-<tag>-unsigned.zip`.
 - Actions → **Release Mobile** → **Run workflow** builds the same set and
@@ -224,6 +225,16 @@ One workflow builds every client: `.github/workflows/release-mobile.yml`.
   attach them to an existing release.
 - The version is read from `mobile/pubspec.yaml`; the Windows installer embeds
   it.
+
+### Runner labels
+
+macOS builds must stay on a **supported** runner image: `macos-14` was retired
+on 2026-11-02, and a job asking for it fails before it starts, with
+`The configuration 'macos-14-arm64-us-default' is not supported` and an empty
+runner name. Both Apple jobs now use `macos-15` (arm64). Release builds still
+produce a universal `arm64 + x86_64` binary, and the macOS job asserts that
+with `lipo -archs` before zipping — a thin build is a hard error, not a silent
+regression.
 
 ### iOS signing secrets
 

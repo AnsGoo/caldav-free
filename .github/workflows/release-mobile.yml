@@ -96,7 +96,11 @@ jobs:
     name: macOS .app
     needs: version
     timeout-minutes: 60
-    runs-on: macos-14
+    # macos-14（Intel x64）已于 2026-11-02 退役，继续用会直接报
+    # "The configuration 'macos-14-arm64-us-default' is not supported"，
+    # job 连一步都跑不起来。macos-15 是 arm64；Release 配置没设 ONLY_ACTIVE_ARCH，
+    # 走 ARCHS_STANDARD 仍是 arm64+x86_64 通用二进制，下面有 lipo 校验兜底。
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -115,11 +119,36 @@ jobs:
 
       - name: Collect artifacts
         run: |
+          set -euo pipefail
           mkdir -p dist/macos
           tag="${{ needs.version.outputs.tag }}"
           cd mobile/build/macos/Build/Products/Release
-          ditto -c -k --keepParent caldav-free.app \
-            "$GITHUB_WORKSPACE/dist/macos/caldav-free-macos-arm64-$tag.zip"
+
+          app="caldav-free.app"
+          exe="$app/Contents/MacOS/caldav-free"
+          [ -f "$exe" ] || { echo "::error::没找到产物 $exe"; ls -la; exit 1; }
+
+          # 换成 arm64 宿主机后必须确认二进制仍是通用的：Xcode 的 ARCHS_STANDARD
+          # 在 macOS 上是 arm64 x86_64，Release 又没有 ONLY_ACTIVE_ARCH，
+          # 所以正常应为 "x86_64 arm64"。只剩一种架构说明某处按宿主架构裁了，
+          # 那样 Intel 用户会直接打不开。
+          archs="$(lipo -archs "$exe")"
+          echo "二进制架构: $archs"
+          # 不用 printf | grep -q：grep 提前退出会让写入方吃 SIGPIPE，
+          # 在 pipefail 下把判断结果反转。纯字符串匹配最稳。
+          # 用子串而非精确匹配，因为 lipo 可能报 arm64e / arm64e.x1 这类变体。
+          has_arm64=0
+          has_x86=0
+          case "$archs" in *arm64*) has_arm64=1 ;; esac
+          case "$archs" in *x86_64*) has_x86=1 ;; esac
+          if [ "$has_arm64" != 1 ] || [ "$has_x86" != 1 ]; then
+            echo "::error::产物不是通用二进制（$archs），会有一类 Mac 打不开"
+            exit 1
+          fi
+
+          ditto -c -k --keepParent "$app" \
+            "$GITHUB_WORKSPACE/dist/macos/caldav-free-macos-universal-$tag.zip"
+          ls -lh "$GITHUB_WORKSPACE/dist/macos/"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -290,11 +319,21 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
+    # 容器 job 的默认 shell 在部分 runner 上会落到 sh（dash），而 dash 不认
+    # `set -o pipefail`，会直接以退出码 2 失败——表现为步骤里什么都没输出就红。
+    # 显式指定 bash，所有 run 步骤才真正跑在 bash 下。
+    defaults:
+      run:
+        shell: bash
     env:
       # 打成 tag 而不是分支：分支会漂，tag 可复现。本机 flutter --version 就是这一版。
       FLUTTER_OH_REF: "3.47.7+ohos-0.0.1-pre"
       FLUTTER_OH_REPO: "https://gitcode.com/openharmony-tpc/flutter_flutter.git"
       FLUTTER_DIR: "/opt/flutter_flutter"
+      # 镜像里的工具链位置。显式声明而不是吃镜像 ENV：Prepare 步骤要用它写
+      # local.properties 的 hwsdk.dir，一旦为空就会在 set -u 下直接中断。
+      DEVECO_SDK_HOME: "/opt/harmonyos/command-line-tools/sdk"
+      HOS_SDK_HOME: "/opt/harmonyos/command-line-tools/sdk"
     steps:
       - uses: actions/checkout@v4
 
@@ -302,12 +341,25 @@ jobs:
       - name: Verify container toolchain
         run: |
           set -euo pipefail
+          # 开头就把环境摊开：这一步一旦失败，日志里能直接看到是 shell 不对还是缺东西。
+          echo "shell: $BASH_VERSION (0=${0##*/})"
+          echo "arch: $(uname -m)"
+          echo "PATH=$PATH"
+
+          # 镜像把工具链装在固定目录。不假设镜像的 ENV 一定能被继承——
+          # 显式补进 PATH，并在 DEVECO_SDK_HOME 缺失时回落到默认位置。
+          TOOLCHAIN=/opt/harmonyos/command-line-tools
+          if [ -d "$TOOLCHAIN/bin" ]; then
+            export PATH="$TOOLCHAIN/bin:$TOOLCHAIN/tool/node/bin:$PATH"
+          fi
+          export DEVECO_SDK_HOME="${DEVECO_SDK_HOME:-$TOOLCHAIN/sdk}"
+
           missing=""
           for c in git curl unzip xz java ohpm hvigorw node; do
             command -v "$c" >/dev/null 2>&1 || missing="$missing $c"
           done
           if [ -n "$missing" ]; then
-            echo "::error::容器里缺少:$missing —— 检查镜像 tag"
+            echo "::error::容器里缺少:$missing —— 检查镜像 tag（当前 PATH=$PATH）"
             exit 1
           fi
           # 用 sed 而不是 `| head -1`：java -version 输出 3 行，head 提前关管道会让

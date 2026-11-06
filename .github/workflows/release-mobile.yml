@@ -267,85 +267,134 @@ jobs:
 
   # 鸿蒙 HAP（未签名）。
   #
-  # 为什么这个 job 必须跑在自托管 runner 上：鸿蒙 SDK（command-line-tools，
-  # 解压后约 6.5 GB）需要在华为开发者站点登录后下载，GitHub 托管 runner 上
-  # 既拿不到、也放不下；用第三方镜像分发 SDK 还有授权问题。而开发机本来就已经
-  # 装好了整套工具链，自托管还能复用 hvigor 的增量缓存。
+  # 跑在 GitHub 托管的 ubuntu-latest 的预构建容器里：
+  #   ghcr.io/honjow/harmonyos-build-env:26.0-api26
+  # 镜像里已经装好 API 26 的 command-line-tools（hvigorw / ohpm / node / JDK 17 / SDK），
+  # DEVECO_SDK_HOME、HOS_SDK_HOME、PATH 全部配好 —— 不用装 SDK，也不用自托管 runner。
+  # 镜像 tag 直接对应 API 版本，升 SDK 就改这一行。
   #
-  # 一次性前置：
-  #   1. 在装着 DevEco Studio + 鸿蒙版 flutter_flutter 的 Mac 上注册 runner，
-  #      给它打上 harmonyos 标签（Settings → Actions → Runners → New self-hosted runner）
-  #   2. 确认该机器上 ./mobile/scripts/build-ohos.sh 能正常出包
-  #   3. 路径不一致时用仓库变量覆盖：
-  #        HARMONY_FLUTTER_DIR   鸿蒙版 flutter_flutter 根目录（默认 ~/flutter_flutter）
-  #        HARMONY_SDK_DIR       command-line-tools/sdk（默认 ~/Documents/command-line-tools/sdk）
+  # 镜像里没有 Flutter：鸿蒙版 flutter_flutter 得自己 clone（官方 Flutter 编不出 HAP），
+  # 它的引擎产物由 flutter 首次运行时从华为 OBS 拉取
+  # （flutter-ohos.obs.cn-south-1.myhuaweicloud.com，见 flutter_tools cache.dart）。
   #
   # 产物是 unsigned 包：模拟器可直接装，真机需要先配签名（见 docs/鸿蒙签名.md）。
   harmony:
     name: HarmonyOS HAP (unsigned)
     needs: version
-    timeout-minutes: 60
-    # runner 离线时 job 会一直排队并把 publish 拖住；临时不想要鸿蒙产物就设仓库变量
-    # HARMONY_CI=false 跳过本 job。
+    timeout-minutes: 90
+    # 临时不想要鸿蒙产物，把仓库变量 HARMONY_CI 设为 false 即可跳过本 job。
     if: vars.HARMONY_CI != 'false'
-    # 标签改了记得同步这里。
-    runs-on: [self-hosted, macOS, harmonyos]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/honjow/harmonyos-build-env:26.0-api26
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    env:
+      # 打成 tag 而不是分支：分支会漂，tag 可复现。本机 flutter --version 就是这一版。
+      FLUTTER_OH_REF: "3.47.7+ohos-0.0.1-pre"
+      FLUTTER_OH_REPO: "https://gitcode.com/openharmony-tpc/flutter_flutter.git"
+      FLUTTER_DIR: "/opt/flutter_flutter"
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare ohos toolchain
-        env:
-          HARMONY_FLUTTER_DIR: ${{ vars.HARMONY_FLUTTER_DIR }}
-          HARMONY_SDK_DIR: ${{ vars.HARMONY_SDK_DIR }}
+      # 先确认容器里的东西齐不齐，缺了立刻报出来，别等到编译阶段才发现。
+      - name: Verify container toolchain
         run: |
           set -euo pipefail
-          FLUTTER_DIR="${HARMONY_FLUTTER_DIR:-$HOME/flutter_flutter}"
-          SDK_DIR="${HARMONY_SDK_DIR:-$HOME/Documents/command-line-tools/sdk}"
+          missing=""
+          for c in git curl unzip xz java ohpm hvigorw node; do
+            command -v "$c" >/dev/null 2>&1 || missing="$missing $c"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::容器里缺少:$missing —— 检查镜像 tag"
+            exit 1
+          fi
+          # 用 sed 而不是 `| head -1`：java -version 输出 3 行，head 提前关管道会让
+          # java 吃 SIGPIPE 退出 141，pipefail 下整个 step 就挂了。sed 会读完输入。
+          java -version 2>&1 | sed -n '1p'
+          node -v
+          ohpm -v 2>/dev/null || true
+          echo "DEVECO_SDK_HOME=$DEVECO_SDK_HOME"
+          test -d "$DEVECO_SDK_HOME/default/openharmony" || {
+            echo "::error::SDK 不在 $DEVECO_SDK_HOME/default/openharmony"
+            exit 1
+          }
+          df -h / | tail -1
+
+      # 本项目唯一的远程 ohpm 依赖是 devDependency @ohos/hypium（见 ohos/oh-package.json5），
+      # 镜像里没有缓存，每轮都要从 ohpm.openharmony.cn 拉。镜像默认 retry_times=1、
+      # fetch_timeout=60s，海外 runner 上一次抖动就整轮失败，所以放宽重试。
+      - name: Harden ohpm for CI
+        run: |
+          set -euo pipefail
+          ohpm config set retry_times 3
+          ohpm config set fetch_timeout 180000
+          ohpm config list | grep -E "registry|retry_times|fetch_timeout"
+
+      # flutter_flutter 约 4GB（含 bin/cache 里的 Dart SDK 与引擎产物），
+      # 按 tag 缓存，命中后省掉 clone 和那次 1~2GB 的下载。
+      - name: Cache flutter_flutter
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.FLUTTER_DIR }}
+          key: flutter-oh-${{ env.FLUTTER_OH_REF }}
+
+      - name: Prepare flutter and local.properties
+        run: |
+          set -euo pipefail
+
+          # 镜像没设 JAVA_HOME，hvigorw 靠 PATH 里的 java 也能跑，但显式给出更稳。
+          if [ -z "${JAVA_HOME:-}" ]; then
+            echo "JAVA_HOME=$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")" >> "$GITHUB_ENV"
+          fi
 
           if [ ! -x "$FLUTTER_DIR/bin/flutter" ]; then
-            echo "::error::找不到鸿蒙版 flutter：$FLUTTER_DIR —— 设置仓库变量 HARMONY_FLUTTER_DIR"
-            exit 1
+            rm -rf "$FLUTTER_DIR"
+            ok=0
+            for i in 1 2 3; do
+              if git clone --depth 1 -b "$FLUTTER_OH_REF" "$FLUTTER_OH_REPO" "$FLUTTER_DIR"; then
+                ok=1; break
+              fi
+              echo "clone 失败（第 $i 次），5 秒后重试"
+              rm -rf "$FLUTTER_DIR"; sleep 5
+            done
+            if [ "$ok" != "1" ]; then
+              echo "::error::flutter_flutter clone 失败：$FLUTTER_OH_REPO ($FLUTTER_OH_REF)"
+              exit 1
+            fi
+          else
+            echo "复用缓存里的 flutter_flutter：$FLUTTER_DIR"
           fi
-          if [ ! -d "$SDK_DIR/default" ]; then
-            echo "::error::找不到鸿蒙 SDK：$SDK_DIR —— 设置仓库变量 HARMONY_SDK_DIR"
-            exit 1
-          fi
-
           echo "$FLUTTER_DIR/bin" >> "$GITHUB_PATH"
-          echo "$(dirname "$SDK_DIR")/bin" >> "$GITHUB_PATH"
 
-          if [ -d /Applications/DevEco-Studio.app/Contents/jbr/Contents/Home ]; then
-            echo "JAVA_HOME=/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home" >> "$GITHUB_ENV"
-            echo "/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home/bin" >> "$GITHUB_PATH"
-            export JAVA_HOME=/Applications/DevEco-Studio.app/Contents/jbr/Contents/Home
-          fi
-
-          # GITHUB_PATH 只对后续 step 生效，本 step 里要自己 export，否则下面的
-          # flutter --version 会 command not found。set -u 下 $JAVA_HOME 可能未定义，
-          # 所以用 extra_java 兜一层，避免拼出空的 PATH 段。
-          extra_java=""
-          if [ -n "${JAVA_HOME:-}" ]; then extra_java=":$JAVA_HOME/bin"; fi
-          export PATH="$FLUTTER_DIR/bin:$(dirname "$SDK_DIR")/bin$extra_java:$PATH"
-
-          # local.properties 被 .gitignore 排除，checkout 后是空的。
-          # hvigor 靠 hwsdk.dir 定位 SDK、flutter 靠 flutter.sdk 定位自己，缺一则构建直接失败。
+          # local.properties 被 .gitignore 排除，checkout 后不存在。
+          # hvigor 靠 hwsdk.dir 定位 SDK、flutter 靠 flutter.sdk 定位自己，缺一则直接失败。
           version=$(sed -n 's/^version:[[:space:]]*//p' mobile/pubspec.yaml | head -n1 || true)
           name=${version%%+*}
           code=${version##*+}
           if [ "$code" = "$version" ]; then code=1; fi
           {
-            echo "hwsdk.dir=$SDK_DIR"
+            echo "hwsdk.dir=$DEVECO_SDK_HOME"
             echo "flutter.sdk=$FLUTTER_DIR"
             echo "flutter.versionName=$name"
             echo "flutter.versionCode=$code"
           } > mobile/ohos/local.properties
+          cat mobile/ohos/local.properties
 
-          # 注意 pipefail：flutter --version 输出多行，head 提前关管道会让 flutter
-          # 吃 SIGPIPE 退出 141，不加 || true 整个 step 会被 set -e 干掉。
-          ver="$(flutter --version 2>/dev/null | head -n1 || true)"
-          printf '%s\n' "$ver"
-          if ! printf '%s' "$ver" | grep -q ohos; then
+          # 首次调用只负责下载 Dart SDK（成功时就输出一行 "Downloading ..."），
+          # 拿不到版本号，所以要跑两遍：第一遍预热，第二遍取版本。
+          # 全程用重定向而不是管道 —— flutter --version 输出多行，`| head` 会让它
+          # 吃 SIGPIPE 退出 141，在 pipefail 下直接把 step 干掉。
+          "$FLUTTER_DIR/bin/flutter" --version > "$RUNNER_TEMP/fv.log" 2>&1 || true
+          if ! grep -qi ohos "$RUNNER_TEMP/fv.log"; then
+            "$FLUTTER_DIR/bin/flutter" --version > "$RUNNER_TEMP/fv.log" 2>&1 || true
+          fi
+          ver="$(head -n1 "$RUNNER_TEMP/fv.log" || true)"
+          printf '>>> %s\n' "$ver"
+          if ! grep -qi ohos "$RUNNER_TEMP/fv.log"; then
             echo "::error::这个 flutter 不是鸿蒙分支，编不出 HAP：$ver"
+            tail -n 20 "$RUNNER_TEMP/fv.log" || true
             exit 1
           fi
 
@@ -353,6 +402,17 @@ jobs:
       - name: Build HAP
         working-directory: mobile
         run: MODE=release ./scripts/build-ohos.sh
+
+      # flutter 只吐 exit code 255，真报错在 hvigor 的 debug 日志里。
+      - name: Dump hvigor log on failure
+        if: failure()
+        run: |
+          log=mobile/ohos/.hvigor/outputs/build-logs/build.log
+          if [ -f "$log" ]; then
+            grep -E "ERROR|Error Message|BUILD FAILED" "$log" | tail -n 40 || true
+            echo "----- 末尾 80 行 -----"
+            tail -n 80 "$log"
+          fi
 
       - name: Collect artifact
         run: |
@@ -371,12 +431,14 @@ jobs:
           out="dist/harmony/caldav-free-harmony-${{ needs.version.outputs.tag }}-unsigned.hap"
           cp "$hap" "$out"
           ls -lh "$out"
-          shasum -a 256 "$out"
+          sha256sum "$out"
 
       - uses: actions/upload-artifact@v4
         with:
           name: harmony-release
           path: dist/harmony/*
+          # 只是中转，最终由 publish job 挂到 Release，不用留太久。
+          retention-days: 7
 
   # Release 事件，或手动运行且填写了 tag 时，把各端产物统一挂到该 Release。
   publish:

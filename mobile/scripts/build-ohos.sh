@@ -44,7 +44,9 @@ if ! command -v flutter >/dev/null 2>&1; then
 fi
 command -v flutter >/dev/null 2>&1 || fail "找不到 flutter，请把鸿蒙版 flutter_flutter 的 bin 加进 PATH"
 FLUTTER_BIN="$(command -v flutter)"
-FLUTTER_VER="$(flutter --version 2>/dev/null | head -1)"
+# head 关管道会让 flutter 吃 SIGPIPE（141），set -o pipefail 下会直接把脚本干掉，
+# 所以必须 || true。CI 上 IO 慢、输出被截断的时机不同，本地不炸不代表 CI 不炸。
+FLUTTER_VER="$(flutter --version 2>/dev/null | head -1 || true)"
 # 鸿蒙分支的版本字符串是 "Flutter 3.47.7+ohos-0.0.1-pre"，注意是 +ohos 不是 -ohos
 if ! printf '%s' "$FLUTTER_VER" | grep -q 'ohos'; then
   cat <<EOF
@@ -71,7 +73,7 @@ fi
 command -v ohpm >/dev/null 2>&1 || note "PATH 里没有 ohpm（通常随 DevEco Studio 安装）"
 command -v hvigorw >/dev/null 2>&1 || note "PATH 里没有 hvigorw"
 command -v java >/dev/null 2>&1 || fail "没有 JDK，hvigor 打包和签名必须 JDK 17"
-java -version 2>&1 | head -1
+java -version 2>&1 | sed -n '1p'
 
 if [ ! -d ohos ]; then
   fail "缺少 ohos/ 目录：请先用鸿蒙版 flutter 执行 flutter create --platforms ohos ."

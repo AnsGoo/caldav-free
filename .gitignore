@@ -42,3 +42,8 @@ xcuserdata/
 /mobile/android/app/debug/
 /mobile/android/app/profile/
 /mobile/android/app/release/
+
+# 鸿蒙打包产物（HAP 体积上百 MB，不入库）
+/dist/
+/mobile/dist/
+*.hap

@@ -216,7 +216,7 @@ One workflow builds every client: `.github/workflows/release-mobile.yml`.
 
 - Publishing a GitHub Release builds Windows, macOS, HarmonyOS, Android and iOS
   in parallel and attaches the outputs to that release:
-  `caldav-free-windows-x64-<tag>.exe`, `caldav-free-macos-universal-<tag>.zip`,
+  `caldav-free-windows-x64-<tag>.exe`, `caldav-free-macos-universal-<tag>.dmg`,
   `caldav-free-harmony-<tag>-unsigned.hap`,
   `caldav-free-android-<tag>.apk/.aab` and either `caldav-free-ios-<tag>.ipa`
   (when signing secrets are configured) or `caldav-free-ios-<tag>-unsigned.zip`.
@@ -233,8 +233,28 @@ on 2026-11-02, and a job asking for it fails before it starts, with
 `The configuration 'macos-14-arm64-us-default' is not supported` and an empty
 runner name. Both Apple jobs now use `macos-15` (arm64). Release builds still
 produce a universal `arm64 + x86_64` binary, and the macOS job asserts that
-with `lipo -archs` before zipping — a thin build is a hard error, not a silent
+with `lipo -archs` before packaging — a thin build is a hard error, not a silent
 regression.
+
+### macOS packaging
+
+`scripts/package-macos.sh` turns the built `.app` into a DMG: app bundle plus an
+`Applications` symlink, `hdiutil … -format UDZO`, then `hdiutil verify`.
+
+| Asset | Size | Notes |
+| --- | --- | --- |
+| `caldav-free-macos-universal-<tag>.dmg` | ~25 MB | default, runs on both Intel and Apple Silicon |
+| `caldav-free-macos-arm64-<tag>.dmg` | ~12 MB | only when `MACOS_SPLIT_ARCH=true` |
+| `caldav-free-macos-x64-<tag>.dmg` | ~13 MB | only when `MACOS_SPLIT_ARCH=true` |
+
+Universal is the default because one file covers both machines and nobody has to
+know their architecture. The split variants are produced by `lipo -thin` on each
+universal Mach-O followed by an ad-hoc re-sign — thinning invalidates the
+original signature, so skipping the re-sign yields an app that dies on launch.
+
+The DMG is **unsigned and not notarized**: Gatekeeper refuses it on first open.
+Right-click → Open, or `xattr -dr com.apple.quarantine /Applications/caldav-free.app`.
+Fixing that needs a Developer ID certificate plus `notarytool` submission.
 
 ### iOS signing secrets
 

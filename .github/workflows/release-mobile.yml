@@ -118,6 +118,10 @@ jobs:
           flutter build macos --release
 
       - name: Collect artifacts
+        env:
+          # 设为 true 时额外产出 arm64 / x64 两个单架构 DMG（各约 12 MB，
+          # 通用版 25 MB）。默认只出通用版：一份装两种机器，用户不用认架构。
+          MACOS_SPLIT_ARCH: ${{ vars.MACOS_SPLIT_ARCH }}
         run: |
           set -euo pipefail
           mkdir -p dist/macos
@@ -146,8 +150,10 @@ jobs:
             exit 1
           fi
 
-          ditto -c -k --keepParent "$app" \
-            "$GITHUB_WORKSPACE/dist/macos/caldav-free-macos-universal-$tag.zip"
+          split_flag=""
+          if [ "${MACOS_SPLIT_ARCH:-}" = "true" ]; then split_flag="--split"; fi
+          "$GITHUB_WORKSPACE/mobile/scripts/package-macos.sh" \
+            "$app" "$GITHUB_WORKSPACE/dist/macos" "$tag" $split_flag
           ls -lh "$GITHUB_WORKSPACE/dist/macos/"
 
       - uses: actions/upload-artifact@v4

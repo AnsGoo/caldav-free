@@ -1,0 +1,15 @@
+#!/bin/bash
+# 卸载前：先停服务，避免进程占用数据库文件。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+log_msg "uninstall_init: stopping service"
+
+"${SCRIPT_DIR}/main" stop || true
+
+log_msg "uninstall_init: ok"
+exit 0

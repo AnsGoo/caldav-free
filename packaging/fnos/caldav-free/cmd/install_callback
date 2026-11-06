@@ -1,0 +1,43 @@
+#!/bin/bash
+# 安装后：把向导里填的管理员账号落盘，供 cmd/main 启动时以环境变量注入。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+
+VAR_DIR="$(app_var_dir)"
+ETC_DIR="$(app_etc_dir)"
+ADMIN_ENV="${ETC_DIR}/admin.env"
+
+mkdir -p "${VAR_DIR}" "${ETC_DIR}"
+
+admin_user="${wizard_admin_username:-admin}"
+admin_pass="${wizard_admin_password:-}"
+
+admin_user="$(echo "${admin_user}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+if [ -z "${admin_user}" ]; then
+    fail_with_message "管理员用户名不能为空，请重新安装并填写。"
+fi
+if [ -z "${admin_pass}" ]; then
+    fail_with_message "管理员密码不能为空，请重新安装并填写。"
+fi
+if [ "${#admin_pass}" -lt 8 ]; then
+    fail_with_message "管理员密码长度不能少于 8 位，请重新安装并填写。"
+fi
+
+log_msg "install_callback: writing admin credentials for user=${admin_user}"
+
+umask 077
+{
+    printf 'export CALDAV_ADMIN_USER=%q\n' "${admin_user}"
+    printf 'export CALDAV_ADMIN_PASSWORD=%q\n' "${admin_pass}"
+} > "${ADMIN_ENV}"
+chmod 600 "${ADMIN_ENV}" 2>/dev/null || true
+
+chown_app_paths
+
+log_msg "install_callback: ok"
+exit 0

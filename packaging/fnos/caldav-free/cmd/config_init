@@ -1,0 +1,11 @@
+#!/bin/bash
+# 配置变更前：本应用暂无需要迁移的配置项。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+log_msg "config_init: nothing to do"
+exit 0

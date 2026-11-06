@@ -1,0 +1,16 @@
+#!/bin/bash
+# 配置变更后：重启服务使新配置生效（端口由 TRIM_SERVICE_PORT 决定）。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+log_msg "config_callback: restarting service"
+
+"${SCRIPT_DIR}/main" stop || true
+"${SCRIPT_DIR}/main" start || true
+
+log_msg "config_callback: ok"
+exit 0

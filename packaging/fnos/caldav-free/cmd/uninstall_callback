@@ -1,0 +1,26 @@
+#!/bin/bash
+# 卸载后：按向导选择保留或删除数据。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+
+if [ "${wizard_data_action:-keep}" = "delete" ]; then
+    var_dir="$(app_var_dir)"
+    case "${var_dir}" in
+        /var/apps/*|/vol*/@appdata/*)
+            log_msg "uninstall_callback: removing application data in ${var_dir}"
+            rm -rf "${var_dir:?}/"* 2>/dev/null || true
+            ;;
+        *)
+            log_msg "uninstall_callback: WARN refuse to clean unexpected path ${var_dir}"
+            ;;
+    esac
+else
+    log_msg "uninstall_callback: keep application data"
+fi
+
+exit 0

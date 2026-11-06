@@ -1,0 +1,28 @@
+#!/bin/bash
+# 升级后：老版本可能没有 admin.env，补齐并修正权限；数据库无需迁移。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+
+VAR_DIR="$(app_var_dir)"
+ETC_DIR="$(app_etc_dir)"
+ADMIN_ENV="${ETC_DIR}/admin.env"
+
+mkdir -p "${VAR_DIR}" "${ETC_DIR}"
+
+if [ -f "${ADMIN_ENV}" ]; then
+    chmod 600 "${ADMIN_ENV}" 2>/dev/null || true
+    log_msg "upgrade_callback: admin.env present"
+else
+    # 没有历史口令时不阻塞升级：留空，服务端会在首次启动时生成随机管理员密码并写入日志。
+    log_msg "upgrade_callback: WARN admin.env missing, server will generate a random admin password on first start"
+fi
+
+chown_app_paths
+
+log_msg "upgrade_callback: ok"
+exit 0

@@ -1,0 +1,16 @@
+appname=caldav-free
+version=2.7.1
+display_name=历记
+desc=自托管的 CalDAV 服务端：待办、日程与提醒双向同步，内置 Web 管理后台。原生安装、单端口访问，数据本地保存。
+platform=x86
+source=thirdparty
+maintainer=AnsGoo
+maintainer_url=https://github.com/AnsGoo/caldav-free
+distributor=AnsGoo
+distributor_url=https://github.com/AnsGoo/caldav-free
+desktop_uidir=ui
+desktop_applaunchname=caldav-free.Application
+service_port=5232
+checkport=true
+os_min_version=0.9.0
+changelog=首次发布：原生 FPK 安装，内置管理后台，默认端口 5232。

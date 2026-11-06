@@ -47,3 +47,9 @@ xcuserdata/
 /dist/
 /mobile/dist/
 *.hap
+
+# 飞牛 FPK 打包产物与载荷二进制（由 scripts/build-fnos-fpk.sh 生成）
+/packaging/fnos/dist/
+/packaging/fnos/caldav-free/app/server/*
+!/packaging/fnos/caldav-free/app/server/.gitkeep
+*.fpk

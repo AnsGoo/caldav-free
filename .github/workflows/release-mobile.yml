@@ -1,12 +1,17 @@
-# 一键构建四端客户端：Windows 安装包、macOS 应用包、Android APK/AAB、iOS IPA。
+# 一键构建全部客户端与服务端制品：Windows 安装包、macOS DMG、Android APK/AAB、
+# iOS IPA、鸿蒙 HAP、飞牛 fnOS FPK，外加多架构 Docker 镜像。
 #
 # 触发方式：
 #   * 发布 GitHub Release（published）—— 构建完成后自动把产物挂到该 Release。
 #   * Actions → “Release Mobile” → Run workflow —— 只构建并保留 workflow artifacts；
 #     如需挂到已有 Release，可填写 tag 输入框。
 #
-# 与旧的三条独立流水线一致，这里刻意不使用任何缓存（无 actions/cache，
-# flutter-action cache: false），保证每次发布都是干净 runner 上的全量构建。
+# 单个 job 可以临时关掉（仓库 → Settings → Variables）：
+#   HARMONY_CI=false / FNOS_CI=false / DOCKER_CI=false
+#
+# 与旧的三条独立流水线一致，这里刻意不使用 Actions 缓存（无 actions/cache，
+# flutter-action / setup-go / setup-node 的 cache 全关），保证每次发布都是干净
+# runner 上的全量构建。Docker job 只用 registry 缓存，同样不占 Actions 额度。
 name: Release Mobile
 
 on:
@@ -23,7 +28,7 @@ permissions:
   contents: write
 
 jobs:
-  # 从 pubspec.yaml 读取版本号，供三端产物命名和 Windows 安装包使用。
+  # 从 pubspec.yaml 读取版本号，供各端产物命名使用。
   version:
     name: Read version
     runs-on: ubuntu-latest
@@ -498,13 +503,325 @@ jobs:
           # 只是中转，最终由 publish job 挂到 Release，不用留太久。
           retention-days: 7
 
+  # 飞牛 fnOS 原生安装包（FPK）。
+  #
+  # 打包逻辑全在 scripts/build-fnos-fpk.sh 里（前端构建 → 交叉编译 → 组装 app.tgz →
+  # 出 .fpk），这里只负责装工具链、跑打包、跑冒烟。结构与 music-free 的一致。
+  #
+  # 两个架构各用一个原生 runner：服务端是纯 Go SQLite，CGO_ENABLED=0 本来交叉编译
+  # 也能出包，但 arm64 包必须在一台真 arm64 Linux 上冒烟，否则等于没测。
+  fnos:
+    name: fnOS FPK (${{ matrix.arch }})
+    needs: version
+    # 临时不想出飞牛包，把仓库变量 FNOS_CI 设为 false 即可跳过本 job。
+    if: vars.FNOS_CI != 'false'
+    timeout-minutes: 45
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      # 版本号统一取 mobile/pubspec.yaml（与各端产物同名），不用 packaging 里 manifest
+      # 的默认值，避免两处版本漂移；脚本会在暂存目录里覆写，源 manifest 不动。
+      FPK_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate FPK structure
+        run: ./scripts/validate-fnos-fpk.sh
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # 本仓库刻意不用 Actions 缓存（额度有限），setup-go 默认 cache: true，必须显式关。
+          cache: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Build frontend + binary + FPK
+        run: ./scripts/build-fnos-fpk.sh "${{ matrix.arch }}"
+
+      # 在 runner 上真装一遍：解包 → 走 fnOS 的生命周期脚本 → 起服务 → 请求首页 → 停服。
+      # 只验证"包能打出来"是不够的，脚本里引用的路径和端口才是实际会炸的地方。
+      - name: Smoke test (install → start → HTTP 200 → stop)
+        run: ./scripts/smoke-test-fpk.sh "packaging/fnos/dist/caldav-free-${FPK_VERSION}-${{ matrix.arch }}.fpk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fnos-release-${{ matrix.arch }}
+          path: packaging/fnos/dist/*.fpk
+          retention-days: 7
+          if-no-files-found: error
+
+  # Docker 镜像（linux/amd64 + linux/arm64，合并成多架构 manifest）。
+  #
+  # 推哪个仓库由凭据决定：
+  #   * 配了 secrets.DOCKERHUB_USERNAME / DOCKERHUB_TOKEN → docker.io/<user>/caldav-free
+  #   * 没配 → ghcr.io/<owner>/caldav-free，用 GITHUB_TOKEN 推，不依赖额外 secret
+  # 标签策略：<tag>（如 v2.7.1）、<version>（2.7.1）、sha-<7 位>；正式 tag 才覆盖 latest。
+  #
+  # 分架构在两个原生 runner 上跑，最后用 imagetools 合并 manifest ——
+  # 单 job 走 QEMU 模拟 arm64 的话，npm ci + go build 会慢一个量级。
+  docker-meta:
+    name: Docker metadata
+    needs: version
+    # 临时不想出镜像，把仓库变量 DOCKER_CI 设为 false 即可跳过。
+    if: vars.DOCKER_CI != 'false'
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.meta.outputs.image }}
+      registry: ${{ steps.meta.outputs.registry }}
+      tags: ${{ steps.meta.outputs.tags }}
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    steps:
+      - id: meta
+        name: Resolve registry and tags
+        run: |
+          set -euo pipefail
+          version="${{ needs.version.outputs.version }}"
+          tag="${{ needs.version.outputs.tag }}"
+
+          if [ -n "${DOCKERHUB_USERNAME:-}" ] && [ -n "${DOCKERHUB_TOKEN:-}" ]; then
+            registry="docker.io"
+            image="docker.io/${DOCKERHUB_USERNAME}/caldav-free"
+          else
+            registry="ghcr.io"
+            # 仓库所有者可能带大写，镜像名必须全小写，否则 push 会被拒。
+            owner="$(printf '%s' "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+            image="ghcr.io/${owner}/caldav-free"
+            echo "::notice::未配置 Docker Hub 凭据，改推 ${image}"
+          fi
+
+          # 用数组拼标签，别用多行字符串 —— 块标量里稍不留神就会把缩进空格
+          # 一起打进镜像名里，push 时报 "invalid reference format"。
+          tag_list=(
+            "${image}:${tag}"
+            "${image}:${version}"
+            "${image}:sha-${GITHUB_SHA:0:7}"
+          )
+          # 预发布（tag 里带 -rc / -beta / -debug 之类）不覆盖 latest
+          case "$tag" in
+            *-*) ;;
+            *) tag_list+=("${image}:latest") ;;
+          esac
+          tags="$(printf '%s\n' "${tag_list[@]}")"
+
+          echo "registry=${registry}" >> "$GITHUB_OUTPUT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          {
+            echo "tags<<DOCKER_TAGS"
+            printf '%s\n' "$tags"
+            echo "DOCKER_TAGS"
+          } >> "$GITHUB_OUTPUT"
+          printf '镜像：%s\n标签：\n%s\n' "$image" "$tags"
+
+  docker-build:
+    name: Docker (${{ matrix.arch }})
+    needs: [version, docker-meta]
+    timeout-minutes: 60
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: needs.docker-meta.outputs.registry == 'docker.io'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: needs.docker-meta.outputs.registry == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 每个架构先推到 temp-<arch>-<run_id>，由 docker-merge 合成正式 manifest。
+      # 这样两条腿互不阻塞，单个架构失败也不会污染正式 tag。
+      - name: Build and push platform image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          tags: ${{ needs.docker-meta.outputs.image }}:temp-${{ matrix.arch }}-${{ github.run_id }}
+          push: true
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.title=caldav-free
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          # 只走 registry 缓存（存在镜像仓库里），不用 type=gha ——
+          # 本仓库刻意不占 Actions 缓存额度。代价是首次冷构建 2~3 分钟。
+          cache-from: type=registry,ref=${{ needs.docker-meta.outputs.image }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ needs.docker-meta.outputs.image }}:buildcache-${{ matrix.arch }},mode=max
+
+  # 镜像自带管理后台这件事必须有自动化兜底：容器能起来、/healthz 200，并不代表
+  # 前端打进去了 —— go:embed 拿到空 dist 时进程照样启动，只是 /admin/ 会 500。
+  # 两个架构各验一次：前端是在各自 runner 上编译的，产物不一定同源。
+  docker-smoke:
+    name: Docker smoke (${{ matrix.arch }})
+    needs: [version, docker-meta, docker-build]
+    if: vars.DOCKER_CI != 'false'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      IMAGE: ${{ needs.docker-meta.outputs.image }}
+      RUN_ID: ${{ github.run_id }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - name: Log in to Docker Hub
+        if: needs.docker-meta.outputs.registry == 'docker.io'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: needs.docker-meta.outputs.registry == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull platform image
+        run: docker pull "${IMAGE}:temp-${ARCH}-${RUN_ID}"
+
+      - name: Probe /healthz and /admin/
+        run: |
+          set -euo pipefail
+          ref="${IMAGE}:temp-${ARCH}-${RUN_ID}"
+          docker run -d --name cf-smoke -p 5232:5232 \
+            -e CALDAV_ADMIN_PASSWORD='Smoke#2026' "$ref"
+          # 失败时把容器日志带出来，否则只有一行 curl 的 000，没法定位。
+          trap 'docker logs cf-smoke 2>&1 | tail -20 || true' ERR
+          trap 'docker rm -f cf-smoke >/dev/null 2>&1 || true' EXIT
+
+          ready=0
+          for _ in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 \
+              http://127.0.0.1:5232/healthz || true)"
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            echo "::error::/healthz 30s 内没有就绪"
+            exit 1
+          fi
+
+          html="$(curl -sf --max-time 5 http://127.0.0.1:5232/admin/)" \
+            || { echo "::error::/admin/ 拉取失败，镜像里很可能没有前端"; exit 1; }
+          # 用 here-string 而不是管道喂 grep -q：grep 命中即退出会让上游
+          # printf 收到 SIGPIPE，在 pipefail 下整个脚本判 141。
+          grep -q 'id="app"' <<< "$html" \
+            || { echo "::error::/admin/ 返回的不是管理后台页面"; exit 1; }
+
+          asset="$(grep -oE -m1 '/admin/assets/[^"]+\.js' <<< "$html" || true)"
+          if [ -z "$asset" ]; then
+            echo "::error::/admin/ 的 HTML 里没有 JS bundle 引用"
+            exit 1
+          fi
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+            "http://127.0.0.1:5232${asset}")"
+          if [ "$code" != "200" ]; then
+            echo "::error::静态资源 ${asset} 返回 ${code}"
+            exit 1
+          fi
+          echo "管理后台可用：${asset} 200"
+
+  docker-merge:
+    name: Docker multi-arch manifest
+    needs: [version, docker-meta, docker-build, docker-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        if: needs.docker-meta.outputs.registry == 'docker.io'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GHCR
+        if: needs.docker-meta.outputs.registry == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 用一个 manifest list 把 amd64 / arm64 两个镜像指向同一批标签。
+      # 临时标签（temp-*）不删：Docker Hub 与 GHCR 都没有删标签的 CLI，
+      # 而它们只是 manifest 指针，几乎不占空间；run_id 每次不同，不会互相覆盖。
+      - name: Create multi-arch manifest
+        env:
+          IMAGE: ${{ needs.docker-meta.outputs.image }}
+          TAGS: ${{ needs.docker-meta.outputs.tags }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          args=()
+          while IFS= read -r t; do
+            # 不要写成 `[ -n "$t" ] && args+=(...)`：某行为空时整个 `&&` 返回 1，
+            # 在 set -e 下会当场退出脚本。
+            if [ -n "$t" ]; then args+=(-t "$t"); fi
+          done <<< "$TAGS"
+          docker buildx imagetools create "${args[@]}" \
+            "${IMAGE}:temp-amd64-${RUN_ID}" \
+            "${IMAGE}:temp-arm64-${RUN_ID}"
+
+      - name: Inspect manifest
+        env:
+          IMAGE: ${{ needs.docker-meta.outputs.image }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"
+
   # Release 事件，或手动运行且填写了 tag 时，把各端产物统一挂到该 Release。
   publish:
     name: Attach assets to release
     # always()：只要 version 读到了，就别因为某一端失败（或 harmony 的 runner 没上线）
     # 而让其他平台的产物上不了 Release。缺哪个端就少传哪个产物。
     if: always() && !cancelled() && (github.event_name == 'release' || inputs.tag) && needs.version.result == 'success'
-    needs: [version, android, macos, windows, ios, harmony]
+    needs: [version, android, macos, windows, ios, harmony, fnos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4

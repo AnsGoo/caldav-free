@@ -1,0 +1,96 @@
+# 手动重打飞牛 FPK（可选入口）。
+#
+# 正式发布走 release-mobile.yml —— 那里已经把 FPK 和 Docker 镜像一起出包，
+# 并在 Release 事件下自动挂到该 Release。本工作流只在"只想单独重打一个 FPK、
+# 不想等六端客户端构建"时手动触发，因此**不监听 release 事件**，避免同一次
+# 发布重复打包两遍。
+name: Release fnOS FPK (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fnos-fpk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate FPK structure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate packaging/fnos layout
+        run: ./scripts/validate-fnos-fpk.sh
+
+  build-fpk:
+    name: Build FPK (${{ matrix.arch }})
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          # 本仓库刻意不用 Actions 缓存（额度有限）
+          cache: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve version
+        run: |
+          set -eu
+          if [ "${{ github.event_name }}" = "release" ]; then
+            ver="${{ github.event.release.tag_name }}"
+          else
+            ver="${GITHUB_REF_NAME}"
+          fi
+          ver="${ver#[vV]}"
+          if ! printf '%s' "${ver}" | grep -qE '^[0-9]+\.[0-9]+'; then
+            ver="$(grep -E '^version=' packaging/fnos/caldav-free/manifest | head -1 | cut -d= -f2 | tr -d '[:space:]')"
+            echo "::warning::无法从 ref 推导版本号，回落为 manifest 中的 ${ver}"
+          fi
+          echo "FPK_VERSION=${ver}" >> "${GITHUB_ENV}"
+          echo "本次打包版本：${ver}"
+
+      - name: Build frontend + binary + FPK
+        run: ./scripts/build-fnos-fpk.sh "${{ matrix.arch }}"
+
+      - name: Smoke test (install → start → HTTP 200 → stop)
+        run: ./scripts/smoke-test-fpk.sh "packaging/fnos/dist/caldav-free-${FPK_VERSION}-${{ matrix.arch }}.fpk"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fnos-fpk-${{ matrix.arch }}
+          path: packaging/fnos/dist/caldav-free-${{ env.FPK_VERSION }}-${{ matrix.arch }}.fpk
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Attach FPK to Release
+        if: github.event_name == 'release' || github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/fnos/dist/caldav-free-${{ env.FPK_VERSION }}-${{ matrix.arch }}.fpk
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

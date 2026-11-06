@@ -111,6 +111,8 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - [客户端 P0/P1/P2](docs/客户端P0.md)：Flutter Android 骨架、本地库、同步内核、提醒/回收站/重复任务、看板/矩阵/时间线、测试与真机待办
 - [架构与同步设计](docs/ARCHITECTURE.md)：数据表、VTODO 对账、事件展开、统计聚合、AI 工具循环
 - [实现进度与路线图](docs/ROADMAP.md)：已完成批次、提交记录、未实现能力与优先级
+- [飞牛 FPK 打包](docs/飞牛FPK打包.md)：fnOS 原生安装包结构、本地打包、生命周期脚本与 CI 流水线
+- [Docker 镜像](docs/Docker镜像.md)：镜像分层、环境变量、多架构构建与发布标签策略
 
 ## 快速开始
 
@@ -171,6 +173,14 @@ CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o caldav-free ./cmd/caldav-fr
 
 ### Docker
 
+镜像随 Release 一起产出（`linux/amd64` + `linux/arm64` 多架构 manifest），直接拉取即可：
+
+```bash
+docker pull ghcr.io/ansgoo/caldav-free:latest   # 或 :2.7.1 这类版本号
+```
+
+本地构建：
+
 ```bash
 docker compose up -d --build
 ```
@@ -186,6 +196,8 @@ docker run -d --name caldav \
   -e CALDAV_EXTERNAL_URL='https://dav.example.com' \
   caldav-free
 ```
+
+镜像构成、环境变量、标签策略与 CI 多架构构建见 [Docker 镜像](docs/Docker镜像.md)。
 
 ## 配置
 

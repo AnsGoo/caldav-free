@@ -1,0 +1,33 @@
+[
+    {
+        "stepTitle": "卸载选项",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "数据库与管理员配置保存在应用数据目录。保留后重新安装可继续使用原有账号与数据。"
+            },
+            {
+                "type": "radio",
+                "field": "wizard_data_action",
+                "label": "数据处理",
+                "initValue": "keep",
+                "options": [
+                    {
+                        "label": "保留数据（推荐）",
+                        "value": "keep"
+                    },
+                    {
+                        "label": "删除全部数据",
+                        "value": "delete"
+                    }
+                ],
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请选择数据处理方式"
+                    }
+                ]
+            }
+        ]
+    }
+]

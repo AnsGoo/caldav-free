@@ -1,0 +1,51 @@
+[
+    {
+        "stepTitle": "欢迎安装",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "历记（caldav-free）是一个自托管的 CalDAV 服务端，安装完成后通过 <strong>http://NAS_IP:5232</strong> 打开管理后台，再用系统或第三方日历客户端连接同一地址。"
+            },
+            {
+                "type": "tips",
+                "helpText": "数据（SQLite 数据库）保存在应用数据目录，升级不会丢失；卸载时可选择是否保留。"
+            }
+        ]
+    },
+    {
+        "stepTitle": "管理员账号",
+        "items": [
+            {
+                "type": "tips",
+                "helpText": "以下账号仅在数据库为空时创建一次，用于登录管理后台。"
+            },
+            {
+                "type": "text",
+                "field": "wizard_admin_username",
+                "label": "管理员用户名",
+                "initValue": "admin",
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请输入管理员用户名"
+                    }
+                ]
+            },
+            {
+                "type": "password",
+                "field": "wizard_admin_password",
+                "label": "管理员密码",
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请输入管理员密码"
+                    },
+                    {
+                        "min": 8,
+                        "message": "密码长度不能少于 8 位"
+                    }
+                ]
+            }
+        ]
+    }
+]

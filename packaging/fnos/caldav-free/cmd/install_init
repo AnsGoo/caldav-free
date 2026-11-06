@@ -1,0 +1,15 @@
+#!/bin/bash
+# 安装前：只做目录准备与轻量检查，不阻塞安装流程。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+log_msg "install_init: begin"
+
+mkdir -p "$(app_var_dir)" "$(app_etc_dir)" 2>/dev/null || true
+
+log_msg "install_init: ok"
+exit 0

@@ -1,10 +1,20 @@
+# 镜像里只需要 Go 源码 + web/（前端源码）+ internal/web 的模板与静态资源。
+# 其余目录一律不进构建上下文：本机 mobile/build 就有 5.7 GB，
+# 不过滤的话每次 docker build 都要先把它们整体传给守护进程。
 .git
+.github
 .gitignore
+*.md
 data
+dist
 bin
+docs
+brand
+packaging
+scripts
+mobile
+web/node_modules
+internal/web/dist
 *.db
 *.db-shm
 *.db-wal
-README.md
-web/node_modules
-internal/web/dist

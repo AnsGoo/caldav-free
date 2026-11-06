@@ -1,0 +1,140 @@
+#!/bin/bash
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+
+VAR_DIR="$(app_var_dir)"
+ETC_DIR="$(app_etc_dir)"
+DEST_DIR="$(app_dest_dir)"
+BINARY="${DEST_DIR}/server/${BINARY_NAME}"
+PID_FILE="${VAR_DIR}/${APP_NAME}.pid"
+SERVER_LOG="${VAR_DIR}/${APP_NAME}.log"
+ADMIN_ENV="${ETC_DIR}/admin.env"
+
+PORT="$(service_port)"
+
+is_running() {
+    local pid
+    [ -f "${PID_FILE}" ] || return 1
+    pid="$(head -n 1 "${PID_FILE}" 2>/dev/null | tr -d '[:space:]')"
+    if [ -z "${pid}" ]; then
+        rm -f "${PID_FILE}"
+        return 1
+    fi
+    if kill -0 "${pid}" 2>/dev/null; then
+        return 0
+    fi
+    rm -f "${PID_FILE}"
+    return 1
+}
+
+start_app() {
+    if is_running; then
+        log_msg "already running, skip start"
+        return 0
+    fi
+
+    if [ ! -x "${BINARY}" ]; then
+        fail_with_message "未找到可执行文件：${BINARY}，请重新安装应用。"
+    fi
+
+    mkdir -p "${VAR_DIR}"
+
+    # 管理员口令以环境变量方式注入，避免出现在进程命令行里（ps 可见）。
+    if [ -f "${ADMIN_ENV}" ]; then
+        # shellcheck disable=SC1090
+        . "${ADMIN_ENV}"
+    fi
+
+    export_fnos_path
+    umask 077
+
+    log_msg "starting ${APP_NAME} on 0.0.0.0:${PORT}"
+    cd "${VAR_DIR}" || fail_with_message "无法进入数据目录：${VAR_DIR}"
+
+    nohup "${BINARY}" \
+        -addr "0.0.0.0:${PORT}" \
+        -data "${VAR_DIR}" \
+        >>"${SERVER_LOG}" 2>&1 &
+    echo $! > "${PID_FILE}"
+
+    if ! wait_for_port "${PORT}"; then
+        if is_running; then
+            kill -TERM "$(head -n 1 "${PID_FILE}")" 2>/dev/null || true
+        fi
+        rm -f "${PID_FILE}"
+        fail_with_message "服务未在 60 秒内监听端口 ${PORT}，请查看日志：${SERVER_LOG}"
+    fi
+
+    if ! is_running; then
+        fail_with_message "进程启动后立即退出，请查看日志：${SERVER_LOG}"
+    fi
+
+    log_msg "started, pid=$(head -n 1 "${PID_FILE}")"
+    return 0
+}
+
+stop_app() {
+    local pid count=0
+
+    if [ ! -f "${PID_FILE}" ]; then
+        log_msg "no pid file, nothing to stop"
+        return 0
+    fi
+
+    pid="$(head -n 1 "${PID_FILE}" 2>/dev/null | tr -d '[:space:]')"
+    if [ -z "${pid}" ]; then
+        rm -f "${PID_FILE}"
+        return 0
+    fi
+
+    log_msg "stopping pid=${pid}"
+    if kill -0 "${pid}" 2>/dev/null; then
+        kill -TERM "${pid}" 2>/dev/null || true
+        while kill -0 "${pid}" 2>/dev/null && [ "${count}" -lt 15 ]; do
+            sleep 1
+            count=$((count + 1))
+        done
+        if kill -0 "${pid}" 2>/dev/null; then
+            kill -KILL "${pid}" 2>/dev/null || true
+            sleep 1
+        fi
+    fi
+
+    rm -f "${PID_FILE}"
+    log_msg "stopped"
+    return 0
+}
+
+case "$1" in
+    start)
+        start_app
+        exit 0
+        ;;
+    stop)
+        stop_app
+        exit 0
+        ;;
+    status)
+        if is_running; then
+            exit 0
+        fi
+        exit 3
+        ;;
+    log)
+        if [ -f "${SERVER_LOG}" ]; then
+            tail -n "${2:-100}" "${SERVER_LOG}"
+        else
+            echo "日志文件不存在：${SERVER_LOG}"
+            exit 1
+        fi
+        exit 0
+        ;;
+    *)
+        exit 1
+        ;;
+esac

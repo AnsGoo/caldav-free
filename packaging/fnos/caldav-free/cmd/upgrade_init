@@ -1,0 +1,15 @@
+#!/bin/bash
+# 升级前：fnOS 会先停止应用，这里只记录状态并确保目录存在。
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common.sh
+. "${SCRIPT_DIR}/common.sh"
+
+init_logging
+log_msg "upgrade_init: begin"
+
+mkdir -p "$(app_var_dir)" "$(app_etc_dir)" 2>/dev/null || true
+
+log_msg "upgrade_init: ok"
+exit 0

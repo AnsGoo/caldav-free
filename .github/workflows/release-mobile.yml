@@ -677,6 +677,13 @@ jobs:
       # 这样两条腿互不阻塞，单个架构失败也不会污染正式 tag。
       - name: Build and push platform image
         uses: docker/build-push-action@v6
+        # buildx 每次构建结束后会把"构建记录"（给 Docker Desktop 看的那种诊断包）
+        # 当成一个 artifact 传上来，名字形如 AnsGoo~caldav-free~PRRNQZ.dockerbuild。
+        # 发布 job 的 download-artifact 不指定 name/pattern 时会连它一起拉，
+        # 而它不是普通压缩包，解压必失败 —— v0.0.7 的 Release 就是卡在这里。
+        # 关掉：构建摘要照旧，只是少一个几乎没人下载的诊断包。
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: "false"
         with:
           context: .
           file: ./Dockerfile
@@ -835,8 +842,17 @@ jobs:
     needs: [version, android, macos, windows, ios, harmony, fnos]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      # 必须用 pattern 排掉 buildx 的构建记录（*.dockerbuild）。
+      # download-artifact 不写 name / pattern 时的默认行为是"拉本次运行的全部
+      # artifact"，一旦碰上构建记录就会整体失败：
+      #   Unable to download and extract artifact: Artifact download failed after 5 retries.
+      # v0.0.7 就是这么炸的 —— 五个平台的产物都下来了，第六个是构建记录，重试 5 次后
+      # 整个 publish 失败，Release 上一个产物都没挂上去。
+      # 反过来做（只列 *-release*）会把"新增平台忘了改名"变成静默丢包，所以用排除法。
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
         with:
+          pattern: "!*.dockerbuild"
           path: dist
           merge-multiple: true
 
@@ -845,5 +861,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ inputs.tag || needs.version.outputs.tag }}
         run: |
-          ls -l dist
-          gh release upload "$TAG" dist/* --repo "${{ github.repository }}" --clobber
+          set -euo pipefail
+          # 只传文件：dist 里万一混进目录，gh release upload 会整体失败，
+          # 而这正是上一个 bug 想造成的结果。宁可少传，也别全不传。
+          files=()
+          while IFS= read -r -d '' f; do files+=("$f"); done < <(find dist -type f -print0)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::dist 里没有可上传的产物"
+            exit 1
+          fi
+          printf '%s\n' "${files[@]}"
+          gh release upload "$TAG" "${files[@]}" --repo "${{ github.repository }}" --clobber

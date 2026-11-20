@@ -113,6 +113,9 @@ Go 1.26 · SQLite (GORM) · 单二进制 · 无 CGO · 单文件数据库
 - [实现进度与路线图](docs/ROADMAP.md)：已完成批次、提交记录、未实现能力与优先级
 - [飞牛 FPK 打包](docs/飞牛FPK打包.md)：fnOS 原生安装包结构、本地打包、生命周期脚本与 CI 流水线
 - [Docker 镜像](docs/Docker镜像.md)：镜像分层、环境变量、多架构构建与发布标签策略
+- [macOS 打包](docs/macOS打包.md)：DMG 产物、体积裁剪、Gatekeeper 与公证、通用/分架构取舍
+- [鸿蒙打包](docs/鸿蒙打包.md)：Flutter 五端里的 OHOS 适配、工具链、构建提速与失败定位
+- [鸿蒙签名](docs/鸿蒙签名.md)：自动/手动签名、AGC 与 Profile 配置、build-profile 回填与报错对照
 
 ## 快速开始
 

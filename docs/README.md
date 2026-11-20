@@ -18,6 +18,11 @@ caldav-free 是一个自托管的 CalDAV 日历服务器，内置任务工作台
 | [客户端同步协议](同步协议.md) | `/api/sync/pull` 与 `/api/sync/push` 的认证、实体、游标、ETag 冲突、幂等、保留策略与 curl 示例 |
 | [客户端 P0](客户端P0.md) | Android Flutter 骨架：登录、本地库、outbox、同步内核、任务页、测试结果、环境偏差与真机待办 |
 | [Android 调试手册](Android调试手册.md) | 模拟器/真机、后端、构建安装、adb 输入、截图、UI 自动化、通知、字体缩放与 LAN 分发 |
+| [macOS 打包](macOS打包.md) | .app → .dmg、体积裁剪、Gatekeeper 与公证、通用/分架构取舍 |
+| [鸿蒙打包](鸿蒙打包.md) | Flutter OHOS 适配、工具链搭建、构建提速、失败定位与模拟器验证 |
+| [鸿蒙签名](鸿蒙签名.md) | 自动/手动签名流程、AGC 配置、build-profile 回填与报错对照 |
+| [飞牛 FPK 打包](飞牛FPK打包.md) | fnOS 原生安装包结构、本地打包、生命周期脚本与 CI 流水线 |
+| [Docker 镜像](Docker镜像.md) | 镜像分层、环境变量、多架构构建与发布标签策略 |
 
 ## 快速入口
 

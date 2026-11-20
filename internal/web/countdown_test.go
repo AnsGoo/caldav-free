@@ -10,10 +10,11 @@ import (
 
 func TestCountdownAPI(t *testing.T) {
 	env := newAPIEnv(t)
-	date := 0
-	for _, ch := range time.Now().AddDate(0, 0, 10).Format("20060102") {
-		date = date*10 + int(ch-'0')
-	}
+	// 日期必须用 time.Time 递推。早先这里把 yyyymmdd 当整数做 +1/+2，
+	// 落在月末时会拼出 20261131 这种不存在的日期（今天+10 = 11-30，
+	// 于是 +1 直接 400），测试结果随运行日期漂移。
+	base := time.Now().AddDate(0, 0, 10)
+	date := countdownDay(base)
 	status, body := env.request(t, "POST", "/api/admin/countdowns", map[string]any{
 		"name": "发布日", "type": "countdown", "date": date, "repeat": "none", "reminders": "[0,3]", "reminderTime": "08:30",
 	}, env.csrf)
@@ -40,7 +41,7 @@ func TestCountdownAPI(t *testing.T) {
 		t.Fatalf("update countdown = %d: %s", status, body)
 	}
 	status, body = env.request(t, "POST", "/api/admin/countdowns", map[string]any{
-		"name": "第二项", "type": "countdown", "date": date + 1, "repeat": "none",
+		"name": "第二项", "type": "countdown", "date": countdownDay(base.AddDate(0, 0, 1)), "repeat": "none",
 	}, env.csrf)
 	if status != http.StatusCreated {
 		t.Fatalf("second countdown = %d: %s", status, body)
@@ -54,7 +55,7 @@ func TestCountdownAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	status, body = env.request(t, "POST", "/api/admin/countdowns", map[string]any{
-		"name": "第三项", "type": "countdown", "date": date + 2, "repeat": "none",
+		"name": "第三项", "type": "countdown", "date": countdownDay(base.AddDate(0, 0, 2)), "repeat": "none",
 	}, env.csrf)
 	if status != http.StatusCreated {
 		t.Fatalf("third countdown = %d: %s", status, body)
@@ -106,4 +107,10 @@ func TestCountdownAPI(t *testing.T) {
 	if status != http.StatusNoContent {
 		t.Fatalf("delete countdown = %d", status)
 	}
+}
+
+// countdownDay 把时间转成接口要求的 yyyymmdd 整数。
+func countdownDay(t time.Time) int {
+	day, _ := strconv.Atoi(t.Format("20060102"))
+	return day
 }

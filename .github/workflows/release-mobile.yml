@@ -35,6 +35,8 @@ jobs:
     outputs:
       version: ${{ steps.read.outputs.version }}
       tag: ${{ steps.read.outputs.tag }}
+      # 飞牛 FPK 的 manifest 版本，见下方 read step：优先跟随 Release tag。
+      fpk_version: ${{ steps.read.outputs.fpk_version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,9 +55,18 @@ jobs:
           if [ -z "$tag" ]; then
             tag="v$version"
           fi
+          # FPK 的 manifest/文件名版本优先跟随 Release tag（v0.0.6 → 0.0.6），
+          # 这样手动补挂到已有 Release 时产物名和 tag 对得上；tag 不是版本号
+          # 形状（比如按日期命名）时回落为 pubspec 的版本，避免写进 manifest 的
+          # 值让 fnOS 装不上。
+          fpk_version="${tag#[vV]}"
+          if ! printf '%s' "$fpk_version" | grep -qE '^[0-9]+\.[0-9]+'; then
+            fpk_version="$version"
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Version: $version ($tag)"
+          echo "fpk_version=$fpk_version" >> "$GITHUB_OUTPUT"
+          echo "Version: $version ($tag), FPK: $fpk_version"
 
   android:
     name: Android APK + AAB
@@ -526,9 +537,9 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     env:
-      # 版本号统一取 mobile/pubspec.yaml（与各端产物同名），不用 packaging 里 manifest
-      # 的默认值，避免两处版本漂移；脚本会在暂存目录里覆写，源 manifest 不动。
-      FPK_VERSION: ${{ needs.version.outputs.version }}
+      # 版本号优先取 Release tag（与各端产物同名），tag 不是版本号形状时回落为
+      # mobile/pubspec.yaml 的版本；脚本会在暂存目录里覆写，源 manifest 不动。
+      FPK_VERSION: ${{ needs.version.outputs.fpk_version }}
     steps:
       - uses: actions/checkout@v4
 

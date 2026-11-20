@@ -21,6 +21,7 @@ node_modules/
 
 # Local tooling & editor state
 /.qoder/
+/.workbuddy/
 /.idea/
 *.iml
 *.log
